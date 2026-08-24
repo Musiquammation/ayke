@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Ayke</title>
+		<link rel="stylesheet" href="index.css">
+	</head>
+	<body>
+
+		<div id="main" x-data="main">
+			<template x-if="uses('index')">
+				<div id="index-page" class="page">
+					Hello World
+				</div>
+			</template>
+
+			<template x-if="uses('test')">
+				<div id="test-page" class="page">
+					Hello World
+				</div>
+			</template>
+		</div>
+
+		<script>
+			window.IMG_ROOT_PATH = "";
+			window.DEBUG = true;
+			window.SLOW_FPS = false;
+			window.SERVER_ADDRESS = "ws://localhost:8020";
+			window.PROTOCOL_FILE = "/protocol.proto";
+			window.INDEX_TS = "/src/index.ts";
+
+			var dom;
+			import(window.INDEX_TS).then(m => {
+				dom = m.init();
+			});
+		</script>
+	</body>
+</html>

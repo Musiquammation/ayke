@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "scripts": {
+    "client": "vite",
+    "build-client": "vite build"
+  }
+}
