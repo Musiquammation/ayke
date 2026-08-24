@@ -22,7 +22,6 @@ class Player {
 
 
 	update(obj: Fields) {
-		console.log(obj.x, obj.y, obj.move);
 		this.x = obj.x;
 		this.y = obj.y;
 		this.move = obj.move;
@@ -33,13 +32,16 @@ class Player {
 export class GMTest extends GameMode {
 	readonly players: Player[];
 
-	constructor(players: PlayerInput[], total: number) {
+	private constructor(players: Player[]) {
 		super();
+		this.players = players;
+	}
 
-		this.players = [
+	static create(players: PlayerInput[], total: number) {
+		return new GMTest([
 			new Player(0, 0),
 			new Player(200, 0),
-		]
+		]);
 	}
 
 	override init(): void {
@@ -104,6 +106,14 @@ export class GMTest extends GameMode {
 		for (const [idx, player] of obj.players.entries()) {
 			this.players[idx].update(player);
 		}
+	}
+
+	override clone() {
+		return new GMTest(this.players.map(o => {
+			const p = new Player(o.x, o.y);
+			p.move = o.move;
+			return p;
+		}));
 	}
 }
 

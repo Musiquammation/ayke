@@ -15,19 +15,15 @@ message State {
 }
 
 message Input {
-	int64 timestamp = 1;
-	int32 move = 2;
+	double timestamp = 1;
+	int32 player = 2;
+	int32 move = 3;
 }
-
-message PlayerInputs {
-	repeated Input inputs = 1;
-}
-
 
 message ServerMessage {
-	int64 timestamp = 1;
-	State state = 2;
-	repeated PlayerInputs inputs = 3;
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
 }
 
 message ClientMessage {

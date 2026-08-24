@@ -57,6 +57,7 @@ export const msgtypes = (async function() {
 	return {
 		send,
 		ClientMessage,
+		ServerMessage
 	};
 })();
 

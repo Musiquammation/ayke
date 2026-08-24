@@ -11,5 +11,7 @@ export const gamemods: Record<
     string,
     (players: Player[], total: number) => GameMode
 > = {
-    test: (players, total) => new GMTest(players, total),
+    test: (players, total) => GMTest.create(players, total),
 };
+
+

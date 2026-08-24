@@ -5,6 +5,7 @@ import { getLogger } from "./Logger";
 import { GMTest } from "../commons/gamemods/GMTest";
 import { Fields } from "../commons/Fields";
 import { gamemods } from "../commons/gamemods";
+import { getProtocol } from "../commons/protocolLoader";
 
 const logger = getLogger("room");
 
@@ -14,38 +15,50 @@ interface PlayerInput {
 	data: Fields;
 }
 
-
-interface PlayerRoom {
-	connection: Connection | null;
-	trophees: number;
-	data: Fields;
+class Player {
+	constructor(
+		public connection: Connection | null,
+		public readonly trophees: number,
+		public readonly data: Fields
+	) {
+		
+	}
 }
-
-
-
 
 export class Room {
 	private readonly bots: Bot[];
-	private readonly players: PlayerRoom[];
+	private readonly players: Player[];
 	private backupData!: Uint8Array;
 	private backupDate: number = 0;
+	private readonly inputs = new Array<{date: number, data: Fields}>();
 
 	constructor(
+		public readonly gamemodeId: string,
 		public readonly gamemode: GameMode,
 		players: PlayerInput[]
 	) {
 		this.bots = gamemode.getBots();
-		this.players = players.map(p => ({
-			connection: p.connection,
-			trophees: p.trophees,
-			data: p.data,
-		}));
+		this.players = players.map(p => new Player(
+			p.connection,
+			p.trophees,
+			p.data,
+		));
 	}
 
 	start() {
 		this.gamemode.init();
 		this.backupData = this.gamemode.save();
-		this.backupDate = performance.now();		
+		this.backupDate = performance.now();
+		
+		const gdata = getProtocol(this.gamemodeId).get().ServerMessage.encode({
+			timestamp: this.backupDate,
+			state: this.backupData,
+			inputs: [],
+		}).finish();
+
+		for (const p of this.players) {
+			p.connection?.sendMessage({gdata});
+		}
 	}
 
 	disconnect(idx: number) {
@@ -81,7 +94,7 @@ class RoomHandler {
 			}
 		}
 
-		const room = new Room(factory(players, total), players);
+		const room = new Room(gamemode, factory(players, total), players);
 		for (const [idx, player] of players.entries()) {
 			player.connection.roomInfo = { room, idx };
 		}

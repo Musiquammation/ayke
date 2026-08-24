@@ -11,7 +11,6 @@ export interface ProtocolTypes {
 	ClientMessage: protobuf.Type;
 	State: protobuf.Type;
 	Input: protobuf.Type;
-	PlayerInputs: protobuf.Type;
 }
 
 // Internal state
@@ -60,7 +59,6 @@ export function getProtocol(name: string) {
 					ClientMessage: root.lookupType(`${namespace}.ClientMessage`),
 					State: root.lookupType(`${namespace}.State`),
 					Input: root.lookupType(`${namespace}.Input`),
-					PlayerInputs: root.lookupType(`${namespace}.PlayerInputs`),
 				};
 				
 				loadedProtocols.set(name, resolvedTypes);
