@@ -46,7 +46,35 @@ export abstract class GameMode {
 		this.run(duration);
 	}
 
-	emulate(timestamp: number, inputs: Fields[]) {
-		console.log(timestamp, inputs);
+	emulate(
+		start: number,
+		finish: number | null,
+		timeDelta: number,
+		inputs: Input[]
+	) {
+		let currentTime = start;
+
+		for (const input of inputs) {
+			// Emulate the time elapsed since the previous event.
+			const inputTimestamp = input.timestamp - timeDelta;
+			const duration = (inputTimestamp - currentTime) / 1000;
+			this.quickEmulate(duration);
+
+			// Apply the input at its timestamp.
+			this.runInput(input.player, input);
+
+			currentTime = inputTimestamp;
+		}
+
+		// If no finish time was provided, only compute it after all inputs
+		// have been processed, so that the computation itself does not affect
+		// the simulation duration.
+		if (finish === null) {
+			finish = performance.now();
+		}
+
+		// Emulate the remaining time after the last input.
+		const duration = (finish - currentTime) / 1000;
+		this.quickEmulate(duration);
 	}
 }
