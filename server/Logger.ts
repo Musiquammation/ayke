@@ -1,5 +1,6 @@
-import fs from "node:fs";
-import path from "node:path";
+import "dotenv/config";
+import fs from "fs";
+import path from "path";
 
 export type LoggerLevel = "debug" | "info" | "waring" | "error";
 
