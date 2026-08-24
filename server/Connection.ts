@@ -94,6 +94,10 @@ export class Connection {
 		run(msg.quitWaitingRoom, d => {
 			matchmaking.removeConnection(this);
 		});
+
+		if (msg.askTimeDelta) {
+			this.sendMessage({timeDeltaDate: performance.now()});
+		}
 	}
 
 	onClose() {

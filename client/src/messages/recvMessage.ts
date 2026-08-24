@@ -1,5 +1,5 @@
 import { getGameHandler } from "../GameHandler";
-import { msgtypes } from "./sendMessage";
+import { msgtypes, sendMessage } from "./sendMessage";
 
 function run<T>(data: T | undefined, exec: (data: T)=>void) {
 	if (data) {
