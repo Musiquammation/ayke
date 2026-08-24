@@ -12,7 +12,6 @@ export default defineConfig({
 		emptyOutDir: true,
 		minify: false,
 		rollupOptions: {
-			input: resolve(import.meta.dirname, "client/index.ts"),
 			output: {
 				entryFileNames: "bundle.js",
 				format: "es"
