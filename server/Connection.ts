@@ -3,7 +3,7 @@ import protobuf from "protobufjs";
 import { msgtypes } from "./sendMessage";
 import { database } from "./Database";
 import { matchmaking } from "./Matchmaking";
-import { Room } from "./RoomHandler";
+import { Room, roomHandler } from "./RoomHandler";
 
 function run<T>(data: T | undefined, exec: (data: T)=>void) {
 	if (data) {
@@ -11,10 +11,16 @@ function run<T>(data: T | undefined, exec: (data: T)=>void) {
 	}
 }
 
+
+interface RoomInfo {
+	room: Room;
+	idx: number;
+}
+
 export class Connection {
 	private pseudo: string | null = null;
 	private alive = true;
-	room: Room | null = null;
+	roomInfo: RoomInfo | null = null;
 
 	constructor(
 		private socket: WebSocket
@@ -40,6 +46,16 @@ export class Connection {
 	}
 
 	onMessage(msg: protobuf.ReflectedMessage) {
+		run(msg.gdata, d => {
+			if (this.roomInfo === null) {
+				this.sendError(2, "Player is not in a room");
+				return;
+			}
+
+			const gdata = this.roomInfo.room.handle(d);
+			this.sendMessage({gdata});
+		});
+
 		run(msg.createAccount, async d => {
 			const db = await database;
 			const success = await db.addUser(d.pseudo, d.password);
@@ -75,6 +91,7 @@ export class Connection {
 
 	onClose() {
 		matchmaking.removeConnection(this);
+		roomHandler.disconnect(this);
 	}
 
 	isAlive() {

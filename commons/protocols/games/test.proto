@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package game_test;
+
+message Empty {}
+
+message Player {
+	float x = 1;
+	float y = 2;
+	int32 move = 3;
+}
+
+message State {
+	int64 timestamp = 1;
+	repeated Player players = 2;
+}
+
+message Input {
+	int64 timestamp = 1;
+	int32 move = 2;
+}
+
+message PlayerInputs {
+	repeated Input inputs = 1;
+}
+
+
+message ServerMessage {
+	State state = 1;
+	repeated PlayerInputs inputs = 2;
+}
+
+message ClientMessage {
+	repeated Input inputs = 1;
+}
+
+

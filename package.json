@@ -14,6 +14,7 @@
     "vite": "^8.2.2"
   },
   "devDependencies": {
-    "@types/alpinejs": "^3.13.11"
+    "@types/alpinejs": "^3.13.11",
+    "@types/node": "^26.2.0"
   }
 }

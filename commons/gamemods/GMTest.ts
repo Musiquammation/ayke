@@ -1,21 +1,35 @@
 import { Bot } from "../Bot";
+import { Fields } from "../Fields";
 import { GameMode } from "../GameMode";
 
 
-type Data = { [k: string]: any };
-
 interface PlayerInput {
-	data: Data;
+	data: Fields;
 }
 
 class Player {
-	
+	connected = true;
+	move = 0;
+
+	constructor(
+		public x: number,
+		public y: number
+	) {
+
+	}
 }
 
 
 export class GMTest extends GameMode {
+	readonly players: Player[];
+
 	constructor(players: PlayerInput[], total: number) {
 		super();
+
+		this.players = [
+			new Player(-100, 0),
+			new Player(100, 0),
+		]
 	}
 
 	init(): void {
@@ -26,13 +40,20 @@ export class GMTest extends GameMode {
 		return [];
 	}
 
-	run(): boolean {
+	run(dt: number): boolean {
 		return false;
 	}
 
-	onDisconnection(id: number): void {
-		
+	runInput(playerIdx: number, input: Fields): void {
+		const player = this.players[playerIdx];
+		if (input.move) {
+			player.move = input.move;
+		}
 	}
 
-	
+	onDisconnection(id: number): void {
+		this.players[id].connected = false;
+	}
 }
+
+	

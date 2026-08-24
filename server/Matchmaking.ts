@@ -1,3 +1,4 @@
+import { Fields } from "../commons/Fields";
 import { Connection } from "./Connection";
 import { database } from "./Database";
 import { getLogger, setLoggerLevel } from "./Logger";
@@ -6,7 +7,6 @@ import { roomHandler } from "./RoomHandler";
 const logger = getLogger("matchmaking");
 // setLoggerLevel("matchmaking", "debug");
 
-type Data = { [k: string]: any };
 
 function getWaitedPlayers(gamemode: string, data: any): number {
 	logger.debug(`[getWaitedPlayers] gamemode=${gamemode}, data=${JSON.stringify(data)}`);
@@ -23,7 +23,7 @@ interface Player {
 	pseudo: string | null;
 	trophees: number;
 	gamemode: string;
-	data: Data;
+	data: Fields;
 	useBots: boolean;
 }
 
@@ -191,7 +191,7 @@ class Matchmaking {
 	async addConnection(
 		connection: Connection,
 		gamemode: string,
-		data: Data
+		data: Fields
 	) {
 		logger.debug(
 			`addConnection: ` +

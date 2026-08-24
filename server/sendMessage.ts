@@ -24,6 +24,7 @@ export async function initSendMessage(
 	const ClientMessage = root.lookupType("game.ClientMessage");
 	const ServerMessage = root.lookupType("game.ServerMessage");
 
+
 	// Resolve the promise once all message types have been loaded.
 	resolveMsgTypes!({
 		ClientMessage,

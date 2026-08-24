@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package game_test;
+
+message Empty {
+}
+
+message Player {
+	float x = 1;
+	float y = 1;
+}
+
+message State {
+	int64 timestamp = 1;
+	repeated Player players = 2;
+}
+
+message Event {
+	int64 timestamp = 1;
+	optional Empty reachFloor = 2;
+}
+
+message Input {
+	int64 timestamp = 1;
+	int32 move = 2;
+}
+
+
+

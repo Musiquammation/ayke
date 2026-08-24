@@ -3,15 +3,20 @@ import { GameMode } from "../commons/GameMode";
 import { Connection } from "./Connection";
 import { getLogger } from "./Logger";
 import { GMTest } from "../commons/gamemods/GMTest";
-
-type Data = { [k: string]: any };
+import { Fields } from "../commons/Fields";
 
 const logger = getLogger("room");
 
 interface Player {
 	connection: Connection;
 	trophees: number;
-	data: Data;
+	data: Fields;
+}
+
+interface PlayerRoom {
+	connection: Connection | null;
+	trophees: number;
+	data: Fields;
 }
 
 
@@ -24,12 +29,29 @@ const gamemods: Record<
 
 export class Room {
 	private readonly bots: Bot[];
+	private readonly players: PlayerRoom[];
 
 	constructor(
 		public readonly gamemode: GameMode,
-		private readonly players: Player[],
+		players: PlayerRoom[]
 	) {
 		this.bots = gamemode.getBots();
+		this.players = players.map(p => ({
+			connection: p.connection,
+			trophees: p.trophees,
+			data: p.data,
+		}))
+	}
+
+	disconnect(idx: number) {
+		if (this.players[idx].connection) {
+			this.gamemode.onDisconnection(idx);
+			this.players[idx].connection = null;
+		}
+	}
+
+	handle(data: protobuf.ReflectedMessage): Uint8Array {
+		return new Uint8Array();
 	}
 }
 
@@ -46,7 +68,7 @@ class RoomHandler {
 
 		// Check players are'nt in a room
 		for (const player of players) {
-			if (player.connection.room) {
+			if (player.connection.roomInfo) {
 				logger.error(
 					`Player '${player.connection.getPseudo()}' is already in a room`
 				);
@@ -55,16 +77,21 @@ class RoomHandler {
 		}
 
 		const room = new Room(factory(players, total), players);
-		for (const player of players) {
-			player.connection.room = room;
+		for (const [idx, player] of players.entries()) {
+			player.connection.roomInfo = { room, idx };
 		}
 
 		this.rooms.push(room);
 	}
 
 	disconnect(connection: Connection) {
+		if (connection.roomInfo === null)
+			return;
 
+		connection.roomInfo.room.disconnect(connection.roomInfo.idx);
 	}
 }
 
 export const roomHandler = new RoomHandler();
+
+

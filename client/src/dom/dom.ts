@@ -24,11 +24,13 @@ class MainComponent {
 
 export const dom = Alpine.reactive(new MainComponent());
 
-document.addEventListener("alpine:init", () => {
-	Alpine.data("main", () => dom);
-});
 
 
+export function initDom() {
+	document.addEventListener("alpine:init", () => {
+		Alpine.data("main", () => dom);
+	});
+	window.Alpine = Alpine;
+	Alpine.start();
+}
 
-window.Alpine = Alpine;
-Alpine.start();
