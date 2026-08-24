@@ -1,7 +1,19 @@
 {
   "type": "module",
   "scripts": {
+    "sync": "cp -r commons/protocols client/public",
     "client": "vite",
-    "build-client": "vite build"
+    "build-client": "vite build",
+    "server": "tsx watch server/server.ts"
+  },
+  "dependencies": {
+    "alpinejs": "^3.16.2",
+    "protobufjs": "^8.7.2",
+    "sqlite3": "^6.0.1",
+    "tsx": "^4.23.12",
+    "vite": "^8.2.2"
+  },
+  "devDependencies": {
+    "@types/alpinejs": "^3.13.11"
   }
 }

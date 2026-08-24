@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package game;
+
+message ClientMessage {
+	oneof message {
+		ClientGameData gameData = 1;
+		Login login = 2;
+		CreateAccount createAccount = 3;
+		StartGame startGame = 4;
+		UseBotsOrder useBotsOrder = 5;
+		QuitWaitingRoom quitWaitingRoom = 6;
+	}
+}
+
+message ClientGameData {
+	int32 temp = 1;
+}
+
+message Login {
+	string pseudo = 1;
+	string password = 2;
+}
+
+message CreateAccount {
+	string pseudo = 1;
+	string password = 2;
+}
+
+message StartGame {
+	string gamemode = 1;
+}
+
+message UseBotsOrder {
+	bool allow = 1;
+}
+
+message QuitWaitingRoom {
+		
+}
+
+message JoinRoom {
+	string room = 1;
+}
+
+
+
+
+message ServerMessage {
+	oneof message {
+		ServerGameData gdata = 1;
+		SuccessResult createAccountResult = 2;
+		SuccessResult loginResult = 3;
+		Error error = 4;
+		WaitingInfo waitingInfo = 5;
+	}
+}
+
+message Error {
+	string message = 1;
+	int32 code = 2;
+}
+
+message ServerGameData {
+	
+}
+
+message SuccessResult {
+	bool success = 1;
+}
+
+message WaitingUser {
+	optional string pseudo = 1;
+	bool allowBots = 2;
+	bool isBot = 3;
+}
+
+message WaitingInfo {
+	int32 total = 1;
+	string room = 2;
+	repeated WaitingUser users = 3;
+}
+
+
