@@ -13,5 +13,11 @@ export function recvMessage(msg: protobuf.ReflectedMessage) {
 	run(msg.loginResult, d => {
 		console.log(d.success);
 	});
+
+	run(msg.error, d => {
+		console.error(d.code, d.message);
+	})
+
+	console.log(msg);
 }
 

@@ -4,6 +4,10 @@ import { msgtypes } from "./sendMessage";
 import { database } from "./Database";
 import { matchmaking } from "./Matchmaking";
 import { Room, roomHandler } from "./RoomHandler";
+import { getLogger } from "./Logger";
+
+const logger = getLogger('connection');
+// logger.setLevel('debug');
 
 function run<T>(data: T | undefined, exec: (data: T)=>void) {
 	if (data) {
@@ -41,20 +45,23 @@ export class Connection {
 		});
 	}
 
-	sendError(code: number, label: string) {
-		this.sendMessage({error: {code, label}});
+	sendError(code: number, message: string) {
+		this.sendMessage({error: {code, message}});
 	}
 
 	onMessage(msg: protobuf.ReflectedMessage) {
-		run(msg.gdata, d => {
+		if (msg.gdata.length) {
 			if (this.roomInfo === null) {
 				this.sendError(2, "Player is not in a room");
 				return;
 			}
 
-			const gdata = this.roomInfo.room.handle(d);
+			const gdata = this.roomInfo.room.handle(msg.gdata);
 			this.sendMessage({gdata});
-		});
+			return;
+		}
+
+		logger.debug(JSON.stringify(msg, null, 4));
 
 		run(msg.createAccount, async d => {
 			const db = await database;

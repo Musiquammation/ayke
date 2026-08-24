@@ -11,8 +11,7 @@ message Player {
 }
 
 message State {
-	int64 timestamp = 1;
-	repeated Player players = 2;
+	repeated Player players = 1;
 }
 
 message Input {
@@ -26,8 +25,9 @@ message PlayerInputs {
 
 
 message ServerMessage {
-	State state = 1;
-	repeated PlayerInputs inputs = 2;
+	int64 timestamp = 1;
+	State state = 2;
+	repeated PlayerInputs inputs = 3;
 }
 
 message ClientMessage {

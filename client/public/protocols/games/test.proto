@@ -2,22 +2,16 @@ syntax = "proto3";
 
 package game_test;
 
-message Empty {
-}
+message Empty {}
 
 message Player {
 	float x = 1;
-	float y = 1;
+	float y = 2;
+	int32 move = 3;
 }
 
 message State {
-	int64 timestamp = 1;
-	repeated Player players = 2;
-}
-
-message Event {
-	int64 timestamp = 1;
-	optional Empty reachFloor = 2;
+	repeated Player players = 1;
 }
 
 message Input {
@@ -25,5 +19,19 @@ message Input {
 	int32 move = 2;
 }
 
+message PlayerInputs {
+	repeated Input inputs = 1;
+}
+
+
+message ServerMessage {
+	int64 timestamp = 1;
+	State state = 2;
+	repeated PlayerInputs inputs = 3;
+}
+
+message ClientMessage {
+	repeated Input inputs = 1;
+}
 
 

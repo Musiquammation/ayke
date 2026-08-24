@@ -4,14 +4,16 @@ import { Connection } from "./Connection";
 import { getLogger } from "./Logger";
 import { GMTest } from "../commons/gamemods/GMTest";
 import { Fields } from "../commons/Fields";
+import { gamemods } from "../commons/gamemods";
 
 const logger = getLogger("room");
 
-interface Player {
+interface PlayerInput {
 	connection: Connection;
 	trophees: number;
 	data: Fields;
 }
+
 
 interface PlayerRoom {
 	connection: Connection | null;
@@ -20,27 +22,30 @@ interface PlayerRoom {
 }
 
 
-const gamemods: Record<
-	string,
-	(players: Player[], total: number) => GameMode
-> = {
-	test: (players, total) => new GMTest(players, total),
-};
+
 
 export class Room {
 	private readonly bots: Bot[];
 	private readonly players: PlayerRoom[];
+	private backupData!: Uint8Array;
+	private backupDate: number = 0;
 
 	constructor(
 		public readonly gamemode: GameMode,
-		players: PlayerRoom[]
+		players: PlayerInput[]
 	) {
 		this.bots = gamemode.getBots();
 		this.players = players.map(p => ({
 			connection: p.connection,
 			trophees: p.trophees,
 			data: p.data,
-		}))
+		}));
+	}
+
+	start() {
+		this.gamemode.init();
+		this.backupData = this.gamemode.save();
+		this.backupDate = performance.now();		
 	}
 
 	disconnect(idx: number) {
@@ -59,7 +64,7 @@ export class Room {
 class RoomHandler {
 	private rooms: Room[] = [];
 
-	append(gamemode: string, total: number, players: Player[]) {
+	append(gamemode: string, total: number, players: PlayerInput[]) {
 		const factory = gamemods[gamemode];
 		if (!factory) {
 			logger.error(`Invalid gamemode '${gamemode}'`);
@@ -82,6 +87,8 @@ class RoomHandler {
 		}
 
 		this.rooms.push(room);
+
+		room.start();
 	}
 
 	disconnect(connection: Connection) {

@@ -4,7 +4,7 @@ package game;
 
 message ClientMessage {
 	oneof message {
-		ClientGameData gameData = 1;
+		bytes gdata = 1;
 		Login login = 2;
 		CreateAccount createAccount = 3;
 		StartGame startGame = 4;
@@ -13,9 +13,6 @@ message ClientMessage {
 	}
 }
 
-message ClientGameData {
-	int32 temp = 1;
-}
 
 message Login {
 	string pseudo = 1;
@@ -48,7 +45,7 @@ message JoinRoom {
 
 message ServerMessage {
 	oneof message {
-		ServerGameData gdata = 1;
+		bytes gdata = 1;
 		SuccessResult createAccountResult = 2;
 		SuccessResult loginResult = 3;
 		Error error = 4;
@@ -59,10 +56,6 @@ message ServerMessage {
 message Error {
 	string message = 1;
 	int32 code = 2;
-}
-
-message ServerGameData {
-	
 }
 
 message SuccessResult {

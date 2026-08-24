@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import protobuf from "protobufjs";
 import fs from "fs";
 import http from "http";
 import https from "https";
@@ -7,14 +8,17 @@ import { WebSocketServer } from "ws";
 import { initSendMessage } from "./sendMessage";
 import { initDb } from "./Database";
 import { getLogger } from "./Logger";
+import { initProtocols } from "../commons/protocolLoader";
 
 const PORT = Number(process.env.PORT);
 const PROTOCOL_PATH = process.env.PROTOCOL_PATH;
 const DB_FILE = process.env.DB_FILE;
+const PROTOCOLS_FOLDER = process.env.PROTOCOLS_FOLDER;
 
 if (!PORT) { throw new Error("PORT is not defined or invalid"); }
 if (!PROTOCOL_PATH) { throw new Error("PROTOCOL_PATH is not defined or invalid"); }
 if (!DB_FILE) { throw new Error("DB_FILE is not defined or invalid"); }
+if (!PROTOCOLS_FOLDER) { throw new Error("PROTOCOLS_FOLDER is not defined or invalid"); }
 
 const logger = getLogger("main");
 
@@ -51,4 +55,7 @@ initSendMessage(PROTOCOL_PATH, wss).then(() => {
 });
 
 
+initProtocols(name => protobuf.load(PROTOCOLS_FOLDER + name + ".proto"));
+
 initDb(DB_FILE);
+

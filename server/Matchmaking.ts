@@ -5,7 +5,7 @@ import { getLogger, setLoggerLevel } from "./Logger";
 import { roomHandler } from "./RoomHandler";
 
 const logger = getLogger("matchmaking");
-// setLoggerLevel("matchmaking", "debug");
+// logger.setLevel('debug');
 
 
 function getWaitedPlayers(gamemode: string, data: any): number {
@@ -535,8 +535,8 @@ class Matchmaking {
 		);
 
 		logger.info(
-			`Starting game for mode ${waitingRoom.gamemode} ` +
-			`with ${waitingRoom.players.length} (of ${waitingRoom.excepted}) players! ` +
+			`Starting game for mode '${waitingRoom.gamemode}' ` +
+			`with ${waitingRoom.players.length} (of ${waitingRoom.excepted}) players ` +
 			`(Bots allowed: ${botsAllowed})`
 		);
 
@@ -601,4 +601,4 @@ logger.debug(`Matchmaking instance created`);
 setInterval(() => {
 	logger.debug(`Interval tick`);
 	matchmaking.step();
-}, 2000);
+}, 200);
