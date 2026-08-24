@@ -8,6 +8,8 @@ declare global {
 	}
 }
 
+let _deltaTime = 0;
+
 
 export const msgtypes = (async function() {
 	const root = await (async function () {
@@ -30,6 +32,7 @@ export const msgtypes = (async function() {
 			try {
 				const buffer = new Uint8Array(await event.data.arrayBuffer());
 				const decodedMessage = ServerMessage.decode(buffer);
+
 				recvMessage(decodedMessage);
 
 			} catch (error) {
@@ -44,7 +47,6 @@ export const msgtypes = (async function() {
 
 	console.log("WebSocket connected!");
 
-
 	function send(message: {[k: string]: any}) {
 		const data = ClientMessage.encode(message).finish();
 
@@ -57,11 +59,15 @@ export const msgtypes = (async function() {
 	return {
 		send,
 		ClientMessage,
-		ServerMessage
+		ServerMessage,
 	};
 })();
 
 
 export function sendMessage(message: {[k: string]: any}) {
 	msgtypes.then(m => m.send(message));
+}
+
+export function getDeltaTime() {
+	return _deltaTime;
 }

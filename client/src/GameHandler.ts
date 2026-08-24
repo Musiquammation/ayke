@@ -2,9 +2,12 @@ import { Fields } from "../../commons/Fields";
 import { GameMode } from "../../commons/GameMode";
 import { gamemods } from "../../commons/gamemods";
 import { getProtocol, ProtocolTypes } from "../../commons/protocolLoader";
+import { getDeltaTime, msgtypes } from "./messages/sendMessage";
+import { keyboardController } from "./controllers/KeyboardController"
 
 class GameHandler {
 	private protocols!: ProtocolTypes;
+	private lastEmulation = 0;
 
 	constructor(
 		private readonly gamemodeId: string,
@@ -19,7 +22,30 @@ class GameHandler {
 	receive(gdata: Uint8Array) {
 		const msg = this.protocols.ServerMessage.decode(gdata);
 		this.gamemode.load(msg.state);
-		this.gamemode.emulate(msg.timestamp, msg.inputs);
+		this.lastEmulation = performance.now();
+		this.gamemode.emulate(
+			msg.timestamp,
+			this.lastEmulation,
+			getDeltaTime(),
+			msg.inputs
+		);
+	}
+
+	frame() {
+		const now = performance.now();
+		this.gamemode.emulate(
+			this.lastEmulation,
+			now,
+			getDeltaTime(),
+			[]
+		);
+		
+
+		keyboardController.frame();
+
+		if (_gameHandler) {
+			requestAnimationFrame(()=>this.frame());
+		}
 	}
 }
 
@@ -47,4 +73,5 @@ export function setGameHandler(gamemode: string, players: Player[], total: numbe
 	}
 
 	_gameHandler = new GameHandler(gamemode, factory(players, total));
+	_gameHandler.frame();
 }
