@@ -29,7 +29,7 @@ export abstract class GameMode {
 	abstract getBots(): Bot[];
 	protected abstract run(dt: number): boolean;
 	abstract runInput(playerIdx: number, input: Fields): void;
-	abstract detectInputs(keyboard: IKeyboardController, mouse: IMouseController): Fields[];
+	abstract collectInputs(keyboard: IKeyboardController, mouse: IMouseController): Fields[];
 	abstract draw(ctx: CanvasRenderingContext2D): void;
 	abstract onDisconnection(id: number): void;
 	abstract save(): Uint8Array;

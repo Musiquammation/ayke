@@ -56,17 +56,18 @@ export class GMTest extends GameMode {
 		for (const p of this.players) {
 			p.y += p.move * dt;
 		}
+
 		return false;
 	}
 
 	override runInput(playerIdx: number, input: Fields): void {
 		const player = this.players[playerIdx];
-		if (input.move) {
+		if (input.move !== undefined) {
 			player.move = input.move;
 		}
 	}
 
-	override detectInputs(keyboard: IKeyboardController, mouse: IMouseController) {
+	override collectInputs(keyboard: IKeyboardController, mouse: IMouseController) {
 		const inputs = [];
 
 		/* Really simplified logic */
@@ -83,6 +84,8 @@ export class GMTest extends GameMode {
 			inputs.push({move: 0});
 		}
 		
+
+		// console.log(inputs);
 		return inputs;
 	}
 

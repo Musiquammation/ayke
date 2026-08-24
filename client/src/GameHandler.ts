@@ -4,10 +4,20 @@ import { gamemods } from "../../commons/gamemods";
 import { getProtocol, ProtocolTypes } from "../../commons/protocolLoader";
 import { getDeltaTime, msgtypes } from "./messages/sendMessage";
 import { keyboardController } from "./controllers/KeyboardController"
+import { mouseController } from "./controllers/MouseController"
+
+
+interface Input {
+	timestamp: number;
+}
 
 class GameHandler {
 	private protocols!: ProtocolTypes;
 	private lastEmulation = 0;
+	private userInputs: Input[] = [];
+
+	/// TODO: playerId
+	private playerId = 0;
 
 	constructor(
 		private readonly gamemodeId: string,
@@ -32,16 +42,23 @@ class GameHandler {
 	}
 
 	frame() {
+		// Collect inputs
 		const now = performance.now();
+		const newInputs = this.gamemode.collectInputs(
+			keyboardController,
+			mouseController
+		).map(data => ({...data, timestamp: now}));
+		this.userInputs.push(...newInputs);
+
+		keyboardController.frame();
+
 		this.gamemode.emulate(
 			this.lastEmulation,
 			now,
 			getDeltaTime(),
-			[]
+			newInputs.map(i => ({...i, player: this.playerId}))
 		);
-		
 
-		keyboardController.frame();
 
 		if (_gameHandler) {
 			requestAnimationFrame(()=>this.frame());
