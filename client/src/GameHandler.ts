@@ -5,10 +5,20 @@ import { getProtocol, ProtocolTypes } from "../../commons/protocolLoader";
 import { getDeltaTime, msgtypes } from "./messages/sendMessage";
 import { keyboardController } from "./controllers/KeyboardController"
 import { mouseController } from "./controllers/MouseController"
+import { mergeSortedArrays, produceMergedSortedArrays } from "../../commons/util/mergeSortedArrays"
 
 
 interface Input {
 	timestamp: number;
+}
+
+interface RealInput {
+	timestamp: number;
+	player: number;
+}
+
+function compareInputs(a: RealInput, b: Input) {
+	return a.timestamp - b.timestamp;
 }
 
 class GameHandler {
@@ -33,11 +43,19 @@ class GameHandler {
 		const msg = this.protocols.ServerMessage.decode(gdata);
 		this.gamemode.load(msg.state);
 		this.lastEmulation = performance.now();
+
+		const inputs = produceMergedSortedArrays(
+			msg.inputs as RealInput[],
+			this.userInputs,
+			compareInputs,
+			x => ({...x, player: this.playerId})
+		);
+
 		this.gamemode.emulate(
 			msg.timestamp,
 			this.lastEmulation,
 			getDeltaTime(),
-			msg.inputs
+			inputs
 		);
 	}
 

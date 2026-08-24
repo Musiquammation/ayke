@@ -27,7 +27,8 @@ message ServerMessage {
 }
 
 message ClientMessage {
-	repeated Input inputs = 1;
+	double timestamp = 1;
+	repeated Input inputs = 2;
 }
 
 
