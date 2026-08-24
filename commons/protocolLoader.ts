@@ -2,9 +2,6 @@ import * as protobuf from 'protobufjs';
 import { getLogger } from '../server/Logger';
 import { gamemods } from './gamemods';
 
-// Provided logger (assuming getLogger is imported or globally available)
-const logger = getLogger('protocol-loader');
-
 // Type alias for the loader function
 type ProtocolLoaderFn = (name: string) => Promise<protobuf.Root>;
 
@@ -28,7 +25,6 @@ const loadedProtocols = new Map<string, ProtocolTypes>();
  */
 export function initProtocols(loader: ProtocolLoaderFn): void {
 	protocolLoader = loader;
-	logger.info('Protocol loading system initialized.');
 
 	for (const name in gamemods) {
 		getProtocol(name).load();
@@ -68,10 +64,7 @@ export function getProtocol(name: string) {
 				};
 				
 				loadedProtocols.set(name, resolvedTypes);
-				logger.info(`Protocol '${name}' types loaded and cached successfully.`);
 			} catch (error) {
-				// Catches network errors from loader OR missing types from lookupType
-				logger.error(`Failed to load or parse protocol '${name}'\n${String(error)}`);
 				throw error;
 			}
 		},
@@ -86,7 +79,6 @@ export function getProtocol(name: string) {
 			
 			if (!types) {
 				const errMsg = `Protocol '${name}' is not loaded. Make sure to await load() before calling get().`;
-				logger.error(errMsg);
 				throw new Error(errMsg);
 			}
 
