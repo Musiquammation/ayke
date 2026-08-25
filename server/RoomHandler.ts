@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Bot } from "../commons/Bot";
 import { GameMode } from "../commons/GameMode";
 import { Connection } from "./Connection";
@@ -8,6 +9,9 @@ import { gamemods } from "../commons/gamemods";
 import { getProtocol } from "../commons/protocolLoader";
 import { pushSortedArrays } from "../commons/util/mergeSortedArrays";
 import { minBy } from "../commons/util/minBy";
+import { sleepTime } from "../commons/util/sleepTime";
+
+const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
 const logger = getLogger("room");
 logger.setLevel('info');
@@ -19,7 +23,8 @@ interface PlayerInput {
 }
 
 class Player {
-	lastDate = 0;
+	lastClientDate = 0;
+	lastServerDate = 0;
 
 	constructor(
 		public connection: Connection | null,
@@ -30,7 +35,15 @@ class Player {
 	}
 
 	init(date: number) {
-		this.lastDate = date;
+		this.lastClientDate = date;
+		this.lastServerDate = date;
+	}
+
+	getRuntimePing() {
+		const now = performance.now();
+		const delta = now - this.lastServerDate;
+		this.lastServerDate = now;
+		return delta;
 	}
 }
 
@@ -60,7 +73,7 @@ export class Room {
 		this.latestData = this.gamemode.save();
 
 		const gdata = getProtocol(this.gamemodeId).get().ServerMessage.encode({
-			timestamp: this.players[this.latestUser].lastDate,
+			timestamp: this.players[this.latestUser].lastClientDate,
 			state: this.latestData,
 			inputs: [],
 		}).finish();
@@ -82,7 +95,7 @@ export class Room {
 		}
 	}
 
-	handle(encryptedData: Uint8Array, playerIdx: number): Uint8Array {
+	async handle(encryptedData: Uint8Array, playerIdx: number) {
 		const {
 			ClientMessage,
 			ServerMessage
@@ -90,6 +103,9 @@ export class Room {
 
 		const data = ClientMessage.decode(encryptedData);
 
+		logger.debug(`Handle playerIdx=${playerIdx}, latestUser=${this.latestUser}`);
+
+		// Add inputs
 		pushSortedArrays(
 			this.inputs,
 			data.inputs.map((i: any) => ({...i, player: playerIdx})),
@@ -97,16 +113,19 @@ export class Room {
 		);
 
 
-		logger.debug(`With playerIdx=${playerIdx}, latestUser=${this.latestUser}`);
+		const pingCooldown = MIN_PING - this.players[playerIdx].getRuntimePing();
+		if (pingCooldown > 0) {
+			await sleepTime(pingCooldown);
+		}
 
 		// Move latestData
 		if (this.latestUser === playerIdx) {
-			const lastDate = this.players[this.latestUser].lastDate;
-			this.players[this.latestUser].lastDate = data.timestamp;
+			const lastDate = this.players[playerIdx].lastClientDate;
+			this.players[playerIdx].lastClientDate = data.timestamp;
 			this.latestUser = minBy(this.players, getLastDate);
 			
 			
-			const nextDate = this.players[this.latestUser].lastDate;
+			const nextDate = this.players[this.latestUser].lastClientDate;
 			logger.debug(`Run from ${
 				lastDate.toFixed(4)
 			} to ${
@@ -140,7 +159,7 @@ export class Room {
 		}
 
 		return ServerMessage.encode({
-			timestamp: this.players[this.latestUser].lastDate,
+			timestamp: this.players[this.latestUser].lastClientDate,
 			state: this.latestData,
 			inputs: this.inputs.map((data: any) => ({
 				data,
@@ -200,4 +219,4 @@ function compareInputs(a: Fields, b: Fields) {
 	return a.timestamp - b.timestamp;
 }
 
-function getLastDate(player: Player) {return player.lastDate;}
+function getLastDate(player: Player) {return player.lastClientDate;}

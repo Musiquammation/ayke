@@ -56,16 +56,13 @@ export class Connection {
 				return;
 			}
 
-			const gdata = this.roomInfo.room.handle(
+			const gdataPromise = this.roomInfo.room.handle(
 				msg.gdata,
 				this.roomInfo.idx
 			);
 
-			setTimeout(() => {
-				if (this.isAlive()) {
-					this.sendMessage({gdata});
-				}
-			}, 10);
+			
+			gdataPromise.then(gdata => this.sendMessage({gdata}));
 			return;
 		}
 

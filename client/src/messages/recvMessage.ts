@@ -13,10 +13,7 @@ export function recvMessage(msg: protobuf.ReflectedMessage) {
 		const ghandler = getGameHandler();
 		if (ghandler) {
 			const gdata = ghandler.receive(msg.gdata);
-			setTimeout(() => {
-				sendMessage({gdata});
-			}, 10);
-			
+			sendMessage({gdata});			
 		} else {
 			console.warn("Received gdata while ghandler is null");
 		}
