@@ -195,21 +195,23 @@ export class GMAirBasket extends GameMode {
 
 	override runInput(playerIdx: number, input: Fields): void {
 		const player = this.players[playerIdx];
+		console.log(input, input.action);
+		switch (input.action) {
+			case 'right':
+				player.vx = Player.SPEED;
+				break;
 
-		if (input.right) {
-			player.vx = Player.SPEED;
-		}
+			case 'left':
+				player.vx = -Player.SPEED;
+				break;
 
-		if (input.left) {
-			player.vx = -Player.SPEED;
-		}
+			case 'stop':
+				player.vx = 0;
+				break;
 
-		if (input.stop) {
-			player.vx = 0;
-		}
-
-		if (input.jump) {
-			player.vy = -Player.JUMP;
+			case 'jump':
+				player.vy = -Player.JUMP;
+				break;
 		}
 	}
 
@@ -218,9 +220,9 @@ export class GMAirBasket extends GameMode {
 			const r0 = keyboard.first('right');
 			const l0 = keyboard.first('left');
 
-			const right = [{right: {}}];
-			const left = [{left: {}}];
-			const stop = [{stop: {}}];
+			const right = {right: {}};
+			const left = {left: {}};
+			const stop = {stop: {}};
 	
 			if (r0 && !l0)
 				return right;
@@ -254,8 +256,9 @@ export class GMAirBasket extends GameMode {
 
 		const inputs: Fields[] = [];
 		const moveInput = getMoveInput();
-		if (moveInput)
+		if (moveInput) {
 			inputs.push(moveInput);
+		}
 
 		if (keyboard.first('up') || keyboard.first('jump')) {
 			inputs.push({jump: {}});
