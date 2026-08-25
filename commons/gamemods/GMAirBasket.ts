@@ -134,6 +134,7 @@ export class GMAirBasket extends GameMode {
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = (i % 2 === 0);
 			p.x = redTeam ? -WIDTH : WIDTH;
+			p.x = -p.x; // temp
 			p.y = ((i+1)*invParts - .5) * HEIGHT;
 		}
 
@@ -189,39 +190,77 @@ export class GMAirBasket extends GameMode {
 			}
 		}
 
-		
-
-
 		return false;
 	}
 
 	override runInput(playerIdx: number, input: Fields): void {
 		const player = this.players[playerIdx];
-		switch (input.action) {
-			case 'right':
-				player.vx = Player.SPEED;
-				break;
 
-			case 'left':
-				player.vx = -Player.SPEED;
-				break;
+		if (input.right) {
+			player.vx = Player.SPEED;
+		}
 
-			case 'stop':
-				player.vx = 0;
-				break;
+		if (input.left) {
+			player.vx = -Player.SPEED;
+		}
 
-			case 'jump':
-				player.vy = -Player.JUMP;
-				break;
+		if (input.stop) {
+			player.vx = 0;
+		}
+
+		if (input.jump) {
+			player.vy = -Player.JUMP;
 		}
 	}
 
 	override collectInputs(keyboard: IKeyboardController, mouse: IMouseController) {
-		const inputs: Fields[] = [];
-		
-		if (inputs.length) {
-			console.log(inputs);
+		function getMoveInput(): Fields|null {
+			const r0 = keyboard.first('right');
+			const l0 = keyboard.first('left');
+
+			const right = [{right: {}}];
+			const left = [{left: {}}];
+			const stop = [{stop: {}}];
+	
+			if (r0 && !l0)
+				return right;
+			
+			if (!r0 && l0)
+				return left;
+			
+			if (r0 && l0)
+				return stop;
+	
+			const rK = keyboard.killed('right');
+			const lK = keyboard.killed('left');
+
+			if (rK && lK)
+				return stop;
+
+			const r = keyboard.press('right');
+			const l = keyboard.press('left');
+
+			if (rK) {
+				return l ? left : stop;
+			}
+
+			if (lK) {
+				return r ? right : stop;
+			}
+			
+			return null;
 		}
+
+
+		const inputs: Fields[] = [];
+		const moveInput = getMoveInput();
+		if (moveInput)
+			inputs.push(moveInput);
+
+		if (keyboard.first('up') || keyboard.first('jump')) {
+			inputs.push({jump: {}});
+		}
+
 		return inputs;
 	}
 
