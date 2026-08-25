@@ -9,11 +9,13 @@ import { pushSortedArrays } from "../commons/util/mergeSortedArrays";
 import { minBy } from "../commons/util/minBy";
 import { sleepTime } from "../commons/util/sleepTime";
 import { Bot, generateBot } from "./Bot";
+import { decodeFullMessage } from "../commons/util/decodeFullMessage";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
 const logger = getLogger("room");
 logger.setLevel('info');
+
 
 interface PlayerInput {
 	connection: Connection;
@@ -117,9 +119,10 @@ export class Room {
 			ServerMessage
 		} = getProtocol(this.gamemodeId).get();
 
-		const data = ClientMessage.decode(encryptedData);
+		const data = decodeFullMessage(ClientMessage.decode(encryptedData));
 
 		logger.debug(`Handle playerIdx=${playerIdx}, latestUser=${this.latestUser}`);
+
 
 		// Add player inputs
 		pushSortedArrays(
@@ -309,3 +312,7 @@ function compareInputs(a: Fields, b: Fields) {
 }
 
 function getLastDate(player: Player) {return player.lastClientDate;}
+
+function inspectMessage(i: any): any {
+	throw new Error("Function not implemented.");
+}

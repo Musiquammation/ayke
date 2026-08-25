@@ -4,7 +4,7 @@ import { appendBots, botActionNodeHelper } from "../Bot";
 import { getLogger } from "../Logger";
 
 const logger = getLogger('bots-test');
-logger.setLevel('debug');
+// logger.setLevel('debug');
 
 const TYPES = GMTest.types;
 type Player = typeof TYPES.Player;
