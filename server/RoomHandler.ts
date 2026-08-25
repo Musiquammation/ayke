@@ -1,15 +1,14 @@
 import "dotenv/config";
-import { Bot } from "../commons/Bot";
 import { GameMode } from "../commons/GameMode";
 import { Connection } from "./Connection";
 import { getLogger } from "./Logger";
-import { GMTest } from "../commons/gamemods/GMTest";
 import { Fields } from "../commons/Fields";
 import { gamemods } from "../commons/gamemods";
 import { getProtocol } from "../commons/protocolLoader";
 import { pushSortedArrays } from "../commons/util/mergeSortedArrays";
 import { minBy } from "../commons/util/minBy";
 import { sleepTime } from "../commons/util/sleepTime";
+import { Bot, generateBot } from "./Bot";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -20,6 +19,11 @@ interface PlayerInput {
 	connection: Connection;
 	trophees: number;
 	data: Fields;
+}
+
+interface EmulationInput {
+	timestamp: number;
+	player: number;
 }
 
 class Player {
@@ -49,10 +53,12 @@ class Player {
 
 
 export class Room {
-	private readonly bots: Bot[];
+	private readonly bots: Bot<GameMode>[];
 	private readonly players: Player[];
 	private latestData!: Uint8Array;
 	private latestUser: number = 0;
+	private botsData: Uint8Array | null = null;
+	private botsInstant: number = 0;
 	private readonly inputs = new Array<Fields>();
 
 	constructor(
@@ -60,7 +66,9 @@ export class Room {
 		public readonly gamemode: GameMode,
 		players: PlayerInput[]
 	) {
-		this.bots = gamemode.getBots();
+		this.bots = gamemode.getBotIds().map(
+			(i, index) => generateBot(gamemodeId, i, players.length + index)
+		);
 		this.players = players.map(p => new Player(
 			p.connection,
 			p.trophees,
@@ -86,6 +94,9 @@ export class Room {
 		for (const p of this.players) {
 			p.connection?.sendMessage({gdata});
 		}
+
+		this.botsData = this.latestData;
+		this.botsInstant = now;
 	}
 
 	disconnect(idx: number) {
@@ -105,19 +116,25 @@ export class Room {
 
 		logger.debug(`Handle playerIdx=${playerIdx}, latestUser=${this.latestUser}`);
 
-		// Add inputs
+		// Add player inputs
 		pushSortedArrays(
 			this.inputs,
 			data.inputs.map((i: any) => ({...i, player: playerIdx})),
 			compareInputs
 		);
 
-
 		const pingCooldown = MIN_PING - this.players[playerIdx].getRuntimePing();
 		if (pingCooldown > 0) {
 			await sleepTime(pingCooldown);
 			this.players[playerIdx].lastServerDate = performance.now();
 		}
+
+		// Add bots inputs
+		pushSortedArrays(
+			this.inputs,
+			this.runBots(),
+			compareInputs
+		)
 
 		// Move latestData
 		if (this.latestUser === playerIdx) {
@@ -142,10 +159,7 @@ export class Room {
 			this.gamemode.emulate(
 				lastDate,
 				nextDate,
-				this.inputs as {
-					timestamp: number;
-					player: number;
-				}[]
+				this.inputs as EmulationInput[]
 			);
 
 			this.latestData = this.gamemode.save();
@@ -166,8 +180,36 @@ export class Room {
 				data,
 				player: data.player
 			}))
-		}).finish();
-		
+		}).finish();	
+	}
+
+	private runBots(): Fields[] {
+		if (this.botsData === null)
+			return [];
+
+		this.gamemode.load(this.botsData);
+
+		const botsInputs: Fields[] = [];
+
+		this.botsInstant = this.gamemode.emulate(
+			this.botsInstant,
+			() => performance.now(),
+			this.inputs as EmulationInput[],
+			() => {
+				const list: Fields[] = [];
+				for (const bot of this.bots) {
+					const inputs = bot.play(this.gamemode);
+					list.push(...inputs);
+				}
+
+				return list as EmulationInput[];
+			}
+		);
+
+		this.botsData = this.gamemode.save();
+		this.gamemode.load(this.latestData);
+
+		return botsInputs;
 	}
 }
 

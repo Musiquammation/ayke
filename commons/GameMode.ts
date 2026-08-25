@@ -1,5 +1,4 @@
 import protobuf from "protobufjs";
-import { Bot } from "../commons/Bot";
 import { Fields } from "./Fields";
 
 export interface IKeyboardController {
@@ -22,6 +21,7 @@ export interface ILogger {
 	warning(text: string): void;
 	error(text: string): void;
 }
+
 
 interface Input {
 	timestamp: number;
@@ -70,7 +70,7 @@ export abstract class GameMode {
 	}
 
 	abstract init(): void;
-	abstract getBots(): Bot[];
+	abstract getBotIds(): number[];
 	protected abstract run(dt: number): boolean;
 	abstract runInput(playerIdx: number, input: Fields): void;
 	abstract collectInputs(keyboard: IKeyboardController, mouse: IMouseController): Fields[];
@@ -91,10 +91,24 @@ export abstract class GameMode {
 		this.run(duration);
 	}
 
+	/**
+	 * Emulates the game from a starting time to a finish time while applying
+	 * the given inputs at their respective timestamps.
+	 *
+	 * @param start The simulation start time, in milliseconds.
+	 * @param finish The simulation finish time, or a function that computes
+	 *               time after all inputs have been processed.
+	 * @param inputs The inputs to apply during the simulation.
+	 * @param preprocess Optional function used to create inputs that are
+	 *                   executed immediately at the given timestamp.
+	 *                   The returned inputs timestamp is ignored.
+	 * @returns The final simulation time.
+	 */
 	emulate(
 		start: number,
 		finish: number | (()=>number),
-		inputs: Input[]
+		inputs: Input[],
+		preprocess?: ((timestamp: number) => Input[])
 	) {
 		let currentTime = start;
 
@@ -110,6 +124,12 @@ export abstract class GameMode {
 				continue;
 
 			const duration = (inputTimestamp - currentTime) / 1000;
+			if (preprocess) {
+				for (const i of preprocess(currentTime)) {
+					this.runInput(i.player, i);
+				}
+			}
+
 			this.quickEmulate(duration);
 
 			// Apply the input at its timestamp.
@@ -127,7 +147,13 @@ export abstract class GameMode {
 
 		// Emulate the remaining time after the last input.
 		const duration = (finish - currentTime) / 1000;
+		if (preprocess) {
+			for (const i of preprocess(currentTime)) {
+				this.runInput(i.player, i);
+			}
+		}
 		this.quickEmulate(duration);
+		return finish;
 	}
 }
 

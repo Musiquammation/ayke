@@ -1,4 +1,3 @@
-import { Bot } from "../Bot";
 import { Fields } from "../Fields";
 import { GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
@@ -9,13 +8,16 @@ interface PlayerInput {
 	data: Fields;
 }
 
+type Team = 'red' | 'blue';
+
 class Player {
 	connected = true;
 	move = 0;
 
 	constructor(
 		public x: number,
-		public y: number
+		public y: number,
+		public readonly team: Team
 	) {
 
 	}
@@ -43,8 +45,8 @@ export class GMTest extends GameMode {
 
 	static create(players: PlayerInput[], total: number) {
 		return new GMTest([
-			new Player(0, 1000),
-			new Player(10, 1000),
+			new Player(0, 1000, 'red'),
+			new Player(10, 1000, 'blue'),
 		]);
 	}
 
@@ -52,7 +54,7 @@ export class GMTest extends GameMode {
 		
 	}
 
-	override getBots(): Bot[] {
+	override getBotIds(): number[] {
 		return [];
 	}
 
