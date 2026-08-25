@@ -8,20 +8,18 @@ function run<T>(data: T | undefined, exec: (data: T)=>void) {
 }
 
 
-export function recvMessage(msg: protobuf.ReflectedMessage) {
-	if (msg.gdata.length) {
+const runners: Record<string, (data: any)=>void> = {
+	gdata(gdata) {
 		const ghandler = getGameHandler();
 		if (ghandler) {
-			const gdata = ghandler.receive(msg.gdata);
-			sendMessage({gdata});			
+			const newGdata = ghandler.receive(gdata);
+			sendMessage({gdata: newGdata});			
 		} else {
 			console.warn("Received gdata while ghandler is null");
 		}
+	},
 
-		return;
-	}
-
-	run(msg.startGame, async d => {
+	async startGame(d) {
 		const ghandler = await setGameHandler(
 			d.gamemode,
 			d.playerIdx,
@@ -31,18 +29,22 @@ export function recvMessage(msg: protobuf.ReflectedMessage) {
 		const gdata = ghandler.receive(d.gdata);
 		console.log("playerIdx", d.playerIdx);
 		sendMessage({gdata});
-	});
+	},
 
-	run(msg.createAccountResult, d => {
+	createAccountResult(d) {
 		console.log(d.success);
-	});
+	},
 
-	run(msg.loginResult, d => {
-		console.log(d.success);
-	});
+	loginResult(d) {
+	},
 
-	run(msg.error, d => {
+
+	error(d) {
 		console.error(d.code, d.message);
-	})
+	}
+}
+
+export function recvMessage(msg: protobuf.ReflectedMessage) {
+	runners[msg.message](msg[msg.message]);
 }
 

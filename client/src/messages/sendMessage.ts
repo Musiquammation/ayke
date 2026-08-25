@@ -17,7 +17,7 @@ function calculateDeltaTime(servDate: number) {
 	const rtt = clientReceive - _deltaSendDate;
 	_deltaTime = serverTime - (_deltaSendDate + rtt / 2);
 
-	console.log(_deltaTime);
+	console.log("Delta time:", _deltaTime.toFixed(4));
 }
 
 
@@ -43,11 +43,12 @@ export const msgtypes = (async function() {
 				const buffer = new Uint8Array(await event.data.arrayBuffer());
 				const msg = ServerMessage.decode(buffer);
 
-				if (msg.timeDeltaDate) {
+				if (msg.message === 'timeDeltaDate') {
 					calculateDeltaTime(msg.timeDeltaDate);
+				} else {
+					recvMessage(msg);
 				}
 
-				recvMessage(msg);
 
 			} catch (error) {
 				console.error("Failed to decode the incoming WebSocket message:", error);

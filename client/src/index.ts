@@ -27,5 +27,11 @@ export function init() {
 			gamemode: "test"
 		}
 	});
+
+	setTimeout(() => {
+		sendMessage({
+			allowBotsOrder: true
+		})	
+	}, 1000);
 }
 

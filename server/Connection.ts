@@ -5,16 +5,10 @@ import { database } from "./Database";
 import { matchmaking } from "./Matchmaking";
 import { Room, roomHandler } from "./RoomHandler";
 import { getLogger } from "./Logger";
+import { Fields } from "../commons/Fields";
 
 const logger = getLogger('connection');
 // logger.setLevel('debug');
-
-function run<T>(data: T | undefined, exec: (data: T)=>void) {
-	if (data) {
-		exec(data);
-	}
-}
-
 
 interface RoomInfo {
 	room: Room;
@@ -25,6 +19,62 @@ export class Connection {
 	private pseudo: string | null = null;
 	private alive = true;
 	roomInfo: RoomInfo | null = null;
+
+	static runners: Record<string, (c: Connection, data: any) => void> = {
+		gdata(c, gdata) {
+			if (c.roomInfo === null) {
+				c.sendError(2, "Player is not in a room");
+				return;
+			}
+
+			const gdataPromise = c.roomInfo.room.handle(
+				gdata,
+				c.roomInfo.idx
+			);
+
+			gdataPromise.then(gdata => c.sendMessage({gdata}));
+		},
+
+		async createAccount(c, d) {
+			const db = await database;
+			const success = await db.addUser(d.pseudo, d.password);
+
+			c.sendMessage({createAccountResult: {success}});
+		},
+
+		async login(c, d) {
+			if (c.pseudo !== null) {
+				c.sendError(1, "Connection already logged in");
+				return;
+			}
+
+			const db = await database;
+			const success = await db.checkPassword(d.pseudo, d.password);
+
+			if (success) {
+				c.pseudo = d.pseudo;
+			}
+
+			c.sendMessage({loginResult: {success}});
+		},
+
+		startGame(c, d) {
+			const gamemode: string = d.gamemode;
+			matchmaking.addConnection(c, gamemode, {});
+		},
+
+		allowBotsOrder(c, d) {
+			matchmaking.voteBotsUse(c, d);
+		},
+
+		quitWaitingRoom(c) {
+			matchmaking.removeConnection(c);
+		},
+
+		askTimeDelta(c) {
+			c.sendMessage({timeDeltaDate: performance.now()});
+		}
+	};
 
 	constructor(
 		private socket: WebSocket
@@ -49,60 +99,9 @@ export class Connection {
 		this.sendMessage({error: {code, message}});
 	}
 
+	
 	onMessage(msg: protobuf.ReflectedMessage) {
-		if (msg.gdata.length) {
-			if (this.roomInfo === null) {
-				this.sendError(2, "Player is not in a room");
-				return;
-			}
-
-			const gdataPromise = this.roomInfo.room.handle(
-				msg.gdata,
-				this.roomInfo.idx
-			);
-
-			
-			gdataPromise.then(gdata => this.sendMessage({gdata}));
-			return;
-		}
-
-		logger.debug(JSON.stringify(msg, null, 4));
-
-		run(msg.createAccount, async d => {
-			const db = await database;
-			const success = await db.addUser(d.pseudo, d.password);
-			this.sendMessage({createAccountResult: {success}});
-		});
-
-		run(msg.login, async d => {
-			if (this.pseudo !== null) {
-				this.sendError(1, "Connection already logged in");
-			}
-
-			const db = await database;
-			const success = await db.checkPassword(d.pseudo, d.password);
-			if (success) {
-				this.pseudo = d.pseudo;
-			}
-			this.sendMessage({loginResult: {success}});
-		});
-
-		run(msg.startGame, d => {
-			const gamemode: string = d.gamemode;
-			matchmaking.addConnection(this, gamemode, {});
-		});
-
-		run(msg.useBotsOrder, d => {
-			matchmaking.voteBotsUse(this, d.allow);
-		});
-
-		run(msg.quitWaitingRoom, d => {
-			matchmaking.removeConnection(this);
-		});
-
-		if (msg.askTimeDelta) {
-			this.sendMessage({timeDeltaDate: performance.now()});
-		}
+		Connection.runners[msg.message](this, msg[msg.message]);
 	}
 
 	onClose() {

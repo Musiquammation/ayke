@@ -10,7 +10,7 @@ message ClientMessage {
 		Login login = 2;
 		CreateAccount createAccount = 3;
 		StartGame startGame = 4;
-		UseBotsOrder useBotsOrder = 5;
+		bool allowBotsOrder = 5;
 		QuitWaitingRoom quitWaitingRoom = 6;
 		Empty askTimeDelta = 7;
 	}
@@ -29,10 +29,6 @@ message CreateAccount {
 
 message StartGame {
 	string gamemode = 1;
-}
-
-message UseBotsOrder {
-	bool allow = 1;
 }
 
 message QuitWaitingRoom {
