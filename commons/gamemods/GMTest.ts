@@ -126,7 +126,7 @@ export class GMTest extends GameMode {
 		return inputs;
 	}
 
-	override draw(ctx: CanvasRenderingContext2D) {
+	override draw(ctx: CanvasRenderingContext2D, playerIdx: number) {
 		ctx.fillStyle = "#333";
 		ctx.fillRect(0, 0, 200, 2000);
 		ctx.fillStyle = "red";
