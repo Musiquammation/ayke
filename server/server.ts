@@ -66,3 +66,27 @@ setGameModeLoggerGenerator((name, level) => {
 	l.setLevel(level);
 	return l;
 })
+
+
+
+
+
+import { readdir } from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+// Load bots
+(async function() {
+	const directory = "server/bots";
+	const files = await readdir(directory);
+
+	for (const file of files) {
+		if (!file.endsWith(".ts")) {
+			continue;
+		}
+
+		const filePath = path.resolve(directory, file);
+
+		await import(pathToFileURL(filePath).href);
+	}
+})();

@@ -171,6 +171,7 @@ interface Player {
 	trophees: number;
 	data: Fields;
 }
+
 export async function setGameHandler(
 	gamemode: string,
 	playerIdx: number,

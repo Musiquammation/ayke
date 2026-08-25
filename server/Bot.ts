@@ -3,8 +3,10 @@ import { GameMode } from "../commons/GameMode";
 
 type ActionType = 'all' | 'first' | 'loop' | 'runner';
 type Runner<GMode extends GameMode, Data> = (
-	(game: GMode, data: Data) => [Fields[], 'success' | 'failed' | 'pending']
-);
+	game: GMode,
+	data: Data,
+	playerIdx: number
+) => [Fields[], 'success' | 'failed' | 'pending']
 
 interface ActionAll<GMode extends GameMode, Data> {
 	type: 'all';
@@ -37,18 +39,16 @@ type ActionNode<GMode extends GameMode, Data> = (
 export class Bot<GMode extends GameMode, Data> {
 	// Current state of the behavior tree execution
 	private currentNode: ActionNode<GMode, Data> | null;
-	private data: Data;
 	
 	// Stack storing the path of indices to reach the currentNode from the root
 	private path: number[] = [];
 
 	constructor(
 		private readonly root: ActionNode<GMode, Data>,
-		public readonly playerId: number,
-		dataConstructor: ()=>Data
+		public readonly playerIdx: number,
+		private readonly data: Data
 	) {
 		this.currentNode = root;
-		this.data = dataConstructor();
 	}
 
 	/**
@@ -85,13 +85,18 @@ export class Bot<GMode extends GameMode, Data> {
 		const inputs: Fields[] = [];
 		let prevResult: 'success' | 'failed' | 'pending' = 'pending';
 
+		// Restart
+		if (this.currentNode === null) {
+			this.currentNode = this.root;
+		}
+
 		while (this.currentNode !== null) {
 			const node: ActionNode<GMode, Data> = this.currentNode;
 
 			switch (node.type) {
 				case 'runner': {
 					// Execute leaf node logic
-					const [runnerInputs, result] = node.run(game, this.data);
+					const [runnerInputs, result] = node.run(game, this.data, this.playerIdx);
 					inputs.push(...runnerInputs);
 
 					if (result === 'pending') {

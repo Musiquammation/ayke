@@ -63,14 +63,14 @@ let _loggerGenerator: LoggerGenerator = (name, level) => ({
 })
 
 export abstract class GameMode {
-	public static readonly MAX_DT = 0.050; // 50ms
+	public static readonly MAX_DT = 0.020; // 20ms
 
 	protected static getLogger(name: string, level: LoggerLevel = 'info') {
 		return _loggerGenerator(name, level);
 	}
 
 	abstract init(): void;
-	abstract getBotIds(): number[];
+	abstract getBotIds(count: number): number[];
 	protected abstract run(dt: number): boolean;
 	abstract runInput(playerIdx: number, input: Fields): void;
 	abstract collectInputs(keyboard: IKeyboardController, mouse: IMouseController): Fields[];

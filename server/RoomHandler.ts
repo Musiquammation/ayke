@@ -57,16 +57,16 @@ export class Room {
 	private readonly players: Player[];
 	private latestData!: Uint8Array;
 	private latestUser: number = 0;
-	private botsData: Uint8Array | null = null;
 	private botsInstant: number = 0;
 	private readonly inputs = new Array<Fields>();
 
 	constructor(
 		public readonly gamemodeId: string,
 		public readonly gamemode: GameMode,
-		players: PlayerInput[]
+		players: PlayerInput[],
+		bots: number
 	) {
-		this.bots = gamemode.getBotIds().map(
+		this.bots = gamemode.getBotIds(bots).map(
 			(i, index) => generateBot(gamemodeId, i, players.length + index)
 		);
 		this.players = players.map(p => new Player(
@@ -101,7 +101,6 @@ export class Room {
 			}});
 		}
 
-		this.botsData = this.latestData;
 		this.botsInstant = now;
 	}
 
@@ -135,13 +134,6 @@ export class Room {
 			this.players[playerIdx].lastServerDate = performance.now();
 		}
 
-		// Add bots inputs
-		pushSortedArrays(
-			this.inputs,
-			this.runBots(),
-			compareInputs
-		)
-
 		// Move latestData
 		if (this.latestUser === playerIdx) {
 			const lastDate = this.players[playerIdx].lastClientDate;
@@ -162,11 +154,28 @@ export class Room {
 				JSON.stringify((this.inputs as any))
 			}`);
 
+
+			const tempInputs: Fields[] = [];
+			/**
+			 * If there is only one player, then process bots at every step
+			 * because latestData belongs only to this unique player.
+			*/
+			const preprocess = this.players.length !== 1 ? undefined : (
+				(timestamp: number) => this.preprocessBots(tempInputs, timestamp)
+			);
+
 			this.gamemode.emulate(
 				lastDate,
 				nextDate,
-				this.inputs as EmulationInput[]
+				this.inputs as EmulationInput[],
+				preprocess
 			);
+
+			pushSortedArrays(
+				tempInputs,
+				data.inputs.map((i: any) => ({...i, player: playerIdx})),
+				compareInputs
+			);			
 
 			this.latestData = this.gamemode.save();
 
@@ -179,6 +188,15 @@ export class Room {
 			this.inputs.splice(0, i);
 		}
 
+		// Add bots inputs
+		if (this.players.length !== 1) {
+			pushSortedArrays(
+				this.inputs,
+				this.runBots(),
+				compareInputs
+			);
+		}
+
 		return ServerMessage.encode({
 			timestamp: this.players[this.latestUser].lastClientDate,
 			state: this.latestData,
@@ -189,30 +207,46 @@ export class Room {
 		}).finish();	
 	}
 
+	private preprocessBots(
+		supraList: Fields[],
+		timestamp: number
+	) {
+		const list: Fields[] = [];
+		for (const bot of this.bots) {
+			const inputs = bot.play(this.gamemode).map(i => ({
+				...i,
+				player: bot.playerIdx,
+				timestamp
+			}));
+			list.push(...inputs);
+			supraList.push(...inputs);
+		}
+
+		return list as EmulationInput[];
+	}
+
 	private runBots(): Fields[] {
-		if (this.botsData === null)
-			return [];
-
-		this.gamemode.load(this.botsData);
-
 		const botsInputs: Fields[] = [];
 
+		// Move temporary game to botsInstant
+		const lastClientDate = this.players[this.latestUser].lastClientDate
+		if (lastClientDate < this.botsInstant) {
+			this.gamemode.emulate(
+				lastClientDate,
+				this.botsInstant,
+				this.inputs as EmulationInput[],
+			);
+		}
+	
+		// Collect new inputs
 		this.botsInstant = this.gamemode.emulate(
 			this.botsInstant,
 			() => performance.now(),
 			this.inputs as EmulationInput[],
-			() => {
-				const list: Fields[] = [];
-				for (const bot of this.bots) {
-					const inputs = bot.play(this.gamemode);
-					list.push(...inputs);
-				}
-
-				return list as EmulationInput[];
-			}
+			timestamp => this.preprocessBots(botsInputs, timestamp)
 		);
 
-		this.botsData = this.gamemode.save();
+		// Restore game
 		this.gamemode.load(this.latestData);
 
 		return botsInputs;
@@ -241,7 +275,12 @@ class RoomHandler {
 		}
 
 		const created = factory.server(players, total);
-		const room = new Room(gamemode, created.game, players);
+		const room = new Room(
+			gamemode,
+			created.game,
+			players,
+			total - players.length
+		);
 		for (const [idx, player] of players.entries()) {
 			player.connection.roomInfo = { room, idx };
 		}

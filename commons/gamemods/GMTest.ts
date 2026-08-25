@@ -31,11 +31,11 @@ class Player {
 }
 
 
-// temp
-let _dom: any = null;
 
 
 export class GMTest extends GameMode {
+	static readonly types = {Player};
+
 	readonly players: Player[];
 
 	private constructor(total: number) {
@@ -74,8 +74,11 @@ export class GMTest extends GameMode {
 		
 	}
 
-	override getBotIds(): number[] {
-		return [];
+	override getBotIds(count: number): number[] {
+		return Array.from(
+			{ length: count },
+			() => 0
+		);
 	}
 
 	override run(dt: number): boolean {
@@ -123,16 +126,12 @@ export class GMTest extends GameMode {
 		return inputs;
 	}
 
-	override draw(_ctx: CanvasRenderingContext2D) {
-		const canvas = document.querySelector("canvas");
-		if (canvas) {
-			const ctx = canvas.getContext('2d')!;
-			ctx.fillStyle = "black";
-			ctx.fillRect(0, 0, 100, 800);
-			ctx.fillStyle = "red";
-			for (const p of this.players) {
-				ctx.fillRect(p.x, p.y - 5, 10, 10);
-			}
+	override draw(ctx: CanvasRenderingContext2D) {
+		ctx.fillStyle = "#333";
+		ctx.fillRect(0, 0, 200, 2000);
+		ctx.fillStyle = "red";
+		for (const p of this.players) {
+			ctx.fillRect(p.x, p.y - 5, 10, 10);
 		}
 	}
 
