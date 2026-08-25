@@ -53,7 +53,7 @@ class Player {
 
 
 export class Room {
-	private readonly bots: Bot<GameMode>[];
+	private readonly bots: Bot<GameMode, any>[];
 	private readonly players: Player[];
 	private latestData!: Uint8Array;
 	private latestUser: number = 0;

@@ -2,57 +2,60 @@ import { Fields } from "../commons/Fields";
 import { GameMode } from "../commons/GameMode";
 
 type ActionType = 'all' | 'first' | 'loop' | 'runner';
-type Runner<GMode extends GameMode> = (
-	(game: GMode) => [Fields[], 'success' | 'failed' | 'pending']
+type Runner<GMode extends GameMode, Data> = (
+	(game: GMode, data: Data) => [Fields[], 'success' | 'failed' | 'pending']
 );
 
-interface ActionAll<GMode extends GameMode> {
+interface ActionAll<GMode extends GameMode, Data> {
 	type: 'all';
-	children: ActionNode<GMode>[];
+	children: ActionNode<GMode, Data>[];
 }
 
-interface ActionFirst<GMode extends GameMode> {
+interface ActionFirst<GMode extends GameMode, Data> {
 	type: 'first';
-	children: ActionNode<GMode>[];
+	children: ActionNode<GMode, Data>[];
 }
 
-interface ActionLoop<GMode extends GameMode> {
+interface ActionLoop<GMode extends GameMode, Data> {
 	type: 'loop';
-	children: ActionNode<GMode>[];
+	children: ActionNode<GMode, Data>[];
 }
 
-interface ActionRunner<GMode extends GameMode> {
+interface ActionRunner<GMode extends GameMode, Data> {
 	type: 'runner';
-	run: Runner<GMode>;
+	run: Runner<GMode, Data>;
 }
 
-type ActionNode<GMode extends GameMode> = (
-	ActionAll<GMode> |
-	ActionFirst<GMode> |
-	ActionLoop<GMode> |
-	ActionRunner<GMode>
+type ActionNode<GMode extends GameMode, Data> = (
+	ActionAll<GMode, Data> |
+	ActionFirst<GMode, Data> |
+	ActionLoop<GMode, Data> |
+	ActionRunner<GMode, Data>
 );
 
 
-export class Bot<GMode extends GameMode> {
+export class Bot<GMode extends GameMode, Data> {
 	// Current state of the behavior tree execution
-	private currentNode: ActionNode<GMode> | null;
+	private currentNode: ActionNode<GMode, Data> | null;
+	private data: Data;
 	
 	// Stack storing the path of indices to reach the currentNode from the root
 	private path: number[] = [];
 
 	constructor(
-		private readonly root: ActionNode<GMode>,
-		public readonly playerId: number
+		private readonly root: ActionNode<GMode, Data>,
+		public readonly playerId: number,
+		dataConstructor: ()=>Data
 	) {
 		this.currentNode = root;
+		this.data = dataConstructor();
 	}
 
 	/**
 	 * Resolves the node corresponding to a given index path from the root.
 	 */
-	private getNodeAt(path: number[]): ActionNode<GMode> {
-		let node: ActionNode<GMode> = this.root;
+	private getNodeAt(path: number[]): ActionNode<GMode, Data> {
+		let node: ActionNode<GMode, Data> = this.root;
 		for (const idx of path) {
 			if ('children' in node) {
 				node = (node as any).children[idx];
@@ -81,14 +84,14 @@ export class Bot<GMode extends GameMode> {
 	play(game: GMode): Fields[] {
 		const inputs: Fields[] = [];
 		let prevResult: 'success' | 'failed' | 'pending' = 'pending';
-		
+
 		while (this.currentNode !== null) {
-			const node: ActionNode<GMode> = this.currentNode;
+			const node: ActionNode<GMode, Data> = this.currentNode;
 
 			switch (node.type) {
 				case 'runner': {
 					// Execute leaf node logic
-					const [runnerInputs, result] = node.run(game);
+					const [runnerInputs, result] = node.run(game, this.data);
 					inputs.push(...runnerInputs);
 
 					if (result === 'pending') {
@@ -197,13 +200,16 @@ export class Bot<GMode extends GameMode> {
 }
 
 
-const bots: Record<string, ActionNode<GameMode>[]> = {};
+const bots: Record<string, {
+	root: ActionNode<GameMode, any>,
+	data: (()=>any)
+}[]> = {};
 
 export function generateBot(
 	gamemodeId: string,
 	botId: number,
-	playerId: number
-): Bot<GameMode> {
+	playerId: number,
+): Bot<GameMode, any> {
 	const root = bots[gamemodeId];
 	if (root === undefined)
 		throw new Error(`Cannot find gamemodeId='${gamemodeId}'`);
@@ -211,7 +217,7 @@ export function generateBot(
 	if (botId >= root.length)
 		throw new Error(`Asked bot #${botId} among ${root.length} bots`);
 
-	return new Bot(root[botId], playerId);
+	return new Bot(root[botId].root, playerId, root[botId].data());
 }
 
 
@@ -219,36 +225,42 @@ export function generateBot(
 
 export function appendBots<GMode extends GameMode>(
 	gamemodeId: string,
-	nodes: ActionNode<GMode>[]
+	nodes: {
+		root: ActionNode<GMode, any>,
+		data: (()=>any)
+	}[]
 ) {
-	bots[gamemodeId] = nodes as ActionNode<GameMode>[];
+	bots[gamemodeId] = nodes as {
+		root: ActionNode<GameMode, any>,
+		data: (()=>any)
+	}[];
 }
 
 
-export function botActionNodeHelper<GMode extends GameMode>() {
+export function botActionNodeHelper<GMode extends GameMode, Data>() {
 	return {
-		all(children: ActionNode<GMode>[]): ActionAll<GMode> {
+		all(children: ActionNode<GMode, Data>[]): ActionAll<GMode, Data> {
 			return {
 				type: 'all' as const,
 				children
 			}
 		},
 
-		first(children: ActionNode<GMode>[]): ActionFirst<GMode> {
+		first(children: ActionNode<GMode, Data>[]): ActionFirst<GMode, Data> {
 			return {
 				type: 'first' as const,
 				children
 			}
 		},
 
-		loop(children: ActionNode<GMode>[]): ActionLoop<GMode> {
+		loop(children: ActionNode<GMode, Data>[]): ActionLoop<GMode, Data> {
 			return {
 				type: 'loop' as const,
 				children
 			}
 		},
 
-		runner(run: Runner<GMode>): ActionRunner<GMode> {
+		runner(run: Runner<GMode, Data>): ActionRunner<GMode, Data> {
 			return {
 				type: 'runner' as const,
 				run
