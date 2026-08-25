@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package game_airbasket;
+
+message Empty {}
+
+message Player {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+	float alive = 5;
+}
+
+message FreeBall {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+}
+
+message GrabbedBall {
+	int32 owner = 1;
+}
+
+
+message State {
+	repeated Player players = 1;
+	int32 prevBallGrabber = 2;
+
+	oneof ball {
+		FreeBall freeBall = 3;
+		GrabbedBall grabbedBall = 4;
+	}
+}
+
+message Throw {
+	float x = 1;
+	float y = 2;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		Empty right = 2;
+		Empty left = 3;
+		Empty stop = 4;
+		Empty jump = 5;
+		Throw throwTarget = 6;
+		Throw throwDir = 7;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+

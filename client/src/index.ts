@@ -2,8 +2,6 @@ import protobuf from "protobufjs";
 import { initProtocols } from "../../commons/protocolLoader";
 import { dom, initDom } from "./dom/dom";
 import { sendMessage } from "./messages/sendMessage";
-import { setGameHandler } from "./GameHandler";
-import { GMTest } from "../../commons/gamemods/GMTest";
 
 declare global {
 	interface Window {
@@ -24,7 +22,7 @@ export function init() {
 	// test
 	sendMessage({
 		startGame: {
-			gamemode: "test"
+			gamemode: "airbasket"
 		}
 	});
 
