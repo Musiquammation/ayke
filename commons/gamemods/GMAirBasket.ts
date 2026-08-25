@@ -220,9 +220,9 @@ export class GMAirBasket extends GameMode {
 			const r0 = keyboard.first('right');
 			const l0 = keyboard.first('left');
 
-			const right = {right: {}};
-			const left = {left: {}};
-			const stop = {stop: {}};
+			const right = {right: {}, action: 'right'};
+			const left = {left: {}, action: 'left'};
+			const stop = {stop: {}, action: 'stop'};
 	
 			if (r0 && !l0)
 				return right;
@@ -261,7 +261,7 @@ export class GMAirBasket extends GameMode {
 		}
 
 		if (keyboard.first('up') || keyboard.first('jump')) {
-			inputs.push({jump: {}});
+			inputs.push({jump: {}, action: 'jump'});
 		}
 
 		return inputs;
