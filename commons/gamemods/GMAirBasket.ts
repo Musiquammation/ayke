@@ -8,14 +8,14 @@ interface PlayerInput {
 	data: Fields;
 }
 
-const GRAVITY = 1;
+const GRAVITY = 90;
 const WIDTH = 1600;
 const HEIGHT = 900;
 
 class Ball {
 	static readonly RADIUS = 20;
 	static readonly SPAWN_JUMP = 20;
-	static readonly GRAVITY = 0.5;
+	static readonly GRAVITY = 30;
 
 	x = 0;
 	y = 0;
@@ -27,8 +27,12 @@ class Ball {
 
 	move(dt: number) {
 		if (this.grabber >= 0) {
-
+			return; // ball is grabbed
 		}
+
+		this.vy += Ball.GRAVITY * dt;
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
 	}
 
 	reset() {
@@ -55,14 +59,14 @@ class Ball {
 
 class Player {
 	static readonly SPEED = 300;
-	static readonly JUMP = 20;
+	static readonly JUMP = 90;
 	static readonly COOLDOWN = 1.5;
 	static readonly RADIUS = 20;
 
 	connected = true;
 	alive = -1;
 	vx = 0;
-	vy = 0;
+	vy = -Player.JUMP;
 
 	constructor(
 		public x: number,
@@ -162,6 +166,8 @@ export class GMAirBasket extends GameMode {
 		for (const p of this.players) {
 			p.move(dt);
 		}
+
+		this.ball.move(dt);
 
 		// Grab ball
 		if (this.ball.grabber < 0) {
