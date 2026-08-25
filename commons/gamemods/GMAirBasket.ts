@@ -8,14 +8,14 @@ interface PlayerInput {
 	data: Fields;
 }
 
-const GRAVITY = 90;
+const GRAVITY = 900;
 const WIDTH = 1600;
 const HEIGHT = 900;
 
 class Ball {
 	static readonly RADIUS = 20;
 	static readonly SPAWN_JUMP = 20;
-	static readonly GRAVITY = 30;
+	static readonly GRAVITY = 50;
 
 	x = 0;
 	y = 0;
@@ -58,15 +58,22 @@ class Ball {
 }
 
 class Player {
-	static readonly SPEED = 300;
-	static readonly JUMP = 90;
+	static readonly SPEED = 1000;
+	static readonly ACCELERATION = 3000;
+	static readonly SOFT_DECELERATION = 4000;
+	static readonly QUICK_DECELERATION = 20000;
+	static readonly JUMP = 900;
+	static readonly SPAWN_JUMP = 90;
 	static readonly COOLDOWN = 1.5;
 	static readonly RADIUS = 20;
+	static readonly PUSH_DOWN = 1000;
 
 	connected = true;
 	alive = -1;
 	vx = 0;
-	vy = -Player.JUMP;
+	vy = -Player.SPAWN_JUMP;
+	dir = 0;
+	pushDown = false;
 
 	constructor(
 		public x: number,
@@ -86,9 +93,41 @@ class Player {
 		if (this.alive >= 0)
 			return;
 
+		// Set vx
+		if (this.dir === 0) {
+			if (this.vx > 0) {
+				this.vx -= Player.SOFT_DECELERATION * dt;
+				if (this.vx < 0) this.vx = 0;
+			} else if (this.vx < 0) {
+				this.vx += Player.SOFT_DECELERATION * dt;
+				if (this.vx > 0) this.vx = 0;
+			}
+		} else if (this.dir > 0) {
+			if (this.vx < 0) {
+				this.vx += Player.QUICK_DECELERATION * dt;
+				if (this.vx > 0) this.vx = 0;
+			} else if (this.vx < Player.SPEED) {
+				this.vx += Player.ACCELERATION * dt;
+				if (this.vx > Player.SPEED) this.vx = Player.SPEED;
+			}
+		} else /*if (this.dir < 0)*/ {
+			if (this.vx > 0) {
+				this.vx -= Player.QUICK_DECELERATION * dt;
+				if (this.vx < 0) this.vx = 0;
+			} else if (this.vx > -Player.SPEED) {
+				this.vx -= Player.ACCELERATION * dt;
+				if (this.vx < -Player.SPEED) this.vx = -Player.SPEED;
+			}
+		}
+		
 		this.vy += GRAVITY * dt;
+
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
+
+		if (this.pushDown) {
+			this.y += Player.PUSH_DOWN * dt;
+		}
 	}
 
 	canGrabBall(ball: Ball) {
@@ -99,12 +138,14 @@ class Player {
 		return distSq <= radiusSum * radiusSum;
 	}
 
-	update(obj: Fields) {
+	load(obj: Fields) {
 		this.x = obj.x;
 		this.y = obj.y;
 		this.vx = obj.vx;
 		this.vy = obj.vy;
+		this.dir = obj.dir;
 		this.alive = obj.alive;
+		this.pushDown = obj.pushDown;
 	}
 }
 
@@ -195,22 +236,29 @@ export class GMAirBasket extends GameMode {
 
 	override runInput(playerIdx: number, input: Fields): void {
 		const player = this.players[playerIdx];
-		console.log(input, input.action);
 		switch (input.action) {
 			case 'right':
-				player.vx = Player.SPEED;
+				player.dir = 1;
 				break;
 
 			case 'left':
-				player.vx = -Player.SPEED;
+				player.dir = -1;
 				break;
 
 			case 'stop':
-				player.vx = 0;
+				player.dir = 0;
 				break;
 
 			case 'jump':
 				player.vy = -Player.JUMP;
+				break;
+
+			case 'downOn':
+				player.pushDown = true;
+				break;
+
+			case 'downOff':
+				player.pushDown = false;
 				break;
 		}
 	}
@@ -264,6 +312,15 @@ export class GMAirBasket extends GameMode {
 			inputs.push({jump: {}, action: 'jump'});
 		}
 
+		if (keyboard.first('down')) {
+			inputs.push({downOn: {}, action: 'downOn'});
+		}
+
+		if (keyboard.killed('down')) {
+			inputs.push({downOff: {}, action: 'downOff'});
+		}
+
+
 		return inputs;
 	}
 
@@ -307,7 +364,7 @@ export class GMAirBasket extends GameMode {
 		const {State} = protocols.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) {
-			this.players[idx].update(player);
+			this.players[idx].load(player);
 		}
 
 		this.ball.load(obj);

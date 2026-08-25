@@ -9,7 +9,9 @@ message Player {
 	float y = 2;
 	float vx = 3;
 	float vy = 4;
-	float alive = 5;
+	int32 dir = 5;
+	float alive = 6;
+	bool pushDown = 7;
 }
 
 message FreeBall {
@@ -46,8 +48,10 @@ message QInput {
 		Empty left = 3;
 		Empty stop = 4;
 		Empty jump = 5;
-		Throw throwTarget = 6;
-		Throw throwDir = 7;
+		Empty downOn = 6;
+		Empty downOff = 7;
+		Throw throwTarget = 8;
+		Throw throwDir = 9;
 	}
 }
 
