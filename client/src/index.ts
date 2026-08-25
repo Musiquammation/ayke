@@ -27,7 +27,5 @@ export function init() {
 			gamemode: "test"
 		}
 	});
-
-	setGameHandler('test', [], 2);
 }
 

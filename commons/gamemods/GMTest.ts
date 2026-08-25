@@ -17,7 +17,7 @@ class Player {
 	constructor(
 		public x: number,
 		public y: number,
-		public readonly team: Team
+		public team: Team
 	) {
 
 	}
@@ -38,16 +38,36 @@ let _dom: any = null;
 export class GMTest extends GameMode {
 	readonly players: Player[];
 
-	private constructor(players: Player[]) {
+	private constructor(total: number) {
 		super();
-		this.players = players;
+
+		this.players = Array.from(
+			{ length: total },
+			() => new Player(0, 0, 'red')
+		);
 	}
 
-	static create(players: PlayerInput[], total: number) {
-		return new GMTest([
-			new Player(0, 1000, 'red'),
-			new Player(10, 1000, 'blue'),
-		]);
+	static createServ(players: PlayerInput[], total: number) {
+		const game = new GMTest(total);
+		game.players[0].x = 0;
+		game.players[0].y = 1000;
+		game.players[0].team = 'red';
+
+		game.players[1].x = 10;
+		game.players[1].y = 1000;
+		game.players[1].team = 'blue';
+
+		const data = new Uint8Array();
+
+		return {
+			game,
+			data
+		}
+	}
+
+	static createClient(data: Uint8Array, total: number) {
+		const g = new GMTest(total);
+		return g;
 	}
 
 	override init(): void {
@@ -113,7 +133,6 @@ export class GMTest extends GameMode {
 			for (const p of this.players) {
 				ctx.fillRect(p.x, p.y - 5, 10, 10);
 			}
-			console.log(Math.floor(this.players[0].y), Math.floor(this.players[1].y));
 		}
 	}
 

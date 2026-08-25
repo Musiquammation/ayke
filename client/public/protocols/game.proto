@@ -54,7 +54,16 @@ message ServerMessage {
 		Error error = 4;
 		WaitingInfo waitingInfo = 5;
 		double timeDeltaDate = 6;
+		StartGameServer startGame = 7;
 	}
+}
+
+message StartGameServer {
+	int32 playerIdx = 1;
+	int32 total = 2;
+	string gamemode = 3;
+	bytes startData = 4;
+	bytes gdata = 5;
 }
 
 message Error {

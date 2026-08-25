@@ -1,12 +1,12 @@
 import { Fields } from "../../commons/Fields";
 import { GameMode } from "../../commons/GameMode";
 import { gamemods } from "../../commons/gamemods";
-import { getProtocol, ProtocolTypes } from "../../commons/protocolLoader";
 import { getNow, msgtypes } from "./messages/sendMessage";
 import { keyboardController } from "./controllers/KeyboardController"
 import { mouseController } from "./controllers/MouseController"
 import { mergeSortedArrays } from "../../commons/util/mergeSortedArrays"
 import { dom } from "./dom/dom";
+import { getProtocol, ProtocolTypes } from "../../commons/protocolLoader";
 
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
@@ -40,24 +40,17 @@ function compareInputs(a: RealInput, b: RealInput) {
 }
 
 class GameHandler {
-	private protocols!: ProtocolTypes;
 	private lastEmulation = 0;
 	private userInputs: Input[] = [];
 	private readonly gameWidth: number;
 	private readonly gameHeight: number;
 
-	/// TODO: playerId
-	private playerId = Number(prompt("playerId"));
-
 	constructor(
 		private readonly gamemodeId: string,
 		private readonly gamemode: GameMode,
+		private readonly playerId: number,
+		private readonly protocols: ProtocolTypes
 	) {
-		const protocol = getProtocol(gamemodeId);
-		protocol.load().then(() => {
-			this.protocols = protocol.get();
-		});
-
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
@@ -178,16 +171,31 @@ interface Player {
 	trophees: number;
 	data: Fields;
 }
-export function setGameHandler(gamemode: string, players: Player[], total: number) {
+export async function setGameHandler(
+	gamemode: string,
+	playerIdx: number,
+	startData: Uint8Array,
+	total: number
+) {
 	const factory = gamemods[gamemode];
 	if (!factory) {
 		throw new Error(`Invalid gamemode '${gamemode}'`);
 	}
 
-	_gameHandler = new GameHandler(gamemode, factory(players, total));
+	const protocols = getProtocol(gamemode);
+	await protocols.load();
+
+	_gameHandler = new GameHandler(
+		gamemode,
+		factory.client(startData, total),
+		playerIdx,
+		protocols.get()
+	);
 	_gameHandler.frame();
 
 	dom.openPlay();
+
+	return _gameHandler;
 }
 
 export function deleteGameHandler() {

@@ -1,4 +1,4 @@
-import { getGameHandler } from "../GameHandler";
+import { getGameHandler, setGameHandler } from "../GameHandler";
 import { msgtypes, sendMessage } from "./sendMessage";
 
 function run<T>(data: T | undefined, exec: (data: T)=>void) {
@@ -20,6 +20,18 @@ export function recvMessage(msg: protobuf.ReflectedMessage) {
 
 		return;
 	}
+
+	run(msg.startGame, async d => {
+		const ghandler = await setGameHandler(
+			d.gamemode,
+			d.playerIdx,
+			d.startData,
+			d.total
+		);
+		const gdata = ghandler.receive(d.gdata);
+		console.log("playerIdx", d.playerIdx);
+		sendMessage({gdata});
+	});
 
 	run(msg.createAccountResult, d => {
 		console.log(d.success);

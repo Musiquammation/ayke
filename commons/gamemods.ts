@@ -9,9 +9,19 @@ interface Player {
 
 export const gamemods: Record<
     string,
-    (players: Player[], total: number) => GameMode
+    {
+        server: (players: Player[], total: number) => {
+            game: GameMode,
+            data: Uint8Array
+        },
+        client: (entry: Uint8Array, total: number) => GameMode,
+    }
+
 > = {
-    test: (players, total) => GMTest.create(players, total),
+    test: {
+        server: (players, total) => GMTest.createServ(players, total),
+        client: (entry, total) => GMTest.createClient(entry, total),
+    },
 };
 
 

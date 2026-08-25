@@ -76,7 +76,7 @@ export class Room {
 		));
 	}
 
-	start() {
+	start(startData: Uint8Array, total: number) {
 		this.gamemode.init();
 		this.latestData = this.gamemode.save();
 
@@ -91,8 +91,14 @@ export class Room {
 			p.init(now);
 		}
 
-		for (const p of this.players) {
-			p.connection?.sendMessage({gdata});
+		for (const [playerIdx, p] of this.players.entries()) {
+			p.connection?.sendMessage({startGame: {
+				playerIdx,
+				total,
+				gamemode: this.gamemodeId,
+				startData,
+				gdata,
+			}});
 		}
 
 		this.botsData = this.latestData;
@@ -234,14 +240,15 @@ class RoomHandler {
 			}
 		}
 
-		const room = new Room(gamemode, factory(players, total), players);
+		const created = factory.server(players, total);
+		const room = new Room(gamemode, created.game, players);
 		for (const [idx, player] of players.entries()) {
 			player.connection.roomInfo = { room, idx };
 		}
 
 		this.rooms.push(room);
 
-		room.start();
+		room.start(created.data, total);
 	}
 
 	disconnect(connection: Connection) {
