@@ -21,6 +21,8 @@ export function init() {
 
 	initDom();
 
+	dom.loadTest();
+
 	// test
 	sendMessage({
 		startGame: {

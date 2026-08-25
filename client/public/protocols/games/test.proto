@@ -14,10 +14,14 @@ message State {
 	repeated Player players = 1;
 }
 
-message Input {
+message QInput {
 	double timestamp = 1;
+	int32 move = 2;
+}
+
+message Input {
+	QInput data = 1;
 	int32 player = 2;
-	int32 move = 3;
 }
 
 message ServerMessage {
@@ -28,7 +32,7 @@ message ServerMessage {
 
 message ClientMessage {
 	double timestamp = 1;
-	repeated Input inputs = 2;
+	repeated QInput inputs = 2;
 }
 
 

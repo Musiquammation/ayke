@@ -90,6 +90,6 @@ export function sendMessage(message: {[k: string]: any}) {
 	msgtypes.then(m => m.send(message));
 }
 
-export function getDeltaTime() {
-	return _deltaTime;
+export function getNow() {
+	return performance.now() + _deltaTime;
 }

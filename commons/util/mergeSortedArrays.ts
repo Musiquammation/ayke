@@ -27,32 +27,23 @@ export function mergeSortedArrays<T>(
 	return result;
 }
 
-export function produceMergedSortedArrays<T, U>(
-	a: T[],
-	b: U[],
-	compare: (a: T, b: U) => number,
-	produce: (x: U) => T
-): T[] {
-	const result: T[] = [];
+export function pushSortedArrays<T>(
+	main: T[],
+	added: T[],
+	compare: (a: T, b: T) => number
+) {
+	let i = main.length - 1;
+	let j = added.length - 1;
 
-	let i = 0;
-	let j = 0;
+	main.length += added.length;
 
-	while (i < a.length && j < b.length) {
-		if (compare(a[i], b[j]) <= 0) {
-			result.push(a[i++]);
+	let k = main.length - 1;
+
+	while (j >= 0) {
+		if (i >= 0 && compare(main[i], added[j]) > 0) {
+			main[k--] = main[i--];
 		} else {
-			result.push(produce(b[j++]));
+			main[k--] = added[j--];
 		}
 	}
-
-	while (i < a.length) {
-		result.push(a[i++]);
-	}
-
-	while (j < b.length) {
-		result.push(produce(b[j++]));
-	}
-
-	return result;
 }

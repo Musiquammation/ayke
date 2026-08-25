@@ -3,11 +3,16 @@ import Alpine from "alpinejs";
 declare global {
 	interface Window {
 		Alpine: any;
+		dom: MainComponent;
 	}
 }
 
 class MainComponent {
 	private currentPage = "index";
+
+	// test data
+	y0 = 0;
+	y1 = 0;
 
 	uses(page: string) {
 		return this.currentPage === page;
@@ -31,6 +36,7 @@ export function initDom() {
 		Alpine.data("main", () => dom);
 	});
 	window.Alpine = Alpine;
+	window.dom = dom;
 	Alpine.start();
 }
 

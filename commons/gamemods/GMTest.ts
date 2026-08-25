@@ -81,7 +81,7 @@ export class GMTest extends GameMode {
 		}
 
 		if (keyboard.killed('up') || keyboard.killed('down')) {
-			inputs.push({move: 0});
+			inputs.push({move: 1});
 		}
 		
 
@@ -90,7 +90,9 @@ export class GMTest extends GameMode {
 	}
 
 	override draw(ctx: CanvasRenderingContext2D) {
-		
+		const dom = (window as any).dom;
+		dom.y0 = this.players[0].y;
+		dom.y1 = this.players[1].y;
 	}
 
 
@@ -109,14 +111,6 @@ export class GMTest extends GameMode {
 		for (const [idx, player] of obj.players.entries()) {
 			this.players[idx].update(player);
 		}
-	}
-
-	override clone() {
-		return new GMTest(this.players.map(o => {
-			const p = new Player(o.x, o.y);
-			p.move = o.move;
-			return p;
-		}));
 	}
 }
 

@@ -6,8 +6,11 @@ import { GMTest } from "../commons/gamemods/GMTest";
 import { Fields } from "../commons/Fields";
 import { gamemods } from "../commons/gamemods";
 import { getProtocol } from "../commons/protocolLoader";
+import { pushSortedArrays } from "../commons/util/mergeSortedArrays";
+import { minBy } from "../commons/util/minBy";
 
 const logger = getLogger("room");
+logger.setLevel('debug');
 
 interface PlayerInput {
 	connection: Connection;
@@ -16,6 +19,8 @@ interface PlayerInput {
 }
 
 class Player {
+	lastDate = 0;
+
 	constructor(
 		public connection: Connection | null,
 		public readonly trophees: number,
@@ -23,14 +28,19 @@ class Player {
 	) {
 		
 	}
+
+	init(date: number) {
+		this.lastDate = date;
+	}
 }
+
 
 export class Room {
 	private readonly bots: Bot[];
 	private readonly players: Player[];
-	private backupData!: Uint8Array;
-	private backupDate: number = 0;
-	private readonly inputs = new Array<{date: number, data: Fields}>();
+	private latestData!: Uint8Array;
+	private latestUser: number = 0;
+	private readonly inputs = new Array<Fields>();
 
 	constructor(
 		public readonly gamemodeId: string,
@@ -47,14 +57,18 @@ export class Room {
 
 	start() {
 		this.gamemode.init();
-		this.backupData = this.gamemode.save();
-		this.backupDate = performance.now();
-		
+		this.latestData = this.gamemode.save();
+
 		const gdata = getProtocol(this.gamemodeId).get().ServerMessage.encode({
-			timestamp: this.backupDate,
-			state: this.backupData,
+			timestamp: this.players[this.latestUser].lastDate,
+			state: this.latestData,
 			inputs: [],
 		}).finish();
+
+		const now = performance.now();
+		for (const p of this.players) {
+			p.init(now);
+		}
 
 		for (const p of this.players) {
 			p.connection?.sendMessage({gdata});
@@ -68,8 +82,64 @@ export class Room {
 		}
 	}
 
-	handle(data: protobuf.ReflectedMessage): Uint8Array {
-		return new Uint8Array();
+	handle(encryptedData: Uint8Array, playerIdx: number): Uint8Array {
+		const {
+			ClientMessage,
+			ServerMessage
+		} = getProtocol(this.gamemodeId).get();
+
+		const data = ClientMessage.decode(encryptedData);
+
+		pushSortedArrays(
+			this.inputs,
+			data.inputs.map((i: any) => ({...i, player: playerIdx})),
+			compareInputs
+		);
+
+
+		logger.debug(`With playerIdx=${playerIdx}, latestUser=${this.latestUser}`);
+
+		// Move latestData
+		if (this.latestUser === playerIdx) {
+			const lastDate = this.players[this.latestUser].lastDate;
+			this.players[this.latestUser].lastDate = data.timestamp;
+			this.latestUser = minBy(this.players, getLastDate);
+			
+			
+			const nextDate = this.players[this.latestUser].lastDate;
+			logger.debug(`Run from ${lastDate.toFixed(4)} to ${nextDate.toFixed(4)} with ${
+				JSON.stringify((this.inputs as any))
+			}`);
+
+			this.gamemode.emulate(
+				lastDate,
+				nextDate,
+				this.inputs as {
+					timestamp: number;
+					player: number;
+				}[]
+			);
+
+			this.latestData = this.gamemode.save();
+
+			let i = 0;
+			while (
+				i < this.inputs.length &&
+				this.inputs[i].timestamp < nextDate
+			) {i++;}
+
+			this.inputs.splice(0, i);
+		}
+
+		return ServerMessage.encode({
+			timestamp: this.players[this.latestUser].lastDate,
+			state: this.latestData,
+			inputs: this.inputs.map((data: any) => ({
+				data,
+				player: data.player
+			}))
+		}).finish();
+		
 	}
 }
 
@@ -115,3 +185,11 @@ class RoomHandler {
 export const roomHandler = new RoomHandler();
 
 
+
+
+
+function compareInputs(a: Fields, b: Fields) {
+	return a.timestamp - b.timestamp;
+}
+
+function getLastDate(player: Player) {return player.lastDate;}

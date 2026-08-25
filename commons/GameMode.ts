@@ -34,7 +34,6 @@ export abstract class GameMode {
 	abstract onDisconnection(id: number): void;
 	abstract save(): Uint8Array;
 	abstract load(data: Uint8Array): void;
-	abstract clone(): GameMode;
 
 
 	private quickEmulate(duration: number) {
@@ -48,15 +47,14 @@ export abstract class GameMode {
 
 	emulate(
 		start: number,
-		finish: number | null,
-		timeDelta: number,
+		finish: number | (()=>number),
 		inputs: Input[]
 	) {
 		let currentTime = start;
 
 		for (const input of inputs) {
 			// Emulate the time elapsed since the previous event.
-			const inputTimestamp = input.timestamp - timeDelta;
+			const inputTimestamp = input.timestamp;
 			const duration = (inputTimestamp - currentTime) / 1000;
 			this.quickEmulate(duration);
 
@@ -69,8 +67,8 @@ export abstract class GameMode {
 		// If no finish time was provided, only compute it after all inputs
 		// have been processed, so that the computation itself does not affect
 		// the simulation duration.
-		if (finish === null) {
-			finish = performance.now();
+		if (typeof finish === 'function') {
+			finish = finish();
 		}
 
 		// Emulate the remaining time after the last input.

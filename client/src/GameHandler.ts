@@ -2,10 +2,10 @@ import { Fields } from "../../commons/Fields";
 import { GameMode } from "../../commons/GameMode";
 import { gamemods } from "../../commons/gamemods";
 import { getProtocol, ProtocolTypes } from "../../commons/protocolLoader";
-import { getDeltaTime, msgtypes } from "./messages/sendMessage";
+import { getNow, msgtypes } from "./messages/sendMessage";
 import { keyboardController } from "./controllers/KeyboardController"
 import { mouseController } from "./controllers/MouseController"
-import { mergeSortedArrays, produceMergedSortedArrays } from "../../commons/util/mergeSortedArrays"
+import { mergeSortedArrays } from "../../commons/util/mergeSortedArrays"
 
 
 interface Input {
@@ -17,7 +17,7 @@ interface RealInput {
 	player: number;
 }
 
-function compareInputs(a: RealInput, b: Input) {
+function compareInputs(a: RealInput, b: RealInput) {
 	return a.timestamp - b.timestamp;
 }
 
@@ -27,7 +27,7 @@ class GameHandler {
 	private userInputs: Input[] = [];
 
 	/// TODO: playerId
-	private playerId = 0;
+	private playerId = Number(prompt("playerId"));
 
 	constructor(
 		private readonly gamemodeId: string,
@@ -42,26 +42,35 @@ class GameHandler {
 	receive(gdata: Uint8Array) {
 		const msg = this.protocols.ServerMessage.decode(gdata);
 		this.gamemode.load(msg.state);
-		this.lastEmulation = performance.now();
+		const now = getNow();
+		this.lastEmulation = now;
 
-		const inputs = produceMergedSortedArrays(
-			msg.inputs as RealInput[],
-			this.userInputs,
-			compareInputs,
-			x => ({...x, player: this.playerId})
+		const inputs = mergeSortedArrays(
+			msg.inputs.map((i: any) => ({...(i.data), player: i.player})),
+			this.userInputs.map(i => ({...i, player: this.playerId})),
+			compareInputs
 		);
 
 		this.gamemode.emulate(
 			msg.timestamp,
-			this.lastEmulation,
-			getDeltaTime(),
+			now,
 			inputs
 		);
+
+		const output = this.protocols.ClientMessage.encode({
+			timestamp: now,
+			inputs: this.userInputs
+		}).finish();
+
+		this.userInputs.length = 0; // empty userInputs
+
+
+		return output;
 	}
 
 	frame() {
 		// Collect inputs
-		const now = performance.now();
+		const now = getNow();
 		const newInputs = this.gamemode.collectInputs(
 			keyboardController,
 			mouseController
@@ -73,7 +82,6 @@ class GameHandler {
 		this.gamemode.emulate(
 			this.lastEmulation,
 			now,
-			getDeltaTime(),
 			newInputs.map(i => ({...i, player: this.playerId}))
 		);
 
