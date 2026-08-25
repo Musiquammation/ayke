@@ -116,6 +116,7 @@ export class Room {
 		const pingCooldown = MIN_PING - this.players[playerIdx].getRuntimePing();
 		if (pingCooldown > 0) {
 			await sleepTime(pingCooldown);
+			this.players[playerIdx].lastServerDate = performance.now();
 		}
 
 		// Move latestData
