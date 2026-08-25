@@ -6,6 +6,24 @@ import { getNow, msgtypes } from "./messages/sendMessage";
 import { keyboardController } from "./controllers/KeyboardController"
 import { mouseController } from "./controllers/MouseController"
 import { mergeSortedArrays } from "../../commons/util/mergeSortedArrays"
+import { dom } from "./dom/dom";
+
+
+const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
+const ctx = canvas.getContext('2d')!;
+canvas.oncontextmenu = e => {
+	e.preventDefault();
+};
+
+
+function resizeCanvas() {
+	canvas.width = window.innerWidth;
+	canvas.height = window.innerHeight;
+}
+
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
 
 
 interface Input {
@@ -25,6 +43,8 @@ class GameHandler {
 	private protocols!: ProtocolTypes;
 	private lastEmulation = 0;
 	private userInputs: Input[] = [];
+	private readonly gameWidth: number;
+	private readonly gameHeight: number;
 
 	/// TODO: playerId
 	private playerId = Number(prompt("playerId"));
@@ -37,6 +57,10 @@ class GameHandler {
 		protocol.load().then(() => {
 			this.protocols = protocol.get();
 		});
+
+		const gsize = this.gamemode.getSize();
+		this.gameWidth = gsize.width;
+		this.gameHeight = gsize.height;
 	}
 
 	receive(gdata: Uint8Array) {
@@ -68,6 +92,49 @@ class GameHandler {
 		return output;
 	}
 
+	private draw() {
+		// Compute the scale needed to fit the game viewport inside the canvas.
+		const scaleX = canvas.width / this.gameWidth;
+		const scaleY = canvas.height / this.gameHeight;
+
+		// Preserve the game's aspect ratio by using the smallest scale.
+		const scale = Math.min(scaleX, scaleY);
+
+		// Center the scaled game viewport inside the canvas.
+		const offsetX = (canvas.width - this.gameWidth * scale) / 2;
+		const offsetY = (canvas.height - this.gameHeight * scale) / 2;
+
+		ctx.save();
+
+		// Clear the entire canvas before drawing the new frame.
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+		// Move to the centered position and apply the calculated scale.
+		ctx.translate(offsetX, offsetY);
+		ctx.scale(scale, scale);
+
+		// Everything drawn here is affected by the translation and scale.
+		this.gamemode.draw(ctx);
+
+		// Restore the context to the original canvas coordinates.
+		ctx.restore();
+
+		// Draw black bars over the unused areas outside the game viewport.
+		ctx.fillStyle = "black";
+
+		// Draw left and right bars when the canvas is wider than the game viewport.
+		if (offsetX > 0) {
+			ctx.fillRect(0, 0, offsetX, canvas.height); // Left bar
+			ctx.fillRect(canvas.width - offsetX, 0, offsetX, canvas.height); // Right bar
+		}
+
+		// Draw top and bottom bars when the canvas is taller than the game viewport.
+		if (offsetY > 0) {
+			ctx.fillRect(0, 0, canvas.width, offsetY); // Top bar
+			ctx.fillRect(0, canvas.height - offsetY, canvas.width, offsetY); // Bottom bar
+		}
+	}
+
 	frame() {
 		// Collect inputs
 		const now = getNow();
@@ -84,12 +151,10 @@ class GameHandler {
 			now,
 			newInputs.map(i => ({...i, player: this.playerId}))
 		);
-
 		this.lastEmulation = now;
 
-		// @ts-ignore
-		/// TODO: append canvas
-		this.gamemode.draw(null);
+
+		this.draw();
 
 		if (_gameHandler) {
 			requestAnimationFrame(()=>this.frame());
@@ -113,7 +178,6 @@ interface Player {
 	trophees: number;
 	data: Fields;
 }
-
 export function setGameHandler(gamemode: string, players: Player[], total: number) {
 	const factory = gamemods[gamemode];
 	if (!factory) {
@@ -122,4 +186,10 @@ export function setGameHandler(gamemode: string, players: Player[], total: numbe
 
 	_gameHandler = new GameHandler(gamemode, factory(players, total));
 	_gameHandler.frame();
+
+	dom.openPlay();
+}
+
+export function deleteGameHandler() {
+	_gameHandler = null;
 }

@@ -43,8 +43,8 @@ export class GMTest extends GameMode {
 
 	static create(players: PlayerInput[], total: number) {
 		return new GMTest([
-			new Player(0, 0),
-			new Player(10, 0),
+			new Player(0, 1000),
+			new Player(10, 1000),
 		]);
 	}
 
@@ -109,7 +109,7 @@ export class GMTest extends GameMode {
 			ctx.fillRect(0, 0, 100, 800);
 			ctx.fillStyle = "red";
 			for (const p of this.players) {
-				ctx.fillRect(p.x*3, p.y - 5, 10, 10);
+				ctx.fillRect(p.x, p.y - 5, 10, 10);
 			}
 			console.log(Math.floor(this.players[0].y), Math.floor(this.players[1].y));
 		}
@@ -131,6 +131,10 @@ export class GMTest extends GameMode {
 		for (const [idx, player] of obj.players.entries()) {
 			this.players[idx].update(player);
 		}
+	}
+
+	override getSize() {
+		return {width: 20, height: 2000};
 	}
 }
 

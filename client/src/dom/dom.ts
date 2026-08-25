@@ -18,12 +18,16 @@ class MainComponent {
 		return this.currentPage === page;
 	}
 
-	loadIndex() {
+	openIndex() {
 		this.currentPage = "index";
 	}
 
-	loadTest() {
+	openTest() {
 		this.currentPage = "test";
+	}
+
+	openPlay() {
+		this.currentPage = "play";
 	}
 }
 

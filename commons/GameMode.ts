@@ -79,6 +79,8 @@ export abstract class GameMode {
 	abstract save(): Uint8Array;
 	abstract load(data: Uint8Array): void;
 
+	abstract getSize(): ({width: number, height: number});
+
 
 	private quickEmulate(duration: number) {
 		while (duration > GameMode.MAX_DT) {
