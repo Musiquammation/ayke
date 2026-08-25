@@ -1,6 +1,7 @@
 import "dotenv/config";
 import fs from "fs";
 import path from "path";
+import { ILogger } from "../commons/GameMode";
 
 export type LoggerLevel = "debug" | "info" | "waring" | "error";
 
@@ -16,7 +17,7 @@ const logPath = process.env.LOGS_PATH ?? "dist/logs.log";
 const logDir = path.dirname(logPath);
 fs.mkdirSync(logDir, { recursive: true });
 
-class Logger {
+class Logger implements ILogger {
 	constructor(
 		private readonly name: string,
 		private level: LoggerLevel = "info",

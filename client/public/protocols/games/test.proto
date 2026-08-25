@@ -7,7 +7,7 @@ message Empty {}
 message Player {
 	float x = 1;
 	float y = 2;
-	int32 move = 3;
+	float move = 3;
 }
 
 message State {
@@ -16,12 +16,12 @@ message State {
 
 message QInput {
 	double timestamp = 1;
-	int32 move = 2;
+	float move = 2;
 }
 
 message Input {
 	QInput data = 1;
-	int32 player = 2;
+	float player = 2;
 }
 
 message ServerMessage {

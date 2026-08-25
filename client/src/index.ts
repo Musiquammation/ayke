@@ -32,3 +32,4 @@ export function init() {
 
 	setGameHandler('test', [], 2);
 }
+

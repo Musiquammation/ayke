@@ -16,14 +16,58 @@ export interface IMouseController {
 	killed(button: number): boolean;	
 }
 
+export interface ILogger {
+	debug(text: string): void;
+	info(text: string): void;
+	warning(text: string): void;
+	error(text: string): void;
+}
+
 interface Input {
 	timestamp: number;
 	player: number;
 }
 
 
+type LoggerLevel = "debug" | "info" | "waring" | "error";
+
+type LoggerGenerator = (
+	name: string,
+	level: "debug" | "info" | "waring" | "error"
+) => ILogger;
+
+const ALLOW_CLIENT_LOGS = false;
+
+let _loggerGenerator: LoggerGenerator = (name, level) => ({
+	debug(text) {
+		if (ALLOW_CLIENT_LOGS && level === 'debug')
+			console.log(`[${name.toUpperCase()}] ${text}`)
+	},	
+
+	info(text) {
+		if (ALLOW_CLIENT_LOGS && (level === 'info' || level === 'debug'))
+			console.log(`[${name.toUpperCase()}] ${text}`)
+
+	},
+
+	warning(text) {
+		if (ALLOW_CLIENT_LOGS && level !== 'error')
+			console.warn(`[${name.toUpperCase()}] ${text}`)
+	},
+
+	error(text) {
+		if (ALLOW_CLIENT_LOGS)
+			console.error(`[${name.toUpperCase()}] ${text}`)
+
+	}
+})
+
 export abstract class GameMode {
-	public static readonly MAX_DT = 0.005; // 5ms
+	public static readonly MAX_DT = 0.050; // 50ms
+
+	protected static getLogger(name: string, level: LoggerLevel = 'info') {
+		return _loggerGenerator(name, level);
+	}
 
 	abstract init(): void;
 	abstract getBots(): Bot[];
@@ -52,9 +96,17 @@ export abstract class GameMode {
 	) {
 		let currentTime = start;
 
+		const finishLimit = typeof finish === 'function' ? Infinity : finish;
+
 		for (const input of inputs) {
 			// Emulate the time elapsed since the previous event.
 			const inputTimestamp = input.timestamp;
+			if (inputTimestamp > finishLimit)
+				break;
+
+			if (inputTimestamp < currentTime)
+				continue;
+
 			const duration = (inputTimestamp - currentTime) / 1000;
 			this.quickEmulate(duration);
 
@@ -75,4 +127,8 @@ export abstract class GameMode {
 		const duration = (finish - currentTime) / 1000;
 		this.quickEmulate(duration);
 	}
+}
+
+export function setGameModeLoggerGenerator(loggerGenerator: LoggerGenerator) {
+	_loggerGenerator = loggerGenerator;
 }

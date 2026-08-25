@@ -85,6 +85,11 @@ class GameHandler {
 			newInputs.map(i => ({...i, player: this.playerId}))
 		);
 
+		this.lastEmulation = now;
+
+		// @ts-ignore
+		/// TODO: append canvas
+		this.gamemode.draw(null);
 
 		if (_gameHandler) {
 			requestAnimationFrame(()=>this.frame());

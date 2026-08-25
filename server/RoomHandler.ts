@@ -10,7 +10,7 @@ import { pushSortedArrays } from "../commons/util/mergeSortedArrays";
 import { minBy } from "../commons/util/minBy";
 
 const logger = getLogger("room");
-logger.setLevel('debug');
+logger.setLevel('info');
 
 interface PlayerInput {
 	connection: Connection;
@@ -107,7 +107,15 @@ export class Room {
 			
 			
 			const nextDate = this.players[this.latestUser].lastDate;
-			logger.debug(`Run from ${lastDate.toFixed(4)} to ${nextDate.toFixed(4)} with ${
+			logger.debug(`Run from ${
+				lastDate.toFixed(4)
+			} to ${
+				nextDate.toFixed(4)
+			} at {serv=${
+				performance.now().toFixed(4)
+			}, client=${
+				data.timestamp.toFixed(4)
+			} with ${
 				JSON.stringify((this.inputs as any))
 			}`);
 

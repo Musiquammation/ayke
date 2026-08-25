@@ -65,7 +65,7 @@ export class Connection {
 				if (this.isAlive()) {
 					this.sendMessage({gdata});
 				}
-			}, 100);
+			}, 10);
 			return;
 		}
 

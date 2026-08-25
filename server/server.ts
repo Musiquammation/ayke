@@ -9,6 +9,7 @@ import { initSendMessage } from "./sendMessage";
 import { initDb } from "./Database";
 import { getLogger } from "./Logger";
 import { initProtocols } from "../commons/protocolLoader";
+import { setGameModeLoggerGenerator } from "../commons/GameMode";
 
 const PORT = Number(process.env.PORT);
 const PROTOCOL_PATH = process.env.PROTOCOL_PATH;
@@ -59,3 +60,9 @@ initProtocols(name => protobuf.load(PROTOCOLS_FOLDER + name + ".proto"));
 
 initDb(DB_FILE);
 
+
+setGameModeLoggerGenerator((name, level) => {
+	const l = getLogger(name);
+	l.setLevel(level);
+	return l;
+})

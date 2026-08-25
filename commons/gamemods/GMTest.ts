@@ -29,6 +29,10 @@ class Player {
 }
 
 
+// temp
+let _dom: any = null;
+
+
 export class GMTest extends GameMode {
 	readonly players: Player[];
 
@@ -40,7 +44,7 @@ export class GMTest extends GameMode {
 	static create(players: PlayerInput[], total: number) {
 		return new GMTest([
 			new Player(0, 0),
-			new Player(200, 0),
+			new Player(10, 0),
 		]);
 	}
 
@@ -57,13 +61,21 @@ export class GMTest extends GameMode {
 			p.y += p.move * dt;
 		}
 
+		const logger = GMTest.getLogger('game-test', 'info');
+		logger.debug(`y0=${this.players[0].y.toFixed(2)} dt=${dt}`);
+
+
+
 		return false;
 	}
 
 	override runInput(playerIdx: number, input: Fields): void {
+		const logger = GMTest.getLogger('game-test', 'info');
+
 		const player = this.players[playerIdx];
 		if (input.move !== undefined) {
 			player.move = input.move;
+			logger.debug(`input ${input.move} ${playerIdx}`);
 		}
 	}
 
@@ -73,15 +85,15 @@ export class GMTest extends GameMode {
 		/* Really simplified logic */
 
 		if (keyboard.first('up')) {
-			inputs.push({move: +10});
+			inputs.push({move: +300});
 		}
 
 		if (keyboard.first('down')) {
-			inputs.push({move: -10});
+			inputs.push({move: -300});
 		}
 
 		if (keyboard.killed('up') || keyboard.killed('down')) {
-			inputs.push({move: 1});
+			inputs.push({move: 0.0000000000000001});
 		}
 		
 
@@ -89,10 +101,18 @@ export class GMTest extends GameMode {
 		return inputs;
 	}
 
-	override draw(ctx: CanvasRenderingContext2D) {
-		const dom = (window as any).dom;
-		dom.y0 = this.players[0].y;
-		dom.y1 = this.players[1].y;
+	override draw(_ctx: CanvasRenderingContext2D) {
+		const canvas = document.querySelector("canvas");
+		if (canvas) {
+			const ctx = canvas.getContext('2d')!;
+			ctx.fillStyle = "black";
+			ctx.fillRect(0, 0, 100, 800);
+			ctx.fillStyle = "red";
+			for (const p of this.players) {
+				ctx.fillRect(p.x*3, p.y - 5, 10, 10);
+			}
+			console.log(Math.floor(this.players[0].y), Math.floor(this.players[1].y));
+		}
 	}
 
 

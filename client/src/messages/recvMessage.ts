@@ -15,7 +15,7 @@ export function recvMessage(msg: protobuf.ReflectedMessage) {
 			const gdata = ghandler.receive(msg.gdata);
 			setTimeout(() => {
 				sendMessage({gdata});
-			}, 100);
+			}, 10);
 			
 		} else {
 			console.warn("Received gdata while ghandler is null");

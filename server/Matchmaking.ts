@@ -536,7 +536,7 @@ class Matchmaking {
 
 		logger.info(
 			`Starting game for mode '${waitingRoom.gamemode}' ` +
-			`with ${waitingRoom.players.length} (of ${waitingRoom.excepted}) players ` +
+			`Receive ${waitingRoom.players.length} (of ${waitingRoom.excepted}) players ` +
 			`(Bots allowed: ${botsAllowed})`
 		);
 
