@@ -7,6 +7,7 @@ import { mouseController } from "./controllers/MouseController"
 import { mergeSortedArrays } from "../../commons/util/mergeSortedArrays"
 import { dom } from "./dom/dom";
 import { getProtocol, ProtocolTypes } from "../../commons/protocolLoader";
+import { decodeFullMessage } from "../../commons/util/decodeFullMessage";
 
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
@@ -57,7 +58,7 @@ class GameHandler {
 	}
 
 	receive(gdata: Uint8Array) {
-		const msg = this.protocols.ServerMessage.decode(gdata);
+		const msg = decodeFullMessage(this.protocols.ServerMessage.decode(gdata));
 		this.gamemode.load(msg.state);
 		const now = getNow();
 		this.lastEmulation = now;

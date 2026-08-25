@@ -16,7 +16,10 @@ message State {
 
 message QInput {
 	double timestamp = 1;
-	float move = 2;
+	oneof test {
+		float move = 2;
+		Empty invalid = 3;
+	}
 }
 
 message Input {
