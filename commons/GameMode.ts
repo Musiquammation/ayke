@@ -74,7 +74,7 @@ export abstract class GameMode {
 	protected abstract run(dt: number): boolean;
 	abstract runInput(playerIdx: number, input: Fields): void;
 	abstract collectInputs(keyboard: IKeyboardController, mouse: IMouseController): Fields[];
-	abstract draw(ctx: CanvasRenderingContext2D): void;
+	abstract draw(ctx: CanvasRenderingContext2D, playerIdx: number): void;
 	abstract onDisconnection(id: number): void;
 	abstract save(): Uint8Array;
 	abstract load(data: Uint8Array): void;

@@ -10,7 +10,6 @@ function run<T>(data: T | undefined, exec: (data: T)=>void) {
 
 const runners: Record<string, (data: any)=>void> = {
 	gdata(gdata) {
-		console.log("gdata");
 		const ghandler = getGameHandler();
 		if (ghandler) {
 			const newGdata = ghandler.receive(gdata);

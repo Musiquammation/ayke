@@ -49,7 +49,7 @@ class GameHandler {
 	constructor(
 		private readonly gamemodeId: string,
 		private readonly gamemode: GameMode,
-		private readonly playerId: number,
+		private readonly playerIdx: number,
 		private readonly protocols: ProtocolTypes
 	) {
 		const gsize = this.gamemode.getSize();
@@ -65,7 +65,7 @@ class GameHandler {
 
 		const inputs = mergeSortedArrays(
 			msg.inputs.map((i: any) => ({...(i.data), player: i.player})),
-			this.userInputs.map(i => ({...i, player: this.playerId})),
+			this.userInputs.map(i => ({...i, player: this.playerIdx})),
 			compareInputs
 		);
 
@@ -108,7 +108,7 @@ class GameHandler {
 		ctx.scale(scale, scale);
 
 		// Everything drawn here is affected by the translation and scale.
-		this.gamemode.draw(ctx);
+		this.gamemode.draw(ctx, this.playerIdx);
 
 		// Restore the context to the original canvas coordinates.
 		ctx.restore();
@@ -143,7 +143,7 @@ class GameHandler {
 		this.gamemode.emulate(
 			this.lastEmulation,
 			now,
-			newInputs.map(i => ({...i, player: this.playerId}))
+			newInputs.map(i => ({...i, player: this.playerIdx}))
 		);
 		this.lastEmulation = now;
 
