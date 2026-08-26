@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { GameMode } from "../commons/GameMode";
+import { FinishGame, GameMode } from "../commons/GameMode";
 import { Connection } from "./Connection";
 import { getLogger } from "./Logger";
 import { Fields } from "../commons/Fields";
@@ -10,6 +10,7 @@ import { minBy } from "../commons/util/minBy";
 import { sleepTime } from "../commons/util/sleepTime";
 import { Bot, generateBot } from "./Bot";
 import { decodeFullMessage } from "../commons/util/decodeFullMessage";
+import { flattenArrays } from "../commons/util/flattenArrays";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -20,6 +21,7 @@ logger.setLevel('info');
 interface PlayerInput {
 	connection: Connection;
 	trophees: number;
+	identifier: number;
 	data: Uint8Array;
 }
 
@@ -35,6 +37,7 @@ class Player {
 	constructor(
 		public connection: Connection | null,
 		public readonly trophees: number,
+		public readonly identifier: number,
 		public readonly data: Fields
 	) {
 		
@@ -61,12 +64,14 @@ export class Room {
 	private latestUser: number = 0;
 	private botsInstant: number = 0;
 	private readonly inputs = new Array<Fields>();
+	private finished = false;
 
 	constructor(
 		public readonly gamemodeId: string,
 		public readonly gamemode: GameMode,
 		players: PlayerInput[],
-		bots: number
+		bots: number,
+		private onfinish: ()=>void
 	) {
 		this.bots = gamemode.getBotIds(bots).map(
 			(i, index) => generateBot(gamemodeId, i, players.length + index)
@@ -74,6 +79,7 @@ export class Room {
 		this.players = players.map(p => new Player(
 			p.connection,
 			p.trophees,
+			p.identifier,
 			p.data,
 		));
 	}
@@ -167,12 +173,23 @@ export class Room {
 				(timestamp: number) => this.preprocessBots(tempInputs, timestamp)
 			);
 
+
+			let finish: FinishGame | null = null;
 			this.gamemode.emulate(
 				lastDate,
 				nextDate,
 				this.inputs as EmulationInput[],
-				preprocess
+				preprocess,
+				f => {finish = f;}
 			);
+
+			// Game is finished
+			if (finish) {
+				return {
+					gdata: this.produceGData(ServerMessage),
+					finish: this.finish(finish)
+				};
+			}
 
 			pushSortedArrays(
 				tempInputs,
@@ -200,14 +217,10 @@ export class Room {
 			);
 		}
 
-		return ServerMessage.encode({
-			timestamp: this.players[this.latestUser].lastClientDate,
-			state: this.latestData,
-			inputs: this.inputs.map((data: any) => ({
-				data,
-				player: data.player
-			}))
-		}).finish();	
+		return {
+			gdata: this.produceGData(ServerMessage),
+			finish: null
+		};
 	}
 
 	private preprocessBots(
@@ -254,11 +267,66 @@ export class Room {
 
 		return botsInputs;
 	}
+
+	private produceGData(ServerMessage: protobuf.Type) {
+		return ServerMessage.encode({
+			timestamp: this.players[this.latestUser].lastClientDate,
+			state: this.latestData,
+			inputs: this.inputs.map((data: any) => ({
+				data,
+				player: data.player
+			}))
+		}).finish()
+	}
+
+	private finish(finish: FinishGame): Fields {
+		// Disconnect
+		this.finished = true;
+		for (const p of this.players) {
+			if (p.connection) {
+				p.connection.roomInfo = null;
+			}
+		}
+		this.onfinish();
+
+
+
+		// Get trophees
+		/// TODO: Get trophees
+		const trophees = Array.from({length: this.players.length}, ()=>0);
+
+		// Data
+		return {
+			results: flattenArrays(finish.results.map(
+				i => i.map(
+					j => (
+						j < this.players.length ?
+						this.players[j].identifier :
+						-1
+					)
+				)
+			), -2),
+
+			playerEqualities: finish.playerEqualities.map(i => (
+				i < this.players.length ?
+				this.players[i].identifier :
+				-1
+			)),
+
+			teamEqualities: finish.teamEqualities,
+
+			trophees
+		};
+	}
+
+	isFinished() {
+		return this.finished;
+	}
 }
 
 
 class RoomHandler {
-	private rooms: Room[] = [];
+	private readonly rooms: Room[] = [];
 
 	append(gamemode: string, total: number, players: PlayerInput[]) {
 		const factory = gamemods[gamemode];
@@ -282,7 +350,8 @@ class RoomHandler {
 			gamemode,
 			created.game,
 			players,
-			total - players.length
+			total - players.length,
+			() => {this.rooms.splice(this.rooms.indexOf(room), 1);}
 		);
 		for (const [idx, player] of players.entries()) {
 			player.connection.roomInfo = { room, idx };

@@ -59,7 +59,13 @@ let _loggerGenerator: LoggerGenerator = (name, level) => ({
 			console.error(`[${name.toUpperCase()}] ${text}`)
 
 	}
-})
+});
+
+export interface FinishGame {
+	results: number[][];
+	teamEqualities: number[];
+	playerEqualities: number[];
+}
 
 export abstract class GameMode {
 	public static readonly MAX_DT = 0.020; // 20ms
@@ -70,7 +76,7 @@ export abstract class GameMode {
 
 	abstract init(): void;
 	abstract getBotIds(count: number): number[];
-	protected abstract run(dt: number): boolean;
+	protected abstract run(dt: number, produceFinish: boolean): FinishGame | null;
 	abstract runInput(playerIdx: number, input: Fields): void;
 	abstract collectInputs(keyboard: IKeyboardController, mouse: IMouseController): Fields[];
 	abstract draw(ctx: CanvasRenderingContext2D, playerIdx: number): void;
@@ -82,13 +88,14 @@ export abstract class GameMode {
 
 	abstract evalMouseCoords(x: number, y: number, playerIdx: number): {x: number, y: number};
 
-	private quickEmulate(duration: number) {
+	private quickEmulate(duration: number, produceFinish: boolean) {
 		while (duration > GameMode.MAX_DT) {
-			this.run(GameMode.MAX_DT);
+			const f = this.run(GameMode.MAX_DT, produceFinish);
+			if (f && produceFinish) {return f;}
 			duration -= GameMode.MAX_DT;
 		}
 
-		this.run(duration);
+		return this.run(duration, produceFinish);
 	}
 
 	/**
@@ -102,13 +109,15 @@ export abstract class GameMode {
 	 * @param preprocess Optional function used to create inputs that are
 	 *                   executed immediately at the given timestamp.
 	 *                   The returned inputs timestamp is ignored.
+	 * @param finishGame Handle game finish (if no present, Finish data will be ignored)
 	 * @returns The final simulation time.
 	 */
 	emulate(
 		start: number,
 		finish: number | (()=>number),
 		inputs: Input[],
-		preprocess?: ((timestamp: number) => Input[])
+		preprocess?: ((timestamp: number) => Input[]),
+		finishGame?: (finish: FinishGame)=>void
 	) {
 		let currentTime = start;
 
@@ -130,7 +139,11 @@ export abstract class GameMode {
 				}
 			}
 
-			this.quickEmulate(duration);
+			const f = this.quickEmulate(duration, finishGame ? true:false);
+			if (f && finishGame) {
+				finishGame(f);
+				return inputTimestamp;
+			}
 
 			// Apply the input at its timestamp.
 			this.runInput(input.player, input);
@@ -152,7 +165,12 @@ export abstract class GameMode {
 				this.runInput(i.player, i);
 			}
 		}
-		this.quickEmulate(duration);
+
+		const f = this.quickEmulate(duration, finishGame ? true:false);
+		if (f && finishGame) {
+			finishGame(f);
+		}
+
 		return finish;
 	}
 }

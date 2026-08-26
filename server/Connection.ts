@@ -32,7 +32,17 @@ export class Connection {
 				c.roomInfo.idx
 			);
 
-			gdataPromise.then(gdata => c.sendMessage({gdata}));
+			gdataPromise.then(({gdata, finish}) => {
+				if (finish === null) {
+					c.sendMessage({gdata});
+					return;
+				}
+
+				c.sendMessage({finishGame: {
+					...finish,
+					gdata,
+				}});
+			});
 		},
 
 		async createAccount(c, d) {

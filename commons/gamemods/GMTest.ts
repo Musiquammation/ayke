@@ -1,5 +1,5 @@
 import { Fields } from "../Fields";
-import { GameMode, IKeyboardController, IMouseController } from "../GameMode";
+import { FinishGame, GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 
@@ -70,14 +70,15 @@ export class GMTest extends GameMode {
 			return m.testNumber;
 		})));
 
-		const game = new GMTest(total);
-		game.players[0].x = 0;
-		game.players[0].y = 1000;
-		game.players[0].team = 'red';
 
-		game.players[1].x = 10;
-		game.players[1].y = 1000;
-		game.players[1].team = 'blue';
+
+		const game = new GMTest(total);
+		for (let i = 0; i < game.players.length; i++) {
+			const p = game.players[i];
+			p.x = i*10;
+			p.y = 1000;
+			p.team = i%2==0 ? 'red' : 'blue';
+		}
 
 		const data = new Uint8Array();
 
@@ -107,7 +108,15 @@ export class GMTest extends GameMode {
 		);
 	}
 
-	override run(dt: number): boolean {
+
+	private produceFinish(): FinishGame {
+		return {
+			results: [[1, 2], [0, 3]],
+			teamEqualities: [],
+			playerEqualities: [0, 3]
+		};
+	}
+	override run(dt: number, produceFinish: boolean) {
 		for (const p of this.players) {
 			p.y += p.move * dt;
 		}
@@ -117,7 +126,15 @@ export class GMTest extends GameMode {
 
 
 
-		return false;
+		if (produceFinish) {
+			for (const [idx, p] of this.players.entries()) {
+				if (p.y < 0) {
+					return this.produceFinish();
+				}
+			}
+		}
+
+		return null;
 	}
 
 	override runInput(playerIdx: number, input: Fields): void {
@@ -179,7 +196,7 @@ export class GMTest extends GameMode {
 	}
 
 	override getSize() {
-		return {width: 20, height: 2000};
+		return {width: 100, height: 2000};
 	}
 
 	override evalMouseCoords(x: number, y: number) {

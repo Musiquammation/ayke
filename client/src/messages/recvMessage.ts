@@ -67,6 +67,15 @@ const runners: Record<string, (data: any)=>void> = {
 		if (w) {
 			w.updateBotAllow(d.identifier, d.allow);
 		}
+	},
+
+	finishGame(d) {
+		const ghandler = getGameHandler();
+		if (ghandler) {
+			ghandler.receive(d.gdata);
+		}
+		
+		console.log(d);
 	}
 }
 
