@@ -304,6 +304,14 @@ function getTeam(idx: number) {
 export class GMAirBasket extends GameMode {
 	static readonly types = {Player};
 
+	static readonly DATA = {
+		GRAVITY,
+		WIDTH,
+		HEIGHT,
+		X_LIMIT,
+		Y_LIMIT
+	};
+
 	readonly players: Player[];
 	readonly ball = new Ball();
 	readonly buckets: Bucket[];
@@ -313,6 +321,8 @@ export class GMAirBasket extends GameMode {
 
 	timeStep = 0;
 	time = TIMES[0];
+
+	internalFrameTick = 0;
 
 	private constructor(total: number) {
 		super();
@@ -433,6 +443,8 @@ export class GMAirBasket extends GameMode {
 	}
 
 	override run(dt: number): boolean {
+		this.internalFrameTick++;
+
 		// Time
 		this.time -= dt;
 		if (this.time <= 0) {

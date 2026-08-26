@@ -120,7 +120,11 @@ export class Bot<GMode extends GameMode, Data> {
 
 				case 'first': { // Selector node
 					if (prevResult === 'pending') {
-						// First iteration: descend into the first child
+						if (node.children.length === 0) {
+							// Empty selector instantly fails
+							prevResult = this.returnToParent('failed');
+							break;
+						}
 						this.path.push(0);
 						this.currentNode = node.children[0];
 						break;
@@ -150,7 +154,11 @@ export class Bot<GMode extends GameMode, Data> {
 
 				case 'all': { // Sequence node
 					if (prevResult === 'pending') {
-						// First iteration: descend into the first child
+						if (node.children.length === 0) {
+							// Empty sequence instantly succeeds
+							prevResult = this.returnToParent('success');
+							break;
+						}
 						this.path.push(0);
 						this.currentNode = node.children[0];
 						break;
@@ -180,7 +188,11 @@ export class Bot<GMode extends GameMode, Data> {
 
 				case 'loop': {
 					if (prevResult === 'pending') {
-						// First iteration: run the first child
+						if (node.children.length === 0) {
+							// Empty loop terminates and succeeds
+							prevResult = this.returnToParent('success');
+							break;
+						}
 						this.path.push(0);
 						this.currentNode = node.children[0];
 						break;
