@@ -1,6 +1,7 @@
 import { Fields } from "../Fields";
 import { GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
+import { collisions } from "../util/collisions";
 
 const protocols = getProtocol('airbasket');
 
@@ -8,14 +9,24 @@ interface PlayerInput {
 	data: Fields;
 }
 
-const GRAVITY = 900;
+const GRAVITY = 1200;
 const WIDTH = 1600;
 const HEIGHT = 900;
+
+const X_LIMIT = WIDTH * 2.5;
+const Y_LIMIT = HEIGHT * 1.5;
+
+const COLORS = [
+	["#ff4f99", "#ff9b7a", "#ffffff", "#7199ff", "#4f99ff"],
+	["#ff0770", "#ff7744", "#ffffff", "#4477ff", "#0077ff"],
+	["#cc0059", "#cc5f36", "#cccccc", "#365fcc", "#005fcc"]
+];
 
 class Ball {
 	static readonly RADIUS = 20;
 	static readonly SPAWN_JUMP = 20;
-	static readonly GRAVITY = 50;
+	static readonly GRAVITY = 500;
+	static readonly EJECT = 1200;
 
 	x = 0;
 	y = 0;
@@ -33,6 +44,10 @@ class Ball {
 		this.vy += Ball.GRAVITY * dt;
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
+
+		if (this.isOOB()) {
+			this.reset();
+		}
 	}
 
 	reset() {
@@ -55,19 +70,68 @@ class Ball {
 
 		this.prevGrabber = obj.prevBallGrabber;
 	}
+
+	isOOB() {
+		return (
+			this.x < -X_LIMIT + Ball.RADIUS/2 ||
+			this.x > X_LIMIT - Ball.RADIUS/2 ||
+			this.y < -Y_LIMIT + Ball.RADIUS/2 ||
+			this.y > Y_LIMIT - Ball.RADIUS/2
+		);
+	}
+
+	removeGrabber() {
+		this.prevGrabber = this.grabber;
+		this.grabber = -1;
+	}
+
+	eject() {
+		this.removeGrabber();
+		
+		if (this.y <= -HEIGHT) {
+			this.vy = 0;
+		} else {
+			this.vy = -Ball.EJECT;
+		}
+
+		if (this.x < -WIDTH) {
+			this.vx = Ball.EJECT;
+		}
+
+		if (this.x > WIDTH) {
+			this.vx = -Ball.EJECT;
+		}
+
+
+		// Place correctly
+		if (this.x > X_LIMIT - Ball.RADIUS/2) {
+			this.x = X_LIMIT - Ball.RADIUS/2;
+		} else if (this.x < -X_LIMIT + Ball.RADIUS/2) {
+			this.x = -X_LIMIT + Ball.RADIUS/2;
+		}
+
+		if (this.y > Y_LIMIT - Ball.RADIUS/2) {
+			this.y = Y_LIMIT - Ball.RADIUS/2;
+		} else if (this.y < -Y_LIMIT + Ball.RADIUS/2) {
+			this.y = -Y_LIMIT + Ball.RADIUS/2;
+		}
+	}
 }
 
 class Player {
 	static readonly SPEED = 1000;
-	static readonly ACCELERATION = 3000;
-	static readonly SOFT_DECELERATION = 4000;
+	static readonly ACCELERATION = 5000;
+	static readonly SOFT_DECELERATION = 8000;
 	static readonly QUICK_DECELERATION = 20000;
 	static readonly JUMP = 900;
 	static readonly SPAWN_JUMP = 90;
 	static readonly COOLDOWN = 1.5;
-	static readonly RADIUS = 20;
+	static readonly WIDTH = 20;
+	static readonly HEIGHT = 40;
 	static readonly PUSH_DOWN = 1000;
 
+	spawnX: number | null = null;
+	spawnY: number | null = null
 	connected = true;
 	alive = -1;
 	vx = 0;
@@ -79,7 +143,13 @@ class Player {
 		public x: number,
 		public y: number
 	) {
+	}
 
+	initSpawn(x: number, y: number) {
+		this.spawnX = x;
+		this.spawnY = y;
+		this.x = x;
+		this.y = y;
 	}
 
 	isAlive() {
@@ -87,11 +157,15 @@ class Player {
 	}
 
 	move(dt: number) {
-		if (this.alive >= 0)
+		if (this.alive >= 0) {
 			this.alive -= dt;
+			if (this.alive >= 0)
+				return;
 
-		if (this.alive >= 0)
-			return;
+			if (this.spawnX !== null) {this.x = this.spawnX;}
+			if (this.spawnY !== null) {this.y = this.spawnY;}
+		}
+
 
 		// Set vx
 		if (this.dir === 0) {
@@ -128,15 +202,25 @@ class Player {
 		if (this.pushDown) {
 			this.y += Player.PUSH_DOWN * dt;
 		}
+
+		if (this.isOOB()) {
+			this.die();
+		}
 	}
 
-	canGrabBall(ball: Ball) {
-		const dx = this.x - ball.x;
-		const dy = this.y - ball.y;
-		const distSq = dx*dx + dy*dy;
-		const radiusSum = Player.RADIUS + Ball.RADIUS;
-		return distSq <= radiusSum * radiusSum;
+	touchsBall(ball: Ball) {
+		return collisions.RectCircle({
+			x: this.x,
+			y: this.y,
+			w: Player.WIDTH,
+			h: Player.HEIGHT,
+		}, {
+			x: ball.x,
+			y: ball.y,
+			r: Ball.RADIUS,
+		});
 	}
+
 
 	load(obj: Fields) {
 		this.x = obj.x;
@@ -146,6 +230,21 @@ class Player {
 		this.dir = obj.dir;
 		this.alive = obj.alive;
 		this.pushDown = obj.pushDown;
+	}
+
+	isOOB() {
+		return (
+			this.x < -X_LIMIT + Player.WIDTH/2 ||
+			this.x > X_LIMIT - Player.WIDTH/2 ||
+			this.y < -Y_LIMIT + Player.HEIGHT/2 ||
+			this.y > Y_LIMIT - Player.HEIGHT/2
+		);
+	}
+
+	die() {
+		this.vx = 0;
+		this.vy = -Player.SPAWN_JUMP;
+		this.alive = Player.COOLDOWN;
 	}
 }
 
@@ -174,9 +273,10 @@ export class GMAirBasket extends GameMode {
 		const invParts =  1/(total/2 + 1);
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = (i % 2 === 0);
-			p.x = redTeam ? -WIDTH : WIDTH;
-			p.x = -p.x; // temp
-			p.y = ((i+1)*invParts - .5) * HEIGHT;
+			p.initSpawn(
+				redTeam ? -WIDTH : WIDTH,
+				((i+1)*invParts - .5) * HEIGHT
+			);
 		}
 
 		const data = new Uint8Array();
@@ -209,13 +309,27 @@ export class GMAirBasket extends GameMode {
 			p.move(dt);
 		}
 
+		// Eject ball from dead player
+		if (this.ball.grabber >= 0) {
+			const grabber = this.players[this.ball.grabber];
+			if (!grabber.isAlive()) {
+				this.ball.eject();
+			}
+		}
+
 		this.ball.move(dt);
+		if (this.ball.grabber >= 0) {
+			const grabber = this.players[this.ball.grabber];
+			this.ball.x = grabber.x;
+			this.ball.y = grabber.y;
+
+		}
 
 		// Grab ball
 		if (this.ball.grabber < 0) {
 			let grabber = -1;
 			for (const [i, p] of this.players.entries()) {
-				if (i !== this.ball.prevGrabber && p.canGrabBall(this.ball)) {
+				if (i !== this.ball.prevGrabber && p.touchsBall(this.ball)) {
 					if (grabber >= 0) {
 						// Only one grabber is allowed
 						grabber = -1; 
@@ -324,19 +438,53 @@ export class GMAirBasket extends GameMode {
 		return inputs;
 	}
 
-	override draw(ctx: CanvasRenderingContext2D) {
+	override draw(ctx: CanvasRenderingContext2D, playerIdx: number) {
+		const player = this.players[playerIdx];
+
 		ctx.fillStyle = "#333";
-		ctx.fillRect(0, 0, 1600, 900);
-		
+		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+		// Center the camera on the current player
+		ctx.save();
+		ctx.translate(
+			WIDTH/2 - player.x,
+			HEIGHT/2 - player.y
+		);
+
+		// Background
+		for (let y = 0; y < 3; y++) {
+			for (let x = 0; x < 5; x++) {
+				ctx.fillStyle = COLORS[y][x];
+				ctx.fillRect(
+					(x-2.5)*WIDTH,
+					(y-1.5)*HEIGHT,
+					WIDTH,
+					HEIGHT
+				);
+			}
+		}
+
 		// Draw players
 		for (const [i, p] of this.players.entries()) {
 			ctx.fillStyle = (i % 2 === 0) ? "red" : "blue";
-			ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
+			ctx.fillRect(
+				p.x - Player.WIDTH/2,
+				p.y - Player.HEIGHT/2,
+				Player.WIDTH,
+				Player.HEIGHT
+			);
 		}
 
 		// Draw ball
 		ctx.fillStyle = "green";
-		ctx.fillRect(this.ball.x - 10, this.ball.y - 10, 20, 20);
+		ctx.fillRect(
+			this.ball.x - Ball.RADIUS/2,
+			this.ball.y - Ball.RADIUS/2,
+			Ball.RADIUS,
+			Ball.RADIUS
+		);
+
+		ctx.restore();
 	}
 
 
