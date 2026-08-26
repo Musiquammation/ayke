@@ -26,7 +26,23 @@ export namespace collisions {
 		const dy = distY - rect.h / 2;
 
 		return dx * dx + dy * dy <= circle.r * circle.r;
-
 	}
 
+	export function RectRect(a: Rect, b: Rect) {
+		const dx = Math.abs(a.x - b.x);
+		const dy = Math.abs(a.y - b.y);
+
+		return dx <= (a.w + b.w) / 2 &&
+			dy <= (a.h + b.h) / 2;
+	}
+
+	export function CircleCircle(a: Circle, b: Circle) {
+		const dx = a.x - b.x;
+		const dy = a.y - b.y;
+
+		const distSq = dx * dx + dy * dy;
+		const radiusSum = a.r + b.r;
+
+		return distSq <= radiusSum * radiusSum;
+	}
 }

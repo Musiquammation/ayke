@@ -1,3 +1,4 @@
+import { $data } from "alpinejs";
 import { Fields } from "../Fields";
 import { GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
@@ -21,6 +22,13 @@ const COLORS = [
 	["#ff0770", "#ff7744", "#ffffff", "#4477ff", "#0077ff"],
 	["#cc0059", "#cc5f36", "#cccccc", "#365fcc", "#005fcc"]
 ];
+
+const BUCKET_POSITIONS: number[][] = [
+	[-2, -1], [-1, -1],         [0, -1],          [+1, -1], [+2, -1],
+	[-2,  0], [-1,  0],                           [+1,  0], [+2,  0],
+	[-2, +1], [-1, +1], [-0.25, +1], [+0.25, +1], [+1, +1], [+2, +1],
+]
+
 
 class Ball {
 	static readonly RADIUS = 20;
@@ -55,6 +63,7 @@ class Ball {
 		this.y = 0;
 		this.vx = 0;
 		this.vy = -Ball.SPAWN_JUMP;
+		this.removeGrabber();
 	}
 
 	load(obj: Fields) {
@@ -81,6 +90,9 @@ class Ball {
 	}
 
 	removeGrabber() {
+		if (this.grabber < 0)
+			return;
+
 		this.prevGrabber = this.grabber;
 		this.grabber = -1;
 	}
@@ -138,6 +150,7 @@ class Player {
 	vy = -Player.SPAWN_JUMP;
 	dir = 0;
 	pushDown = false;
+	score = 0;
 
 	constructor(
 		public x: number,
@@ -250,14 +263,33 @@ class Player {
 
 
 
+class Bucket {
+	team: 'red' | 'blue' | null = null;
+
+	static readonly SIZE = 30;
+
+	constructor(
+		public readonly x: number,
+		public readonly y: number
+	) {}
+}
 
 
+
+
+function getTeam(idx: number) {
+	return idx%2 === 0 ? 'red' : 'blue';
+}
 
 export class GMAirBasket extends GameMode {
 	static readonly types = {Player};
 
 	readonly players: Player[];
 	readonly ball = new Ball();
+	readonly buckets: Bucket[];
+	redScore = 0;
+	blueScore = 0;
+	leftBuckets = BUCKET_POSITIONS.length;
 
 	private constructor(total: number) {
 		super();
@@ -266,6 +298,8 @@ export class GMAirBasket extends GameMode {
 			{ length: total },
 			() => new Player(0, 0)
 		);
+
+		this.buckets = BUCKET_POSITIONS.map(([x, y]) => new Bucket(x*WIDTH, y*HEIGHT));
 	}
 
 	static createServ(players: PlayerInput[], total: number) {
@@ -274,7 +308,7 @@ export class GMAirBasket extends GameMode {
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = (i % 2 === 0);
 			p.initSpawn(
-				redTeam ? -WIDTH : WIDTH,
+				redTeam ? -WIDTH*2 : WIDTH*2,
 				((i+1)*invParts - .5) * HEIGHT
 			);
 		}
@@ -301,6 +335,70 @@ export class GMAirBasket extends GameMode {
 			{ length: count },
 			() => 0
 		);
+	}
+
+	private playerTouchBucket(player: Player) {
+		const rect = {
+			x: player.x,
+			y: player.y,
+			w: Player.WIDTH,
+			h: Player.HEIGHT,
+		};
+
+		for (const bucket of this.buckets) {
+			if (bucket.team !== null)
+				continue;
+
+			if (collisions.RectRect(rect, {
+				x: bucket.x,
+				y: bucket.y,
+				w: Bucket.SIZE,
+				h: Bucket.SIZE,
+			})) {
+				return bucket;
+			}
+		}
+
+		return null;
+	}
+
+	private ballTouchBucket() {
+		const circle = {
+			x: this.ball.x,
+			y: this.ball.y,
+			r: Ball.RADIUS,
+		};
+
+		for (const bucket of this.buckets) {
+			if (bucket.team !== null)
+				continue;
+
+			if (collisions.RectCircle({
+				x: bucket.x,
+				y: bucket.y,
+				w: Bucket.SIZE,
+				h: Bucket.SIZE,
+			}, circle)) {
+				return bucket;
+			}
+		}
+
+		return null;
+	}
+
+	private winPoint(playerIdx: number, bucket: Bucket) {
+		const team = getTeam(playerIdx);
+		const player = this.players[playerIdx];
+		player.score++;
+		bucket.team = team;
+		if (team === 'red') {
+			this.redScore++;
+		} else {
+			this.blueScore++;
+		}
+		this.leftBuckets--;
+
+		this.ball.reset();
 	}
 
 	override run(dt: number): boolean {
@@ -345,6 +443,21 @@ export class GMAirBasket extends GameMode {
 			}
 		}
 
+		// Ball touch bucket
+		if (this.ball.grabber >= 0) {
+			const bucket = this.playerTouchBucket(this.players[this.ball.grabber]);
+			if (bucket) {
+				this.winPoint(this.ball.grabber, bucket);
+			}
+
+		} else if (this.ball.prevGrabber >= 0) {
+			const bucket = this.ballTouchBucket();
+			if (bucket) {
+				this.winPoint(this.ball.prevGrabber, bucket);
+			}
+		}
+
+
 		return false;
 	}
 
@@ -364,7 +477,9 @@ export class GMAirBasket extends GameMode {
 				break;
 
 			case 'jump':
-				player.vy = -Player.JUMP;
+				// Jump if ball is not grabbed
+				if (this.ball.grabber !== playerIdx)
+					player.vy = -Player.JUMP;
 				break;
 
 			case 'downOn':
@@ -464,6 +579,25 @@ export class GMAirBasket extends GameMode {
 			}
 		}
 
+		// Buckets
+		for (const bucket of this.buckets) {
+			ctx.fillStyle = bucket.team ?? "gray";
+			ctx.fillRect(
+				bucket.x - Bucket.SIZE / 2,
+				bucket.y - Bucket.SIZE / 2,
+				Bucket.SIZE,
+				Bucket.SIZE
+			);
+			ctx.strokeStyle = "white";
+			ctx.lineWidth = 2;
+			ctx.strokeRect(
+				bucket.x - Bucket.SIZE / 2,
+				bucket.y - Bucket.SIZE / 2,
+				Bucket.SIZE,
+				Bucket.SIZE
+			);
+		}
+
 		// Draw players
 		for (const [i, p] of this.players.entries()) {
 			ctx.fillStyle = (i % 2 === 0) ? "red" : "blue";
@@ -496,7 +630,11 @@ export class GMAirBasket extends GameMode {
 		const {State} = protocols.get();
 		const object: Fields = {
 			players: this.players,
-			prevBallGrabber: this.ball.prevGrabber
+			prevBallGrabber: this.ball.prevGrabber,
+			buckets: this.buckets.map(b => ({
+				taken: b.team !== null,
+				redTeam: b.team === 'red'
+			}))
 		};
 		
 		if (this.ball.grabber >= 0) {
@@ -513,6 +651,14 @@ export class GMAirBasket extends GameMode {
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) {
 			this.players[idx].load(player);
+		}
+
+		for (const [idx, bucket] of obj.buckets.entries()) {
+			if (!bucket.taken) {
+				this.buckets[idx].team = null;
+			} else {
+				this.buckets[idx].team = bucket.redTeam ? 'red' : 'blue';
+			}
 		}
 
 		this.ball.load(obj);

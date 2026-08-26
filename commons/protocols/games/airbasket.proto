@@ -26,6 +26,11 @@ message GrabbedBall {
 }
 
 
+message Bucket {
+	bool taken = 1;
+	bool redTeam = 2;
+}
+
 message State {
 	repeated Player players = 1;
 	int32 prevBallGrabber = 2;
@@ -34,6 +39,8 @@ message State {
 		FreeBall freeBall = 3;
 		GrabbedBall grabbedBall = 4;
 	}
+
+	repeated Bucket buckets = 5;
 }
 
 message Throw {
