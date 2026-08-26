@@ -8,8 +8,7 @@ export interface IKeyboardController {
 }
 
 export interface IMouseController {
-	getX(): number;
-	getY(): number;
+	getCoords(): { x: number; y: number };
 	first(button: number): boolean;
 	press(button: number): boolean;
 	killed(button: number): boolean;	
@@ -81,6 +80,7 @@ export abstract class GameMode {
 
 	abstract getSize(): ({width: number, height: number});
 
+	abstract evalMouseCoords(x: number, y: number): {x: number, y: number};
 
 	private quickEmulate(duration: number) {
 		while (duration > GameMode.MAX_DT) {

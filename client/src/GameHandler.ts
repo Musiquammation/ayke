@@ -55,6 +55,7 @@ class GameHandler {
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
+		mouseController.setScreenCoordsAdapter(this.gamemode);
 	}
 
 	receive(gdata: Uint8Array) {

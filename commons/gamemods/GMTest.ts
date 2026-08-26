@@ -156,6 +156,10 @@ export class GMTest extends GameMode {
 	override getSize() {
 		return {width: 20, height: 2000};
 	}
+
+	override evalMouseCoords(x: number, y: number) {
+		return {x,y};
+	}
 }
 
 	
