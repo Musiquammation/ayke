@@ -130,6 +130,18 @@ class Ball {
 	}
 }
 
+interface FixedTarget {
+	type: 'fixed';
+	x: number;
+	y: number;
+}
+
+interface DeltaTarget {
+	type: 'delta';
+	dx: number;
+	dy: number;
+}
+
 class Player {
 	static readonly SPEED = 1000;
 	static readonly ACCELERATION = 5000;
@@ -141,6 +153,7 @@ class Player {
 	static readonly WIDTH = 20;
 	static readonly HEIGHT = 40;
 	static readonly PUSH_DOWN = 1000;
+	static readonly THROW = 700;
 
 	spawnX: number | null = null;
 	spawnY: number | null = null
@@ -151,6 +164,7 @@ class Player {
 	dir = 0;
 	pushDown = false;
 	score = 0;
+	target : FixedTarget | DeltaTarget | null = null;
 
 	constructor(
 		public x: number,
@@ -407,11 +421,22 @@ export class GMAirBasket extends GameMode {
 			p.move(dt);
 		}
 
-		// Eject ball from dead player
+		// Eject ball from dead player or throw ball
 		if (this.ball.grabber >= 0) {
 			const grabber = this.players[this.ball.grabber];
 			if (!grabber.isAlive()) {
 				this.ball.eject();
+			} else if (grabber.target && grabber.target.type === 'fixed') {
+				const dx = grabber.target.x - grabber.x;
+				const dy = grabber.target.y - grabber.y;
+				const length = Math.sqrt(dx * dx + dy * dy);
+				if (length > 0) {
+					const inv = Player.THROW / length;
+					this.ball.vx = dx * inv;
+					this.ball.vy = dy * inv;
+					this.ball.removeGrabber();
+				}
+
 			}
 		}
 
@@ -489,6 +514,26 @@ export class GMAirBasket extends GameMode {
 			case 'downOff':
 				player.pushDown = false;
 				break;
+
+			case 'throwTarget':
+				player.target = {
+					type: 'fixed',
+					x: input.throwTarget.x,
+					y: input.throwTarget.y,
+				};
+				break;
+
+			case 'throwDir':
+				player.target = {
+					type: 'delta',
+					dx: input.throwTarget.dx,
+					dy: input.throwTarget.dy,
+				};
+				break;
+
+			case 'throwOff':
+				player.target = null;
+				break;
 		}
 	}
 
@@ -531,12 +576,14 @@ export class GMAirBasket extends GameMode {
 		}
 
 
+		// Left / Right
 		const inputs: Fields[] = [];
 		const moveInput = getMoveInput();
 		if (moveInput) {
 			inputs.push(moveInput);
 		}
 
+		// Jump / Down
 		if (keyboard.first('up') || keyboard.first('jump')) {
 			inputs.push({jump: {}, action: 'jump'});
 		}
@@ -549,6 +596,15 @@ export class GMAirBasket extends GameMode {
 			inputs.push({downOff: {}, action: 'downOff'});
 		}
 
+
+		// Target
+		if (mouse.press(0)) {
+			const throwTarget = mouse.getCoords();
+			inputs.push({throwTarget, action: 'throwTarget'});
+			
+		} else if (mouse.killed(0)) {
+			inputs.push({throwOff: {}, action: 'throwOff'});
+		}
 
 		return inputs;
 	}

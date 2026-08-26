@@ -59,6 +59,7 @@ message QInput {
 		Empty downOff = 7;
 		Throw throwTarget = 8;
 		Throw throwDir = 9;
+		Empty throwOff = 10;
 	}
 }
 
