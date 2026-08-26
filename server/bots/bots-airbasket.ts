@@ -14,8 +14,8 @@ type Player = typeof TYPES.Player;
 
 const INPUTS = {
 	jump: {jump: {}, action: 'jump'},
-	dashOn: {dashOn: {}, action: 'dashOn'},
-	dashOff: {dashOff: {}, action: 'dashOff'},
+	downOn: {downOn: {}, action: 'downOn'},
+	downOff: {downOff: {}, action: 'downOff'},
 	left: {left: {}, action: 'left'},
 	right: {right: {}, action: 'right'},
 	stop: {stop: {}, action: 'stop'},
@@ -24,7 +24,7 @@ const INPUTS = {
 class Data {	
 	private lastAvoidOOBTick = 0;
 	private dir = 0;
-	private _pushDown = false;
+	private pushDownStates: Record<number, boolean> = {};
 
 	avoidOOB(game: GMAirBasket, playerIdx: number) {
 		if (game.internalFrameTick === this.lastAvoidOOBTick)
@@ -37,9 +37,9 @@ class Data {
 		logger.debug(`At ${player.x.toFixed(2)} ${player.y.toFixed(2)}`);
 	
 		if (player.y <= -GMAirBasket.DATA.Y_LIMIT + LIMIT) {
-			inputs.push(...this.pushDown(true));
+			inputs.push(...this.pushDown(true, 0));
 		} else {
-			inputs.push(...this.pushDown(false));
+			inputs.push(...this.pushDown(false, 0));
 		}
 	
 		if (player.y >= GMAirBasket.DATA.Y_LIMIT - LIMIT) {
@@ -50,11 +50,24 @@ class Data {
 		return inputs;
 	}
 
-	pushDown(active: boolean) {
-		if (this._pushDown === active) return [];
+	pushDown(active: boolean, idx: number) {
+		if (active) {
+			const all = Object.values(this.pushDownStates).every(value => !value);
+			this.pushDownStates[idx] = true;
+			if (all) {
+				logger.debug("Dash on");
+				return [INPUTS.downOn];
+			}
 
-		this._pushDown = active;
-		return [active ? INPUTS.dashOn : INPUTS.dashOff];
+		} else if (this.pushDownStates[idx]) {
+			this.pushDownStates[idx] = false;
+			if (Object.values(this.pushDownStates).every(value => !value)) {
+				logger.debug("Dash off");
+				return [INPUTS.downOff];
+			}
+		}
+
+		return [];
 	}
 
 	goLeft() {
@@ -98,7 +111,8 @@ function norm2(dx: number, dy: number) {
 const {all, first, loop, runner} = botActionNodeHelper<GMAirBasket, Data>();
 
 const STATS = {
-	FAR: 400
+	FAR: 400,
+	FOCUS_Y: 150
 };
 
 const methods = {
@@ -126,13 +140,27 @@ const methods = {
 		if (norm2(dx,dy) <= STATS.FAR*STATS.FAR)
 			return [inputs, 'success'];
 
+
+		logger.debug(`Join action ${dx.toFixed(2)} ${dy.toFixed(2)} ${player.pushDown}`);
+
 		if (dx < 0) {
-			inputs.push(...data.goLeft());
+			// inputs.push(...data.goLeft());
 		} else if (dx > 0) {
-			inputs.push(...data.goRight());
+			// inputs.push(...data.goRight());
 		} else {
 			inputs.push(...data.goStop());
 		}
+
+
+		if (dy < 0) {
+			inputs.push(INPUTS.jump);
+			inputs.push(...data.pushDown(false, 1));
+		} else if (dy > STATS.FOCUS_Y) {
+			inputs.push(...data.pushDown(true, 1));
+		} else {
+			inputs.push(...data.pushDown(false, 1));
+		}
+
 
 		return [inputs, 'pending'];
 
