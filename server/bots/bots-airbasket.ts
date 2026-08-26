@@ -144,9 +144,9 @@ const methods = {
 		logger.debug(`Join action ${dx.toFixed(2)} ${dy.toFixed(2)} ${player.pushDown}`);
 
 		if (dx < 0) {
-			// inputs.push(...data.goLeft());
+			inputs.push(...data.goLeft());
 		} else if (dx > 0) {
-			// inputs.push(...data.goRight());
+			inputs.push(...data.goRight());
 		} else {
 			inputs.push(...data.goStop());
 		}

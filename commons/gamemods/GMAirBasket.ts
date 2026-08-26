@@ -39,14 +39,13 @@ const BUCKET_POSITIONS: number[][] = [
 class Ball {
 	static readonly RADIUS = 20;
 	static readonly SPAWN_JUMP = 20;
-	static readonly GRAVITY = 0;
+	static readonly GRAVITY = 500;
 	static readonly EJECT = 1200;
 
 	x = 0;
 	y = 0;
 	vx = 0;
-	// vy = -Ball.SPAWN_JUMP;
-	vy = 0;
+	vy = -Ball.SPAWN_JUMP;
 
 	grabber = -1;
 	prevGrabber = -1;
