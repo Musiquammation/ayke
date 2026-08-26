@@ -2,6 +2,7 @@ import { IMouseController } from "../../../commons/GameMode";
 
 interface ScreenCoordsAdapter {
 	evalMouseCoords(x: number, y: number): {x: number, y: number};
+	getSize(): ({width: number, height: number});
 }
 
 export class MouseController implements IMouseController {
@@ -30,8 +31,31 @@ export class MouseController implements IMouseController {
 	// Helper method to compute coordinates using the adapter if available
 	getCoords(): { x: number; y: number } {
 		if (this.adapter) {
-			return this.adapter.evalMouseCoords(this.rawX, this.rawY);
+			// 1. Retrieve the internal game dimensions
+			const { width: gameWidth, height: gameHeight } = this.adapter.getSize();
+			
+			// 2. Get the current window (canvas) dimensions
+			const screenWidth = window.innerWidth;
+			const screenHeight = window.innerHeight;
+
+			// 3. Compute the scale needed to fit the game inside the window
+			const scaleX = screenWidth / gameWidth;
+			const scaleY = screenHeight / gameHeight;
+			const scale = Math.min(scaleX, scaleY);
+
+			// 4. Calculate the centering offsets (the black bars)
+			const offsetX = (screenWidth - gameWidth * scale) / 2;
+			const offsetY = (screenHeight - gameHeight * scale) / 2;
+
+			// 5. Transform raw screen coordinates into internal game coordinates
+			const gameX = (this.rawX - offsetX) / scale;
+			const gameY = (this.rawY - offsetY) / scale;
+
+			// 6. Pass the transformed coordinates to the adapter's custom evaluator
+			return this.adapter.evalMouseCoords(gameX, gameY);
 		}
+		
+		// Fallback if no adapter is set
 		return { x: this.rawX, y: this.rawY };
 	}
 
@@ -86,8 +110,5 @@ export class MouseController implements IMouseController {
 	};
 }
 
-
 export const mouseController = new MouseController();
 mouseController.init();
-
-

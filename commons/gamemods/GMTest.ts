@@ -122,7 +122,6 @@ export class GMTest extends GameMode {
 		}
 		
 
-		// console.log(inputs);
 		return inputs;
 	}
 
