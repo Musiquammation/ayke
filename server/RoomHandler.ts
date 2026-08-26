@@ -20,7 +20,7 @@ logger.setLevel('info');
 interface PlayerInput {
 	connection: Connection;
 	trophees: number;
-	data: Fields;
+	data: Uint8Array;
 }
 
 interface EmulationInput {

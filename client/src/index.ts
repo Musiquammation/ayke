@@ -1,9 +1,6 @@
 import protobuf from "protobufjs";
 import { initProtocols } from "../../commons/protocolLoader";
 import { dom, initDom } from "./dom/dom";
-import { sendMessage } from "./messages/sendMessage";
-import { setGameHandler } from "./GameHandler";
-import { GMTest } from "../../commons/gamemods/GMTest";
 
 declare global {
 	interface Window {
@@ -21,17 +18,6 @@ export function init() {
 
 	initDom();
 
-	// test
-	sendMessage({
-		startGame: {
-			gamemode: "test"
-		}
-	});
-
-	setTimeout(() => {
-		sendMessage({
-			allowBotsOrder: true
-		})	
-	}, 1000);
+	dom.openGamePanel('test');
 }
 

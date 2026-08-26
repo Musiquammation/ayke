@@ -23,7 +23,7 @@ interface Player {
 	pseudo: string | null;
 	trophees: number;
 	gamemode: string;
-	data: Fields;
+	data: Uint8Array;
 	useBots: boolean;
 }
 
@@ -191,11 +191,10 @@ class Matchmaking {
 	async addConnection(
 		connection: Connection,
 		gamemode: string,
-		data: Fields
+		data: Uint8Array
 	) {
 		logger.debug(
-			`addConnection: ` +
-			`gamemode=${gamemode}, data=${JSON.stringify(data)}`
+			`addConnection: gamemode=${gamemode}`
 		);
 
 		if (this.hasConnection(connection)) {

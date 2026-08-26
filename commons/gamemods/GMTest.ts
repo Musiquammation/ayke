@@ -1,14 +1,17 @@
 import { Fields } from "../Fields";
 import { GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
+import { decodeFullMessage } from "../util/decodeFullMessage";
 
 const protocols = getProtocol('test');
 
 interface PlayerInput {
-	data: Fields;
+	data: Uint8Array;
 }
 
 type Team = 'red' | 'blue';
+
+const LOG_LEVEL = 'info';
 
 class Player {
 	connected = true;
@@ -31,7 +34,19 @@ class Player {
 }
 
 
+function generateClientDom() {
+	return {
+		choosen: 0,
 
+		produce() {
+			console.log("Choice (client)", this.choosen);
+			const {StartData} = protocols.get();
+			return StartData.encode({
+				testNumber: this.choosen
+			}).finish();
+		}
+	};
+}
 
 export class GMTest extends GameMode {
 	static readonly types = {Player};
@@ -48,6 +63,14 @@ export class GMTest extends GameMode {
 	}
 
 	static createServ(players: PlayerInput[], total: number) {
+		const logger = GMTest.getLogger('game-test', LOG_LEVEL);
+
+		logger.debug("Starting choices " + JSON.stringify(players.map(p => {
+			const {StartData} = protocols.get();
+			const m = decodeFullMessage(StartData.decode(p.data));
+			return m.testNumber;
+		})));
+
 		const game = new GMTest(total);
 		game.players[0].x = 0;
 		game.players[0].y = 1000;
@@ -70,6 +93,10 @@ export class GMTest extends GameMode {
 		return g;
 	}
 
+	static readonly generateClientDom = generateClientDom;
+
+
+
 	override init(): void {
 		
 	}
@@ -86,7 +113,7 @@ export class GMTest extends GameMode {
 			p.y += p.move * dt;
 		}
 
-		const logger = GMTest.getLogger('game-test', 'info');
+		const logger = GMTest.getLogger('game-test', LOG_LEVEL);
 		logger.debug(`y0=${this.players[0].y.toFixed(2)} dt=${dt}`);
 
 
@@ -95,7 +122,7 @@ export class GMTest extends GameMode {
 	}
 
 	override runInput(playerIdx: number, input: Fields): void {
-		const logger = GMTest.getLogger('game-test', 'info');
+		const logger = GMTest.getLogger('game-test', LOG_LEVEL);
 
 		const player = this.players[playerIdx];
 		if (input.move !== undefined) {

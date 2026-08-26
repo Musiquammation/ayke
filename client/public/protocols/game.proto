@@ -29,6 +29,7 @@ message CreateAccount {
 
 message StartGame {
 	string gamemode = 1;
+	bytes data = 2;
 }
 
 message QuitWaitingRoom {

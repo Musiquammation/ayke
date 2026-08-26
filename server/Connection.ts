@@ -60,7 +60,7 @@ export class Connection {
 
 		startGame(c, d) {
 			const gamemode: string = d.gamemode;
-			matchmaking.addConnection(c, gamemode, {});
+			matchmaking.addConnection(c, gamemode, d.data);
 		},
 
 		allowBotsOrder(c, d) {
