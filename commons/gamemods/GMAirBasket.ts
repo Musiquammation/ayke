@@ -667,5 +667,13 @@ export class GMAirBasket extends GameMode {
 	override getSize() {
 		return {width: WIDTH, height: HEIGHT};
 	}
+
+	override evalMouseCoords(x: number, y: number, playerIdx: number) {
+		const player = this.players[playerIdx];
+		return {
+			x: x + player.x - WIDTH/2,
+			y: y + player.y - HEIGHT/2
+		};
+	}
 }
 
