@@ -21,10 +21,13 @@ const INPUTS = {
 	stop: {stop: {}, action: 'stop'},
 };
 
+type Strategy = 'attack';
+
 class Data {	
 	private lastAvoidOOBTick = 0;
 	private dir = 0;
 	private pushDownStates: Record<number, boolean> = {};
+	strategy: Strategy | null = null;
 
 	avoidOOB(game: GMAirBasket, playerIdx: number) {
 		if (game.internalFrameTick === this.lastAvoidOOBTick)
@@ -48,6 +51,14 @@ class Data {
 
 		this.lastAvoidOOBTick = game.internalFrameTick;
 		return inputs;
+	}
+
+	isFar(game: GMAirBasket, playerIdx: number) {
+		const player = game.players[playerIdx];
+		const dx = game.ball.x - player.x;
+		const dy = game.ball.y - player.y;
+		const dist2 = norm2(dx,dy);
+		return dist2 > STATS.FAR*STATS.FAR;
 	}
 
 	pushDown(active: boolean, idx: number) {
@@ -123,12 +134,7 @@ const methods = {
 	success: runner(() => [[], 'success']),
 
 	isNear: runner((game, data, playerIdx) => {
-		const player = game.players[playerIdx];
-		const dx = game.ball.x - player.x;
-		const dy = game.ball.y - player.y;
-		const dist2 = norm2(dx,dy);
-
-		return [[], dist2 <= STATS.FAR*STATS.FAR ? 'success' : 'failed'];
+		return [[], data.isFar(game, playerIdx) ? 'failed' : 'success'];
 	}),
 
 	joinAction: runner((game, data, playerIdx) => {
@@ -137,8 +143,10 @@ const methods = {
 		const dx = game.ball.x - player.x;
 		const dy = game.ball.y - player.y;
 
-		if (norm2(dx,dy) <= STATS.FAR*STATS.FAR)
+		if (norm2(dx,dy) <= STATS.FAR*STATS.FAR) {
+			logger.debug("Action joined");
 			return [inputs, 'success'];
+		}
 
 
 		logger.debug(`Join action ${dx.toFixed(2)} ${dy.toFixed(2)} ${player.pushDown}`);
@@ -163,24 +171,64 @@ const methods = {
 
 
 		return [inputs, 'pending'];
-
 	}),
+
+	evalStrategy: runner((game, data, playerIdx) => {
+
+		/// TODO: improve this method
+		data.strategy = 'attack';
+
+		return [[], 'success'];
+	}),
+
+	isStrategy: (s: Strategy) => runner((game, data, playerIdx) => {
+		return [[], data.strategy === s ? 'success' : 'failed'];
+	}),
+
+
+	attack: runner((game, data, playerIdx) => {
+		data.avoidOOB(game, playerIdx);
+
+		if (data.isFar(game, playerIdx)) {
+			return [[], 'failed'];
+		}
+
+		logger.debug("Attacking");
+
+		return [[], 'pending'];
+	}),
+
 
 	empty: runner((game, data, playerIdx) => {
 		const inputs: Fields[] = [];
 		return [inputs, 'success'];
-	})
+	}),
 };
 
 const survive = all([methods.avoidOOB])
 
 const far = all([methods.joinAction]);
 
+
+const attack = all([methods.attack]);
+
+
 const root_far = first([methods.isNear, far, methods.success]);
 
+const root_near = all([methods.isNear]);
+
+const first_attack = all([methods.isStrategy('attack'), attack])
+
+const root_strategy = first([first_attack]);
 
 const testBot = (function() {
-	return all([survive, root_far]);
+	return all([
+		survive,
+		root_far,
+		root_near,
+		methods.evalStrategy,
+		root_strategy
+	]);
 })();
 
 appendBots('airbasket', [
