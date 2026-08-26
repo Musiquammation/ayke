@@ -39,7 +39,6 @@ function generateClientDom() {
 		choosen: 0,
 
 		produce() {
-			console.log("Choice (client)", this.choosen);
 			const {StartData} = protocols.get();
 			return StartData.encode({
 				testNumber: this.choosen

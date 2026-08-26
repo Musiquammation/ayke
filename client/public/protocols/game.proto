@@ -49,9 +49,12 @@ message ServerMessage {
 		SuccessResult createAccountResult = 2;
 		SuccessResult loginResult = 3;
 		Error error = 4;
-		WaitingInfo waitingInfo = 5;
-		double timeDeltaDate = 6;
-		StartGameServer startGame = 7;
+		double timeDeltaDate = 5;
+		StartGameServer startGame = 6;
+		WaitingWelcome waitingWelcome = 7;
+		WaitingAddUser waitingAddUser = 8;
+		WaitingRemoveUser waitingRemoveUser = 9;
+		WaitingAllowBots waitingAllowBots = 10;
 	}
 }
 
@@ -76,12 +79,26 @@ message WaitingUser {
 	optional string pseudo = 1;
 	bool allowBots = 2;
 	bool isBot = 3;
+	int32 identifier = 4;
+	bytes data = 5;
 }
 
-message WaitingInfo {
+message WaitingWelcome {
 	int32 total = 1;
-	string room = 2;
-	repeated WaitingUser users = 3;
+	string gamemode = 2;
+	int32 identifier = 3;
+	repeated WaitingUser users = 4;
 }
 
+message WaitingAddUser {
+	WaitingUser user = 1;
+}
 
+message WaitingRemoveUser {
+	int32 identifier = 1;
+}
+
+message WaitingAllowBots {
+	int32 identifier = 1;
+	bool allow = 2;
+}
