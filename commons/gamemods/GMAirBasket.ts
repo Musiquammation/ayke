@@ -17,6 +17,12 @@ const HEIGHT = 900;
 const X_LIMIT = WIDTH * 2.5;
 const Y_LIMIT = HEIGHT * 1.5;
 
+const TIMES = [
+	90, // normal
+	30, // grabber infinite
+	60, // sudden death
+];
+
 const COLORS = [
 	["#ff4f99", "#ff9b7a", "#ffffff", "#7199ff", "#4f99ff"],
 	["#ff0770", "#ff7744", "#ffffff", "#4477ff", "#0077ff"],
@@ -305,6 +311,9 @@ export class GMAirBasket extends GameMode {
 	blueScore = 0;
 	leftBuckets = BUCKET_POSITIONS.length;
 
+	timeStep = 0;
+	time = TIMES[0];
+
 	private constructor(total: number) {
 		super();
 
@@ -415,7 +424,32 @@ export class GMAirBasket extends GameMode {
 		this.ball.reset();
 	}
 
+	private canRegrab() {
+		return this.timeStep >= 1;
+	}
+
+	private isSuddenDeath() {
+		return this.timeStep >= 2;
+	}
+
 	override run(dt: number): boolean {
+		// Time
+		this.time -= dt;
+		if (this.time <= 0) {
+			this.timeStep++;
+			if (this.timeStep >= TIMES.length) {
+				/// TODO: finish game
+				return false;
+			}
+			this.time += TIMES[this.timeStep];
+		}
+
+		if (this.isSuddenDeath() && this.redScore !== this.blueScore) {
+			/// TODO: finish
+			return false;
+		}
+
+
 		// Move
 		for (const p of this.players) {
 			p.move(dt);
@@ -450,9 +484,13 @@ export class GMAirBasket extends GameMode {
 
 		// Grab ball
 		if (this.ball.grabber < 0) {
+			const canRegrab = this.canRegrab();
 			let grabber = -1;
 			for (const [i, p] of this.players.entries()) {
-				if (i !== this.ball.prevGrabber && p.touchsBall(this.ball)) {
+				if (
+					(canRegrab || i !== this.ball.prevGrabber) &&
+					p.touchsBall(this.ball)
+				) {
 					if (grabber >= 0) {
 						// Only one grabber is allowed
 						grabber = -1; 
@@ -690,7 +728,9 @@ export class GMAirBasket extends GameMode {
 			buckets: this.buckets.map(b => ({
 				taken: b.team !== null,
 				redTeam: b.team === 'red'
-			}))
+			})),
+			time: this.time,
+			timeStep: this.timeStep,
 		};
 		
 		if (this.ball.grabber >= 0) {
@@ -718,6 +758,9 @@ export class GMAirBasket extends GameMode {
 		}
 
 		this.ball.load(obj);
+
+		this.time = obj.time;
+		this.timeStep = obj.timeStep;
 	}
 
 	override getSize() {

@@ -41,6 +41,8 @@ message State {
 	}
 
 	repeated Bucket buckets = 5;
+	float time = 6;
+	int32 timeStep = 7;
 }
 
 message Throw {
