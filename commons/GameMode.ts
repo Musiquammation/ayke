@@ -80,7 +80,7 @@ export abstract class GameMode {
 
 	abstract getSize(): ({width: number, height: number});
 
-	abstract evalMouseCoords(x: number, y: number): {x: number, y: number};
+	abstract evalMouseCoords(x: number, y: number, playerIdx: number): {x: number, y: number};
 
 	private quickEmulate(duration: number) {
 		while (duration > GameMode.MAX_DT) {
