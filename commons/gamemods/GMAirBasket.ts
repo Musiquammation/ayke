@@ -4,6 +4,7 @@ import { FinishGame, GameMode, IKeyboardController, IMouseController } from "../
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
 import { decodeFullMessage } from "../util/decodeFullMessage";
+import { ImageLoader } from "../util/ImageLoader";
 
 const protocols = getProtocol('airbasket');
 
@@ -300,6 +301,12 @@ class Bucket {
 
 
 
+
+
+class ClientData {
+
+}
+
 function generateClientDom() {
 	return {
 		skin: 0,
@@ -314,6 +321,10 @@ function generateClientDom() {
 		}
 	};
 }
+
+
+
+
 
 export class GMAirBasket extends GameMode {
 	static readonly types = {Player};
@@ -423,19 +434,27 @@ export class GMAirBasket extends GameMode {
 	}
 
 	static createClient(data: Uint8Array, total: number) {
-		const g = new GMAirBasket(total);
+		const game = new GMAirBasket(total);
 		const {StartDataClient} = protocols.get();
 
 		const {players} = decodeFullMessage(StartDataClient.decode(data));
 
 		for (const [idx, p] of players.entries()) {
-			g.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
+			game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
 		}
 
-		return g;
+		return {game, data: new ClientData()};
 	}
 
 	static readonly generateClientDom = generateClientDom;
+
+	static readonly TEXTURES = {
+		'ball': "assets/games/ball.png",
+		'bucket-blue': "assets/games/bucket-blue.png",
+		'bucket-mid': "assets/games/bucket-mid.png",
+		'bucket-red': "assets/games/bucket-red.png",
+	};
+
 
 	override init(): void {
 		
@@ -736,7 +755,14 @@ export class GMAirBasket extends GameMode {
 		return inputs;
 	}
 
-	override draw(ctx: CanvasRenderingContext2D, playerIdx: number) {
+	override draw(
+		ctx: CanvasRenderingContext2D,
+		playerIdx: number,
+		_data: any,
+		imageLoader: ImageLoader
+	) {
+		const data = _data as ClientData;
+
 		const player = this.players[playerIdx];
 
 		ctx.fillStyle = "#333";

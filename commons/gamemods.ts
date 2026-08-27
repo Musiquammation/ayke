@@ -37,6 +37,7 @@ export const gamemods: Record<
         server: (players, total) => GMAirBasket.createServ(players, total),
         client: (entry, total) => GMAirBasket.createClient(entry, total),
         dom: GMAirBasket.generateClientDom,
+        textures: GMAirBasket.TEXTURES,
         tropheesPerPlayer: 20
 
     },
