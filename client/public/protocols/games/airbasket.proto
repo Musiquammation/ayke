@@ -86,4 +86,18 @@ message ClientMessage {
 
 message StartData {
 	int32 skin = 1;
+	int32 preferTeam = 2;
+}
+
+
+
+
+message StartPlayerInfo {
+	float x = 1;
+	float y = 2;
+	bool isRed = 3;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
 }

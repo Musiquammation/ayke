@@ -347,11 +347,19 @@ export class GMAirBasket extends GameMode {
 		const game = new GMAirBasket(total);
 		const invParts =  1/(total/2 + 1);
 
+
+		function decode(i: number) {
+			if (i < players.length)
+				return decodeFullMessage(StartData.decode(players[i].data));
+
+			return generateClientDom();
+		}
+
 		// Pre-decode all player messages once for performance
 		const playerInfos = game.players.map((p, i) => ({
 			player: p,
 			index: i,
-			pref: decodeFullMessage(StartData.decode(players[i].data)).preferTeam
+			pref: decode(i).preferTeam ?? 0
 		}));
 
 		const totalPlayers = playerInfos.length;
@@ -421,7 +429,7 @@ export class GMAirBasket extends GameMode {
 		const {players} = decodeFullMessage(StartDataClient.decode(data));
 
 		for (const [idx, p] of players.entries()) {
-			g.players[idx].initSpawn(p.x, p.y, p.team);
+			g.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
 		}
 
 		return g;
@@ -862,7 +870,7 @@ export class GMAirBasket extends GameMode {
 
 		
 		for (const [idx, player] of this.players.entries()) {
-			player
+			
 		}
 	}
 }
