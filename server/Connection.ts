@@ -183,7 +183,9 @@ export class Connection {
 
 	
 	onMessage(msg: protobuf.ReflectedMessage) {
-		Connection.runners[msg.message](this, msg[msg.message]);
+		if (msg.message) {
+			Connection.runners[msg.message](this, msg[msg.message]);
+		}
 	}
 
 	onClose() {
