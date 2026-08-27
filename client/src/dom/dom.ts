@@ -4,7 +4,7 @@ import { TemplateLoader } from "./TemplateLoader";
 import { sendMessage } from "../messages/sendMessage";
 import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../WaitingPlayHandler";
 import { escapeHTML } from "../../../commons/util/escapeHTML";
-import { deleteGameHandler } from "../GameHandler";
+import { deleteGameHandler } from "../handlers/GameHandler";
 
 declare global {
 	interface Window {

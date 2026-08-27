@@ -1,13 +1,13 @@
-import { Fields } from "../../commons/Fields";
-import { GameMode } from "../../commons/GameMode";
-import { gamemods } from "../../commons/gamemods";
-import { getNow, msgtypes } from "./messages/sendMessage";
-import { keyboardController } from "./controllers/KeyboardController"
-import { mouseController } from "./controllers/MouseController"
-import { mergeSortedArrays } from "../../commons/util/mergeSortedArrays"
-import { dom } from "./dom/dom";
-import { getProtocol, ProtocolTypes } from "../../commons/protocolLoader";
-import { decodeFullMessage } from "../../commons/util/decodeFullMessage";
+import { Fields } from "../../../commons/Fields";
+import { GameMode } from "../../../commons/GameMode";
+import { gamemods } from "../../../commons/gamemods";
+import { getNow, msgtypes } from "../messages/sendMessage";
+import { keyboardController } from "../controllers/KeyboardController"
+import { mouseController } from "../controllers/MouseController"
+import { mergeSortedArrays } from "../../../commons/util/mergeSortedArrays"
+import { dom } from "../dom/dom";
+import { getProtocol, ProtocolTypes } from "../../../commons/protocolLoader";
+import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
