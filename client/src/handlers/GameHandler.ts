@@ -8,6 +8,7 @@ import { mergeSortedArrays } from "../../../commons/util/mergeSortedArrays"
 import { dom } from "../dom/dom";
 import { getProtocol, ProtocolTypes } from "../../../commons/protocolLoader";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
+import { imageLoader } from "./imageLoader";
 
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
@@ -50,7 +51,8 @@ class GameHandler {
 		private readonly gamemodeId: string,
 		private readonly gamemode: GameMode,
 		private readonly playerIdx: number,
-		private readonly protocols: ProtocolTypes
+		private readonly protocols: ProtocolTypes,
+		private readonly clientData: any
 	) {
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
@@ -109,7 +111,7 @@ class GameHandler {
 		ctx.scale(scale, scale);
 
 		// Everything drawn here is affected by the translation and scale.
-		this.gamemode.draw(ctx, this.playerIdx);
+		this.gamemode.draw(ctx, this.playerIdx, this.clientData, imageLoader);
 
 		// Restore the context to the original canvas coordinates.
 		ctx.restore();
@@ -182,11 +184,14 @@ export async function setGameHandler(
 	const protocols = getProtocol(gamemode);
 	await protocols.load();
 
+	const {game, data} = factory.client(startData, total);
+
 	_gameHandler = new GameHandler(
 		gamemode,
-		factory.client(startData, total),
+		game,
 		playerIdx,
-		protocols.get()
+		protocols.get(),
+		data,
 	);
 	_gameHandler.frame();
 

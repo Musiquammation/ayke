@@ -1,5 +1,6 @@
 import protobuf from "protobufjs";
 import { Fields } from "./Fields";
+import { ImageLoader } from "./util/ImageLoader";
 
 export interface IKeyboardController {
 	first(key: string): boolean;
@@ -79,7 +80,12 @@ export abstract class GameMode {
 	protected abstract run(dt: number, produceFinish: boolean): FinishGame | null;
 	abstract runInput(playerIdx: number, input: Fields): void;
 	abstract collectInputs(keyboard: IKeyboardController, mouse: IMouseController): Fields[];
-	abstract draw(ctx: CanvasRenderingContext2D, playerIdx: number): void;
+	abstract draw(
+		ctx: CanvasRenderingContext2D,
+		playerIdx: number,
+		data: any,
+		imageLoader: ImageLoader
+	): void;
 	abstract onDisconnection(id: number): void;
 	abstract save(): Uint8Array;
 	abstract load(data: Uint8Array): void;

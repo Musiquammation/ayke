@@ -1,8 +1,8 @@
-import { Fields } from "../../commons/Fields";
-import { gamemods } from "../../commons/gamemods";
-import { getProtocol } from "../../commons/protocolLoader";
-import { decodeFullMessage } from "../../commons/util/decodeFullMessage";
-import { dom } from "./dom/dom";
+import { Fields } from "../../../commons/Fields";
+import { gamemods } from "../../../commons/gamemods";
+import { getProtocol } from "../../../commons/protocolLoader";
+import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
+import { dom } from "../dom/dom";
 
 interface IUser {
 	pseudo: string | null;
