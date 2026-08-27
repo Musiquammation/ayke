@@ -41,3 +41,6 @@ message ClientMessage {
 message StartData {
 	int32 testNumber = 1;
 }
+
+message StartDataClient {
+}
