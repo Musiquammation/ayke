@@ -452,7 +452,7 @@ export class GMAirBasket extends GameMode {
 		'ball': "/assets/games/airbasket/ball.png",
 		'bucket-blue': "/assets/games/airbasket/bucket-blue.png",
 		'bucket-mid': "/assets/games/airbasket/bucket-mid.png",
-		'bucket-red': "/assets/games/bucket-red.png",
+		'bucket-red': "/assets/games/airbasket/bucket-red.png",
 	};
 
 
@@ -790,18 +790,11 @@ export class GMAirBasket extends GameMode {
 
 		// Buckets
 		for (const bucket of this.buckets) {
-			ctx.fillStyle = bucket.team ?? "gray";
-			ctx.fillRect(
-				bucket.x - Bucket.SIZE / 2,
-				bucket.y - Bucket.SIZE / 2,
-				Bucket.SIZE,
-				Bucket.SIZE
-			);
-			ctx.strokeStyle = "white";
-			ctx.lineWidth = 2;
-			ctx.strokeRect(
-				bucket.x - Bucket.SIZE / 2,
-				bucket.y - Bucket.SIZE / 2,
+			const b = "bucket-" + (bucket.team ?? "mid");
+			ctx.drawImage(
+				imageLoader.get(b),
+				bucket.x - Bucket.SIZE/2,
+				bucket.y - Bucket.SIZE/2,
 				Bucket.SIZE,
 				Bucket.SIZE
 			);
@@ -819,13 +812,13 @@ export class GMAirBasket extends GameMode {
 		}
 
 		// Draw ball
-		ctx.fillStyle = "green";
-		ctx.fillRect(
+		ctx.drawImage(
+			imageLoader.get('ball'),
 			this.ball.x - Ball.RADIUS/2,
 			this.ball.y - Ball.RADIUS/2,
 			Ball.RADIUS,
 			Ball.RADIUS
-		);
+		)
 
 		ctx.restore();
 	}
