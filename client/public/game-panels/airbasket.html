@@ -1,0 +1,27 @@
+<div x-data="data">
+	<div>
+		<span>Skin id:</span>
+		<input type="number" x-model.number="skin">
+	</div>
+
+	<div>
+		<span>Preferred team:</span>
+		<button type="button"
+				@click="preferTeam = 0"
+				:class="{ selected: preferTeam === 0 }">
+			None
+		</button>
+
+		<button type="button"
+				@click="preferTeam = 1"
+				:class="{ selected: preferTeam === 1 }">
+			Red
+		</button>
+
+		<button type="button"
+				@click="preferTeam = -1"
+				:class="{ selected: preferTeam === -1 }">
+			Blue
+		</button>
+	</div>
+</div>

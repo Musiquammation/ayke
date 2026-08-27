@@ -11,3 +11,8 @@ canvas {
 	display: block;
 	background: black;
 }
+
+
+button.selected {
+	background: greenyellow;
+}

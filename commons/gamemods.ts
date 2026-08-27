@@ -31,6 +31,9 @@ export const gamemods: Record<
     airbasket: {
         server: (players, total) => GMAirBasket.createServ(players, total),
         client: (entry, total) => GMAirBasket.createClient(entry, total),
+        dom: GMAirBasket.generateClientDom,
+        tropheesPerPlayer: 20
+
     },
 };
 

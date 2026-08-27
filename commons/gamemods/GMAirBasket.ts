@@ -1,13 +1,14 @@
 import { $data } from "alpinejs";
 import { Fields } from "../Fields";
-import { GameMode, IKeyboardController, IMouseController } from "../GameMode";
+import { FinishGame, GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
+import { decodeFullMessage } from "../util/decodeFullMessage";
 
 const protocols = getProtocol('airbasket');
 
 interface PlayerInput {
-	data: Fields;
+	data: Uint8Array;
 }
 
 const GRAVITY = 1200;
@@ -171,6 +172,7 @@ class Player {
 	pushDown = false;
 	score = 0;
 	target : FixedTarget | DeltaTarget | null = null;
+	team: 'red' | 'blue' = 'red';
 
 	constructor(
 		public x: number,
@@ -178,11 +180,12 @@ class Player {
 	) {
 	}
 
-	initSpawn(x: number, y: number) {
+	initSpawn(x: number, y: number, team: 'red' | 'blue') {
 		this.spawnX = x;
 		this.spawnY = y;
 		this.x = x;
 		this.y = y;
+		this.team = team;
 	}
 
 	isAlive() {
@@ -297,8 +300,19 @@ class Bucket {
 
 
 
-function getTeam(idx: number) {
-	return idx%2 === 0 ? 'red' : 'blue';
+function generateClientDom() {
+	return {
+		skin: 0,
+		preferTeam: 0,
+
+		produce() {
+			const {StartData} = protocols.get();
+			return StartData.encode({
+				skin: this.skin,
+				preferTeam: this.preferTeam
+			}).finish();
+		}
+	};
 }
 
 export class GMAirBasket extends GameMode {
@@ -314,6 +328,8 @@ export class GMAirBasket extends GameMode {
 	timeStep = 0;
 	time = TIMES[0];
 
+	finished = false;
+
 	private constructor(total: number) {
 		super();
 
@@ -326,17 +342,71 @@ export class GMAirBasket extends GameMode {
 	}
 
 	static createServ(players: PlayerInput[], total: number) {
+		const {StartData, StartDataClient} = protocols.get();
+
 		const game = new GMAirBasket(total);
 		const invParts =  1/(total/2 + 1);
+
+		// Pre-decode all player messages once for performance
+		const playerInfos = game.players.map((p, i) => ({
+			player: p,
+			index: i,
+			pref: decodeFullMessage(StartData.decode(players[i].data)).preferTeam
+		}));
+
+		const totalPlayers = playerInfos.length;
+		const maxPerTeam = Math.ceil(totalPlayers / 2);
+
+		const assigned = new Array(totalPlayers);
+		let redCount = 0;
+		let blueCount = 0;
+
+		// Phase 1: Assign players with explicit valid preferences if team capacity allows
+		for (let i = 0; i < totalPlayers; i++) {
+			const info = playerInfos[i];
+			if (info.pref === 1 && redCount < maxPerTeam) {
+				assigned[info.index] = true; // Red
+				redCount++;
+			} else if (info.pref === -1 && blueCount < maxPerTeam) {
+				assigned[info.index] = false; // Blue
+				blueCount++;
+			}
+		}
+
+		// Phase 2: Fill remaining slots by alternating to maintain balanced team sizes
+		for (let i = 0; i < totalPlayers; i++) {
+			if (assigned[i] !== undefined) continue;
+
+			// Assign to the team that currently has fewer players
+			const isRed = redCount < blueCount || (redCount === blueCount && i % 2 === 0);
+			if (isRed && redCount < maxPerTeam) {
+				assigned[i] = true;
+				redCount++;
+			} else {
+				assigned[i] = false;
+				blueCount++;
+			}
+		}
+
+		// Phase 3: Initialize spawn points based on final team assignments
 		for (const [i, p] of game.players.entries()) {
-			const redTeam = (i % 2 === 0);
+			const redTeam = assigned[i];
 			p.initSpawn(
-				redTeam ? -WIDTH*2 : WIDTH*2,
-				((i+1)*invParts - .5) * HEIGHT
+				redTeam ? -WIDTH * 2 : WIDTH * 2,
+				((i + 1) * invParts - 0.5) * HEIGHT,
+				redTeam ? 'red' : 'blue'
 			);
 		}
 
-		const data = new Uint8Array();
+
+
+		const data = StartDataClient.encode({
+			players: game.players.map(p => ({
+				x: p.spawnX,
+				y: p.spawnY,
+				isRed: p.team === 'red'
+			}))
+		}).finish();
 
 		return {
 			game,
@@ -346,8 +416,18 @@ export class GMAirBasket extends GameMode {
 
 	static createClient(data: Uint8Array, total: number) {
 		const g = new GMAirBasket(total);
+		const {StartDataClient} = protocols.get();
+
+		const {players} = decodeFullMessage(StartDataClient.decode(data));
+
+		for (const [idx, p] of players.entries()) {
+			g.players[idx].initSpawn(p.x, p.y, p.team);
+		}
+
 		return g;
 	}
+
+	static readonly generateClientDom = generateClientDom;
 
 	override init(): void {
 		
@@ -410,11 +490,10 @@ export class GMAirBasket extends GameMode {
 	}
 
 	private winPoint(playerIdx: number, bucket: Bucket) {
-		const team = getTeam(playerIdx);
 		const player = this.players[playerIdx];
 		player.score++;
-		bucket.team = team;
-		if (team === 'red') {
+		bucket.team = player.team;
+		if (player.team === 'red') {
 			this.redScore++;
 		} else {
 			this.blueScore++;
@@ -432,21 +511,20 @@ export class GMAirBasket extends GameMode {
 		return this.timeStep >= 2;
 	}
 
-	override run(dt: number): boolean {
+	override run(dt: number, produceFinish: boolean): FinishGame | null {
 		// Time
 		this.time -= dt;
 		if (this.time <= 0) {
 			this.timeStep++;
 			if (this.timeStep >= TIMES.length) {
-				/// TODO: finish game
-				return false;
+				this.finished = true;
+				this.time = Infinity;
 			}
 			this.time += TIMES[this.timeStep];
 		}
 
 		if (this.isSuddenDeath() && this.redScore !== this.blueScore) {
-			/// TODO: finish
-			return false;
+			this.finished = true;
 		}
 
 
@@ -521,7 +599,10 @@ export class GMAirBasket extends GameMode {
 		}
 
 
-		return false;
+		if (produceFinish && this.finished) {
+			return this.produceFinish();
+		}
+		return null;
 	}
 
 	override runInput(playerIdx: number, input: Fields): void {
@@ -694,7 +775,7 @@ export class GMAirBasket extends GameMode {
 
 		// Draw players
 		for (const [i, p] of this.players.entries()) {
-			ctx.fillStyle = (i % 2 === 0) ? "red" : "blue";
+			ctx.fillStyle = p.team;
 			ctx.fillRect(
 				p.x - Player.WIDTH/2,
 				p.y - Player.HEIGHT/2,
@@ -773,6 +854,16 @@ export class GMAirBasket extends GameMode {
 			x: x + player.x - WIDTH/2,
 			y: y + player.y - HEIGHT/2
 		};
+	}
+
+	private produceFinish(): FinishGame {
+		const redTeam: number = [];
+		const blueTeam: number = [];
+
+		
+		for (const [idx, player] of this.players.entries()) {
+			player
+		}
 	}
 }
 
