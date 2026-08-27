@@ -1,16 +1,16 @@
 import { Fields } from "../../commons/Fields";
 import { GMAirBasket } from "../../commons/gamemods/GMAirBasket";
+import { getBestInArray } from "../../commons/util/getBestInArray";
 import { appendBots, botActionNodeHelper } from "../Bot";
 import { getLogger } from "../Logger";
 
 const logger = getLogger('bots-airbasket');
-logger.setLevel('debug');
+// logger.setLevel('debug');
+
+const {all, first, loop, runner} = botActionNodeHelper<GMAirBasket, Data>();
 
 const TYPES = GMAirBasket.types;
-type Player = typeof TYPES.Player;
-
-
-
+type Player = InstanceType<typeof GMAirBasket.types.Player>;
 
 const INPUTS = {
 	jump: {jump: {}, action: 'jump'},
@@ -21,28 +21,31 @@ const INPUTS = {
 	stop: {stop: {}, action: 'stop'},
 };
 
-type Strategy = 'attack';
+const STATS = {
+	FAR: 400,
+	FOCUS_Y: 200,
+	JUMP_DELAY: 0.3,
+	JUMP_VY: 600
+};
+
 
 class Data {	
 	private lastAvoidOOBTick = 0;
 	private dir = 0;
 	private pushDownStates: Record<number, boolean> = {};
-	strategy: Strategy | null = null;
+	bucketTarget: number | 'empty' | 'cancel' = 'empty';
 
-	avoidOOB(game: GMAirBasket, playerIdx: number) {
+	avoidOOB(game: GMAirBasket, player: Player, inputs: Fields[]) {
 		if (game.internalFrameTick === this.lastAvoidOOBTick)
-			return []; // already called
+			return; // already called
 
-		const player = game.players[playerIdx];
 		const LIMIT = 150;
-		const inputs: Fields[] = [];
 	
-		logger.debug(`At ${player.x.toFixed(2)} ${player.y.toFixed(2)}`);
 	
 		if (player.y <= -GMAirBasket.DATA.Y_LIMIT + LIMIT) {
-			inputs.push(...this.pushDown(true, 0));
+			this.pushDown(true, 0, inputs);
 		} else {
-			inputs.push(...this.pushDown(false, 0));
+			this.pushDown(false, 0, inputs);
 		}
 	
 		if (player.y >= GMAirBasket.DATA.Y_LIMIT - LIMIT) {
@@ -50,62 +53,131 @@ class Data {
 		}
 
 		this.lastAvoidOOBTick = game.internalFrameTick;
-		return inputs;
 	}
 
-	isFar(game: GMAirBasket, playerIdx: number) {
-		const player = game.players[playerIdx];
+	isFar(game: GMAirBasket, player: Player) {
 		const dx = game.ball.x - player.x;
 		const dy = game.ball.y - player.y;
 		const dist2 = norm2(dx,dy);
 		return dist2 > STATS.FAR*STATS.FAR;
 	}
 
-	pushDown(active: boolean, idx: number) {
+	pushDown(active: boolean, idx: number, inputs: Fields[]) {
 		if (active) {
 			const all = Object.values(this.pushDownStates).every(value => !value);
 			this.pushDownStates[idx] = true;
 			if (all) {
 				logger.debug("Dash on");
-				return [INPUTS.downOn];
+				inputs.push(INPUTS.downOn);
 			}
 
 		} else if (this.pushDownStates[idx]) {
 			this.pushDownStates[idx] = false;
 			if (Object.values(this.pushDownStates).every(value => !value)) {
 				logger.debug("Dash off");
-				return [INPUTS.downOff];
+				inputs.push(INPUTS.downOff);
 			}
 		}
-
-		return [];
 	}
 
-	goLeft() {
+	goLeft(inputs: Fields[]) {
 		if (this.dir === -1) {
-			return [];
+			return;
 		}
 
 		this.dir = -1;
-		return [INPUTS.left];
+		inputs.push(INPUTS.left);
 	}
 
-	goRight() {
+	goRight(inputs: Fields[]) {
 		if (this.dir === +1) {
-			return [];
+			return;
 		}
 
 		this.dir = +1;
-		return [INPUTS.right];
+		inputs.push(INPUTS.right);
 	}
 
-	goStop() {
+	goStop(inputs: Fields[]) {
 		if (this.dir === 0) {
-			return [];
+			return;
 		}
 
 		this.dir = 0;
-		return [INPUTS.stop];
+		inputs.push(INPUTS.stop);
+	}
+
+	reach(
+		game: GMAirBasket,
+		player: Player,
+		target: {x: number, y: number, vx: number, vy: number},
+		inputs: Fields[]
+	) {
+		/// TODO: improve this algorithm
+		const dx = target.x - player.x
+		const dy = target.y - player.y;
+
+
+		// Horizontal movement resolution
+		if (dx < 0) {
+			this.goLeft(inputs);
+		} else if (dx > 0) {
+			this.goRight(inputs);
+		} else {
+			this.goStop(inputs);
+		}
+
+		// Vertical movement and dash resolution
+		if (dy < 0) {
+			if (player.vy > -STATS.JUMP_VY)
+				inputs.push(INPUTS.jump);
+
+			this.pushDown(false, 1, inputs);
+		} else if (dy > STATS.FOCUS_Y) {
+			this.pushDown(true, 1, inputs);
+		} else {
+			this.pushDown(false, 1, inputs);
+		}
+	}
+
+	reachBucket(
+		game: GMAirBasket,
+		player: Player,
+		bucketIdx: number,
+		inputs: Fields[]
+	) {
+		/// TODO: improve this algorithm
+		const target = game.buckets[bucketIdx];
+		const dx = target.x - player.x;
+
+		logger.debug(`reachBucket ${player.x.toFixed(1)} -> ${target.x.toFixed(1)}`);
+
+		// Horizontal movement resolution
+		if (dx < 0) {
+			this.goLeft(inputs);
+		} else if (dx > 0) {
+			this.goRight(inputs);
+		} else {
+			this.goStop(inputs);
+		}
+
+		this.pushDown(false, 1, inputs);
+	}
+
+	getBestBucket(game: GMAirBasket, player: Player) {
+		const u = getBestInArray(game.buckets, b => {
+			if (b.team !== null) return -Infinity;
+			return -norm2(b.x - player.x, b.y - player.y);
+		});
+
+		if (!Number.isFinite(u.score))
+			return 'cancel';
+
+		return u.index;
+	}
+
+	getBestMate(game: GMAirBasket, player: Player): Player | null {
+		return null;
 	}
 }
 
@@ -118,123 +190,76 @@ function norm2(dx: number, dy: number) {
 }
 
 
+// Refactored single bot loop combining all behaviors
+const method = runner((game, data, playerIdx) => {
+	const inputs: Fields[] = [];
+	const player = game.players[playerIdx];
 
-const {all, first, loop, runner} = botActionNodeHelper<GMAirBasket, Data>();
+	// Avoid OOB
+	data.avoidOOB(game, player, inputs)
 
-const STATS = {
-	FAR: 400,
-	FOCUS_Y: 150
-};
-
-const methods = {
-	avoidOOB: runner((game, data, playerIdx) => {
-		return [data.avoidOOB(game, playerIdx), 'success'];
-	}),
-
-	success: runner(() => [[], 'success']),
-
-	isNear: runner((game, data, playerIdx) => {
-		return [[], data.isFar(game, playerIdx) ? 'failed' : 'success'];
-	}),
-
-	joinAction: runner((game, data, playerIdx) => {
-		const inputs = data.avoidOOB(game, playerIdx);
-		const player = game.players[playerIdx];
-		const dx = game.ball.x - player.x;
-		const dy = game.ball.y - player.y;
-
-		if (norm2(dx,dy) <= STATS.FAR*STATS.FAR) {
-			logger.debug("Action joined");
-			return [inputs, 'success'];
-		}
+	
+	// Empty bucketTarget
+	if (game.ball.grabber !== playerIdx) {
+		data.bucketTarget = 'empty';
+	}
 
 
-		logger.debug(`Join action ${dx.toFixed(2)} ${dy.toFixed(2)} ${player.pushDown}`);
-
-		if (dx < 0) {
-			inputs.push(...data.goLeft());
-		} else if (dx > 0) {
-			inputs.push(...data.goRight());
+	if (data.isFar(game, player)) {
+		// Join action
+		if (game.ball.grabber >= 0) {
+			data.reach(game, player, game.players[game.ball.grabber], inputs);
 		} else {
-			inputs.push(...data.goStop());
+			data.reach(game, player, game.ball, inputs);
 		}
 
+	} else if (game.ball.grabber === playerIdx) {
+		// Select bucketTarget
+		if (data.bucketTarget === 'empty') {
+			data.bucketTarget = data.getBestBucket(game, player)
+			logger.debug(`Grab ${data.bucketTarget}`);
+		}
 
-		if (dy < 0) {
-			inputs.push(INPUTS.jump);
-			inputs.push(...data.pushDown(false, 1));
-		} else if (dy > STATS.FOCUS_Y) {
-			inputs.push(...data.pushDown(true, 1));
+		if (typeof data.bucketTarget !== 'string') {
+			data.reachBucket(game, player, data.bucketTarget, inputs);
 		} else {
-			inputs.push(...data.pushDown(false, 1));
+			const mate = data.getBestMate(game, player);
+			if (mate !== null) {
+				if (player.vy >= 0) {
+					/// TODO: when throw?
+					inputs.push({throwTarget: {
+						x: mate.x,
+						y: mate.y
+					}});
+				}
+				
+			} else if (player.vy >= 0) {
+				/// TODO: follow player side
+				inputs.push({throwTarget: {
+					x: 2*GMAirBasket.DATA.WIDTH,
+					y: 1*GMAirBasket.DATA.HEIGHT
+				}});
+			}
 		}
 
-
-		return [inputs, 'pending'];
-	}),
-
-	evalStrategy: runner((game, data, playerIdx) => {
-
-		/// TODO: improve this method
-		data.strategy = 'attack';
-
-		return [[], 'success'];
-	}),
-
-	isStrategy: (s: Strategy) => runner((game, data, playerIdx) => {
-		return [[], data.strategy === s ? 'success' : 'failed'];
-	}),
+	} else if (game.ball.grabber >= 0) {
+		data.reach(game, player, game.players[game.ball.grabber], inputs);
+	} else {
+		data.reach(game, player, game.ball, inputs);
+	}
 
 
-	attack: runner((game, data, playerIdx) => {
-		data.avoidOOB(game, playerIdx);
-
-		if (data.isFar(game, playerIdx)) {
-			return [[], 'failed'];
-		}
-
-		logger.debug("Attacking");
-
-		return [[], 'pending'];
-	}),
+	// Fallback in case no strategy matches
+	return [inputs, 'success'];
+});
 
 
-	empty: runner((game, data, playerIdx) => {
-		const inputs: Fields[] = [];
-		return [inputs, 'success'];
-	}),
-};
-
-const survive = all([methods.avoidOOB])
-
-const far = all([methods.joinAction]);
-
-
-const attack = all([methods.attack]);
-
-
-const root_far = first([methods.isNear, far, methods.success]);
-
-const root_near = all([methods.isNear]);
-
-const first_attack = all([methods.isStrategy('attack'), attack])
-
-const root_strategy = first([first_attack]);
-
-const testBot = (function() {
-	return all([
-		survive,
-		root_far,
-		root_near,
-		methods.evalStrategy,
-		root_strategy
-	]);
+const root = (function() {
+	return all([method]);
 })();
 
 appendBots('airbasket', [
-	{root: testBot, data: dataConstructor}
+	{root, data: dataConstructor}
 ]);
 
-
 logger.info("Bot loaded!");
-

@@ -302,7 +302,7 @@ function getTeam(idx: number) {
 }
 
 export class GMAirBasket extends GameMode {
-	static readonly types = {Player};
+	static readonly types = {Player, Bucket};
 
 	static readonly DATA = {
 		GRAVITY,
@@ -576,8 +576,8 @@ export class GMAirBasket extends GameMode {
 			case 'throwDir':
 				player.target = {
 					type: 'delta',
-					dx: input.throwTarget.dx,
-					dy: input.throwTarget.dy,
+					dx: input.throwTarget.x,
+					dy: input.throwTarget.y,
 				};
 				break;
 
