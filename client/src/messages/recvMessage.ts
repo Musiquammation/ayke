@@ -1,6 +1,9 @@
 import { getGameHandler, setGameHandler } from "../GameHandler";
 import { msgtypes, sendMessage } from "./sendMessage";
 import { getWaitingPlayHandler, setWaitingPlayHandler } from "../WaitingPlayHandler"
+import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
+import { unflattenPositiveArrays } from "../../../commons/util/flattenArrays";
+import { dom } from "../dom/dom";
 
 function run<T>(data: T | undefined, exec: (data: T)=>void) {
 	if (data) {
@@ -70,7 +73,9 @@ const runners: Record<string, (data: any)=>void> = {
 	},
 
 	finishGame(d) {
-		console.log("finish", d);
+		d = decodeFullMessage(d);
+		d.results = unflattenPositiveArrays(d.results, -2);
+		dom.openPlayResults(d);
 	}
 }
 

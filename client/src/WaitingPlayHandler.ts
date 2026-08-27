@@ -30,7 +30,7 @@ type UpdateMethod = (
 ) => void;
 
 class WaitingPlayHandler {
-	private readonly users: Record<number, User> = {};
+	readonly users: Record<number, User> = {};
 
 	constructor(
 		public readonly total: number,
@@ -53,6 +53,11 @@ class WaitingPlayHandler {
 						StartData.decode(user.data)
 					)
 				};
+
+				update(this.users, {
+					type: 'add',
+					identifier: user.identifier
+				});
 			}
 		});
 	}
@@ -111,9 +116,6 @@ export function getWaitingPlayHandler() {
 }
 
 
-function getPanelUsers(users: Record<number, User>) {
-	return Object.values(users);
-}
 
 export function setWaitingPlayHandler(
 	total: number,
@@ -127,33 +129,27 @@ export function setWaitingPlayHandler(
 	}
 
 	const updateDom: UpdateMethod = function(users, event) {
-		const waitPlayPanel = dom.waitPlayPanel;
-		if (waitPlayPanel === null) {
-			return;
-		}
+		const waitPlayPanel = dom.getWaitPlayPanel();
 
 		switch (event.type) {
 			case "add":
-				waitPlayPanel.add(users[event.identifier]);
+				waitPlayPanel.add(users[event.identifier], event.identifier);
 				break;
 
 			case "remove":
-				waitPlayPanel.remove(users[event.identifier]);
+				waitPlayPanel.remove(event.identifier);
 				break;
 
 			case "updateBotAllow":
-				waitPlayPanel.updateBotAllow(users[event.identifier], event.allow);
+				waitPlayPanel.updateBotAllow(
+					users[event.identifier],
+					event.identifier,
+					event.allow
+				);
 				break;
 
 		}
 	}
-
-	const waitPlayPanel = dom.waitPlayPanel;
-	if (waitPlayPanel) {
-		waitPlayPanel.init(getPanelUsers(users), users[userIdentifier]);
-	}
-
-
 	
 	waitingPlayHandler = new WaitingPlayHandler(
 		total,
@@ -162,6 +158,10 @@ export function setWaitingPlayHandler(
 		updateDom,
 		users
 	);
+
+
+	const waitPlayPanel = dom.getWaitPlayPanel();
+	waitPlayPanel.initComponent(userIdentifier);
 
 	return waitingPlayHandler;
 }
