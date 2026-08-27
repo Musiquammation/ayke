@@ -893,6 +893,8 @@ export class GMAirBasket extends GameMode {
 			}
 		}
 
+
+		// Sort teams
 		let teams: number[][];
 		const teamEqualities: number[] = [];
 
