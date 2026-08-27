@@ -166,7 +166,7 @@ export function setWaitingPlayHandler(
 	return waitingPlayHandler;
 }
 
-export function deleteGameHandler() {
+export function deleteWaitingPlayHandler() {
 	waitingPlayHandler = null;
 }
 

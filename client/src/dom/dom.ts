@@ -2,8 +2,9 @@ import Alpine from "alpinejs";
 import { gamemods } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
 import { sendMessage } from "../messages/sendMessage";
-import { WaitingPlayHandlerUser } from "../WaitingPlayHandler";
+import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../WaitingPlayHandler";
 import { escapeHTML } from "../../../commons/util/escapeHTML";
+import { deleteGameHandler } from "../GameHandler";
 
 declare global {
 	interface Window {
@@ -81,6 +82,7 @@ class MainComponent {
 		const panel = this.getWaitPlayPanel();
 		this.panel = panel.createPlay();
 		this.currentPage = "play";
+		deleteWaitingPlayHandler();
 	}
 
 	/**
@@ -91,6 +93,7 @@ class MainComponent {
 		const playPanel = this.getPanel(PlayComponent);
 		this.panel = playPanel.createPlayResults(results);
 		this.currentPage = "play-results";
+		deleteGameHandler();
 	}
 
 
