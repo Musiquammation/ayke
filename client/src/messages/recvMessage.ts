@@ -1,6 +1,6 @@
-import { getGameHandler, setGameHandler } from "../GameHandler";
+import { getGameHandler, setGameHandler } from "../handlers/GameHandler";
 import { msgtypes, sendMessage } from "./sendMessage";
-import { getWaitingPlayHandler, setWaitingPlayHandler } from "../WaitingPlayHandler"
+import { getWaitingPlayHandler, setWaitingPlayHandler } from "../handlers/WaitingPlayHandler"
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { unflattenPositiveArrays } from "../../../commons/util/flattenArrays";
 import { dom } from "../dom/dom";

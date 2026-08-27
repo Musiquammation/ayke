@@ -2,9 +2,10 @@ import Alpine from "alpinejs";
 import { gamemods } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
 import { sendMessage } from "../messages/sendMessage";
-import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../WaitingPlayHandler";
 import { escapeHTML } from "../../../commons/util/escapeHTML";
-import { deleteGameHandler } from "../GameHandler";
+import { deleteGameHandler } from "../handlers/GameHandler";
+import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../handlers/WaitingPlayHandler";
+import { imageLoader } from "../handlers/imageLoader";
 
 declare global {
 	interface Window {
@@ -31,6 +32,7 @@ interface PlayResults {
 class MainComponent {
 	private currentPage = "home";
 	private templateLoader = new TemplateLoader();
+	private loadingContext = "home";
 
 	panel: (
 		GamePanelComponent |
@@ -43,6 +45,15 @@ class MainComponent {
 	// test data
 	y0 = 0;
 	y1 = 0;
+
+	startLoading() {
+		this.loadingContext = this.currentPage;
+		this.currentPage = "loading";
+	}
+
+	stopLoading() {
+		this.currentPage = this.loadingContext;
+	}
 
 	uses(page: string) {
 		return this.currentPage === page;
@@ -62,7 +73,6 @@ class MainComponent {
 		this.currentPage = "loading";
 
 		const factory = gamemods[gamemode];
-
 		if (!factory) {
 			throw new Error(`Invalid gamemode '${gamemode}'`);
 		}
@@ -73,7 +83,7 @@ class MainComponent {
 		this.currentPage = "game-panel";
 	}
 
-	openWaitPlayPanel(gamemode: string) {
+	async openWaitPlayPanel(gamemode: string) {
 		this.panel = new WaitPlayPanelComponent(gamemode);
 		this.currentPage = "wait-play";
 	}
@@ -126,7 +136,16 @@ class GamePanelComponent {
 		return this.gamemode === gamemode;
 	}
 
-	play() {
+	async play() {
+		const factory = gamemods[this.gamemode];
+		if (!factory) {
+			throw new Error(`Invalid gamemode '${this.gamemode}'`);
+		}
+
+		dom.startLoading();
+		await imageLoader.load(factory.textures);
+		dom.stopLoading();
+
 		dom.openWaitPlayPanel(this.gamemode);
 
 		sendMessage({

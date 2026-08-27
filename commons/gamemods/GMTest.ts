@@ -33,6 +33,10 @@ class Player {
 	}
 }
 
+class ClientData {
+
+}
+
 
 function generateClientDom() {
 	return {
@@ -89,12 +93,14 @@ export class GMTest extends GameMode {
 	}
 
 	static createClient(data: Uint8Array, total: number) {
-		const g = new GMTest(total);
-		return g;
+		const game = new GMTest(total);
+		return {game, data: new ClientData()};
 	}
 
 	static readonly generateClientDom = generateClientDom;
 
+
+	static readonly TEXTURES = {};
 
 
 	override init(): void {
@@ -168,7 +174,12 @@ export class GMTest extends GameMode {
 		return inputs;
 	}
 
-	override draw(ctx: CanvasRenderingContext2D, playerIdx: number) {
+	override draw(
+		ctx: CanvasRenderingContext2D,
+		playerIdx: number,
+		_data: any
+	) {
+		const data = _data as ClientData;
 		ctx.fillStyle = "#333";
 		ctx.fillRect(0, 0, 200, 2000);
 		ctx.fillStyle = "red";
