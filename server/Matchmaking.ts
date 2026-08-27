@@ -676,6 +676,7 @@ class Matchmaking {
 				connection: p.connection,
 				trophees: p.trophees,
 				data: p.data,
+				identifier: p.identifier,
 			}))
 		)
 	}

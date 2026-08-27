@@ -4,7 +4,8 @@
     "sync": "cp -r commons/protocols client/public",
     "client": "vite",
     "build-client": "vite build",
-    "server": "tsx watch server/server.ts"
+    "server": "tsx watch server/server.ts",
+    "test": "tsx draft/test.ts"
   },
   "dependencies": {
     "alpinejs": "^3.16.2",

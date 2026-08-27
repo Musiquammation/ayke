@@ -11,6 +11,7 @@ import { sleepTime } from "../commons/util/sleepTime";
 import { Bot, generateBot } from "./Bot";
 import { decodeFullMessage } from "../commons/util/decodeFullMessage";
 import { flattenArrays } from "../commons/util/flattenArrays";
+import { evalWonTrophees } from "./evalWonTrophees";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -292,8 +293,10 @@ export class Room {
 
 
 		// Get trophees
-		/// TODO: Get trophees
-		const trophees = Array.from({length: this.players.length}, ()=>0);
+		const tropheesPerPlayer = gamemods[this.gamemodeId].tropheesPerPlayer;
+		const trophees = evalWonTrophees(finish).map((t, idx) => (
+			Math.floor(t*tropheesPerPlayer)
+		));
 
 		// Data
 		return {
