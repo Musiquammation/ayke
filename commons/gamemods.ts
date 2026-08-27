@@ -5,7 +5,7 @@ import { GMTest } from "./gamemods/GMTest";
 
 interface Player {
     trophees: number;
-    data: Fields;
+    data: Uint8Array;
 }
 
 export const gamemods: Record<
@@ -16,12 +16,16 @@ export const gamemods: Record<
             data: Uint8Array
         },
         client: (entry: Uint8Array, total: number) => GameMode,
+        dom: () => {produce: ()=>Uint8Array},
+        tropheesPerPlayer: number
     }
 
 > = {
     test: {
         server: (players, total) => GMTest.createServ(players, total),
         client: (entry, total) => GMTest.createClient(entry, total),
+        dom: GMTest.generateClientDom,
+        tropheesPerPlayer: 20
     },
 
     airbasket: {

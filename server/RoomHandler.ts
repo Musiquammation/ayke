@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { GameMode } from "../commons/GameMode";
+import { FinishGame, GameMode } from "../commons/GameMode";
 import { Connection } from "./Connection";
 import { getLogger } from "./Logger";
 import { Fields } from "../commons/Fields";
@@ -10,6 +10,9 @@ import { minBy } from "../commons/util/minBy";
 import { sleepTime } from "../commons/util/sleepTime";
 import { Bot, generateBot } from "./Bot";
 import { decodeFullMessage } from "../commons/util/decodeFullMessage";
+import { flattenArrays } from "../commons/util/flattenArrays";
+import { evalWonTrophees } from "./evalWonTrophees";
+import { database } from "./Database";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -20,7 +23,9 @@ logger.setLevel('info');
 interface PlayerInput {
 	connection: Connection;
 	trophees: number;
-	data: Fields;
+	identifier: number;
+	data: Uint8Array;
+	pseudo: string | null;
 }
 
 interface EmulationInput {
@@ -35,7 +40,9 @@ class Player {
 	constructor(
 		public connection: Connection | null,
 		public readonly trophees: number,
-		public readonly data: Fields
+		public readonly identifier: number,
+		public readonly data: Fields,
+		public readonly pseudo: string | null
 	) {
 		
 	}
@@ -61,12 +68,14 @@ export class Room {
 	private latestUser: number = 0;
 	private botsInstant: number = 0;
 	private readonly inputs = new Array<Fields>();
+	private finished = false;
 
 	constructor(
 		public readonly gamemodeId: string,
 		public readonly gamemode: GameMode,
 		players: PlayerInput[],
-		bots: number
+		bots: number,
+		private onfinish: ()=>void
 	) {
 		this.bots = gamemode.getBotIds(bots).map(
 			(i, index) => generateBot(gamemodeId, i, players.length + index)
@@ -74,7 +83,9 @@ export class Room {
 		this.players = players.map(p => new Player(
 			p.connection,
 			p.trophees,
+			p.identifier,
 			p.data,
+			p.pseudo
 		));
 	}
 
@@ -113,7 +124,13 @@ export class Room {
 		}
 	}
 
-	async handle(encryptedData: Uint8Array, playerIdx: number) {
+	async handle(
+		encryptedData: Uint8Array,
+		playerIdx: number
+	): Promise<Uint8Array | null> {
+		if (this.isFinished())
+			return null;
+
 		const {
 			ClientMessage,
 			ServerMessage
@@ -167,12 +184,21 @@ export class Room {
 				(timestamp: number) => this.preprocessBots(tempInputs, timestamp)
 			);
 
+
+			let finish: FinishGame | null = null;
 			this.gamemode.emulate(
 				lastDate,
 				nextDate,
 				this.inputs as EmulationInput[],
-				preprocess
+				preprocess,
+				f => {finish = f;}
 			);
+
+			// Game is finished
+			if (finish) {
+				await this.finish(finish);
+				return null;
+			}
 
 			pushSortedArrays(
 				tempInputs,
@@ -200,14 +226,7 @@ export class Room {
 			);
 		}
 
-		return ServerMessage.encode({
-			timestamp: this.players[this.latestUser].lastClientDate,
-			state: this.latestData,
-			inputs: this.inputs.map((data: any) => ({
-				data,
-				player: data.player
-			}))
-		}).finish();	
+		return this.produceGData(ServerMessage);
 	}
 
 	private preprocessBots(
@@ -254,11 +273,123 @@ export class Room {
 
 		return botsInputs;
 	}
+
+	private produceGData(ServerMessage: protobuf.Type) {
+		return ServerMessage.encode({
+			timestamp: this.players[this.latestUser].lastClientDate,
+			state: this.latestData,
+			inputs: this.inputs.map((data: any) => ({
+				data,
+				player: data.player
+			}))
+		}).finish()
+	}
+
+	private async finish(finish: FinishGame) {
+		if (this.isFinished())
+			return; // already sent
+
+		this.onfinish();
+
+
+
+
+		// Get trophees
+		const {trophees, scores} = await (async ()=>{
+			if (this.bots.length) {
+				// Game contained bots so return 0 for everyone
+				return {
+					trophees: Array.from({
+						length: this.players.length + this.bots.length
+					}, ()=>0),
+					scores: []
+				};
+			}
+
+			const tropheesPerPlayer = gamemods[this.gamemodeId].tropheesPerPlayer;
+			const trophees = evalWonTrophees(finish).map((t, idx) => (
+				Math.floor(t*tropheesPerPlayer)
+			));
+
+
+			// Give won trophees
+			const db = await database;
+			const deltas: {
+				player: string;
+				delta: number;
+			}[] = [];
+			for (const [idx, won] of trophees.entries()) {
+				const p = this.players[idx];
+				if (p.pseudo) {
+					deltas.push({player: p.pseudo, delta: won});
+				}
+			}
+
+			logger.info(`Give trophees in ${this.gamemodeId} with ${JSON.stringify(deltas)}`);
+
+			const scores: number[] = Array.from({
+				length: this.players.length
+			}, ()=>0);
+
+			const rawResults = await db.giveTrophees(this.gamemodeId, deltas);
+			for (const r of rawResults) {
+				const idx = this.players.findIndex(p => p.pseudo === r.player);
+				if (idx !== -1) {
+					scores[idx] = r.trophees;
+				}
+			}
+
+			return {trophees, scores};
+		})(); 
+
+
+
+		// Data
+		const spreadMsg = {
+			finishGame: {
+				results: flattenArrays(finish.results.map(
+					i => i.map(
+						j => (
+							j < this.players.length ?
+							this.players[j].identifier :
+							-1
+						)
+					)
+				), -2),
+	
+				playerEqualities: finish.playerEqualities.map(i => (
+					i < this.players.length ?
+					this.players[i].identifier :
+					-1
+				)),
+	
+				teamEqualities: finish.teamEqualities,
+	
+				scores: this.players.map((p, idx) => ({
+					delta: trophees[idx],
+					result: scores[idx],
+					identifier: p.identifier,
+				}))
+			}
+		};
+
+		// Send message and disconnect from room
+		for (const p of this.players) {
+			if (p.connection) {
+				p.connection.sendMessage(spreadMsg);
+				p.connection.roomInfo = null;
+			}
+		}
+	}
+
+	isFinished() {
+		return this.finished;
+	}
 }
 
 
 class RoomHandler {
-	private rooms: Room[] = [];
+	private readonly rooms: Room[] = [];
 
 	append(gamemode: string, total: number, players: PlayerInput[]) {
 		const factory = gamemods[gamemode];
@@ -282,7 +413,8 @@ class RoomHandler {
 			gamemode,
 			created.game,
 			players,
-			total - players.length
+			total - players.length,
+			() => {this.rooms.splice(this.rooms.indexOf(room), 1);}
 		);
 		for (const [idx, player] of players.entries()) {
 			player.connection.roomInfo = { room, idx };

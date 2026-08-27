@@ -10,9 +10,15 @@
 	<body>
 
 		<div id="main" x-data="main">
-			<template x-if="uses('index')">
-				<div id="index-page" class="page">
+			<template x-if="uses('home')">
+				<div id="home-page" class="page">
 					Hello World
+				</div>
+			</template>
+
+			<template x-if="uses('loading')">
+				<div id="loading-page" class="page">
+					<div>Loading...</div>
 				</div>
 			</template>
 
@@ -21,6 +27,79 @@
 					<div x-text="y0"></div>
 					<div x-text="y1"></div>
 					<canvas width="100" height="800"></canvas>
+				</div>
+			</template>
+
+			<template x-if="uses('game-panel')">
+				<div id="test-page" class="page" x-data="panel">
+					<h1 x-text="gamemode"></h1>
+					<div x-ref="gamePanel" x-html="htmlContent"></div>
+					<button x-on:click="play()">Play</button>
+				</div>
+			</template>
+
+			<template x-if="uses('wait-play')">
+				<div id="wait-play-page" class="page" x-data="panel">
+					<h1>Waiting for players</h1>
+					<div>
+						<span>
+							Allow bots?
+						</span>
+						<input
+							type="checkbox"
+							x-model="allowBots"
+							@change="onAllowBotsChange()"
+						>
+					</div>
+
+					<div>
+						<template x-for="user in listUsers()">
+							<div>
+								<h2 x-html="showPseudo(user.pseudo)"></h2>
+								<div>
+									<span>Allow bots</span>
+									<input type="checkbox" x-model="user.allowBots" disabled>
+								</div>
+								<template x-if="user.isBot">
+									<span>
+										(bot)
+									</span>
+								</template>
+							</div>
+						</template>
+					</div>
+
+					<div>
+						<template x-for="log in logs">
+							<div x-html="log"></div>
+						</template>
+					</div>
+				</div>
+			</template>
+
+			<template x-if="uses('play-results')">
+				<div id="play-results-page" class="page" x-data="panel">
+					<div class="results-container">
+						<!-- Iterate over each player score entry in the results -->
+						<template x-for="score in panel.results.scores" :key="score.identifier">
+							<div class="result-row">
+								<!-- Display player pseudo or fallback to anonymous if null -->
+								<span 
+									class="player-pseudo" 
+									:class="{ 'noTrophees': panel.pseudos[score.identifier] === null }" 
+									x-html="panel.showPseudo(panel.pseudos[score.identifier])">
+								</span>
+
+								<!-- Display trophies score -->
+								<span class="player-score" x-text="score.result"></span>
+
+								<!-- Display score variation (delta) -->
+								<span class="player-delta" x-text="(score.delta > 0 ? '+' : '') + score.delta"></span>
+							</div>
+						</template>
+					</div>
+					
+					<button x-on:click="returnHome()">Return Menu</button>
 				</div>
 			</template>
 

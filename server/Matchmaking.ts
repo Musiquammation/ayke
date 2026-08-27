@@ -5,13 +5,23 @@ import { getLogger, setLoggerLevel } from "./Logger";
 import { roomHandler } from "./RoomHandler";
 
 const logger = getLogger("matchmaking");
-// logger.setLevel('debug');
+logger.setLevel('debug');
 
+
+let _nextIdentifier = 0;
+function generateIdentifier() {
+	const identifier = _nextIdentifier++;
+
+	if (_nextIdentifier >= 2_000_000_000)
+		_nextIdentifier = 0;
+
+	return identifier;
+}
 
 function getWaitedPlayers(gamemode: string, data: any): number {
 	logger.debug(`[getWaitedPlayers] gamemode=${gamemode}, data=${JSON.stringify(data)}`);
 
-	const result = 2;
+	const result = 4;
 
 	logger.debug(`[getWaitedPlayers] result=${result}`);
 
@@ -23,8 +33,9 @@ interface Player {
 	pseudo: string | null;
 	trophees: number;
 	gamemode: string;
-	data: Fields;
+	data: Uint8Array;
 	useBots: boolean;
+	identifier: number;
 }
 
 class WaitingRoom {
@@ -53,6 +64,7 @@ class WaitingRoom {
 			`tolerancy=${this.tolerancy}`
 		);
 	}
+
 
 	isCompatibleWith(other: WaitingRoom): boolean {
 		logger.debug(
@@ -124,7 +136,10 @@ class WaitingRoom {
 			Math.abs(b.trophees - this.avgTrophees)
 		);
 
-		const absorbedPlayers = other.players.splice(0, spaceLeft);
+		// Define our three distinct groups to prevent duplicate packets
+		const originalThisPlayers = [...this.players]; // Group A: [1, 2, 3]
+		const absorbedPlayers = other.players.splice(0, spaceLeft); // Group B: [4, 5]
+		const remainingOtherPlayers = [...other.players]; // Group C: [6, 7]
 
 		logger.debug(
 			`[WaitingRoom] Absorbing ${absorbedPlayers.length} players`
@@ -136,6 +151,22 @@ class WaitingRoom {
 				`pseudo=${player.pseudo}, trophees=${player.trophees}`
 			);
 		}
+
+		// --- Network Sync Logic ---
+
+		// 1. Original players (1,2,3) receive ADD for absorbed players (4,5)
+		this.notifyAddUsers(originalThisPlayers, absorbedPlayers);
+
+		// 2. Absorbed players (4,5) receive ADD for original players (1,2,3)
+		this.notifyAddUsers(absorbedPlayers, originalThisPlayers);
+
+		// 3. Absorbed players (4,5) receive REMOVE for remaining other players (6,7)
+		this.notifyRemoveUsers(absorbedPlayers, remainingOtherPlayers);
+
+		// 4. Remaining other players (6,7) receive REMOVE for absorbed players (4,5)
+		this.notifyRemoveUsers(remainingOtherPlayers, absorbedPlayers);
+
+		// --- State Update ---
 
 		this.players.push(...absorbedPlayers);
 
@@ -181,6 +212,94 @@ class WaitingRoom {
 			`avg=${this.avgTrophees}`
 		);
 	}
+
+	sendWelcome(player: Player) {
+		player.connection.sendMessage({
+			waitingWelcome:  {
+				total: this.excepted,
+				gamemode: this.gamemode,
+				identifier: player.identifier,
+				users: this.players.map(p => ({
+					pseudo: p.pseudo ?? undefined,
+					allowBots: p.useBots,
+					isBot: false,
+					identifier: p.identifier,
+					data: p.data
+				}))
+			}
+		});
+	}
+
+	
+	/**
+	 * Sends an "add user" packet to a specific list of target players 
+	 * for a specific list of users to add.
+	 */
+	notifyAddUsers(targets: Player[], usersToAdd: Player[]) {
+		for (const target of targets) {
+			for (const player of usersToAdd) {
+				// Prevent sending an add message to the player themselves
+				if (target.identifier === player.identifier) continue;
+
+				target.connection.sendMessage({
+					waitingAddUser: {
+						user: {
+							pseudo: player.pseudo ?? undefined,
+							allowBots: player.useBots,
+							isBot: false,
+							identifier: player.identifier,
+							data: player.data
+						}
+					}
+				});
+			}
+		}
+	}
+
+	/**
+	 * Sends a "remove user" packet to a specific list of target players
+	 * for a specific list of users to remove.
+	 */
+	notifyRemoveUsers(targets: Player[], usersToRemove: Player[]) {
+		for (const target of targets) {
+			for (const player of usersToRemove) {
+				// Prevent sending a remove message to the player themselves
+				if (target.identifier === player.identifier) continue;
+
+				target.connection.sendMessage({
+					waitingRemoveUser: {
+						identifier: player.identifier
+					}
+				});
+			}
+		}
+	}
+
+	spreadRemove(identifier: number) {
+		const obj = {
+			waitingRemoveUser: {
+				identifier
+			}
+		};
+
+		for (const p of this.players) {
+			if (p.identifier !== identifier) {
+				p.connection.sendMessage(obj);
+			}
+		}
+	}
+
+	spreadUpdateBotAllow(player: Player) {
+		const obj = {
+			waitingAllowBots: {
+				identifier: player.identifier,
+				allow: player.useBots
+			}
+		}
+
+		for (const p of this.players)
+			p.connection.sendMessage(obj);
+	}
 }
 
 class Matchmaking {
@@ -191,11 +310,10 @@ class Matchmaking {
 	async addConnection(
 		connection: Connection,
 		gamemode: string,
-		data: Fields
+		data: Uint8Array
 	) {
 		logger.debug(
-			`addConnection: ` +
-			`gamemode=${gamemode}, data=${JSON.stringify(data)}`
+			`addConnection: gamemode=${gamemode}`
 		);
 
 		if (this.hasConnection(connection)) {
@@ -238,7 +356,8 @@ class Matchmaking {
 			trophees,
 			gamemode,
 			data,
-			useBots: false
+			useBots: false,
+			identifier: generateIdentifier()
 		};
 
 		logger.debug(
@@ -267,6 +386,8 @@ class Matchmaking {
 			`addConnection completed. ` +
 			`Total rooms=${this.rooms.length}`
 		);
+
+		newRoom.sendWelcome(player);
 	}
 
 	removeConnection(connection: Connection): boolean {
@@ -291,7 +412,9 @@ class Matchmaking {
 					`at player index=${playerIndex}`
 				);
 
+				const player = room.players[playerIndex];
 				room.players.splice(playerIndex, 1);
+				room.spreadRemove(player.identifier);
 
 				logger.debug(
 					`Player removed. ` +
@@ -371,6 +494,8 @@ class Matchmaking {
 		);
 
 		this.checkAndExtractRoom(room);
+
+		room.spreadUpdateBotAllow(player);
 
 		return true;
 	}
@@ -551,6 +676,8 @@ class Matchmaking {
 				connection: p.connection,
 				trophees: p.trophees,
 				data: p.data,
+				identifier: p.identifier,
+				pseudo: p.pseudo
 			}))
 		)
 	}
@@ -601,4 +728,4 @@ logger.debug(`Matchmaking instance created`);
 setInterval(() => {
 	logger.debug(`Interval tick`);
 	matchmaking.step();
-}, 200);
+}, 2000);

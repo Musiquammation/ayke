@@ -29,6 +29,7 @@ message CreateAccount {
 
 message StartGame {
 	string gamemode = 1;
+	bytes data = 2;
 }
 
 message QuitWaitingRoom {
@@ -48,11 +49,16 @@ message ServerMessage {
 		SuccessResult createAccountResult = 2;
 		SuccessResult loginResult = 3;
 		Error error = 4;
-		WaitingInfo waitingInfo = 5;
-		double timeDeltaDate = 6;
-		StartGameServer startGame = 7;
+		double timeDeltaDate = 5;
+		StartGameServer startGame = 6;
+		WaitingWelcome waitingWelcome = 7;
+		WaitingAddUser waitingAddUser = 8;
+		WaitingRemoveUser waitingRemoveUser = 9;
+		WaitingAllowBots waitingAllowBots = 10;
+		FinishGame finishGame = 11;
 	}
 }
+
 
 message StartGameServer {
 	int32 playerIdx = 1;
@@ -75,12 +81,40 @@ message WaitingUser {
 	optional string pseudo = 1;
 	bool allowBots = 2;
 	bool isBot = 3;
+	int32 identifier = 4;
+	bytes data = 5;
 }
 
-message WaitingInfo {
+message WaitingWelcome {
 	int32 total = 1;
-	string room = 2;
-	repeated WaitingUser users = 3;
+	string gamemode = 2;
+	int32 identifier = 3;
+	repeated WaitingUser users = 4;
 }
 
+message WaitingAddUser {
+	WaitingUser user = 1;
+}
+
+message WaitingRemoveUser {
+	int32 identifier = 1;
+}
+
+message WaitingAllowBots {
+	int32 identifier = 1;
+	bool allow = 2;
+}
+
+message FinalPlayerScore {
+	int32 delta = 1;
+	int32 result = 2;
+	int32 identifier = 3;
+}
+
+message FinishGame {
+	repeated int32 results = 1;
+	repeated int32 teamEqualities = 2;
+	repeated int32 playerEqualities = 3;
+	repeated FinalPlayerScore scores = 4;
+}
 

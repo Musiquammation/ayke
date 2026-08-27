@@ -18,18 +18,5 @@ export function init() {
 	
 
 	initDom();
-
-	// test
-	sendMessage({
-		startGame: {
-			gamemode: "airbasket"
-		}
-	});
-
-	setTimeout(() => {
-		sendMessage({
-			allowBotsOrder: true
-		})	
-	}, 1000);
 }
 

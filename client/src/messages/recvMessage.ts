@@ -1,5 +1,9 @@
 import { getGameHandler, setGameHandler } from "../GameHandler";
 import { msgtypes, sendMessage } from "./sendMessage";
+import { getWaitingPlayHandler, setWaitingPlayHandler } from "../WaitingPlayHandler"
+import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
+import { unflattenPositiveArrays } from "../../../commons/util/flattenArrays";
+import { dom } from "../dom/dom";
 
 function run<T>(data: T | undefined, exec: (data: T)=>void) {
 	if (data) {
@@ -41,10 +45,42 @@ const runners: Record<string, (data: any)=>void> = {
 
 	error(d) {
 		console.error(d.code, d.message);
+	},
+
+	waitingWelcome(d) {
+		setWaitingPlayHandler(d.total, d.gamemode, d.identifier, d.users);
+	},
+
+	waitingAddUser(d) {
+		const w = getWaitingPlayHandler();
+		if (w) {
+			w.add(d.user);
+		}
+	},
+
+	waitingRemoveUser(d) {
+		const w = getWaitingPlayHandler();
+		if (w) {
+			w.remove(d.identifier);
+		}
+	},
+
+	waitingAllowBots(d) {
+		const w = getWaitingPlayHandler();
+		if (w) {
+			w.updateBotAllow(d.identifier, d.allow);
+		}
+	},
+
+	finishGame(d) {
+		d = decodeFullMessage(d);
+		d.results = unflattenPositiveArrays(d.results, -2);
+		dom.openPlayResults(d);
 	}
 }
 
 export function recvMessage(msg: protobuf.ReflectedMessage) {
 	runners[msg.message](msg[msg.message]);
 }
+
 

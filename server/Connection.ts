@@ -27,12 +27,19 @@ export class Connection {
 				return;
 			}
 
-			const gdataPromise = c.roomInfo.room.handle(
+
+			const room = c.roomInfo.room;
+			const gdataPromise = room.handle(
 				gdata,
 				c.roomInfo.idx
 			);
 
-			gdataPromise.then(gdata => c.sendMessage({gdata}));
+			gdataPromise.then(d => {
+				if (d === null)
+					return;
+
+				c.sendMessage({gdata: d});
+			});
 		},
 
 		async createAccount(c, d) {
@@ -60,7 +67,7 @@ export class Connection {
 
 		startGame(c, d) {
 			const gamemode: string = d.gamemode;
-			matchmaking.addConnection(c, gamemode, {});
+			matchmaking.addConnection(c, gamemode, d.data);
 		},
 
 		allowBotsOrder(c, d) {

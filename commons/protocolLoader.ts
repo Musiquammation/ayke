@@ -9,6 +9,7 @@ type ProtocolLoaderFn = (name: string) => Promise<protobuf.Root>;
 export interface ProtocolTypes {
 	ServerMessage: protobuf.Type;
 	ClientMessage: protobuf.Type;
+	StartData: protobuf.Type;
 	State: protobuf.Type;
 	Input: protobuf.Type;
 }
@@ -57,6 +58,7 @@ export function getProtocol(name: string) {
 				const resolvedTypes: ProtocolTypes = {
 					ServerMessage: root.lookupType(`${namespace}.ServerMessage`),
 					ClientMessage: root.lookupType(`${namespace}.ClientMessage`),
+					StartData: root.lookupType(`${namespace}.StartData`),
 					State: root.lookupType(`${namespace}.State`),
 					Input: root.lookupType(`${namespace}.Input`),
 				};

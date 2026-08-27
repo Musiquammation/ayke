@@ -38,4 +38,6 @@ message ClientMessage {
 	repeated QInput inputs = 2;
 }
 
-
+message StartData {
+	int32 testNumber = 1;
+}
