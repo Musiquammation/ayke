@@ -449,10 +449,10 @@ export class GMAirBasket extends GameMode {
 	static readonly generateClientDom = generateClientDom;
 
 	static readonly TEXTURES = {
-		'ball': "assets/games/ball.png",
-		'bucket-blue': "assets/games/bucket-blue.png",
-		'bucket-mid': "assets/games/bucket-mid.png",
-		'bucket-red': "assets/games/bucket-red.png",
+		'ball': "/assets/games/airbasket/ball.png",
+		'bucket-blue': "/assets/games/airbasket/bucket-blue.png",
+		'bucket-mid': "/assets/games/airbasket/bucket-mid.png",
+		'bucket-red': "/assets/games/bucket-red.png",
 	};
 
 
