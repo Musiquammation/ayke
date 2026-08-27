@@ -8,11 +8,13 @@ message ClientMessage {
 	oneof message {
 		bytes gdata = 1;
 		Login login = 2;
-		CreateAccount createAccount = 3;
-		StartGame startGame = 4;
-		bool allowBotsOrder = 5;
-		QuitWaitingRoom quitWaitingRoom = 6;
-		Empty askTimeDelta = 7;
+		string loginWithKey = 3;
+		CreateAccount createAccount = 4;
+		StartGame startGame = 5;
+		bool allowBotsOrder = 6;
+		QuitWaitingRoom quitWaitingRoom = 7;
+		Empty askTimeDelta = 8;
+		string deleteConnectionKey = 9;
 	}
 }
 
@@ -46,8 +48,8 @@ message JoinRoom {
 message ServerMessage {
 	oneof message {
 		bytes gdata = 1;
-		SuccessResult createAccountResult = 2;
-		SuccessResult loginResult = 3;
+		ConnectionSuccessResult createAccountResult = 2;
+		ConnectionSuccessResult loginResult = 3;
 		Error error = 4;
 		double timeDeltaDate = 5;
 		StartGameServer startGame = 6;
@@ -73,8 +75,10 @@ message Error {
 	int32 code = 2;
 }
 
-message SuccessResult {
+message ConnectionSuccessResult {
 	bool success = 1;
+	optional string key = 2;
+	optional string pseudo = 3;
 }
 
 message WaitingUser {

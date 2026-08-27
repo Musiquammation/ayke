@@ -18,6 +18,6 @@ export function init() {
 
 	initDom();
 
-	dom.openGamePanel('test');
+	dom.tryLoginWithKey();
 }
 

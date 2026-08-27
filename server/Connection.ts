@@ -20,13 +20,15 @@ export class Connection {
 	private alive = true;
 	roomInfo: RoomInfo | null = null;
 
-	static runners: Record<string, (c: Connection, data: any) => void> = {
+	static readonly runners: Record<string, (c: Connection, data: any) => void> = {
+		/**
+		 * Handles real-time binary game data frames from players.
+		 */
 		gdata(c, gdata) {
 			if (c.roomInfo === null) {
 				c.sendError(2, "Player is not in a room");
 				return;
 			}
-
 
 			const room = c.roomInfo.room;
 			const gdataPromise = room.handle(
@@ -42,13 +44,31 @@ export class Connection {
 			});
 		},
 
+		/**
+		 * Handles user registration and generates an initial API key upon success.
+		 */
 		async createAccount(c, d) {
 			const db = await database;
 			const success = await db.addUser(d.pseudo, d.password);
+			let key: string | undefined = undefined;
 
-			c.sendMessage({createAccountResult: {success}});
+			if (success) {
+				c.pseudo = d.pseudo;
+				key = await db.createKey(d.pseudo);
+			}
+
+			c.sendMessage({
+				createAccountResult: {
+					success,
+					pseudo: success ? d.pseudo : undefined,
+					key
+				}
+			});
 		},
 
+		/**
+		 * Handles login with pseudo and password, generating a new session API key.
+		 */
 		async login(c, d) {
 			if (c.pseudo !== null) {
 				c.sendError(1, "Connection already logged in");
@@ -57,32 +77,87 @@ export class Connection {
 
 			const db = await database;
 			const success = await db.checkPassword(d.pseudo, d.password);
+			let key: string | undefined = undefined;
 
 			if (success) {
 				c.pseudo = d.pseudo;
+				key = await db.createKey(d.pseudo);
 			}
 
-			c.sendMessage({loginResult: {success}});
+			c.sendMessage({
+				loginResult: {
+					success,
+					pseudo: success ? d.pseudo : undefined,
+					key
+				}
+			});
 		},
 
+		/**
+		 * Handles fast login/reconnection using an API token key.
+		 */
+		async loginWithKey(c, key) {
+			if (c.pseudo !== null) {
+				c.sendError(1, "Connection already logged in");
+				return;
+			}
+
+			const db = await database;
+			const pseudo = await db.getUserFromKey(key);
+
+			if (pseudo !== null) {
+				c.pseudo = pseudo;
+				c.sendMessage({
+					loginResult: {
+						success: true,
+						pseudo,
+						key
+					}
+				});
+			} else {
+				c.sendMessage({
+					loginResult: {
+						success: false
+					}
+				});
+			}
+		},
+
+		/**
+		 * Places player into the matchmaking queue for a specific gamemode.
+		 */
 		startGame(c, d) {
 			const gamemode: string = d.gamemode;
 			matchmaking.addConnection(c, gamemode, d.data);
 		},
 
+		/**
+		 * Registers a vote to allow bot inclusion in a waiting room.
+		 */
 		allowBotsOrder(c, d) {
 			matchmaking.voteBotsUse(c, d);
 		},
 
+		/**
+		 * Removes connection from current matchmaking waiting room.
+		 */
 		quitWaitingRoom(c) {
 			matchmaking.removeConnection(c);
 		},
 
+		/**
+		 * Responds with performance timestamp to sync time latency.
+		 */
 		askTimeDelta(c) {
-			c.sendMessage({timeDeltaDate: performance.now()});
-		}
-	};
+			c.sendMessage({ timeDeltaDate: performance.now() });
+		},
 
+		async deleteConnectionKey(c, key) {
+			const db = await database;
+			db.revokeKey(key);	
+		}
+
+	};
 	constructor(
 		private socket: WebSocket
 	) {

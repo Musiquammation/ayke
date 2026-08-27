@@ -29,20 +29,29 @@ interface PlayResults {
 	}[];
 }
 
+const STORAGE_KEY_CONNECTION = "ayke_connectionKey";
+
 class MainComponent {
 	private currentPage = "home";
 	private templateLoader = new TemplateLoader();
 	private loadingContext = "home";
+
+	// Track whether the user is currently authenticated
+	isAuthenticated = false;
+	pseudo: string | null = null;
 
 	panel: (
 		GamePanelComponent |
 		WaitPlayPanelComponent |
 		PlayResultsComponent |
 		PlayComponent |
+		LoginComponent |
+		SigninComponent |
+		HomeComponent |
 		null
-	) = null;
+	) = new HomeComponent();
 
-	// test data
+	// Test data
 	y0 = 0;
 	y1 = 0;
 
@@ -60,13 +69,54 @@ class MainComponent {
 	}
 
 	openHome() {
-		this.panel = null;
+		this.panel = new HomeComponent();
 		this.currentPage = "home";
 	}
 
 	openTest() {
 		this.panel = null;
 		this.currentPage = "test";
+	}
+
+	openLogin() {
+		this.panel = new LoginComponent();
+		this.currentPage = "login";
+	}
+
+	openSignin() {
+		this.panel = new SigninComponent();
+		this.currentPage = "signin";
+	}
+
+	/**
+	 * Attempt auto-login using a stored connection key from localStorage.
+	 */
+	tryLoginWithKey() {
+		const key = localStorage.getItem(STORAGE_KEY_CONNECTION);
+		if (key) {
+			sendMessage({
+				loginWithKey: key
+			});
+		}
+	}
+
+	/**
+	 * Disconnect the current user, clear local connection state,
+	 * and inform the server.
+	 */
+	disconnect() {
+		const key = localStorage.getItem(STORAGE_KEY_CONNECTION);
+
+		if (key) {
+			sendMessage({
+				deleteConnectionKey: key
+			});
+
+			localStorage.removeItem(STORAGE_KEY_CONNECTION);
+		}
+
+		this.isAuthenticated = false;
+		this.openHome();
 	}
 
 	async openGamePanel(gamemode: string) {
@@ -96,7 +146,7 @@ class MainComponent {
 	}
 
 	/**
-	 * Transition to the play-results page using the current PlayComponent 
+	 * Transition to the play-results page using the current PlayComponent
 	 * context to preserve pseudos and player metadata.
 	 */
 	openPlayResults(results: PlayResults) {
@@ -123,7 +173,16 @@ class MainComponent {
 	getWaitPlayPanel() {
 		return this.getPanel(WaitPlayPanelComponent);
 	}
+
+	getLoginPanel() {
+		return this.getPanel(LoginComponent);
+	}
+
+	getSigninPanel() {
+		return this.getPanel(SigninComponent);
+	}
 }
+
 
 class GamePanelComponent {
 	constructor(
@@ -269,6 +328,72 @@ class PlayResultsComponent {
 		dom.openHome();
 	}
 }
+
+
+// Component handling the login form logic
+class LoginComponent {
+	pseudo = "";
+	password = "";
+	errorMessage = "";
+
+	submitLogin() {
+		this.errorMessage = "";
+		sendMessage({
+			login: {
+				pseudo: this.pseudo,
+				password: this.password
+			}
+		});
+	}
+}
+
+// Component handling the account creation form logic
+class SigninComponent {
+	pseudo = "";
+	password = "";
+	errorMessage = "";
+
+	submitSignin() {
+		this.errorMessage = "";
+		sendMessage({
+			createAccount: {
+				pseudo: this.pseudo,
+				password: this.password
+			}
+		});
+	}
+}
+
+class HomeComponent {
+	private games;
+
+	constructor() {
+		this.games = Object.entries(gamemods).map(([key, gamemode]) => ({
+			key,
+			name: gamemode.name
+		}));
+	}
+
+	playGame(gamemode: string) {
+		dom.openGamePanel(gamemode);
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export const dom = Alpine.reactive(new MainComponent());
 

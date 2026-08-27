@@ -1,9 +1,16 @@
 import sqlite3 from "sqlite3";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 
 interface PlayerDelta {
 	player: string;
 	delta: number;
+}
+
+export interface QuickConnectionKeyRecord {
+	key: string;
+	user: string;
+	createdAt: string;
+	expiresAt: string | null;
 }
 
 export class Database {
@@ -14,6 +21,9 @@ export class Database {
 		this.initializeTables();
 	}
 
+	/**
+	 * Initializes all database tables including the new QuickConnectionKey table.
+	 */
 	private initializeTables(): void {
 		this.db.exec(`
 			CREATE TABLE IF NOT EXISTS User (
@@ -34,15 +44,197 @@ export class Database {
 				FOREIGN KEY (gamemode) REFERENCES Gamemode(id),
 				FOREIGN KEY (user) REFERENCES User(pseudo)
 			);
+
+			CREATE TABLE IF NOT EXISTS QuickConnectionKey (
+				key TEXT PRIMARY KEY,
+				user TEXT NOT NULL,
+				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+				expiresAt DATETIME,
+				FOREIGN KEY (user) REFERENCES User(pseudo) ON DELETE CASCADE
+			);
 		`);
 	}
 
+	/**
+	 * Hashes a plain text password using SHA-256.
+	 */
 	private hashPassword(password: string): string {
 		return createHash("sha256")
 			.update(password)
 			.digest("hex");
 	}
 
+	/**
+	 * Generates a cryptographically secure random token key.
+	 */
+	private generateRandomKey(): string {
+		return randomBytes(32).toString("hex");
+	}
+
+	// ==========================================
+	// QuickConnection KEY METHODS
+	// ==========================================
+
+	/**
+	 * Generates and stores a new QuickConnection key for a given user.
+	 * @param pseudo Username associated with the key.
+	 * @param expiresInDays Optional duration before the key expires.
+	 */
+	createKey(pseudo: string, expiresInDays?: number): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const key = this.generateRandomKey();
+			let expiresAt: string | null = null;
+
+			if (expiresInDays !== undefined) {
+				const expDate = new Date();
+				expDate.setDate(expDate.getDate() + expiresInDays);
+				expiresAt = expDate.toISOString();
+			}
+
+			this.db.run(
+				`INSERT INTO QuickConnectionKey (key, user, expiresAt) VALUES (?, ?, ?)`,
+				[key, pseudo, expiresAt],
+				(error) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve(key);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Validates whether an QuickConnection key exists and has not expired.
+	 */
+	validateKey(key: string): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			this.db.get<{ count: number }>(
+				`
+				SELECT COUNT(*) as count 
+				FROM QuickConnectionKey 
+				WHERE key = ? 
+				  AND (expiresAt IS NULL OR expiresAt > CURRENT_TIMESTAMP)
+				`,
+				[key],
+				(error, row) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve((row?.count ?? 0) > 0);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Retrieves the username attached to a valid QuickConnection key.
+	 */
+	getUserFromKey(key: string): Promise<string | null> {
+		return new Promise((resolve, reject) => {
+			this.db.get<{ user: string }>(
+				`
+				SELECT user 
+				FROM QuickConnectionKey 
+				WHERE key = ? 
+				  AND (expiresAt IS NULL OR expiresAt > CURRENT_TIMESTAMP)
+				`,
+				[key],
+				(error, row) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve(row ? row.user : null);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Revokes/deletes a specific QuickConnection key.
+	 */
+	revokeKey(key: string): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			this.db.run(
+				`DELETE FROM QuickConnectionKey WHERE key = ?`,
+				[key],
+				function (error) {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve(this.changes > 0);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Revokes all QuickConnection keys associated with a given user.
+	 */
+	revokeAllUserKeys(pseudo: string): Promise<number> {
+		return new Promise((resolve, reject) => {
+			this.db.run(
+				`DELETE FROM QuickConnectionKey WHERE user = ?`,
+				[pseudo],
+				function (error) {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve(this.changes);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Fetches all keys belonging to a user.
+	 */
+	getUserKeys(pseudo: string): Promise<QuickConnectionKeyRecord[]> {
+		return new Promise((resolve, reject) => {
+			this.db.all<QuickConnectionKeyRecord>(
+				`SELECT key, user, createdAt, expiresAt FROM QuickConnectionKey WHERE user = ?`,
+				[pseudo],
+				(error, rows) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve(rows ?? []);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Removes all expired QuickConnection keys from the database.
+	 */
+	cleanupExpiredKeys(): Promise<number> {
+		return new Promise((resolve, reject) => {
+			this.db.run(
+				`DELETE FROM QuickConnectionKey WHERE expiresAt IS NOT NULL AND expiresAt <= CURRENT_TIMESTAMP`,
+				function (error) {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve(this.changes);
+				}
+			);
+		});
+	}
+
+	// ==========================================
+	// USER & GAME METHODS
+	// ==========================================
+
+	/**
+	 * Creates a new user and sets default progression for all existing gamemodes.
+	 */
 	addUser(pseudo: string, password: string): Promise<boolean> {
 		return new Promise((resolve, reject) => {
 			const hashedPassword = this.hashPassword(password);
@@ -78,7 +270,6 @@ export class Database {
 										resolve(false);
 										return;
 									}
-
 									resolve(true);
 								});
 							}
@@ -89,6 +280,9 @@ export class Database {
 		});
 	}
 
+	/**
+	 * Checks user credentials against the stored hashed password.
+	 */
 	checkPassword(pseudo: string, password: string): Promise<boolean> {
 		return new Promise((resolve, reject) => {
 			this.db.get<{ password: string }>(
@@ -113,6 +307,9 @@ export class Database {
 		});
 	}
 
+	/**
+	 * Updates progression trophies for multiple players in a given gamemode.
+	 */
 	giveTrophees(
 		gamemode: string,
 		playerDeltas: PlayerDelta[]
@@ -172,6 +369,9 @@ export class Database {
 		});
 	}
 
+	/**
+	 * Registers a new gamemode and creates default progression rows for existing users.
+	 */
 	addGamemode(
 		modeId: string,
 		name: string
@@ -223,6 +423,9 @@ export class Database {
 		});
 	}
 
+	/**
+	 * Gets current trophies for a specific user and gamemode.
+	 */
 	getTrophees(pseudo: string, gamemode: string): Promise<number> {
 		return new Promise((resolve, reject) => {
 			this.db.get<{ trophees: number }>(
@@ -240,10 +443,9 @@ export class Database {
 		});
 	}
 
-
-
-
-
+	/**
+	 * Closes the SQLite database connection.
+	 */
 	close(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			this.db.close((error) => {
@@ -257,8 +459,6 @@ export class Database {
 		});
 	}
 }
-
-
 
 let resolveDb!: (db: Database) => void;
 

@@ -20,6 +20,7 @@ export const gamemods: Record<
         },
         textures: { [key: string]: string },
         dom: () => {produce: ()=>Uint8Array},
+        name: string,
         tropheesPerPlayer: number
     }
 
@@ -29,6 +30,7 @@ export const gamemods: Record<
         client: (entry, total) => GMTest.createClient(entry, total),
         dom: GMTest.generateClientDom,
         textures: GMTest.TEXTURES,
+        name: "Test",
         tropheesPerPlayer: 20
     },
 };
