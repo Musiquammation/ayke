@@ -677,6 +677,7 @@ class Matchmaking {
 				trophees: p.trophees,
 				data: p.data,
 				identifier: p.identifier,
+				pseudo: p.pseudo
 			}))
 		)
 	}

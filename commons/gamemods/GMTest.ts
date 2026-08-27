@@ -113,7 +113,7 @@ export class GMTest extends GameMode {
 		return {
 			results: [[1, 2], [0, 3]],
 			teamEqualities: [],
-			playerEqualities: [0, 3]
+			playerEqualities: [0]
 		};
 	}
 	override run(dt: number, produceFinish: boolean) {

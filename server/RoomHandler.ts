@@ -12,6 +12,7 @@ import { Bot, generateBot } from "./Bot";
 import { decodeFullMessage } from "../commons/util/decodeFullMessage";
 import { flattenArrays } from "../commons/util/flattenArrays";
 import { evalWonTrophees } from "./evalWonTrophees";
+import { database } from "./Database";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -24,6 +25,7 @@ interface PlayerInput {
 	trophees: number;
 	identifier: number;
 	data: Uint8Array;
+	pseudo: string | null;
 }
 
 interface EmulationInput {
@@ -39,7 +41,8 @@ class Player {
 		public connection: Connection | null,
 		public readonly trophees: number,
 		public readonly identifier: number,
-		public readonly data: Fields
+		public readonly data: Fields,
+		public readonly pseudo: string | null
 	) {
 		
 	}
@@ -82,6 +85,7 @@ export class Room {
 			p.trophees,
 			p.identifier,
 			p.data,
+			p.pseudo
 		));
 	}
 
@@ -188,7 +192,7 @@ export class Room {
 			if (finish) {
 				return {
 					gdata: this.produceGData(ServerMessage),
-					finish: this.finish(finish)
+					finish: await this.finish(finish)
 				};
 			}
 
@@ -280,7 +284,7 @@ export class Room {
 		}).finish()
 	}
 
-	private finish(finish: FinishGame): Fields {
+	private async finish(finish: FinishGame): Promise<Fields> {
 		// Disconnect
 		this.finished = true;
 		for (const p of this.players) {
@@ -293,10 +297,41 @@ export class Room {
 
 
 		// Get trophees
-		const tropheesPerPlayer = gamemods[this.gamemodeId].tropheesPerPlayer;
-		const trophees = evalWonTrophees(finish).map((t, idx) => (
-			Math.floor(t*tropheesPerPlayer)
-		));
+		const trophees: number[] = await (async ()=>{
+			if (this.bots.length) { // Game contained bots
+				return Array.from({
+					length: this.players.length + this.bots.length
+				}, ()=>0);
+			}
+
+			const tropheesPerPlayer = gamemods[this.gamemodeId].tropheesPerPlayer;
+			const wonTrophees = evalWonTrophees(finish).map((t, idx) => (
+				Math.floor(t*tropheesPerPlayer)
+			));
+
+
+			// Give won trophees
+			const db = await database;
+			const deltas: {
+				player: string;
+				delta: number;
+			}[] = [];
+			for (const [idx, won] of wonTrophees.entries()) {
+				const p = this.players[idx];
+				if (p.pseudo) {
+					deltas.push({player: p.pseudo, delta: won});
+				}
+			}
+
+			logger.info(`Give trophees in ${this.gamemodeId} with ${JSON.stringify(deltas)}`);
+
+			db.giveTrophees(this.gamemodeId, deltas);
+
+
+			return wonTrophees;
+		})(); 
+
+
 
 		// Data
 		return {

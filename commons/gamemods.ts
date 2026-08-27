@@ -24,7 +24,7 @@ export const gamemods: Record<
         server: (players, total) => GMTest.createServ(players, total),
         client: (entry, total) => GMTest.createClient(entry, total),
         dom: GMTest.generateClientDom,
-        tropheesPerPlayer: 8
+        tropheesPerPlayer: 20
     },
 };
 
