@@ -39,7 +39,7 @@ const BUCKET_POSITIONS: number[][] = [
 
 
 class Ball {
-	static readonly RADIUS = 20;
+	static readonly RADIUS = 60;
 	static readonly SPAWN_JUMP = 20;
 	static readonly GRAVITY = 500;
 	static readonly EJECT = 1200;
@@ -290,7 +290,7 @@ class Player {
 class Bucket {
 	team: 'red' | 'blue' | null = null;
 
-	static readonly SIZE = 30;
+	static readonly SIZE = 70;
 
 	constructor(
 		public readonly x: number,
