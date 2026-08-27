@@ -124,7 +124,13 @@ export class Room {
 		}
 	}
 
-	async handle(encryptedData: Uint8Array, playerIdx: number) {
+	async handle(
+		encryptedData: Uint8Array,
+		playerIdx: number
+	): Promise<Uint8Array | null> {
+		if (this.isFinished())
+			return null;
+
 		const {
 			ClientMessage,
 			ServerMessage
@@ -190,10 +196,8 @@ export class Room {
 
 			// Game is finished
 			if (finish) {
-				return {
-					gdata: this.produceGData(ServerMessage),
-					finish: await this.finish(finish)
-				};
+				await this.finish(finish);
+				return null;
 			}
 
 			pushSortedArrays(
@@ -222,10 +226,7 @@ export class Room {
 			);
 		}
 
-		return {
-			gdata: this.produceGData(ServerMessage),
-			finish: null
-		};
+		return this.produceGData(ServerMessage);
 	}
 
 	private preprocessBots(
@@ -284,28 +285,29 @@ export class Room {
 		}).finish()
 	}
 
-	private async finish(finish: FinishGame): Promise<Fields> {
-		// Disconnect
-		this.finished = true;
-		for (const p of this.players) {
-			if (p.connection) {
-				p.connection.roomInfo = null;
-			}
-		}
+	private async finish(finish: FinishGame) {
+		if (this.isFinished())
+			return; // already sent
+
 		this.onfinish();
 
 
 
+
 		// Get trophees
-		const trophees: number[] = await (async ()=>{
-			if (this.bots.length) { // Game contained bots
-				return Array.from({
-					length: this.players.length + this.bots.length
-				}, ()=>0);
+		const {trophees, scores} = await (async ()=>{
+			if (this.bots.length) {
+				// Game contained bots so return 0 for everyone
+				return {
+					trophees: Array.from({
+						length: this.players.length + this.bots.length
+					}, ()=>0),
+					scores: []
+				};
 			}
 
 			const tropheesPerPlayer = gamemods[this.gamemodeId].tropheesPerPlayer;
-			const wonTrophees = evalWonTrophees(finish).map((t, idx) => (
+			const trophees = evalWonTrophees(finish).map((t, idx) => (
 				Math.floor(t*tropheesPerPlayer)
 			));
 
@@ -316,7 +318,7 @@ export class Room {
 				player: string;
 				delta: number;
 			}[] = [];
-			for (const [idx, won] of wonTrophees.entries()) {
+			for (const [idx, won] of trophees.entries()) {
 				const p = this.players[idx];
 				if (p.pseudo) {
 					deltas.push({player: p.pseudo, delta: won});
@@ -325,36 +327,59 @@ export class Room {
 
 			logger.info(`Give trophees in ${this.gamemodeId} with ${JSON.stringify(deltas)}`);
 
-			db.giveTrophees(this.gamemodeId, deltas);
+			const scores: number[] = Array.from({
+				length: this.players.length
+			}, ()=>0);
 
+			const rawResults = await db.giveTrophees(this.gamemodeId, deltas);
+			for (const r of rawResults) {
+				const idx = this.players.findIndex(p => p.pseudo === r.player);
+				if (idx !== -1) {
+					scores[idx] = r.trophees;
+				}
+			}
 
-			return wonTrophees;
+			return {trophees, scores};
 		})(); 
 
 
 
 		// Data
-		return {
-			results: flattenArrays(finish.results.map(
-				i => i.map(
-					j => (
-						j < this.players.length ?
-						this.players[j].identifier :
-						-1
+		const spreadMsg = {
+			finishGame: {
+				results: flattenArrays(finish.results.map(
+					i => i.map(
+						j => (
+							j < this.players.length ?
+							this.players[j].identifier :
+							-1
+						)
 					)
-				)
-			), -2),
-
-			playerEqualities: finish.playerEqualities.map(i => (
-				i < this.players.length ?
-				this.players[i].identifier :
-				-1
-			)),
-
-			teamEqualities: finish.teamEqualities,
-
-			trophees
+				), -2),
+	
+				playerEqualities: finish.playerEqualities.map(i => (
+					i < this.players.length ?
+					this.players[i].identifier :
+					-1
+				)),
+	
+				teamEqualities: finish.teamEqualities,
+	
+				scores: this.players.map((p, idx) => ({
+					delta: trophees[idx],
+					result: scores[idx],
+					identifier: p.identifier,
+				}))
+			}
 		};
+
+		// Send message and disconnect from room
+		for (const p of this.players) {
+			if (p.connection) {
+				p.connection.sendMessage(spreadMsg);
+				p.connection.roomInfo = null;
+			}
+		}
 	}
 
 	isFinished() {

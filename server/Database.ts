@@ -116,7 +116,7 @@ export class Database {
 	giveTrophees(
 		gamemode: string,
 		playerDeltas: PlayerDelta[]
-	): Promise<void> {
+	): Promise<{ player: string; trophees: number }[]> {
 		return new Promise((resolve, reject) => {
 			this.db.serialize(() => {
 				this.db.run("BEGIN TRANSACTION");
@@ -138,22 +138,35 @@ export class Database {
 				statement.finalize((error) => {
 					if (error) {
 						this.db.run("ROLLBACK");
-						reject(
-							new Error(
-								`Failed to update trophees: ${error.message}`
-							)
-						);
+						reject(new Error(`Failed to update trophees: ${error.message}`));
 						return;
 					}
 
-					this.db.run("COMMIT", (error) => {
-						if (error) {
-							reject(error);
-							return;
-						}
+					this.db.all(
+						`
+						SELECT user AS player, trophees
+						FROM Progression
+						WHERE gamemode = ?
+						AND user IN (${playerDeltas.map(() => "?").join(",")})
+						`,
+						[gamemode, ...playerDeltas.map(p => p.player)],
+						(error, rows: { player: string; trophees: number }[]) => {
+							if (error) {
+								this.db.run("ROLLBACK");
+								reject(error);
+								return;
+							}
 
-						resolve();
-					});
+							this.db.run("COMMIT", (error) => {
+								if (error) {
+									reject(error);
+									return;
+								}
+
+								resolve(rows);
+							});
+						}
+					);
 				});
 			});
 		});

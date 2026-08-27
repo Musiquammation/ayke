@@ -27,21 +27,18 @@ export class Connection {
 				return;
 			}
 
-			const gdataPromise = c.roomInfo.room.handle(
+
+			const room = c.roomInfo.room;
+			const gdataPromise = room.handle(
 				gdata,
 				c.roomInfo.idx
 			);
 
-			gdataPromise.then(({gdata, finish}) => {
-				if (finish === null) {
-					c.sendMessage({gdata});
+			gdataPromise.then(d => {
+				if (d === null)
 					return;
-				}
 
-				c.sendMessage({finishGame: {
-					...finish,
-					gdata,
-				}});
+				c.sendMessage({gdata: d});
 			});
 		},
 

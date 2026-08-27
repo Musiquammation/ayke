@@ -105,11 +105,16 @@ message WaitingAllowBots {
 	bool allow = 2;
 }
 
+message FinalPlayerScore {
+	int32 delta = 1;
+	int32 result = 2;
+	int32 identifier = 3;
+}
+
 message FinishGame {
-	bytes gdata = 1;
-	repeated int32 results = 2;
-	repeated int32 teamEqualities = 3;
-	repeated int32 playerEqualities = 4;
-	repeated int32 trophees = 5;
+	repeated int32 results = 1;
+	repeated int32 teamEqualities = 2;
+	repeated int32 playerEqualities = 3;
+	repeated FinalPlayerScore scores = 4;
 }
 
