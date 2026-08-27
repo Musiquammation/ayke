@@ -865,13 +865,51 @@ export class GMAirBasket extends GameMode {
 	}
 
 	private produceFinish(): FinishGame {
-		const redTeam: number = [];
-		const blueTeam: number = [];
+		const redTeam: number[] = [];
+		const blueTeam: number[] = [];
+		const playerEqualities: number[] = [];
 
-		
+		// Fill teams
 		for (const [idx, player] of this.players.entries()) {
-			
+			if (player.team === 'red') {
+				redTeam.push(idx);
+			} else {
+				blueTeam.push(idx);
+			}
 		}
+
+		// Internal sort
+		for (const team of [redTeam, blueTeam]) {
+			// Sort
+			team.sort((a, b) => this.players[b].score - this.players[a].score);
+
+			// Detect equalities
+			for (let i = 0; i < team.length - 2; i++) {
+				const a = this.players[team[i]].score;
+				const b = this.players[team[i+1]].score;
+				if (a === b) {
+					playerEqualities.push(team[i]);
+				}
+			}
+		}
+
+		let teams: number[][];
+		const teamEqualities: number[] = [];
+
+		if (this.redScore >= this.blueScore) {
+			teams = [redTeam, blueTeam];
+			if (this.redScore === this.blueScore) {
+				teamEqualities.push(0);
+			}
+		} else {
+			teams = [blueTeam, redTeam];
+		}
+
+		return {
+			results: teams,
+			teamEqualities,
+			playerEqualities
+		};
 	}
 }
 
