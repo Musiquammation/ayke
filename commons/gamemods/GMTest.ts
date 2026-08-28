@@ -105,7 +105,7 @@ export class GMTest extends GameMode {
 			p.y = 1000;
 			p.team = i%2==0 ? 'red' : 'blue';
 		}
-		return {game, data: new ClientData()};
+		return {game, data: new ClientData(), html: null};
 	}
 
 	static readonly generateClientDom = generateClientDom;

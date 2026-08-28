@@ -32,3 +32,13 @@ button.selected {
 
 	padding: 10px 20px;
 }
+
+
+#game-html {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	color: white;
+}

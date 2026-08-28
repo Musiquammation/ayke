@@ -23,7 +23,11 @@ export class LocalGameHandler {
 			throw new Error(`Invalid gamemode '${gamemodeId}'`);
 		}
 
-		this.gamemode = factory.client(null, 2).game;
+		const {game, html} = factory.client(null, 2);
+		const gameHtml = document.getElementById("game-html")!;
+		gameHtml.innerHTML = "";
+		if (html) { gameHtml.appendChild(html); }
+		this.gamemode = game;
 		this.tutorial = this.gamemode.createTutorial();
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
@@ -32,6 +36,7 @@ export class LocalGameHandler {
 	}
 
 	start() {
+		
 		this.clock = 0;
 		this.lastTime = performance.now();
 		requestAnimationFrame(() => this.frame());

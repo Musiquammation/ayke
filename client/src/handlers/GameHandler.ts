@@ -185,14 +185,20 @@ export async function setGameHandler(
 	const protocols = getProtocol(gamemode);
 	await protocols.load();
 
-	const {game, data} = factory.client(startData, total);
+	const {game, data, html} = factory.client(startData, total);
+
+	const gameHtml = document.getElementById("game-html")!;
+	gameHtml.innerHTML = "";
+	if (html) {
+		gameHtml.appendChild(html);
+	}
 
 	_gameHandler = new GameHandler(
 		gamemode,
 		game,
 		playerIdx,
 		protocols.get(),
-		data,
+		data
 	);
 	_gameHandler.frame();
 
