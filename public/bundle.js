@@ -14716,7 +14716,7 @@ var TemplateLoader = class {
 	async load(name) {
 		const cached = this.cache.get(name);
 		if (cached !== void 0) return cached;
-		const response = await fetch(`/game-panels/${name}.html`);
+		const response = await fetch(window.IMG_ROOT_PATH + `/game-panels/${name}.html`);
 		if (!response.ok) throw new Error(`Failed to load template "${name}": ${response.status} ${response.statusText}`);
 		const template = await response.text();
 		this.cache.set(name, template);
