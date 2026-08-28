@@ -190,7 +190,7 @@ export class GMTest extends GameMode {
 		playerIdx: number,
 		_data: any
 	) {
-		const data = _data as ClientData | null;
+		const data = _data as ClientData;
 		ctx.fillStyle = "#333";
 		ctx.fillRect(0, 0, 200, 2000);
 		ctx.fillStyle = "red";

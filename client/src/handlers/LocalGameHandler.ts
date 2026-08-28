@@ -14,6 +14,7 @@ export class LocalGameHandler {
 	private gamemode: GameMode;
 	private interrupted = false;
 	private readonly tutorial;
+	private readonly clientData;
 	private readonly gameWidth: number;
 	private readonly gameHeight: number;
 
@@ -23,12 +24,13 @@ export class LocalGameHandler {
 			throw new Error(`Invalid gamemode '${gamemodeId}'`);
 		}
 
-		const {game, html} = factory.client(null, 2);
+		const {game, data, html} = factory.client(null, 2);
 		const gameHtml = document.getElementById("game-html")!;
 		gameHtml.innerHTML = "";
 		if (html) { gameHtml.appendChild(html); }
 		this.gamemode = game;
 		this.tutorial = this.gamemode.createTutorial();
+		this.clientData = data;
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
@@ -36,7 +38,6 @@ export class LocalGameHandler {
 	}
 
 	start() {
-		
 		this.clock = 0;
 		this.lastTime = performance.now();
 		requestAnimationFrame(() => this.frame());
@@ -64,7 +65,7 @@ export class LocalGameHandler {
 		ctx.scale(scale, scale);
 
 		// Everything drawn here is affected by the translation and scale.
-		this.gamemode.draw(ctx, 0, null, imageLoader);
+		this.gamemode.draw(ctx, 0, this.clientData, imageLoader);
 
 		// Restore the context to the original canvas coordinates.
 		ctx.restore();
