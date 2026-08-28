@@ -11,7 +11,8 @@ message Player {
 	float vy = 4;
 	int32 dir = 5;
 	float alive = 6;
-	bool pushDown = 7;
+	int32 score = 7;
+	bool pushDown = 8;
 }
 
 message FreeBall {
@@ -43,6 +44,8 @@ message State {
 	repeated Bucket buckets = 5;
 	float time = 6;
 	int32 timeStep = 7;
+	int32 redScore = 8;
+	int32 blueScore = 9;
 }
 
 message Throw {

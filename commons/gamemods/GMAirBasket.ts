@@ -266,6 +266,7 @@ class Player {
 		this.vy = obj.vy;
 		this.dir = obj.dir;
 		this.alive = obj.alive;
+		this.score = obj.score;
 		this.pushDown = obj.pushDown;
 	}
 
@@ -943,6 +944,8 @@ export class GMAirBasket extends GameMode {
 			})),
 			time: this.time,
 			timeStep: this.timeStep,
+			redScore: this.redScore,
+			blueScore: this.blueScore,
 		};
 		
 		if (this.ball.grabber >= 0) {
@@ -973,6 +976,8 @@ export class GMAirBasket extends GameMode {
 
 		this.time = obj.time;
 		this.timeStep = obj.timeStep;
+		this.redScore = obj.redScore;
+		this.blueScore = obj.blueScore;
 	}
 
 	override getSize() {
