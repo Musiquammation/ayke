@@ -157,8 +157,8 @@ class Player {
 	static readonly JUMP = 900;
 	static readonly SPAWN_JUMP = 90;
 	static readonly COOLDOWN = 1.5;
-	static readonly WIDTH = 20;
-	static readonly HEIGHT = 40;
+	static readonly WIDTH = 40;
+	static readonly HEIGHT = 80;
 	static readonly PUSH_DOWN = 1000;
 	static readonly THROW = 700;
 
@@ -282,6 +282,24 @@ class Player {
 		this.vx = 0;
 		this.vy = -Player.SPAWN_JUMP;
 		this.alive = Player.COOLDOWN;
+	}
+
+	getTextureCode(grabbing: boolean) {
+		let first: number;
+		let second: number;
+		if (this.vy < -600) {
+			first = 1;
+		} else if (this.vy >= 0) {
+			first = 2;
+		} else {
+			first = 0;
+		}
+		
+		
+		second = grabbing ? 1 : 0;
+
+
+		return [first, second];
 	}
 }
 
@@ -753,6 +771,7 @@ export class GMAirBasket extends GameMode {
 		'bucket-mid': "/assets/games/airbasket/bucket-mid.png",
 		'bucket-red': "/assets/games/airbasket/bucket-red.png",
 		'sky': "/assets/games/airbasket/sky.png",
+		'skin-default': "/assets/games/airbasket/skins/joe/grid.png"
 	};
 
 
@@ -1131,25 +1150,40 @@ export class GMAirBasket extends GameMode {
 		}
 
 		// Draw players
-		for (const [i, p] of this.players.entries()) {
-			ctx.fillStyle = p.team;
-			ctx.fillRect(
-				p.x - Player.WIDTH/2,
-				p.y - Player.HEIGHT/2,
-				Player.WIDTH,
-				Player.HEIGHT
-			);
+		{
+			const playerTexture = imageLoader.get('skin-default');
+			const w = playerTexture.width/6;
+			const h = playerTexture.height/4;
+			const width = Player.WIDTH * 4/3;
+			for (const [idx, p] of this.players.entries()) {
+				ctx.fillStyle = p.team;
+				let [tx, ty] = p.getTextureCode(this.ball.grabber === idx);
+				if (p.team === 'red') {tx += 3;}
+				ctx.drawImage(
+					playerTexture,
+					tx*w,
+					ty*h,
+					w,
+					h,
+					p.x - width/2,
+					p.y - Player.HEIGHT/2,
+					width,
+					Player.HEIGHT,
+				);
+			}
 		}
 
 		// Draw ball
-		const drawBallCoords = this.getBallDrawCoords();
-		ctx.drawImage(
-			imageLoader.get('ball'),
-			drawBallCoords.x,
-			drawBallCoords.y,
-			Ball.RADIUS,
-			Ball.RADIUS
-		)
+		if (this.ball.grabber < 0) {
+			const drawBallCoords = this.getBallDrawCoords();
+			ctx.drawImage(
+				imageLoader.get('ball'),
+				drawBallCoords.x,
+				drawBallCoords.y,
+				Ball.RADIUS,
+				Ball.RADIUS
+			)
+		}
 
 		ctx.restore();
 	}
