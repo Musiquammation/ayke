@@ -1,4 +1,3 @@
-import { Fields } from "./Fields";
 import { GameMode } from "./GameMode";
 import { GMTest } from "./gamemods/GMTest";
 
@@ -24,7 +23,6 @@ export const gamemods: Record<
         name: string,
         tropheesPerPlayer: number
     }
-
 > = {
     test: {
         server: GMTest.createServ,
@@ -37,3 +35,11 @@ export const gamemods: Record<
 };
 
 
+export function getGmFactory(gamemode: string) {
+    const factory = gamemods[gamemode];
+    if (!factory) {
+        throw new Error(`Invalid gamemode '${gamemode}'`);
+    }
+
+    return factory;
+}

@@ -1,6 +1,6 @@
 import { Fields } from "../../../commons/Fields";
 import { GameMode } from "../../../commons/GameMode";
-import { gamemods } from "../../../commons/gamemods";
+import { gamemods, getGmFactory } from "../../../commons/gamemods";
 import { getNow, msgtypes } from "../messages/sendMessage";
 import { keyboardController } from "../controllers/KeyboardController"
 import { mouseController } from "../controllers/MouseController"
@@ -179,10 +179,7 @@ export async function setGameHandler(
 	startData: Uint8Array,
 	total: number
 ) {
-	const factory = gamemods[gamemode];
-	if (!factory) {
-		throw new Error(`Invalid gamemode '${gamemode}'`);
-	}
+	const factory = getGmFactory(gamemode);
 
 	const protocols = getProtocol(gamemode);
 	await protocols.load();

@@ -1,5 +1,5 @@
 import Alpine from "alpinejs";
-import { gamemods } from "../../../commons/gamemods";
+import { gamemods, getGmFactory } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
 import { sendMessage } from "../messages/sendMessage";
 import { escapeHTML } from "../../../commons/util/escapeHTML";
@@ -125,11 +125,7 @@ class MainComponent {
 	async openGamePanel(gamemode: string) {
 		this.currentPage = "loading";
 
-		const factory = gamemods[gamemode];
-		if (!factory) {
-			throw new Error(`Invalid gamemode '${gamemode}'`);
-		}
-
+		const factory = getGmFactory(gamemode);
 		const data = factory.dom();
 		const html = await this.templateLoader.load(gamemode);
 		this.panel = new GamePanelComponent(gamemode, data, html);
@@ -223,11 +219,7 @@ class GamePanelComponent {
 	}
 
 	async play() {
-		const factory = gamemods[this.gamemode];
-		if (!factory) {
-			throw new Error(`Invalid gamemode '${this.gamemode}'`);
-		}
-
+		const factory = getGmFactory(this.gamemode);
 		dom.startLoading();
 		await imageLoader.load(factory.textures);
 		dom.stopLoading();
@@ -243,10 +235,7 @@ class GamePanelComponent {
 	}
 
 	async tutorial() {
-		const factory = gamemods[this.gamemode];
-		if (!factory) {
-			throw new Error(`Invalid gamemode '${this.gamemode}'`);
-		}
+		const factory = getGmFactory(this.gamemode);
 
 		dom.startLoading();
 		await imageLoader.load(factory.textures);

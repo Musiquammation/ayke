@@ -1,5 +1,5 @@
 import { Fields } from "../../../commons/Fields";
-import { gamemods } from "../../../commons/gamemods";
+import { gamemods, getGmFactory } from "../../../commons/gamemods";
 import { getProtocol } from "../../../commons/protocolLoader";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { dom } from "../dom/dom";
@@ -123,10 +123,7 @@ export function setWaitingPlayHandler(
 	userIdentifier: number,
 	users: IUser[]
 ) {
-	const factory = gamemods[gamemode];
-	if (!factory) {
-		throw new Error(`Invalid gamemode '${gamemode}'`);
-	}
+	const factory = getGmFactory(gamemode);
 
 	const updateDom: UpdateMethod = function(users, event) {
 		const waitPlayPanel = dom.getWaitPlayPanel();

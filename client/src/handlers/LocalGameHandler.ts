@@ -1,5 +1,5 @@
 import { GameMode } from "../../../commons/GameMode";
-import { gamemods } from "../../../commons/gamemods";
+import { gamemods, getGmFactory } from "../../../commons/gamemods";
 import { keyboardController } from "../controllers/KeyboardController";
 import { mouseController } from "../controllers/MouseController";
 import { dom } from "../dom/dom";
@@ -19,10 +19,7 @@ export class LocalGameHandler {
 	private readonly gameHeight: number;
 
 	constructor(gamemodeId: string) {
-		const factory = gamemods[gamemodeId];
-		if (!factory) {
-			throw new Error(`Invalid gamemode '${gamemodeId}'`);
-		}
+		const factory = getGmFactory(gamemodeId);	
 
 		const {game, data, html} = factory.client(null, 2);
 		const gameHtml = document.getElementById("game-html")!;
@@ -43,7 +40,7 @@ export class LocalGameHandler {
 		requestAnimationFrame(() => this.frame());
 	}
 
-	private draw() {
+	private draw(dt: number) {
 		// Compute the scale needed to fit the game viewport inside the canvas.
 		const scaleX = canvas.width / this.gameWidth;
 		const scaleY = canvas.height / this.gameHeight;
@@ -65,7 +62,7 @@ export class LocalGameHandler {
 		ctx.scale(scale, scale);
 
 		// Everything drawn here is affected by the translation and scale.
-		this.gamemode.draw(ctx, 0, this.clientData, imageLoader);
+		this.gamemode.draw(ctx, 0, this.clientData, imageLoader, dt);
 
 		// Restore the context to the original canvas coordinates.
 		ctx.restore();
@@ -125,7 +122,7 @@ export class LocalGameHandler {
 			return;
 		}
 
-		this.draw();
+		this.draw(dt);
 
 		requestAnimationFrame(() => this.frame());
 	}
