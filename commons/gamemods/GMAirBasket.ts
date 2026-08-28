@@ -153,6 +153,7 @@ interface DeltaTarget {
 class Player {
 	static readonly SPEED = 1000;
 	static readonly ACCELERATION = 5000;
+	static readonly MIN_DECELERATION = 1000;
 	static readonly SOFT_DECELERATION = 8000;
 	static readonly QUICK_DECELERATION = 20000;
 	static readonly JUMP = 900;
@@ -162,6 +163,8 @@ class Player {
 	static readonly HEIGHT = 80;
 	static readonly PUSH_DOWN = 1000;
 	static readonly THROW = 700;
+	static readonly BOUNCE_X = 500;
+	static readonly BOUNCE_Y = 100;
 
 	spawnX: number | null = null;
 	spawnY: number | null = null
@@ -203,7 +206,6 @@ class Player {
 			if (this.spawnY !== null) {this.y = this.spawnY;}
 		}
 
-
 		// Set vx
 		if (this.dir === 0) {
 			if (this.vx > 0) {
@@ -220,6 +222,9 @@ class Player {
 			} else if (this.vx < Player.SPEED) {
 				this.vx += Player.ACCELERATION * dt;
 				if (this.vx > Player.SPEED) this.vx = Player.SPEED;
+			} else if (this.vx > Player.SPEED) {
+				this.vx -= Player.MIN_DECELERATION * dt;
+				if (this.vx < Player.SPEED) this.vx = Player.SPAWN_JUMP;
 			}
 		} else /*if (this.dir < 0)*/ {
 			if (this.vx > 0) {
@@ -228,6 +233,9 @@ class Player {
 			} else if (this.vx > -Player.SPEED) {
 				this.vx -= Player.ACCELERATION * dt;
 				if (this.vx < -Player.SPEED) this.vx = -Player.SPEED;
+			} else if (this.vx < -Player.SPEED) {
+				this.vx += Player.MIN_DECELERATION * dt;
+				if (this.vx > -Player.SPEED) this.vx = -Player.SPAWN_JUMP;
 			}
 		}
 		
@@ -637,6 +645,52 @@ function lighten(hex: string, factor: number): string {
 		.join("")}`;
 }
 
+/**
+ * Checks for AABB rectangle collisions between all players.
+ * If a collision is found, violently projects the players in opposite directions.
+ */
+function applyCollisions(players: Player[]) {
+	for (let i = 0; i < players.length; i++) {
+		for (let j = i + 1; j < players.length; j++) {
+			const p1 = players[i];
+			const p2 = players[j];
+
+			// Only calculate collisions for alive players
+			if (!p1.isAlive() || !p2.isAlive()) continue;
+
+			// Calculate distances based on center points
+			const dx = p1.x - p2.x;
+			const dy = p1.y - p2.y;
+			
+			// AABB Collision check
+			if (Math.abs(dx) < Player.WIDTH && Math.abs(dy) < Player.HEIGHT) {
+				// Calculate distance to normalize the bounce vector
+				const dist = Math.sqrt(dx * dx + dy * dy);
+				
+				let nx = 0;
+				let ny = 0;
+
+				if (dist === 0) {
+					// Fallback in the extremely rare case they are exactly on the same pixel
+					nx = 1;
+					ny = 0;
+				} else {
+					// Normalize vector
+					nx = dx / dist;
+					ny = dy / dist;
+				}
+
+				// Apply projection forces in opposite directions
+				p1.vx += nx * Player.BOUNCE_X;
+				p1.vy += ny * Player.BOUNCE_Y;
+				
+				p2.vx -= nx * Player.BOUNCE_X;
+				p2.vy -= ny * Player.BOUNCE_Y;
+			}
+		}
+	}
+}
+
 
 export class GMAirBasket extends GameMode {
 	static readonly types = {Player, Bucket};
@@ -889,6 +943,7 @@ export class GMAirBasket extends GameMode {
 			p.move(dt);
 		}
 
+		applyCollisions(this.players);
 
 		// Eject ball from dead player or throw ball
 		if (this.ball.grabber >= 0) {
@@ -921,7 +976,6 @@ export class GMAirBasket extends GameMode {
 			const canRegrab = this.canRegrab();
 			let grabber = -1;
 			for (const [i, p] of this.players.entries()) {
-				console.log(i, this.ball.prevGrabber, p.touchsBall(this.ball));
 				if (
 					(canRegrab || i !== this.ball.prevGrabber) &&
 					p.touchsBall(this.ball)
@@ -979,8 +1033,9 @@ export class GMAirBasket extends GameMode {
 
 			case 'jump':
 				// Jump if ball is not grabbed
-				if (this.ball.grabber !== playerIdx)
+				if (this.ball.grabber !== playerIdx) {
 					player.vy = -Player.JUMP;
+				}
 				break;
 
 			case 'downOn':
