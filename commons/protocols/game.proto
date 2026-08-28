@@ -15,6 +15,7 @@ message ClientMessage {
 		QuitWaitingRoom quitWaitingRoom = 7;
 		Empty askTimeDelta = 8;
 		string deleteConnectionKey = 9;
+		AskLeaderboard askLeaderboard = 10;
 	}
 }
 
@@ -42,6 +43,20 @@ message JoinRoom {
 	string room = 1;
 }
 
+message AskLeaderboard {
+	optional string gamemode = 1;
+	int32 page = 2;
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -58,6 +73,7 @@ message ServerMessage {
 		WaitingRemoveUser waitingRemoveUser = 9;
 		WaitingAllowBots waitingAllowBots = 10;
 		FinishGame finishGame = 11;
+		LeaderboardResult leaderboardResult = 12;
 	}
 }
 
@@ -122,3 +138,12 @@ message FinishGame {
 	repeated FinalPlayerScore scores = 4;
 }
 
+
+message LeaderboardEntry {
+	string pseudo = 1;
+	int32 trophees = 2;
+}
+
+message LeaderboardResult {
+	repeated LeaderboardEntry entries = 1;
+}

@@ -50,6 +50,7 @@ class MainComponent {
 		SigninComponent |
 		HomeComponent |
 		TutorialInplayComponent |
+		LeaderboardComponent |
 		null
 	) = new HomeComponent();
 
@@ -165,6 +166,13 @@ class MainComponent {
 		this.currentPage = "play";
 	}
 
+	openLeaderboard() {
+		const panel = new LeaderboardComponent();
+		this.panel = panel;
+		this.currentPage = "leaderboard";
+		panel.fetchLeaderboard();
+	}
+
 	
 
 
@@ -195,6 +203,10 @@ class MainComponent {
 
 	getTutorialInplayComponent() {
 		return this.getPanel(TutorialInplayComponent);
+	}
+
+	getLeaderboardPanel() {
+		return this.getPanel(LeaderboardComponent);
 	}
 }
 
@@ -422,7 +434,58 @@ class TutorialInplayComponent {
 	}
 }
 
+// Add this new class before MainComponent
+class LeaderboardComponent {
+	entries: { pseudo: string; trophees: number }[] = [];
+	gamemode: string | null = null;
+	page: number = 0;
 
+	// Exposing imported gamemods for the UI dropdown
+	gamemods = gamemods;
+
+	/**
+	 * Requests the latest leaderboard slice from the server based on current filters.
+	 */
+	fetchLeaderboard() {
+		sendMessage({
+			askLeaderboard: {
+				gamemode: this.gamemode,
+				page: this.page
+			}
+		});
+	}
+
+	/**
+	 * Updates the current gamemode category, resets the page, and fetches new data.
+	 */
+	setGamemode(mode: string | null) {
+		this.gamemode = mode;
+		this.page = 0;
+		this.fetchLeaderboard();
+	}
+
+	nextPage() {
+		this.page++;
+		this.fetchLeaderboard();
+	}
+
+	prevPage() {
+		if (this.page > 0) {
+			this.page--;
+			this.fetchLeaderboard();
+		}
+	}
+
+	rank(index: number): number {
+		if (index === 0)
+			return this.page * 64 + 1;
+
+		if (this.entries[index].trophees === this.entries[index - 1].trophees)
+			return this.rank(index - 1);
+
+		return this.page * 64 + index + 1;
+	}
+}
 
 
 

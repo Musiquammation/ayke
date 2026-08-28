@@ -372,34 +372,32 @@ export class Database {
 	/**
 	 * Registers a new gamemode and creates default progression rows for existing users.
 	 */
-	addGamemode(
+	enshureGamemode(
 		modeId: string,
 		name: string
 	): Promise<void> {
 		return new Promise((resolve, reject) => {
 			this.db.serialize(() => {
-				this.db.run("BEGIN TRANSACTION");
-
-				this.db.run(
-					"INSERT INTO Gamemode (id, name) VALUES (?, ?)",
-					[modeId, name],
-					(error) => {
+				this.db.get(
+					"SELECT 1 FROM Gamemode WHERE id = ?",
+					[modeId],
+					(error, row) => {
 						if (error) {
-							this.db.run("ROLLBACK");
-							reject(
-								new Error(
-									`Gamemode '${modeId}' already exists.`
-								)
-							);
+							reject(error);
 							return;
 						}
 
+						// Gamemode already exists
+						if (row) {
+							resolve();
+							return;
+						}
+
+						this.db.run("BEGIN TRANSACTION");
+
 						this.db.run(
-							`
-							INSERT INTO Progression (gamemode, user, trophees)
-							SELECT ?, pseudo, 0 FROM User
-							`,
-							[modeId],
+							"INSERT INTO Gamemode (id, name) VALUES (?, ?)",
+							[modeId, name],
 							(error) => {
 								if (error) {
 									this.db.run("ROLLBACK");
@@ -407,14 +405,29 @@ export class Database {
 									return;
 								}
 
-								this.db.run("COMMIT", (error) => {
-									if (error) {
-										reject(error);
-										return;
-									}
+								this.db.run(
+									`
+									INSERT INTO Progression (gamemode, user, trophees)
+									SELECT ?, pseudo, 0 FROM User
+									`,
+									[modeId],
+									(error) => {
+										if (error) {
+											this.db.run("ROLLBACK");
+											reject(error);
+											return;
+										}
 
-									resolve();
-								});
+										this.db.run("COMMIT", (error) => {
+											if (error) {
+												reject(error);
+												return;
+											}
+
+											resolve();
+										});
+									}
+								);
 							}
 						);
 					}
@@ -456,6 +469,64 @@ export class Database {
 
 				resolve();
 			});
+		});
+	}
+
+
+
+	// ==========================================
+	// LEADERBOARD METHODS
+	// ==========================================
+
+	/**
+	 * Retrieves paginated leaderboard entries.
+	 * If gamemode is null, it aggregates total trophies across all gamemodes.
+	 * 
+	 * @param gamemode The specific gamemode ID, or null for total trophies.
+	 * @param page The pagination index (0-based).
+	 */
+	getLeaderboard(gamemode: string | null, page: number): Promise<{ pseudo: string; trophees: number }[]> {
+		return new Promise((resolve, reject) => {
+			const limit = 64;
+			const offset = page * limit;
+
+			if (gamemode) {
+				this.db.all<{ pseudo: string; trophees: number }>(
+					`
+					SELECT user AS pseudo, trophees 
+					FROM Progression 
+					WHERE gamemode = ? 
+					ORDER BY trophees DESC 
+					LIMIT ? OFFSET ?
+					`,
+					[gamemode, limit, offset],
+					(error, rows) => {
+						if (error) {
+							reject(error);
+							return;
+						}
+						resolve(rows ?? []);
+					}
+				);
+			} else {
+				this.db.all<{ pseudo: string; trophees: number }>(
+					`
+					SELECT user AS pseudo, SUM(trophees) AS trophees 
+					FROM Progression 
+					GROUP BY user 
+					ORDER BY trophees DESC 
+					LIMIT ? OFFSET ?
+					`,
+					[limit, offset],
+					(error, rows) => {
+						if (error) {
+							reject(error);
+							return;
+						}
+						resolve(rows ?? []);
+					}
+				);
+			}
 		});
 	}
 }

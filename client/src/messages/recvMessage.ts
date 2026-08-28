@@ -98,7 +98,18 @@ const runners: Record<string, (data: any) => void> = {
 		d = decodeFullMessage(d);
 		d.results = unflattenPositiveArrays(d.results, -2);
 		dom.openPlayResults(d);
-	}
+	},
+
+	/**
+	 * Handles the paginated leaderboard results sent by the server.
+	 */
+	leaderboardResult(d) {
+		if (dom.uses('leaderboard')) {
+			const panel = dom.getLeaderboardPanel();
+			// Ensure it resets properly if undefined/null
+			panel.entries = d.entries || []; 
+		}
+	},
 };
 
 

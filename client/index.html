@@ -46,6 +46,11 @@
 						</template>
 					</section>
 
+					<section>
+						<h2>Community</h2>
+						<button @click="openLeaderboard()">View Leaderboard</button>
+					</section>
+
 				</div>
 			</template>
 
@@ -196,6 +201,42 @@
 							<button type="button" @click="openHome()">Go home</button>
 						</div>
 					</form>
+				</div>
+			</template>
+
+			<template x-if="uses('leaderboard')">
+				<div id="leaderboard-page" class="page" x-data="panel">
+					<h2>Leaderboard</h2>
+					
+					<div class="leaderboard-controls">
+						<select x-model="gamemode" @change="setGamemode(gamemode === '' ? null : gamemode)">
+							<option value="">Total Trophies</option>
+							<!-- Map dynamically over available gamemodes -->
+							<template x-for="key in Object.keys(gamemods)" :key="key">
+								<option :value="key" x-text="gamemods[key].name"></option>
+							</template>
+						</select>
+						
+						<button @click="prevPage()" :disabled="page === 0">Previous</button>
+						<span x-text="'Page ' + (page + 1)"></span>
+						<button @click="nextPage()" :disabled="entries.length < 64">Next</button>
+					</div>
+
+					<div class="leaderboard-list">
+						<!-- Apply .leaderboard-me class if logged in and the name matches the root pseudo -->
+						<template x-for="(entry, index) in entries" :key="index">
+							<div 
+								class="leaderboard-entry"
+								:class="{ 'leaderboard-me': isAuthenticated && entry.pseudo === pseudo }"
+							>
+								<span class="rank" x-text="rank(index)"></span>
+								<span class="pseudo" x-text="entry.pseudo"></span>
+								<span class="trophees" x-text="entry.trophees"></span>
+							</div>
+						</template>
+					</div>
+					
+					<button @click="openHome()">Go Home</button>
 				</div>
 			</template>
 

@@ -155,9 +155,35 @@ export class Connection {
 		async deleteConnectionKey(c, key) {
 			const db = await database;
 			db.revokeKey(key);	
-		}
+		},
 
+		/**
+		 * Fetches leaderboard data requested by the client and sends the result.
+		 */
+		async askLeaderboard(c, data) {
+			try {
+				const db = await database;
+				const gamemode = data.gamemode || null;
+				// Default to first page (index 0) if missing
+				const page = data.page || 0; 
+				
+				const entries = await db.getLeaderboard(gamemode, page);
+
+				c.sendMessage({
+					leaderboardResult: { entries }
+				});
+			} catch (error) {
+				console.error("Failed to fetch leaderboard:", error);
+				c.sendError(3, "Failed to retrieve leaderboard");
+			}
+		},
 	};
+
+
+
+
+
+
 	constructor(
 		private socket: WebSocket
 	) {
