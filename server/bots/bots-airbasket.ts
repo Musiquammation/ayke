@@ -34,6 +34,7 @@ class Data {
 	private dir = 0;
 	private pushDownStates: Record<number, boolean> = {};
 	bucketTarget: number | 'empty' | 'cancel' = 'empty';
+	hasThrown = true;
 
 	avoidOOB(game: GMAirBasket, player: Player, inputs: Fields[]) {
 		if (game.internalFrameTick === this.lastAvoidOOBTick)
@@ -198,7 +199,8 @@ const method = runner((game, data, playerIdx) => {
 	// Avoid OOB
 	data.avoidOOB(game, player, inputs)
 
-	
+	let throwBall = false;
+
 	// Empty bucketTarget
 	if (game.ball.grabber !== playerIdx) {
 		data.bucketTarget = 'empty';
@@ -231,6 +233,7 @@ const method = runner((game, data, playerIdx) => {
 						x: mate.x,
 						y: mate.y
 					}});
+					throwBall = true;
 				}
 				
 			} else if (player.vy >= 0) {
@@ -239,6 +242,7 @@ const method = runner((game, data, playerIdx) => {
 					x: 2*GMAirBasket.DATA.WIDTH,
 					y: 1*GMAirBasket.DATA.HEIGHT
 				}});
+				throwBall = true;
 			}
 		}
 
@@ -246,6 +250,13 @@ const method = runner((game, data, playerIdx) => {
 		data.reach(game, player, game.players[game.ball.grabber], inputs);
 	} else {
 		data.reach(game, player, game.ball, inputs);
+	}
+
+
+	if (throwBall) {
+		data.hasThrown = true;
+	} else if (data.hasThrown) {
+		inputs.push({throwOff: {}});
 	}
 
 
