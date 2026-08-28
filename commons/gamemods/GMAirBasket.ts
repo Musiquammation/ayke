@@ -292,24 +292,6 @@ class Player {
 		this.vy = -Player.SPAWN_JUMP;
 		this.alive = Player.COOLDOWN;
 	}
-
-	getTextureCode(grabbing: boolean) {
-		let first: number;
-		let second: number;
-		if (this.vy < -600) {
-			first = 1;
-		} else if (this.vy >= 0) {
-			first = 2;
-		} else {
-			first = 0;
-		}
-		
-		
-		second = grabbing ? 1 : 0;
-
-
-		return [first, second];
-	}
 }
 
 
@@ -459,6 +441,7 @@ class ClientData {
 	readonly camera = new Camera();
 
 	private clientWasDead = true;
+	private lastDirs: Record<number, boolean> = {};
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -516,6 +499,44 @@ class ClientData {
 		this.clientWasDead = (player.alive >= 0);
 
 		this.camera.update(player.x, player.y, 1/60);
+	}
+
+	getPlayerTextureCode(
+		grabbing: boolean,
+		player: Player,
+		idx: number
+	): [number, number, boolean] {
+		let first: number;
+		let second: number;
+		let third: boolean;
+		if (player.vy < -600) {
+			first = 1;
+		} else if (player.vy >= 0) {
+			first = 2;
+		} else {
+			first = 0;
+		}
+		
+		
+		second = grabbing ? 1 : 0;
+
+		if (player.dir === 0) {
+			if (player.vx < 0) {
+				third = true;
+			} else if (player.vx > 0) {
+				third = false;
+			} else {
+				third = this.lastDirs[idx];
+			}
+		
+		} else  {
+			third = player.dir < 0;
+		}
+
+		this.lastDirs[idx] = third;
+
+
+		return [first, second, third];
 	}
 }
 
@@ -1217,27 +1238,58 @@ export class GMAirBasket extends GameMode {
 		}
 
 		// Draw players
-		{
-			const playerTexture = imageLoader.get('skin-default');
-			const w = playerTexture.width/6;
-			const h = playerTexture.height/4;
-			const width = Player.WIDTH * 4/3;
-			for (const [idx, p] of this.players.entries()) {
-				ctx.fillStyle = p.team;
-				let [tx, ty] = p.getTextureCode(this.ball.grabber === idx);
-				if (p.team === 'red') {tx += 3;}
+		const playerTexture = imageLoader.get('skin-default');
+		const w = playerTexture.width / 6;
+		const h = playerTexture.height / 4;
+		const width = Player.WIDTH * 4 / 3;
+
+		for (const [idx, p] of this.players.entries()) {
+			ctx.fillStyle = p.team;
+
+			let [tx, ty, dir] = data.getPlayerTextureCode(
+				this.ball.grabber === idx,
+				p,
+				idx
+			);
+
+			if (p.team === 'red') {
+				tx += 3;
+			}
+
+			ctx.save();
+
+			if (dir) {
+				// Look left
+				ctx.translate(p.x + width / 2, p.y - Player.HEIGHT / 2);
+				ctx.scale(-1, 1);
+
 				ctx.drawImage(
 					playerTexture,
-					tx*w,
-					ty*h,
+					tx * w,
+					ty * h,
 					w,
 					h,
-					p.x - width/2,
-					p.y - Player.HEIGHT/2,
+					0,
+					0,
+					width,
+					Player.HEIGHT,
+				);
+			} else {
+				// Look right
+				ctx.drawImage(
+					playerTexture,
+					tx * w,
+					ty * h,
+					w,
+					h,
+					p.x - width / 2,
+					p.y - Player.HEIGHT / 2,
 					width,
 					Player.HEIGHT,
 				);
 			}
+
+			ctx.restore();
 		}
 
 		// Draw ball
