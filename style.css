@@ -31,6 +31,8 @@ button.selected {
 	max-width: 50vw;
 
 	padding: 10px 20px;
+
+	z-index: 100;
 }
 
 #game-html {
