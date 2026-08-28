@@ -262,6 +262,8 @@
 			window.PROTOCOLS_FOLDER = "/ayke/public/protocols/games/";
 			window.INDEX_TS = "/src/index.ts";
 
+			console.log("v1.0.0");
+
 			document.addEventListener("DOMContentLoaded", () => {
 				import("/ayke/public/bundle.js").then(m => m.init());
 			});
