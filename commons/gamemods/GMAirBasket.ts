@@ -304,8 +304,63 @@ class Bucket {
 
 
 class ClientData {
+	readonly html: HTMLDivElement;
 
+	readonly time: HTMLDivElement;
+	readonly period: HTMLDivElement;
+	
+	readonly redScore: HTMLDivElement;
+	readonly blueScore: HTMLDivElement;
+
+	constructor() {
+		this.html = document.createElement("div");
+		this.html.classList.add("game-airbasket-client-data");
+
+		this.time = document.createElement("div");
+		this.time.classList.add("game-airbasket-time");
+
+		this.period = document.createElement("div");
+		this.period.classList.add("game-airbasket-period");
+
+		const scores = document.createElement("div");
+		this.redScore = document.createElement("div"),
+		this.blueScore = document.createElement("div"),
+
+		this.redScore.classList.add("game-airbasket-red-score");
+		this.blueScore.classList.add("game-airbasket-blue-score");
+
+		scores.appendChild(this.redScore);
+		scores.appendChild(this.blueScore);
+		
+		this.html.appendChild(this.time);
+		this.html.appendChild(this.period);
+		this.html.appendChild(scores);
+	}
+
+	static readonly PERIODS = ["normal", "grabber infinite", "sudden death"];
+
+	static showTime(time: number) {
+		const minutes = Math.floor(time / 60);
+		const seconds = (time % 60).toFixed(1);
+
+		return `${minutes}:${seconds.padStart(4, "0")}`;
+	}
+
+	update(game: GMAirBasket) {
+		this.time.innerText = 
+			ClientData.showTime(game.time);
+
+		this.period.innerText =
+			ClientData.PERIODS[game.timeStep];
+
+		this.redScore.innerText =
+			String(game.redScore).padStart(2, "0");
+
+		this.blueScore.innerText =
+			String(game.blueScore).padStart(2, "0");
+	}
 }
+
 
 class TutorialData {
 	private step = 0;
@@ -547,7 +602,8 @@ export class GMAirBasket extends GameMode {
 		}
 
 
-		return {game, data: new ClientData()};
+		const clientData = new ClientData();
+		return {game, data: clientData, html: clientData.html};
 	}
 
 	static readonly generateClientDom = generateClientDom;
@@ -866,6 +922,7 @@ export class GMAirBasket extends GameMode {
 		imageLoader: ImageLoader
 	) {
 		const data = _data as ClientData;
+		data.update(this);
 
 		const player = this.players[playerIdx];
 
