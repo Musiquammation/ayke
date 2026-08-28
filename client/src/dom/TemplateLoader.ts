@@ -1,3 +1,9 @@
+declare global {
+	interface Window {
+		IMG_ROOT_PATH: string;
+	}
+}
+
 export class TemplateLoader {
 	private cache = new Map<string, string>();
 
@@ -8,7 +14,7 @@ export class TemplateLoader {
 			return cached;
 		}
 
-		const response = await fetch(`/game-panels/${name}.html`);
+		const response = await fetch(window.IMG_ROOT_PATH + `/game-panels/${name}.html`);
 
 		if (!response.ok) {
 			throw new Error(
