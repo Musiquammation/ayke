@@ -1,20 +1,18 @@
 import { defineConfig } from "vite";
-import { resolve } from "path";
 
 export default defineConfig({
-	root: "client",
-	base: "./",
-	server: {
-		port: 5173
-	},
 	build: {
-		outDir: "../dist",
+		outDir: "dist",
 		emptyOutDir: true,
 		minify: false,
+
 		rollupOptions: {
+			input: "client/src/index.ts",
+
 			output: {
 				entryFileNames: "bundle.js",
-				format: "es"
+				format: "es",
+				assetFileNames: "[name][extname]"
 			}
 		}
 	}
