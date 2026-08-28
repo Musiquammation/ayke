@@ -6,14 +6,14 @@ interface PlayerDelta {
 	delta: number;
 }
 
-export interface QuickConnectionKeyRecord {
+interface QuickConnectionKeyRecord {
 	key: string;
 	user: string;
 	createdAt: string;
 	expiresAt: string | null;
 }
 
-export class Database {
+class Database {
 	private db: sqlite3.Database;
 
 	constructor(filepath: string) {
@@ -22,7 +22,8 @@ export class Database {
 	}
 
 	/**
-	 * Initializes all database tables including the new QuickConnectionKey table.
+	 * Initializes all database tables if they do not already exist.
+	 * Includes User, Gamemode, Progression, and QuickConnectionKey tables.
 	 */
 	private initializeTables(): void {
 		this.db.exec(`
@@ -56,7 +57,9 @@ export class Database {
 	}
 
 	/**
-	 * Hashes a plain text password using SHA-256.
+	 * Hashes a plain text password using SHA-256 algorithm.
+	 * @param password The plain text password.
+	 * @returns The hashed password in hexadecimal format.
 	 */
 	private hashPassword(password: string): string {
 		return createHash("sha256")
@@ -65,20 +68,22 @@ export class Database {
 	}
 
 	/**
-	 * Generates a cryptographically secure random token key.
+	 * Generates a cryptographically secure random token key (64 characters long).
+	 * @returns The random token in hexadecimal format.
 	 */
 	private generateRandomKey(): string {
 		return randomBytes(32).toString("hex");
 	}
 
 	// ==========================================
-	// QuickConnection KEY METHODS
+	// QUICK CONNECTION KEY METHODS
 	// ==========================================
 
 	/**
 	 * Generates and stores a new QuickConnection key for a given user.
 	 * @param pseudo Username associated with the key.
-	 * @param expiresInDays Optional duration before the key expires.
+	 * @param expiresInDays Optional duration in days before the key expires.
+	 * @returns A promise that resolves to the generated key.
 	 */
 	createKey(pseudo: string, expiresInDays?: number): Promise<string> {
 		return new Promise((resolve, reject) => {
@@ -106,7 +111,9 @@ export class Database {
 	}
 
 	/**
-	 * Validates whether an QuickConnection key exists and has not expired.
+	 * Validates whether a QuickConnection key exists and has not expired.
+	 * @param key The token to validate.
+	 * @returns A promise resolving to true if valid, false otherwise.
 	 */
 	validateKey(key: string): Promise<boolean> {
 		return new Promise((resolve, reject) => {
@@ -131,6 +138,8 @@ export class Database {
 
 	/**
 	 * Retrieves the username attached to a valid QuickConnection key.
+	 * @param key The connection key.
+	 * @returns A promise resolving to the username, or null if invalid/expired.
 	 */
 	getUserFromKey(key: string): Promise<string | null> {
 		return new Promise((resolve, reject) => {
@@ -154,7 +163,9 @@ export class Database {
 	}
 
 	/**
-	 * Revokes/deletes a specific QuickConnection key.
+	 * Revokes (deletes) a specific QuickConnection key from the database.
+	 * @param key The key to revoke.
+	 * @returns A promise resolving to true if a key was deleted, false otherwise.
 	 */
 	revokeKey(key: string): Promise<boolean> {
 		return new Promise((resolve, reject) => {
@@ -173,7 +184,9 @@ export class Database {
 	}
 
 	/**
-	 * Revokes all QuickConnection keys associated with a given user.
+	 * Revokes all QuickConnection keys associated with a specific user.
+	 * @param pseudo The username whose keys should be revoked.
+	 * @returns A promise resolving to the number of deleted keys.
 	 */
 	revokeAllUserKeys(pseudo: string): Promise<number> {
 		return new Promise((resolve, reject) => {
@@ -192,7 +205,9 @@ export class Database {
 	}
 
 	/**
-	 * Fetches all keys belonging to a user.
+	 * Fetches all connection keys belonging to a specific user.
+	 * @param pseudo The username.
+	 * @returns A promise resolving to an array of key records.
 	 */
 	getUserKeys(pseudo: string): Promise<QuickConnectionKeyRecord[]> {
 		return new Promise((resolve, reject) => {
@@ -211,7 +226,8 @@ export class Database {
 	}
 
 	/**
-	 * Removes all expired QuickConnection keys from the database.
+	 * Removes all expired QuickConnection keys from the database to save space.
+	 * @returns A promise resolving to the number of keys deleted.
 	 */
 	cleanupExpiredKeys(): Promise<number> {
 		return new Promise((resolve, reject) => {
@@ -233,55 +249,47 @@ export class Database {
 	// ==========================================
 
 	/**
-	 * Creates a new user and sets default progression for all existing gamemodes.
+	 * Creates a new user and sets default progression (0 trophies) for all existing gamemodes.
+	 * Uses simple sequential queries to avoid nested transaction collisions.
+	 * @param pseudo The new username.
+	 * @param password The plain text password (will be hashed).
+	 * @returns A promise resolving to true if successful, false if the user already exists.
 	 */
 	addUser(pseudo: string, password: string): Promise<boolean> {
-		return new Promise((resolve, reject) => {
+		return new Promise((resolve) => {
 			const hashedPassword = this.hashPassword(password);
 
-			this.db.serialize(() => {
-				this.db.run("BEGIN TRANSACTION");
-
-				this.db.run(
-					"INSERT INTO User (pseudo, password) VALUES (?, ?)",
-					[pseudo, hashedPassword],
-					(error) => {
-						if (error) {
-							this.db.run("ROLLBACK");
-							resolve(false);
-							return;
-						}
-
-						this.db.run(
-							`
-							INSERT INTO Progression (gamemode, user, trophees)
-							SELECT id, ?, 0 FROM Gamemode
-							`,
-							[pseudo],
-							(error) => {
-								if (error) {
-									this.db.run("ROLLBACK");
-									resolve(false);
-									return;
-								}
-
-								this.db.run("COMMIT", (error) => {
-									if (error) {
-										resolve(false);
-										return;
-									}
-									resolve(true);
-								});
-							}
-						);
+			this.db.run(
+				"INSERT INTO User (pseudo, password) VALUES (?, ?)",
+				[pseudo, hashedPassword],
+				(error) => {
+					if (error) {
+						// Usually happens if the user already exists (PRIMARY KEY constraint)
+						resolve(false);
+						return;
 					}
-				);
-			});
+
+					// Setup default progression for this new user on all gamemodes
+					this.db.run(
+						`
+						INSERT INTO Progression (gamemode, user, trophees)
+						SELECT id, ?, 0 FROM Gamemode
+						`,
+						[pseudo],
+						(err) => {
+							resolve(!err);
+						}
+					);
+				}
+			);
 		});
 	}
 
 	/**
 	 * Checks user credentials against the stored hashed password.
+	 * @param pseudo The username.
+	 * @param password The plain text password to check.
+	 * @returns A promise resolving to true if credentials are valid, false otherwise.
 	 */
 	checkPassword(pseudo: string, password: string): Promise<boolean> {
 		return new Promise((resolve, reject) => {
@@ -299,69 +307,65 @@ export class Database {
 						return;
 					}
 
-					resolve(
-						row.password === this.hashPassword(password)
-					);
+					resolve(row.password === this.hashPassword(password));
 				}
 			);
 		});
 	}
 
 	/**
-	 * Updates progression trophies for multiple players in a given gamemode.
+	 * Updates progression trophies for multiple players in a given gamemode at once.
+	 * @param gamemode The gamemode ID.
+	 * @param playerDeltas An array of player names and trophy changes (delta).
+	 * @returns A promise resolving to the updated player list with their new trophies.
 	 */
 	giveTrophees(
 		gamemode: string,
 		playerDeltas: PlayerDelta[]
 	): Promise<{ player: string; trophees: number }[]> {
 		return new Promise((resolve, reject) => {
-			this.db.serialize(() => {
-				this.db.run("BEGIN TRANSACTION");
+			if (playerDeltas.length === 0) {
+				resolve([]);
+				return;
+			}
 
+			// Ensure queries run sequentially on the connection
+			this.db.serialize(() => {
 				const statement = this.db.prepare(`
 					UPDATE Progression
 					SET trophees = MAX(0, trophees + ?)
 					WHERE gamemode = ? AND user = ?
 				`);
 
+				// Apply delta to each player
 				for (const item of playerDeltas) {
-					statement.run([
-						item.delta,
-						gamemode,
-						item.player
-					]);
+					statement.run([item.delta, gamemode, item.player]);
 				}
 
+				// Finalize the statement and fetch the updated records
 				statement.finalize((error) => {
 					if (error) {
-						this.db.run("ROLLBACK");
 						reject(new Error(`Failed to update trophees: ${error.message}`));
 						return;
 					}
+
+					const placeholders = playerDeltas.map(() => "?").join(",");
+					const queryParams = [gamemode, ...playerDeltas.map((p) => p.player)];
 
 					this.db.all(
 						`
 						SELECT user AS player, trophees
 						FROM Progression
 						WHERE gamemode = ?
-						AND user IN (${playerDeltas.map(() => "?").join(",")})
+						AND user IN (${placeholders})
 						`,
-						[gamemode, ...playerDeltas.map(p => p.player)],
+						queryParams,
 						(error, rows: { player: string; trophees: number }[]) => {
 							if (error) {
-								this.db.run("ROLLBACK");
 								reject(error);
 								return;
 							}
-
-							this.db.run("COMMIT", (error) => {
-								if (error) {
-									reject(error);
-									return;
-								}
-
-								resolve(rows);
-							});
+							resolve(rows);
 						}
 					);
 				});
@@ -370,74 +374,49 @@ export class Database {
 	}
 
 	/**
-	 * Registers a new gamemode and creates default progression rows for existing users.
+	 * Registers a new gamemode if it doesn't exist, and creates default progression rows
+	 * (0 trophies) for all existing users.
+	 * Uses INSERT OR IGNORE to prevent overlapping transactions errors.
+	 * @param modeId The unique gamemode identifier.
+	 * @param name The display name of the gamemode.
 	 */
-	enshureGamemode(
-		modeId: string,
-		name: string
-	): Promise<void> {
+	enshureGamemode(modeId: string, name: string): Promise<void> {
 		return new Promise((resolve, reject) => {
-			this.db.serialize(() => {
-				this.db.get(
-					"SELECT 1 FROM Gamemode WHERE id = ?",
-					[modeId],
-					(error, row) => {
-						if (error) {
-							reject(error);
-							return;
-						}
-
-						// Gamemode already exists
-						if (row) {
-							resolve();
-							return;
-						}
-
-						this.db.run("BEGIN TRANSACTION");
-
-						this.db.run(
-							"INSERT INTO Gamemode (id, name) VALUES (?, ?)",
-							[modeId, name],
-							(error) => {
-								if (error) {
-									this.db.run("ROLLBACK");
-									reject(error);
-									return;
-								}
-
-								this.db.run(
-									`
-									INSERT INTO Progression (gamemode, user, trophees)
-									SELECT ?, pseudo, 0 FROM User
-									`,
-									[modeId],
-									(error) => {
-										if (error) {
-											this.db.run("ROLLBACK");
-											reject(error);
-											return;
-										}
-
-										this.db.run("COMMIT", (error) => {
-											if (error) {
-												reject(error);
-												return;
-											}
-
-											resolve();
-										});
-									}
-								);
-							}
-						);
+			// Insert gamemode if it doesn't exist yet
+			this.db.run(
+				"INSERT OR IGNORE INTO Gamemode (id, name) VALUES (?, ?)",
+				[modeId, name],
+				(error) => {
+					if (error) {
+						reject(error);
+						return;
 					}
-				);
-			});
+
+					// Insert 0 trophies for all users for this gamemode, ignoring if they already exist
+					this.db.run(
+						`
+						INSERT OR IGNORE INTO Progression (gamemode, user, trophees)
+						SELECT ?, pseudo, 0 FROM User
+						`,
+						[modeId],
+						(error) => {
+							if (error) {
+								reject(error);
+								return;
+							}
+							resolve();
+						}
+					);
+				}
+			);
 		});
 	}
 
 	/**
-	 * Gets current trophies for a specific user and gamemode.
+	 * Retrieves the current number of trophies for a specific user and gamemode.
+	 * @param pseudo The username.
+	 * @param gamemode The gamemode ID.
+	 * @returns A promise resolving to the amount of trophies.
 	 */
 	getTrophees(pseudo: string, gamemode: string): Promise<number> {
 		return new Promise((resolve, reject) => {
@@ -449,7 +428,6 @@ export class Database {
 						reject(error);
 						return;
 					}
-
 					resolve(row?.trophees ?? 0);
 				}
 			);
@@ -457,7 +435,7 @@ export class Database {
 	}
 
 	/**
-	 * Closes the SQLite database connection.
+	 * Closes the SQLite database connection gracefully.
 	 */
 	close(): Promise<void> {
 		return new Promise((resolve, reject) => {
@@ -466,13 +444,10 @@ export class Database {
 					reject(error);
 					return;
 				}
-
 				resolve();
 			});
 		});
 	}
-
-
 
 	// ==========================================
 	// LEADERBOARD METHODS
@@ -480,12 +455,16 @@ export class Database {
 
 	/**
 	 * Retrieves paginated leaderboard entries.
-	 * If gamemode is null, it aggregates total trophies across all gamemodes.
+	 * If gamemode is null, it aggregates total trophies across all gamemodes for each user.
 	 * 
-	 * @param gamemode The specific gamemode ID, or null for total trophies.
+	 * @param gamemode The specific gamemode ID, or null to get global rankings.
 	 * @param page The pagination index (0-based).
+	 * @returns A promise resolving to an array of top players and their scores.
 	 */
-	getLeaderboard(gamemode: string | null, page: number): Promise<{ pseudo: string; trophees: number }[]> {
+	getLeaderboard(
+		gamemode: string | null,
+		page: number
+	): Promise<{ pseudo: string; trophees: number }[]> {
 		return new Promise((resolve, reject) => {
 			const limit = 64;
 			const offset = page * limit;
@@ -531,14 +510,18 @@ export class Database {
 	}
 }
 
+// Global promise to safely await the database connection across modules
 let resolveDb!: (db: Database) => void;
 
 export const database: Promise<Database> = new Promise((resolve) => {
 	resolveDb = resolve;
 });
 
+/**
+ * Initializes the singleton Database instance.
+ * @param filepath Path to the SQLite database file.
+ */
 export function initDb(filepath: string) {
-	const database = new Database(filepath);
-	resolveDb(database);
+	const dbInstance = new Database(filepath);
+	resolveDb(dbInstance);
 }
-
