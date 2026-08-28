@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package game_test;
+
+message Empty {}
+
+message Player {
+	float x = 1;
+	float y = 2;
+	float move = 3;
+}
+
+message State {
+	repeated Player players = 1;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof test {
+		float move = 2;
+		Empty invalid = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	int32 testNumber = 1;
+}
+
+message StartDataClient {
+}

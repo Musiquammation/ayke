@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package game;
+
+message Empty {}
+
+message ClientMessage {
+	oneof message {
+		bytes gdata = 1;
+		Login login = 2;
+		string loginWithKey = 3;
+		CreateAccount createAccount = 4;
+		StartGame startGame = 5;
+		bool allowBotsOrder = 6;
+		QuitWaitingRoom quitWaitingRoom = 7;
+		Empty askTimeDelta = 8;
+		string deleteConnectionKey = 9;
+		AskLeaderboard askLeaderboard = 10;
+	}
+}
+
+
+message Login {
+	string pseudo = 1;
+	string password = 2;
+}
+
+message CreateAccount {
+	string pseudo = 1;
+	string password = 2;
+}
+
+message StartGame {
+	string gamemode = 1;
+	bytes data = 2;
+}
+
+message QuitWaitingRoom {
+		
+}
+
+message JoinRoom {
+	string room = 1;
+}
+
+message AskLeaderboard {
+	optional string gamemode = 1;
+	int32 page = 2;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+message ServerMessage {
+	oneof message {
+		bytes gdata = 1;
+		ConnectionSuccessResult createAccountResult = 2;
+		ConnectionSuccessResult loginResult = 3;
+		Error error = 4;
+		double timeDeltaDate = 5;
+		StartGameServer startGame = 6;
+		WaitingWelcome waitingWelcome = 7;
+		WaitingAddUser waitingAddUser = 8;
+		WaitingRemoveUser waitingRemoveUser = 9;
+		WaitingAllowBots waitingAllowBots = 10;
+		FinishGame finishGame = 11;
+		LeaderboardResult leaderboardResult = 12;
+	}
+}
+
+
+message StartGameServer {
+	int32 playerIdx = 1;
+	int32 total = 2;
+	string gamemode = 3;
+	bytes startData = 4;
+	bytes gdata = 5;
+}
+
+message Error {
+	string message = 1;
+	int32 code = 2;
+}
+
+message ConnectionSuccessResult {
+	bool success = 1;
+	optional string key = 2;
+	optional string pseudo = 3;
+}
+
+message WaitingUser {
+	optional string pseudo = 1;
+	bool allowBots = 2;
+	bool isBot = 3;
+	int32 identifier = 4;
+	bytes data = 5;
+}
+
+message WaitingWelcome {
+	int32 total = 1;
+	string gamemode = 2;
+	int32 identifier = 3;
+	repeated WaitingUser users = 4;
+}
+
+message WaitingAddUser {
+	WaitingUser user = 1;
+}
+
+message WaitingRemoveUser {
+	int32 identifier = 1;
+}
+
+message WaitingAllowBots {
+	int32 identifier = 1;
+	bool allow = 2;
+}
+
+message FinalPlayerScore {
+	int32 delta = 1;
+	int32 result = 2;
+	int32 identifier = 3;
+}
+
+message FinishGame {
+	repeated int32 results = 1;
+	repeated int32 teamEqualities = 2;
+	repeated int32 playerEqualities = 3;
+	repeated FinalPlayerScore scores = 4;
+}
+
+
+message LeaderboardEntry {
+	string pseudo = 1;
+	int32 trophees = 2;
+}
+
+message LeaderboardResult {
+	repeated LeaderboardEntry entries = 1;
+}
