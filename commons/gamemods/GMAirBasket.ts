@@ -419,6 +419,8 @@ class Camera {
 }
 
 class ClientData {
+	firstFrame = true;
+
 	readonly html: HTMLDivElement;
 
 	readonly time: HTMLDivElement;
@@ -604,8 +606,17 @@ function generateClientDom() {
 	};
 }
 
+function lighten(hex: string, factor: number): string {
+	const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
 
+	const lightened = rgb.map(c =>
+		Math.round(c + (255 - c) / factor)
+	);
 
+	return `#${lightened
+		.map(c => c.toString(16).padStart(2, "0"))
+		.join("")}`;
+}
 
 
 export class GMAirBasket extends GameMode {
@@ -741,6 +752,7 @@ export class GMAirBasket extends GameMode {
 		'bucket-blue': "/assets/games/airbasket/bucket-blue.png",
 		'bucket-mid': "/assets/games/airbasket/bucket-mid.png",
 		'bucket-red': "/assets/games/airbasket/bucket-red.png",
+		'sky': "/assets/games/airbasket/sky.png",
 	};
 
 
@@ -1057,9 +1069,31 @@ export class GMAirBasket extends GameMode {
 		imageLoader: ImageLoader
 	) {
 		const data = _data as ClientData;
-		data.update(this, playerIdx);
+		if (data.firstFrame) {
+			data.firstFrame = false;
 
-		const player = this.players[playerIdx];
+			let i = 0;
+			for (const j of COLORS) {
+				for (const color of j) {
+					imageLoader.setColorRule('sky', i, [
+						{
+							prev: "#ff00ff",
+							next: color
+						},
+	
+						{
+							prev: "#770077",
+							next: lighten(color, 2)
+						}
+					]);
+
+					i++;
+				}
+			}
+		}
+
+
+		data.update(this, playerIdx);
 
 		ctx.fillStyle = "#333";
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -1074,8 +1108,8 @@ export class GMAirBasket extends GameMode {
 		// Background
 		for (let y = 0; y < 3; y++) {
 			for (let x = 0; x < 5; x++) {
-				ctx.fillStyle = COLORS[y][x];
-				ctx.fillRect(
+				ctx.drawImage(
+					imageLoader.get('sky', y*5+x),
 					(x-2.5)*WIDTH,
 					(y-1.5)*HEIGHT,
 					WIDTH,
