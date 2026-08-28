@@ -1,4 +1,3 @@
-import { $data } from "alpinejs";
 import { Fields } from "../Fields";
 import { FinishGame, GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
