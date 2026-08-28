@@ -263,7 +263,7 @@
 			window.INDEX_TS = "/src/index.ts";
 
 			document.addEventListener("DOMContentLoaded", () => {
-				import("/ayke/public/bundle.js").then(() => window.startGame());
+				import("/ayke/public/bundle.js").then(m => m.init());
 			});
 		</script>
 	</body>
