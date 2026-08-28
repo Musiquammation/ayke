@@ -9,6 +9,8 @@ export default defineConfig({
 		rollupOptions: {
 			input: "client/src/index.ts",
 
+			preserveEntrySignatures: "strict",
+
 			output: {
 				entryFileNames: "bundle.js",
 				format: "es",
