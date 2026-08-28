@@ -454,18 +454,23 @@ class ClientData {
 		this.period.classList.add("game-airbasket-period");
 
 		const scores = document.createElement("div");
+		scores.classList.add("game-airbasket-scores");
 		this.redScore = document.createElement("div"),
 		this.blueScore = document.createElement("div"),
 
 		this.redScore.classList.add("game-airbasket-red-score");
 		this.blueScore.classList.add("game-airbasket-blue-score");
 
+		const tiret = document.createElement("div");
+		tiret.textContent = "-";
+
 		scores.appendChild(this.redScore);
+		scores.appendChild(tiret);
 		scores.appendChild(this.blueScore);
 		
+		this.html.appendChild(scores);
 		this.html.appendChild(this.time);
 		this.html.appendChild(this.period);
-		this.html.appendChild(scores);
 	}
 
 	static readonly PERIODS = ["normal", "grabber infinite", "sudden death"];
