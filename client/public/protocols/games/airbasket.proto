@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package game_airbasket;
+
+message Empty {}
+
+message Player {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+	int32 dir = 5;
+	float alive = 6;
+	int32 score = 7;
+	bool pushDown = 8;
+}
+
+message FreeBall {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+}
+
+message GrabbedBall {
+	int32 owner = 1;
+}
+
+
+message Bucket {
+	bool taken = 1;
+	bool redTeam = 2;
+}
+
+message State {
+	repeated Player players = 1;
+	int32 prevBallGrabber = 2;
+
+	oneof ball {
+		FreeBall freeBall = 3;
+		GrabbedBall grabbedBall = 4;
+	}
+
+	repeated Bucket buckets = 5;
+	float time = 6;
+	int32 timeStep = 7;
+	int32 redScore = 8;
+	int32 blueScore = 9;
+}
+
+message Throw {
+	float x = 1;
+	float y = 2;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		Empty right = 2;
+		Empty left = 3;
+		Empty stop = 4;
+		Empty jump = 5;
+		Empty downOn = 6;
+		Empty downOff = 7;
+		Throw throwTarget = 8;
+		Throw throwDir = 9;
+		Empty throwOff = 10;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+
+
+message StartData {
+	int32 skin = 1;
+	int32 preferTeam = 2;
+}
+
+
+
+
+message StartPlayerInfo {
+	float x = 1;
+	float y = 2;
+	bool isRed = 3;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}

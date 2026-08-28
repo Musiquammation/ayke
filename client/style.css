@@ -12,6 +12,11 @@ canvas {
 	background: black;
 }
 
+
+button.selected {
+	background: greenyellow;
+}
+
 .tutorialText {
 	position: absolute;
 	top: 20px;
@@ -28,7 +33,6 @@ canvas {
 	padding: 10px 20px;
 }
 
-
 #game-html {
 	position: absolute;
 	top: 0;
@@ -36,4 +40,132 @@ canvas {
 	width: 0;
 	height: 0;
 	color: white;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ==================== */
+/* AIRBASKET             */
+/* ==================== */
+.game-airbasket-client-data {
+	position: fixed;
+	top: 2vh;
+	left: 2vw;
+	width: 96vw;
+
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+
+	font-family: "Arial Black", Arial, sans-serif;
+	font-weight: 900;
+
+	pointer-events: none;
+}
+
+.game-airbasket-scores {
+	grid-column: 1;
+	justify-self: start;
+
+	display: flex;
+	align-items: center;
+	gap: 10px;
+
+	padding: 0.8vh 1.2vw;
+
+	background: rgba(15, 15, 20, 0.9);
+	border: 0.15vw solid rgba(255, 255, 255, 0.12);
+	border-radius: 1.2vh;
+
+	box-shadow:
+		0 0.5vh 1.5vh rgba(0, 0, 0, 0.3),
+		inset 0 0 1vh rgba(255, 255, 255, 0.03);
+}
+
+.game-airbasket-red-score,
+.game-airbasket-blue-score {
+	position: relative;
+
+	font-size: 3vh;
+	line-height: 1;
+
+	min-width: 2.5vw;
+
+	text-align: center;
+}
+
+.game-airbasket-red-score {
+	color: #ff4f4f;
+
+	text-shadow:
+		0 0 0.8vh rgba(255, 79, 79, 0.5);
+}
+
+.game-airbasket-blue-score {
+	color: #4f9dff;
+
+	text-shadow:
+		0 0 0.8vh rgba(79, 157, 255, 0.5);
+}
+
+.game-airbasket-time {
+	grid-column: 2;
+	justify-self: center;
+
+	padding: 0.7vh 1.5vw;
+
+	background: rgba(15, 15, 20, 0.92);
+	border: 0.15vw solid rgba(255, 255, 255, 0.12);
+	border-radius: 1.2vh;
+
+	font-size: 4vh;
+	line-height: 1;
+	letter-spacing: 0.05vw;
+
+	text-align: center;
+
+	box-shadow:
+		0 0.5vh 1.5vh rgba(0, 0, 0, 0.3),
+		inset 0 0 1vh rgba(255, 255, 255, 0.03);
+
+	font-family: 'Courier New', Courier, monospace;
+}
+
+.game-airbasket-period {
+	grid-column: 3;
+	justify-self: end;
+
+	padding: 0.5vh 0.9vw;
+
+	background: rgba(15, 15, 20, 0.8);
+	border: 0.1vw solid rgba(255, 255, 255, 0.1);
+	border-radius: 0.8vh;
+
+	font-size: 1.7vh;
+	line-height: 1;
+	letter-spacing: 0.05vw;
+
+	text-align: center;
+
+	opacity: 0.9;
+
+	box-shadow:
+		0 0.4vh 1vh rgba(0, 0, 0, 0.25);
+
+	font-style: italic;
 }

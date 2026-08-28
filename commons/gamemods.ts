@@ -1,4 +1,5 @@
 import { GameMode } from "./GameMode";
+import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMTest } from "./gamemods/GMTest";
 
 interface Player {
@@ -31,6 +32,16 @@ export const gamemods: Record<
         textures: GMTest.TEXTURES,
         name: "Test",
         tropheesPerPlayer: 20
+    },
+
+    airbasket: {
+        server: GMAirBasket.createServ,
+        client: GMAirBasket.createClient,
+        dom: GMAirBasket.generateClientDom,
+        textures: GMAirBasket.TEXTURES,
+        name: "Air Basket",
+        tropheesPerPlayer: 20
+
     },
 };
 

@@ -1,6 +1,7 @@
 import protobuf from "protobufjs";
 import { initProtocols } from "../../commons/protocolLoader";
 import { dom, initDom } from "./dom/dom";
+import { sendMessage } from "./messages/sendMessage";
 
 declare global {
 	interface Window {
