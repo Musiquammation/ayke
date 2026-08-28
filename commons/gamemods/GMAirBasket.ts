@@ -303,6 +303,121 @@ class Bucket {
 
 
 
+
+class Camera {
+	x = 0;
+	y = 0;
+
+	static readonly SCALE = 0.9;
+	static readonly DURATION = 0.5;
+
+	// Transition state variables
+	private startX = 0;
+	private startY = 0;
+	private targetX = 0;
+	private targetY = 0;
+	private isTransitioning = false;
+	private t = 0;
+
+	/**
+	 * Easing function: f([0;1]) -> [0;1]
+	 * Here we use a standard "Smoothstep" (ease-in-out) function as an example.
+	 */
+	private easing(t: number): number {
+		// Clamp t just in case
+		const clampedT = Math.max(0, Math.min(1, t)); 
+		return clampedT * clampedT * (3 - 2 * clampedT);
+	}
+
+	/**
+	 * Calculates the center coordinates of the zone the player is currently in.
+	 */
+	private getZoneCenter(px: number, py: number) {
+		// Calculate the zone index based on the player's position
+		// Since zone starts at x*W - W/2, the center is exactly at x*W
+		let zx = Math.round(px / WIDTH);
+		let zy = Math.round(py / HEIGHT);
+
+		// Clamp indices to your specific bounds: x in [-2, 2] and y in [-1, 1]
+		zx = Math.max(-2, Math.min(2, zx));
+		zy = Math.max(-1, Math.min(1, zy));
+
+		return {
+			cx: zx * WIDTH,
+			cy: zy * HEIGHT
+		};
+	}
+
+	/**
+	 * Updates the camera position.
+	 * @param px Player X position
+	 * @param py Player Y position
+	 * @param dt Delta time (time elapsed since last frame, e.g., in milliseconds)
+	 */
+	update(px: number, py: number, dt: number) {
+		const { cx, cy } = this.getZoneCenter(px, py);
+
+		// If the calculated zone center is different from our current target,
+		// it means the player has entered a new zone.
+		if (cx !== this.targetX || cy !== this.targetY) {
+			// Setup the new transition. 
+			// We start from the CURRENT camera position to prevent snapping 
+			// if the zone changes while another transition is already running.
+			this.startX = this.x;
+			this.startY = this.y;
+			this.targetX = cx;
+			this.targetY = cy;
+			
+			// Reset transition timer
+			this.t = 0;
+			this.isTransitioning = true;
+		}
+
+		if (this.isTransitioning) {
+			this.t += dt;
+
+			if (this.t >= Camera.DURATION) {
+				// Transition is over
+				this.isTransitioning = false;
+				this.x = this.targetX;
+				this.y = this.targetY;
+			} else {
+				// Apply the easing function to interpolate the camera's position
+				const progress = this.easing(this.t / Camera.DURATION);
+				
+				this.x = this.startX + (this.targetX - this.startX) * progress;
+				this.y = this.startY + (this.targetY - this.startY) * progress;
+			}
+		} else {
+			// Not transitioning, tightly lock to the target
+			this.x = this.targetX;
+			this.y = this.targetY;
+		}
+	}
+
+	/**
+	 * Instantly moves the camera to the player's current zone, 
+	 * breaking any ongoing transition.
+	 */
+	teleport(px: number, py: number) {
+		const { cx, cy } = this.getZoneCenter(px, py);
+		
+		// Instantly snap coordinates
+		this.x = cx;
+		this.y = cy;
+		
+		// Break the transition and update targets
+		this.targetX = cx;
+		this.targetY = cy;
+		this.isTransitioning = false;
+		this.t = 0;
+	}
+
+	getCoords() {
+		return { x: this.x, y: this.y };
+	}
+}
+
 class ClientData {
 	readonly html: HTMLDivElement;
 
@@ -311,6 +426,10 @@ class ClientData {
 	
 	readonly redScore: HTMLDivElement;
 	readonly blueScore: HTMLDivElement;
+
+	readonly camera = new Camera();
+
+	private clientWasDead = true;
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -346,7 +465,7 @@ class ClientData {
 		return `${minutes}:${seconds.padStart(4, "0")}`;
 	}
 
-	update(game: GMAirBasket) {
+	update(game: GMAirBasket, playerIdx: number) {
 		this.time.innerText = 
 			ClientData.showTime(game.time);
 
@@ -358,6 +477,16 @@ class ClientData {
 
 		this.blueScore.innerText =
 			String(game.blueScore).padStart(2, "0");
+
+
+		// Player
+		const player = game.players[playerIdx];
+		if (this.clientWasDead && player.alive < 0) {
+			this.camera.teleport(player.x, player.y)
+		}
+		this.clientWasDead = (player.alive >= 0);
+
+		this.camera.update(player.x, player.y, 1/60);
 	}
 }
 
@@ -456,8 +585,8 @@ class TutorialData {
 	lockGame() {
 		return [3].includes(this.step);
 	}
-
 }
+
 
 
 function generateClientDom() {
@@ -509,7 +638,6 @@ export class GMAirBasket extends GameMode {
 		const {StartData, StartDataClient} = protocols.get();
 
 		const game = new GMAirBasket(total);
-		const invParts =  1/(total/2 + 1);
 
 
 		function decode(i: number) {
@@ -565,7 +693,7 @@ export class GMAirBasket extends GameMode {
 			const redTeam = assigned[i];
 			p.initSpawn(
 				redTeam ? -WIDTH * 2 : WIDTH * 2,
-				((i + 1) * invParts - 0.5) * HEIGHT,
+				0,
 				redTeam ? 'red' : 'blue'
 			);
 		}
@@ -735,7 +863,6 @@ export class GMAirBasket extends GameMode {
 					this.ball.vy = dy * inv;
 					this.ball.removeGrabber();
 				}
-
 			}
 		}
 
@@ -915,6 +1042,14 @@ export class GMAirBasket extends GameMode {
 		return inputs;
 	}
 
+
+	getBallDrawCoords() {
+		let x = this.ball.x - Ball.RADIUS/2;
+		let y = this.ball.y - Ball.RADIUS/2;
+
+		return {x, y};
+	}
+
 	override draw(
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
@@ -922,7 +1057,7 @@ export class GMAirBasket extends GameMode {
 		imageLoader: ImageLoader
 	) {
 		const data = _data as ClientData;
-		data.update(this);
+		data.update(this, playerIdx);
 
 		const player = this.players[playerIdx];
 
@@ -930,11 +1065,11 @@ export class GMAirBasket extends GameMode {
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
 		// Center the camera on the current player
+		const cameraCoords = data.camera.getCoords();
 		ctx.save();
-		ctx.translate(
-			WIDTH/2 - player.x,
-			HEIGHT/2 - player.y
-		);
+		ctx.translate(WIDTH / 2, HEIGHT / 2);
+		ctx.scale(Camera.SCALE, Camera.SCALE);
+		ctx.translate(-cameraCoords.x, -cameraCoords.y);
 
 		// Background
 		for (let y = 0; y < 3; y++) {
@@ -973,10 +1108,11 @@ export class GMAirBasket extends GameMode {
 		}
 
 		// Draw ball
+		const drawBallCoords = this.getBallDrawCoords();
 		ctx.drawImage(
 			imageLoader.get('ball'),
-			this.ball.x - Ball.RADIUS/2,
-			this.ball.y - Ball.RADIUS/2,
+			drawBallCoords.x,
+			drawBallCoords.y,
 			Ball.RADIUS,
 			Ball.RADIUS
 		)
