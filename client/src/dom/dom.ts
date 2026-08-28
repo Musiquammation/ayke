@@ -6,6 +6,7 @@ import { escapeHTML } from "../../../commons/util/escapeHTML";
 import { deleteGameHandler } from "../handlers/GameHandler";
 import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../handlers/WaitingPlayHandler";
 import { imageLoader } from "../handlers/imageLoader";
+import { LocalGameHandler } from "../handlers/LocalGameHandler";
 
 declare global {
 	interface Window {
@@ -48,6 +49,7 @@ class MainComponent {
 		LoginComponent |
 		SigninComponent |
 		HomeComponent |
+		TutorialInplayComponent |
 		null
 	) = new HomeComponent();
 
@@ -156,6 +158,15 @@ class MainComponent {
 		deleteGameHandler();
 	}
 
+	openTutorialInPlay(gamemode: string) {
+		this.panel = new TutorialInplayComponent(
+			new LocalGameHandler(gamemode)
+		);
+		this.currentPage = "play";
+	}
+
+	
+
 
 
 
@@ -180,6 +191,10 @@ class MainComponent {
 
 	getSigninPanel() {
 		return this.getPanel(SigninComponent);
+	}
+
+	getTutorialInplayComponent() {
+		return this.getPanel(TutorialInplayComponent);
 	}
 }
 
@@ -213,6 +228,19 @@ class GamePanelComponent {
 				data: this.data.produce()
 			}
 		});
+	}
+
+	async tutorial() {
+		const factory = gamemods[this.gamemode];
+		if (!factory) {
+			throw new Error(`Invalid gamemode '${this.gamemode}'`);
+		}
+
+		dom.startLoading();
+		await imageLoader.load(factory.textures);
+		dom.stopLoading();
+
+		dom.openTutorialInPlay(this.gamemode);
 	}
 }
 
@@ -380,7 +408,19 @@ class HomeComponent {
 }
 
 
+class TutorialInplayComponent {
+	private readonly TUTORIAL_MARKER = true;
 
+	private text = "";
+
+	constructor(public readonly game: LocalGameHandler) {
+		game.start();
+	}
+
+	setText(text: string) {
+		this.text = text;
+	}
+}
 
 
 

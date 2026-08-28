@@ -23,6 +23,10 @@ export interface ILogger {
 }
 
 
+interface TutorialData {
+    frame(dt: number, clock: number): string | null;
+}
+
 interface Input {
 	timestamp: number;
 	player: number;
@@ -94,7 +98,9 @@ export abstract class GameMode {
 
 	abstract evalMouseCoords(x: number, y: number, playerIdx: number): {x: number, y: number};
 
-	private quickEmulate(duration: number, produceFinish: boolean) {
+	abstract createTutorial(): TutorialData;
+
+	quickEmulate(duration: number, produceFinish: boolean = false) {
 		while (duration > GameMode.MAX_DT) {
 			const f = this.run(GameMode.MAX_DT, produceFinish);
 			if (f && produceFinish) {return f;}
