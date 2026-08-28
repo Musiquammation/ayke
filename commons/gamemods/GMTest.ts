@@ -51,6 +51,12 @@ function generateClientDom() {
 	};
 }
 
+class Tutorial {
+	frame(dt: number, clock: number) {
+		return "Placeholder";
+	}
+}
+
 export class GMTest extends GameMode {
 	static readonly types = {Player};
 
@@ -75,7 +81,6 @@ export class GMTest extends GameMode {
 		})));
 
 
-
 		const game = new GMTest(total);
 		for (let i = 0; i < game.players.length; i++) {
 			const p = game.players[i];
@@ -92,8 +97,14 @@ export class GMTest extends GameMode {
 		}
 	}
 
-	static createClient(data: Uint8Array, total: number) {
+	static createClient(data: Uint8Array | null, total: number) {
 		const game = new GMTest(total);
+		for (let i = 0; i < game.players.length; i++) {
+			const p = game.players[i];
+			p.x = i*10;
+			p.y = 1000;
+			p.team = i%2==0 ? 'red' : 'blue';
+		}
 		return {game, data: new ClientData()};
 	}
 
@@ -179,7 +190,7 @@ export class GMTest extends GameMode {
 		playerIdx: number,
 		_data: any
 	) {
-		const data = _data as ClientData;
+		const data = _data as ClientData | null;
 		ctx.fillStyle = "#333";
 		ctx.fillRect(0, 0, 200, 2000);
 		ctx.fillStyle = "red";
@@ -212,6 +223,10 @@ export class GMTest extends GameMode {
 
 	override evalMouseCoords(x: number, y: number) {
 		return {x,y};
+	}
+
+	override createTutorial() {
+		return new Tutorial();
 	}
 }
 

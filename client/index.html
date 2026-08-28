@@ -11,8 +11,41 @@
 
 		<div id="main" x-data="main">
 			<template x-if="uses('home')">
-				<div id="home-page" class="page">
-					Hello World
+				<div id="home-page" class="page" x-data="panel">
+					<h1>Ayke</h1>
+
+					<section>
+						<h2>Account</h2>
+
+						<template x-if="isAuthenticated">
+							<div>
+								<div>
+									<span>Connected as</span>
+									<i x-text="pseudo"></i>
+								</div>
+								<button @click="disconnect()">Disconnect</button>
+							</div>
+
+						</template>
+
+						<template x-if="!isAuthenticated">
+							<div>
+								<button @click="openLogin()">Login</button>
+								<button @click="openSignin()">Create account</button>
+							</div>
+						</template>
+					</section>
+
+					<section>
+						<h2>Play</h2>
+						<template x-for="game in games">
+							<div>
+								<span x-text="game.name"></span>
+								<button @click="playGame(game.key)">Play</button>
+							</div>
+						</template>
+					</section>
+
 				</div>
 			</template>
 
@@ -22,19 +55,12 @@
 				</div>
 			</template>
 
-			<template x-if="uses('test')">
-				<div id="test-page" class="page">
-					<div x-text="y0"></div>
-					<div x-text="y1"></div>
-					<canvas width="100" height="800"></canvas>
-				</div>
-			</template>
-
 			<template x-if="uses('game-panel')">
 				<div id="test-page" class="page" x-data="panel">
 					<h1 x-text="gamemode"></h1>
 					<div x-ref="gamePanel" x-html="htmlContent"></div>
 					<button x-on:click="play()">Play</button>
+					<button x-on:click="tutorial()">Tutorial</button>
 				</div>
 			</template>
 
@@ -103,8 +129,86 @@
 				</div>
 			</template>
 
+			<!-- Login Page Template -->
+			<template x-if="uses('login')">
+				<div id="login-page" class="page">
+					<h2>Login</h2>
+					<form @submit.prevent="panel.submitLogin()">
+						<div class="form-group">
+							<label for="login-pseudo">Username</label>
+							<input 
+								type="text" 
+								id="login-pseudo" 
+								x-model="panel.pseudo" 
+								required 
+							/>
+						</div>
+						<div class="form-group">
+							<label for="login-password">Password</label>
+							<input 
+								type="password" 
+								id="login-password" 
+								x-model="panel.password" 
+								required 
+							/>
+						</div>
+						<template x-if="panel.errorMessage">
+							<p class="error-message" x-text="panel.errorMessage"></p>
+						</template>
+						<div>
+							<button type="submit">Log In</button>
+							<button type="button" @click="openSignin()">Create an account</button>
+							<button type="button" @click="openHome()">Go home</button>
+						</div>
+					</form>
+				</div>
+			</template>
+
+			<!-- Signin / Create Account Page Template -->
+			<template x-if="uses('signin')">
+				<div id="signin-page" class="page">
+					<h2>Create Account</h2>
+					<form @submit.prevent="panel.submitSignin()">
+						<div class="form-group">
+							<label for="signin-pseudo">Username</label>
+							<input 
+								type="text" 
+								id="signin-pseudo" 
+								x-model="panel.pseudo" 
+								required 
+							/>
+						</div>
+						<div class="form-group">
+							<label for="signin-password">Password</label>
+							<input 
+								type="password" 
+								id="signin-password" 
+								x-model="panel.password" 
+								required 
+							/>
+						</div>
+						<template x-if="panel.errorMessage">
+							<p class="error-message" x-text="panel.errorMessage"></p>
+						</template>
+						<div>
+							<button type="submit">Sign Up</button>
+							<button type="button" @click="openLogin()">Already have an account?</button>
+							<button type="button" @click="openHome()">Go home</button>
+						</div>
+					</form>
+				</div>
+			</template>
+
 			<div x-show="uses('play')">
 				<canvas id="play-canvas"></canvas>
+					<template x-if="panel && panel.TUTORIAL_MARKER">
+						<div
+							class="tutorialText" 
+							x-text="panel.text"
+							x-show="panel.text && panel.text.length !== 0"
+						></div>
+					</template>
+
 			</div>
 		</div>
 

@@ -5,19 +5,13 @@ import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { unflattenPositiveArrays } from "../../../commons/util/flattenArrays";
 import { dom } from "../dom/dom";
 
-function run<T>(data: T | undefined, exec: (data: T)=>void) {
-	if (data) {
-		exec(data);
-	}
-}
 
-
-const runners: Record<string, (data: any)=>void> = {
+const runners: Record<string, (data: any) => void> = {
 	gdata(gdata) {
 		const ghandler = getGameHandler();
 		if (ghandler) {
 			const newGdata = ghandler.receive(gdata);
-			sendMessage({gdata: newGdata});			
+			sendMessage({ gdata: newGdata });
 		} else {
 			console.warn("Received gdata while ghandler is null");
 		}
@@ -32,16 +26,44 @@ const runners: Record<string, (data: any)=>void> = {
 		);
 		const gdata = ghandler.receive(d.gdata);
 		console.log("playerIdx", d.playerIdx);
-		sendMessage({gdata});
+		sendMessage({ gdata });
 	},
 
+	/**
+	 * Handle account creation response from the server.
+	 */
 	createAccountResult(d) {
-		console.log(d.success);
+		console.log("createAccountResult success:", d.success);
+		if (d.success) {
+			if (d.key) {
+				localStorage.setItem("ayke_connectionKey", d.key);
+			}
+			dom.isAuthenticated = true;
+			dom.pseudo = d.pseudo;
+			dom.openHome();
+		} else {
+			dom.getSigninPanel().errorMessage = 
+				"Account creation failed. Username may already be taken.";
+		}
 	},
 
+	/**
+	 * Handle login response from the server.
+	 */
 	loginResult(d) {
+		console.log("loginResult success:", d.success);
+		if (d.success) {
+			if (d.key) {
+				localStorage.setItem("ayke_connectionKey", d.key);
+			}
+			dom.isAuthenticated = true;
+			dom.pseudo = d.pseudo;
+			dom.openHome();
+		} else {
+			dom.getLoginPanel().errorMessage = 
+				"Invalid username or password";
+		}
 	},
-
 
 	error(d) {
 		console.error(d.code, d.message);
@@ -77,7 +99,8 @@ const runners: Record<string, (data: any)=>void> = {
 		d.results = unflattenPositiveArrays(d.results, -2);
 		dom.openPlayResults(d);
 	}
-}
+};
+
 
 export function recvMessage(msg: protobuf.ReflectedMessage) {
 	runners[msg.message](msg[msg.message]);

@@ -142,6 +142,7 @@ class GameHandler {
 		this.userInputs.push(...newInputs);
 
 		keyboardController.frame();
+		mouseController.frame();
 
 		this.gamemode.emulate(
 			this.lastEmulation,

@@ -307,6 +307,104 @@ class ClientData {
 
 }
 
+class TutorialData {
+	private step = 0;
+	private wakeUp = 0;
+
+
+	constructor(private readonly game: GMAirBasket) {}
+
+	frame(dt: number, clock: number) {
+		const player = this.game.players[0];
+		const bot = this.game.players[1];
+
+		if (player.alive >= 0)
+			this.step = 0; // restart
+
+		if (this.step === 0) {
+			this.game.ball.x = 0;
+			this.game.ball.y = 0;
+			this.game.ball.vy = 0;
+			this.game.ball.prevGrabber = -1;
+
+			if (this.game.ball.grabber === 0)
+				this.step = 2;
+
+			if (
+				player.x >= -WIDTH/2 &&
+				player.x <= WIDTH/2 &&
+				player.y >= -HEIGHT/2 &&
+				player.y <= HEIGHT/2
+			) {
+				this.step = 1;
+			}
+
+			return "Go towards the ball (jump to do not fall)";
+		}
+
+
+		if (this.step === 1) {
+			if (this.game.ball.grabber === 0)
+				this.step = 2;
+
+			this.game.ball.prevGrabber = -1;
+			return "Take the ball";
+		}
+
+		if (this.step === 2) {
+			if (player.vy < 0) {
+				this.step = 3;
+			}
+			return "";
+		}
+
+		if (this.step === 3) {
+			if (this.game.ball.grabber !== -1) {
+				this.step = 4;
+				this.wakeUp = clock + 1.5;
+			}
+
+			return "You can't jump when holding the ball.\n Throw it with the mouse towards a mate or a GREEN bucket";
+		}
+
+		if (this.step === 4) {
+			if (clock >= this.wakeUp) {
+				bot.x = this.game.ball.x;
+				bot.y = this.game.ball.y;
+				console.log(player.x, player.y);
+				bot.target = {
+					type: 'fixed',
+					x: player.x,
+					y: player.y
+				};
+				this.wakeUp = clock + 1;
+				this.step = 5;
+			}
+
+			return "You can't re-take the ball after have having thrown it.\n An other player needs to take the ball";
+		}
+
+		if (this.step === 5) {
+			if (clock >= this.wakeUp) {
+				this.step = 3;
+			}
+			return "We spawned a bot to do that. Try to touch GREEN buckets";
+		}
+
+
+
+
+		return "";
+	}
+
+
+	lockGame() {
+		return [3].includes(this.step);
+	}
+
+}
+
+
 function generateClientDom() {
 	return {
 		skin: 0,
@@ -433,15 +531,21 @@ export class GMAirBasket extends GameMode {
 		}
 	}
 
-	static createClient(data: Uint8Array, total: number) {
+	static createClient(data: Uint8Array | null, total: number) {
 		const game = new GMAirBasket(total);
 		const {StartDataClient} = protocols.get();
 
-		const {players} = decodeFullMessage(StartDataClient.decode(data));
-
-		for (const [idx, p] of players.entries()) {
-			game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
+		if (data) {
+			const {players} = decodeFullMessage(StartDataClient.decode(data));
+	
+			for (const [idx, p] of players.entries()) {
+				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
+			}
+		} else {
+			game.players[0].initSpawn(-WIDTH * 2, 0, 'red');
+			game.players[1].initSpawn(+WIDTH * 2, 0, 'blue');
 		}
+
 
 		return {game, data: new ClientData()};
 	}
@@ -883,6 +987,12 @@ export class GMAirBasket extends GameMode {
 		};
 	}
 
+
+
+	override createTutorial() {
+		return new TutorialData(this);
+	}
+
 	private produceFinish(): FinishGame {
 		const redTeam: number[] = [];
 		const blueTeam: number[] = [];
@@ -932,5 +1042,6 @@ export class GMAirBasket extends GameMode {
 			playerEqualities
 		};
 	}
+
 }
 

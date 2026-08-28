@@ -19,7 +19,6 @@ export function init() {
 
 	initDom();
 
-
-	dom.openGamePanel('airbasket');
+	dom.tryLoginWithKey();
 }
 

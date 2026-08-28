@@ -16,3 +16,19 @@ canvas {
 button.selected {
 	background: greenyellow;
 }
+
+.tutorialText {
+	position: absolute;
+	top: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+
+	background: black;
+	color: white;
+	text-align: center;
+
+	font-family: 'Courier New', Courier, monospace;
+	max-width: 50vw;
+
+	padding: 10px 20px;
+}
