@@ -26,8 +26,8 @@ const TIMES = [
 
 const COLORS = [
 	["#ff4f99", "#ff9b7a", "#ffffff", "#7199ff", "#4f99ff"],
-	["#ff0770", "#ff7744", "#ffffff", "#4477ff", "#0077ff"],
-	["#cc0059", "#cc5f36", "#cccccc", "#365fcc", "#005fcc"]
+	["#ff0770", "#ff7744", "#cccccc", "#4477ff", "#0077ff"],
+	["#cc0059", "#cc5f36", "#999999", "#365fcc", "#005fcc"]
 ];
 
 const BUCKET_POSITIONS: number[][] = [
