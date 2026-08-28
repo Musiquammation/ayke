@@ -201,14 +201,14 @@
 
 			<div x-show="uses('play')">
 				<canvas id="play-canvas"></canvas>
-					<template x-if="panel && panel.TUTORIAL_MARKER">
-						<div
-							class="tutorialText" 
-							x-text="panel.text"
-							x-show="panel.text && panel.text.length !== 0"
-						></div>
-					</template>
-
+				<template x-if="panel && panel.TUTORIAL_MARKER">
+					<div
+						class="tutorialText" 
+						x-text="panel.text"
+						x-show="panel.text && panel.text.length !== 0"
+					></div>
+				</template>
+				<div id="game-html"></div>
 			</div>
 		</div>
 
