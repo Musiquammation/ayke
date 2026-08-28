@@ -46,6 +46,7 @@ class GameHandler {
 	private userInputs: Input[] = [];
 	private readonly gameWidth: number;
 	private readonly gameHeight: number;
+	private prevDraw: number | null = null;
 
 	constructor(
 		private readonly gamemodeId: string,
@@ -89,7 +90,7 @@ class GameHandler {
 		return output;
 	}
 
-	private draw() {
+	private draw(dt: number) {
 		// Compute the scale needed to fit the game viewport inside the canvas.
 		const scaleX = canvas.width / this.gameWidth;
 		const scaleY = canvas.height / this.gameHeight;
@@ -111,7 +112,7 @@ class GameHandler {
 		ctx.scale(scale, scale);
 
 		// Everything drawn here is affected by the translation and scale.
-		this.gamemode.draw(ctx, this.playerIdx, this.clientData, imageLoader);
+		this.gamemode.draw(ctx, this.playerIdx, this.clientData, imageLoader, dt);
 
 		// Restore the context to the original canvas coordinates.
 		ctx.restore();
@@ -152,7 +153,8 @@ class GameHandler {
 		this.lastEmulation = now;
 
 
-		this.draw();
+		this.draw(this.prevDraw === null ? 1/60 : now - this.prevDraw);
+		this.prevDraw = now;
 
 		if (_gameHandler) {
 			requestAnimationFrame(()=>this.frame());

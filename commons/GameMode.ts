@@ -88,7 +88,8 @@ export abstract class GameMode {
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
 		data: any,
-		imageLoader: ImageLoader
+		imageLoader: ImageLoader,
+		dt: number
 	): void;
 	abstract onDisconnection(id: number): void;
 	abstract save(): Uint8Array;

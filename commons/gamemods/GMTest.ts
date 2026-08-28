@@ -2,6 +2,7 @@ import { Fields } from "../Fields";
 import { FinishGame, GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { decodeFullMessage } from "../util/decodeFullMessage";
+import { ImageLoader } from "../util/ImageLoader";
 
 const protocols = getProtocol('test');
 
@@ -188,7 +189,9 @@ export class GMTest extends GameMode {
 	override draw(
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
-		_data: any
+		_data: any,
+		imageLoader: ImageLoader,
+		dt: number
 	) {
 		const data = _data as ClientData;
 		ctx.fillStyle = "#333";
