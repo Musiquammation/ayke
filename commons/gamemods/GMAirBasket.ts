@@ -1,3 +1,4 @@
+import { getLogger } from "../../server/Logger";
 import { Fields } from "../Fields";
 import { FinishGame, GameMode, IKeyboardController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
@@ -638,7 +639,15 @@ function lighten(hex: string, factor: number): string {
 
 
 export class GMAirBasket extends GameMode {
-	static readonly types = {Player};
+	static readonly types = {Player, Bucket};
+
+	static readonly DATA = {
+		GRAVITY,
+		WIDTH,
+		HEIGHT,
+		X_LIMIT,
+		Y_LIMIT
+	};
 
 	readonly players: Player[];
 	readonly ball = new Ball();
@@ -651,6 +660,7 @@ export class GMAirBasket extends GameMode {
 	time = TIMES[0];
 
 	finished = false;
+	internalFrameTick = 0;
 
 	private constructor(total: number) {
 		super();
@@ -879,6 +889,7 @@ export class GMAirBasket extends GameMode {
 			p.move(dt);
 		}
 
+
 		// Eject ball from dead player or throw ball
 		if (this.ball.grabber >= 0) {
 			const grabber = this.players[this.ball.grabber];
@@ -910,6 +921,7 @@ export class GMAirBasket extends GameMode {
 			const canRegrab = this.canRegrab();
 			let grabber = -1;
 			for (const [i, p] of this.players.entries()) {
+				console.log(i, this.ball.prevGrabber, p.touchsBall(this.ball));
 				if (
 					(canRegrab || i !== this.ball.prevGrabber) &&
 					p.touchsBall(this.ball)
@@ -990,8 +1002,8 @@ export class GMAirBasket extends GameMode {
 			case 'throwDir':
 				player.target = {
 					type: 'delta',
-					dx: input.throwTarget.dx,
-					dy: input.throwTarget.dy,
+					dx: input.throwTarget.x,
+					dy: input.throwTarget.y,
 				};
 				break;
 
