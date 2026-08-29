@@ -1,21 +1,28 @@
 import { defineConfig } from "vite";
 
-export default defineConfig({
-	root: "client",
+export default defineConfig(({ command }) => {
+	if (command === "serve") {
+		return {
+			root: "client"
+		};
+	}
 
-	build: {
-		outDir: "../dist",
-		emptyOutDir: true,
-		minify: false,
+	return {
+		build: {
+			outDir: "dist",
+			emptyOutDir: true,
+			minify: false,
 
-		rollupOptions: {
-			input: "src/index.ts",
+			rollupOptions: {
+				input: "client/src/index.ts",
+				preserveEntrySignatures: "strict",
 
-			output: {
-				entryFileNames: "bundle.js",
-				format: "es",
-				assetFileNames: "[name][extname]"
+				output: {
+					entryFileNames: "bundle.js",
+					format: "es",
+					assetFileNames: "[name][extname]"
+				}
 			}
 		}
-	}
+	};
 });
