@@ -1190,7 +1190,6 @@ export class GMAirBasket extends GameMode {
 						Player.THROW,
 						Ball.GRAVITY
 					);
-					console.log(x, y, dx, dy);
 					this.ball.vx = x;
 					this.ball.vy = y;
 					this.ball.removeGrabber();
