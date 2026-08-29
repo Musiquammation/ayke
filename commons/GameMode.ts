@@ -97,8 +97,12 @@ export abstract class GameMode {
 
 	abstract getSize(): ({width: number, height: number});
 
-	abstract evalMouseCoords(x: number, y: number, playerIdx: number): {x: number, y: number};
-
+	abstract evalMouseCoords(
+		x: number,
+		y: number,
+		playerIdx: number,
+		clientData: any
+		): {x: number, y: number};
 	abstract createTutorial(): TutorialData;
 
 	quickEmulate(duration: number, produceFinish: boolean = false) {

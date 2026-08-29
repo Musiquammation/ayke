@@ -31,7 +31,7 @@ export class LocalGameHandler {
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
-		mouseController.setScreenCoordsAdapter(this.gamemode, 0);
+		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
 	}
 
 	start() {

@@ -1,13 +1,19 @@
 import { IMouseController } from "../../../commons/GameMode";
 
 interface ScreenCoordsAdapter {
-	evalMouseCoords(x: number, y: number, playerIdx: number): {x: number, y: number};
+	evalMouseCoords(
+		x: number,
+		y: number,
+		playerIdx: number,
+		clientData: any
+	): {x: number, y: number};
 	getSize(): ({width: number, height: number});
 }
 
 export class MouseController implements IMouseController {
 	private adapter: ScreenCoordsAdapter | null = null;
 	private playerIdx = 0;
+	private clientData: any = null;
 
 	// Raw mouse coordinates on the screen
 	private rawX: number = 0;
@@ -25,9 +31,14 @@ export class MouseController implements IMouseController {
 		window.addEventListener("mouseup", this.handleMouseUp);
 	}
 
-	setScreenCoordsAdapter(adapter: ScreenCoordsAdapter | null, playerIdx: number) {
+	setScreenCoordsAdapter(
+		adapter: ScreenCoordsAdapter | null,
+		playerIdx: number,
+		clientData: any
+	) {
 		this.adapter = adapter;
 		this.playerIdx = playerIdx;
+		this.clientData = clientData;
 	}
 
 	// Helper method to compute coordinates using the adapter if available
@@ -54,7 +65,12 @@ export class MouseController implements IMouseController {
 			const gameY = (this.rawY - offsetY) / scale;
 
 			// 6. Pass the transformed coordinates to the adapter's custom evaluator
-			return this.adapter.evalMouseCoords(gameX, gameY, this.playerIdx);
+			return this.adapter.evalMouseCoords(
+				gameX,
+				gameY,
+				this.playerIdx,
+				this.clientData
+			);
 		}
 		
 		// Fallback if no adapter is set
