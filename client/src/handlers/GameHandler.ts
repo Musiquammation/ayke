@@ -138,7 +138,8 @@ class GameHandler {
 		const now = getNow();
 		const newInputs = this.gamemode.collectInputs(
 			keyboardController,
-			mouseController
+			mouseController,
+			this.clientData
 		).map(data => ({...data, timestamp: now}));
 		this.userInputs.push(...newInputs);
 

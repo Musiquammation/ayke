@@ -83,7 +83,11 @@ export abstract class GameMode {
 	abstract getBotIds(count: number): number[];
 	protected abstract run(dt: number, produceFinish: boolean): FinishGame | null;
 	abstract runInput(playerIdx: number, input: Fields): void;
-	abstract collectInputs(keyboard: IKeyboardController, mouse: IMouseController): Fields[];
+	abstract collectInputs(
+		keyboard: IKeyboardController,
+		mouse: IMouseController,
+		data: any
+	): Fields[];
 	abstract draw(
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,

@@ -162,7 +162,7 @@ class Player {
 	static readonly WIDTH = 40;
 	static readonly HEIGHT = 80;
 	static readonly PUSH_DOWN = 1000;
-	static readonly THROW = 700;
+	static readonly THROW = 1000;
 	static readonly BOUNCE_X = 500;
 	static readonly BOUNCE_Y = 100;
 
@@ -318,7 +318,7 @@ class Camera {
 	y = 0;
 
 	static readonly SCALE = 0.9;
-	static readonly DURATION = 0.5;
+	static readonly DURATION = 0.4;
 
 	// Transition state variables
 	private startX = 0;
@@ -429,6 +429,8 @@ class Camera {
 
 class ClientData {
 	firstFrame = true;
+	mouseX = 0;
+	mouseY = 0;
 
 	readonly html: HTMLDivElement;
 
@@ -717,6 +719,208 @@ function applyCollisions(players: Player[]) {
 	}
 }
 
+function getVectorToReachTarget(
+	X: number,
+	Y: number,
+	N: number,
+	g: number
+): { x: number, y: number, success: boolean } {
+	if (X === 0) {
+		return { x: 0, y: Y > 0 ? N : -N, success: false };
+	}
+
+	const X2 = X * X;
+	const Y2 = Y * Y;
+	const N2 = N * N;
+	const g2 = g * g;
+
+	const delta = X2 * (N2 * N2 + 2 * N2 * g * Y - g2 * X2);
+
+	function fail() {
+		const n = N / Math.sqrt(X2 + Y2);
+		return {x: X*n, y: Y*n, success: false};
+	}
+
+	if (delta < 0) {
+		return fail();
+	}
+
+	const a = X2 + Y2;
+	const b = -X2 * (N2 + g * Y);
+
+	const S = (-b + Math.sqrt(delta)) / (2 * a);
+
+	if (S <= 0) {
+		return fail();
+	}
+
+	const v0 = Math.sign(X) * Math.sqrt(S);
+	const w0 = (v0 / X) * (Y - (g * X2) / (2 * S));
+
+	return { x: v0, y: w0, success: true };
+}
+
+function drawPlayerToTarget(
+	ctx: CanvasRenderingContext2D,
+	srcX: number,
+	srcY: number,
+	destX: number,
+	destY: number,
+	color: string | boolean
+) {
+	const X = destX - srcX;
+	const Y = destY - srcY;
+
+	let radius: number;
+	let lineWidth: number;
+	let outline = false;
+
+	if (color === true) {
+		lineWidth = 5;
+		ctx.strokeStyle = "black";
+		color = "black";
+		radius = 5;
+	} else if (color === false) {
+		lineWidth = 4;
+		ctx.strokeStyle = "grey";
+		color = "grey";
+		radius = 4;
+	} else {
+		lineWidth = 10;
+		ctx.strokeStyle = color;
+		radius = 10;
+		outline = true;
+	}
+
+	// Draw target circle
+	if (outline) {
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius + 2, 0, Math.PI * 2);
+		ctx.lineWidth = lineWidth + 4;
+		ctx.strokeStyle = "black";
+		ctx.stroke();
+
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
+		ctx.lineWidth = lineWidth;
+		ctx.strokeStyle = color;
+		ctx.stroke();
+	} else {
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
+		ctx.stroke();
+	}
+
+	const velocity = getVectorToReachTarget(
+		X,
+		Y,
+		Player.THROW,
+		Ball.GRAVITY
+	);
+
+	// Unable to calculate a valid trajectory
+	if (velocity.x === 0 || !velocity.success) {
+		const dx = destX - srcX;
+		const dy = destY - srcY;
+		const distance = Math.sqrt(dx * dx + dy * dy);
+
+		if (distance === 0) {
+			return;
+		}
+
+		// Start 40 pixels away from the player
+		const startX = srcX + dx / distance * 40;
+		const startY = srcY + dy / distance * 40;
+
+		ctx.beginPath();
+		ctx.moveTo(startX, startY);
+		ctx.lineTo(destX, destY);
+
+		if (outline) {
+			ctx.lineWidth = lineWidth + 4;
+			ctx.strokeStyle = "black";
+			ctx.stroke();
+
+			ctx.beginPath();
+			ctx.moveTo(startX, startY);
+			ctx.lineTo(destX, destY);
+
+			ctx.lineWidth = lineWidth;
+			ctx.strokeStyle = color;
+			ctx.stroke();
+		} else {
+			ctx.stroke();
+		}
+
+		return;
+	}
+
+	const vx = velocity.x;
+	const vy = velocity.y;
+	const g = Ball.GRAVITY;
+
+	// Time required to reach dst.x
+	const T = X / vx;
+
+	if (T <= 0) {
+		return;
+	}
+
+	// Number of points on the curve
+	const steps = 50;
+
+	// Calculate the complete trajectory first
+	const points: { x: number; y: number }[] = [];
+
+	for (let i = 0; i <= steps; i++) {
+		const t = T * i / steps;
+
+		const x = srcX + vx * t;
+		const y = srcY + vy * t + (g / 2) * t * t;
+
+		points.push({ x, y });
+	}
+
+	// Find the point 40 pixels from the source
+	let startIndex = 0;
+
+	for (let i = 1; i < points.length; i++) {
+		const dx = points[i].x - srcX;
+		const dy = points[i].y - srcY;
+		const distance = Math.sqrt(dx * dx + dy * dy);
+
+		if (distance >= 40) {
+			startIndex = i;
+			break;
+		}
+	}
+
+	const drawCurve = () => {
+		ctx.beginPath();
+		ctx.moveTo(points[startIndex].x, points[startIndex].y);
+
+		for (let i = startIndex + 1; i < points.length; i++) {
+			ctx.lineTo(points[i].x, points[i].y);
+		}
+
+		ctx.stroke();
+	};
+
+	// Black outline
+	if (outline) {
+		ctx.lineWidth = lineWidth + 4;
+		ctx.strokeStyle = "black";
+		drawCurve();
+	}
+
+	// Colored trajectory
+	ctx.lineWidth = lineWidth;
+	ctx.strokeStyle = color as string;
+	drawCurve();
+}
+
+
+
 
 export class GMAirBasket extends GameMode {
 	static readonly types = {Player, Bucket};
@@ -979,11 +1183,16 @@ export class GMAirBasket extends GameMode {
 			} else if (grabber.target && grabber.target.type === 'fixed') {
 				const dx = grabber.target.x - grabber.x;
 				const dy = grabber.target.y - grabber.y;
-				const length = Math.sqrt(dx * dx + dy * dy);
-				if (length > 0) {
-					const inv = Player.THROW / length;
-					this.ball.vx = dx * inv;
-					this.ball.vy = dy * inv;
+				if (dx !== 0 || dy !== 0) {
+					const {x, y} = getVectorToReachTarget(
+						dx,
+						dy,
+						Player.THROW,
+						Ball.GRAVITY
+					);
+					console.log(x, y, dx, dy);
+					this.ball.vx = x;
+					this.ball.vy = y;
 					this.ball.removeGrabber();
 				}
 			}
@@ -1094,7 +1303,16 @@ export class GMAirBasket extends GameMode {
 		}
 	}
 
-	override collectInputs(keyboard: IKeyboardController, mouse: IMouseController) {
+	override collectInputs(
+		keyboard: IKeyboardController,
+		mouse: IMouseController,
+		_data: any
+	) {
+		const data = _data as ClientData;
+		const throwTarget = mouse.getCoords();
+		data.mouseX = throwTarget.x;
+		data.mouseY = throwTarget.y;
+
 		function getMoveInput(): Fields|null {
 			const r0 = keyboard.first('right');
 			const l0 = keyboard.first('left');
@@ -1156,7 +1374,6 @@ export class GMAirBasket extends GameMode {
 
 		// Target
 		if (mouse.press(0)) {
-			const throwTarget = mouse.getCoords();
 			inputs.push({throwTarget, action: 'throwTarget'});
 			
 		} else if (mouse.killed(0)) {
@@ -1309,6 +1526,27 @@ export class GMAirBasket extends GameMode {
 			)
 		}
 
+		// Draw player-to-target
+		{
+			const player = this.players[playerIdx];
+			let color: string | boolean;
+
+			if (this.ball.grabber === playerIdx) {
+				color = player.team;
+			} else {
+				color = this.ball.prevGrabber !== playerIdx;
+			} 
+
+			drawPlayerToTarget(
+				ctx,
+				player.x,
+				player.y,
+				data.mouseX,
+				data.mouseY,
+				color
+			);
+		}
+
 		ctx.restore();
 	}
 
@@ -1375,13 +1613,18 @@ export class GMAirBasket extends GameMode {
 		_clientData: any
 	) {
 		const clientData = _clientData as ClientData;
-		console.log(clientData);
+		const cameraCoords = clientData.camera.getCoords();
 
-		const player = this.players[playerIdx];
-		return {
-			x: x + player.x - WIDTH/2,
-			y: y + player.y - HEIGHT/2
+		const ret = {
+			x: (x - WIDTH / 2) / Camera.SCALE + cameraCoords.x,
+			y: (y - HEIGHT / 2) / Camera.SCALE + cameraCoords.y
 		};
+
+		clientData.mouseX = ret.x;
+		clientData.mouseY = ret.y;
+
+		return ret;
+
 	}
 
 

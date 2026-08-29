@@ -94,7 +94,8 @@ export class LocalGameHandler {
 
 		const inputs = this.gamemode.collectInputs(
 			keyboardController,
-			mouseController
+			mouseController,
+			this.clientData
 		);
 
 		keyboardController.frame();
