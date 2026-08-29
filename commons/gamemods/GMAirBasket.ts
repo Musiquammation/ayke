@@ -12,17 +12,17 @@ interface PlayerInput {
 	data: Uint8Array;
 }
 
-const GRAVITY = 1200;
-const WIDTH = 1600;
-const HEIGHT = 900;
+const GRAVITY = 1100;
+const WIDTH = 2400;
+const HEIGHT = 1350;
 
 const X_LIMIT = WIDTH * 2.5;
 const Y_LIMIT = HEIGHT * 1.5;
 
 const TIMES = [
-	90, // normal
-	30, // grabber infinite
-	60, // sudden death
+	180, // normal
+	60, // grabber infinite
+	120, // sudden death
 ];
 
 const COLORS = [
@@ -39,7 +39,7 @@ const BUCKET_POSITIONS: number[][] = [
 
 
 class Ball {
-	static readonly RADIUS = 60;
+	static readonly RADIUS = 70;
 	static readonly SPAWN_JUMP = 20;
 	static readonly GRAVITY = 500;
 	static readonly EJECT = 1200;
@@ -71,6 +71,7 @@ class Ball {
 		this.y = 0;
 		this.vx = 0;
 		this.vy = -Ball.SPAWN_JUMP;
+		this.prevGrabber = -1;
 		this.removeGrabber();
 	}
 
@@ -151,19 +152,20 @@ interface DeltaTarget {
 }
 
 class Player {
-	static readonly SPEED = 1000;
-	static readonly ACCELERATION = 5000;
+	static readonly GRAB_GRAVITY = 900;
+	static readonly SPEED = 1500;
+	static readonly ACCELERATION = 10000;
 	static readonly MIN_DECELERATION = 1000;
-	static readonly SOFT_DECELERATION = 8000;
-	static readonly QUICK_DECELERATION = 20000;
-	static readonly JUMP = 900;
+	static readonly SOFT_DECELERATION = 10000;
+	static readonly QUICK_DECELERATION = 30000;
+	static readonly JUMP = 800;
 	static readonly SPAWN_JUMP = 90;
 	static readonly COOLDOWN = 1.5;
 	static readonly WIDTH = 40;
 	static readonly HEIGHT = 80;
 	static readonly PUSH_DOWN = 1000;
-	static readonly THROW = 1000;
-	static readonly BOUNCE_X = 500;
+	static readonly THROW = 1200;
+	static readonly BOUNCE_X = 1000;
 	static readonly BOUNCE_Y = 100;
 
 	spawnX: number | null = null;
@@ -196,7 +198,7 @@ class Player {
 		return this.alive < 0;
 	}
 
-	move(dt: number) {
+	move(dt: number, grabber: boolean) {
 		if (this.alive >= 0) {
 			this.alive -= dt;
 			if (this.alive >= 0)
@@ -239,7 +241,7 @@ class Player {
 			}
 		}
 		
-		this.vy += GRAVITY * dt;
+		this.vy += (grabber ? Player.GRAB_GRAVITY : GRAVITY) * dt;
 
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
@@ -299,7 +301,7 @@ class Player {
 class Bucket {
 	team: 'red' | 'blue' | null = null;
 
-	static readonly SIZE = 70;
+	static readonly SIZE = 110;
 
 	constructor(
 		public readonly x: number,
@@ -318,7 +320,7 @@ class Camera {
 	y = 0;
 
 	static readonly SCALE = 0.9;
-	static readonly DURATION = 0.4;
+	static readonly DURATION = 0.3;
 
 	// Transition state variables
 	private startX = 0;
@@ -612,7 +614,6 @@ class TutorialData {
 			if (clock >= this.wakeUp) {
 				bot.x = this.game.ball.x;
 				bot.y = this.game.ball.y;
-				console.log(player.x, player.y);
 				bot.target = {
 					type: 'fixed',
 					x: player.x,
@@ -1169,8 +1170,8 @@ export class GMAirBasket extends GameMode {
 
 
 		// Move
-		for (const p of this.players) {
-			p.move(dt);
+		for (const [idx, p] of this.players.entries()) {
+			p.move(dt, idx === this.ball.grabber);
 		}
 
 		applyCollisions(this.players);
@@ -1465,6 +1466,17 @@ export class GMAirBasket extends GameMode {
 		const width = Player.WIDTH * 4 / 3;
 
 		for (const [idx, p] of this.players.entries()) {
+			if (idx === playerIdx) {
+				ctx.fillStyle = "#0f0";
+				const r = 1.3;
+				ctx.fillRect(
+					p.x - r*Player.WIDTH/2,
+					p.y - r*Player.HEIGHT/2,
+					r*Player.WIDTH,
+					r*Player.HEIGHT
+				);
+			}
+
 			ctx.fillStyle = p.team;
 
 			let [tx, ty, dir] = data.getPlayerTextureCode(
@@ -1509,6 +1521,7 @@ export class GMAirBasket extends GameMode {
 					Player.HEIGHT,
 				);
 			}
+
 
 			ctx.restore();
 		}

@@ -19,7 +19,7 @@ button.selected {
 
 .tutorialText {
 	position: absolute;
-	top: 20px;
+	top: 7vh;
 	left: 50%;
 	transform: translateX(-50%);
 
