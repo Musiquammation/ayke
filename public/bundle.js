@@ -10160,15 +10160,15 @@ function isMessage(value) {
 //#endregion
 //#region commons/gamemods/GMAirBasket.ts
 var protocols$1 = getProtocol("airbasket");
-var GRAVITY = 1200;
-var WIDTH = 1600;
-var HEIGHT = 900;
+var GRAVITY = 1100;
+var WIDTH = 2400;
+var HEIGHT = 1350;
 var X_LIMIT = WIDTH * 2.5;
 var Y_LIMIT = HEIGHT * 1.5;
 var TIMES = [
-	90,
-	30,
-	60
+	180,
+	60,
+	120
 ];
 var COLORS = [
 	[
@@ -10210,8 +10210,11 @@ var BUCKET_POSITIONS = [
 	[1, 1],
 	[2, 1]
 ];
+var MINIMAP_X = WIDTH * .79;
+var MINIMAP_Y = HEIGHT * .01;
+var MINIMAP_RATIO = .2;
 var Ball = class Ball {
-	static RADIUS = 60;
+	static RADIUS = 70;
 	static SPAWN_JUMP = 20;
 	static GRAVITY = 500;
 	static EJECT = 1200;
@@ -10233,6 +10236,7 @@ var Ball = class Ball {
 		this.y = 0;
 		this.vx = 0;
 		this.vy = -Ball.SPAWN_JUMP;
+		this.prevGrabber = -1;
 		this.removeGrabber();
 	}
 	load(obj) {
@@ -10246,7 +10250,7 @@ var Ball = class Ball {
 		this.prevGrabber = obj.prevBallGrabber;
 	}
 	isOOB() {
-		return this.x < -4e3 + Ball.RADIUS / 2 || this.x > X_LIMIT - Ball.RADIUS / 2 || this.y < -1350 + Ball.RADIUS / 2 || this.y > Y_LIMIT - Ball.RADIUS / 2;
+		return this.x < -6e3 + Ball.RADIUS / 2 || this.x > X_LIMIT - Ball.RADIUS / 2 || this.y < -2025 + Ball.RADIUS / 2 || this.y > Y_LIMIT - Ball.RADIUS / 2;
 	}
 	removeGrabber() {
 		if (this.grabber < 0) return;
@@ -10255,32 +10259,33 @@ var Ball = class Ball {
 	}
 	eject() {
 		this.removeGrabber();
-		if (this.y <= -900) this.vy = 0;
+		if (this.y <= -1350) this.vy = 0;
 		else this.vy = -Ball.EJECT;
-		if (this.x < -1600) this.vx = Ball.EJECT;
+		if (this.x < -2400) this.vx = Ball.EJECT;
 		if (this.x > WIDTH) this.vx = -Ball.EJECT;
 		if (this.x > X_LIMIT - Ball.RADIUS / 2) this.x = X_LIMIT - Ball.RADIUS / 2;
-		else if (this.x < -4e3 + Ball.RADIUS / 2) this.x = -4e3 + Ball.RADIUS / 2;
+		else if (this.x < -6e3 + Ball.RADIUS / 2) this.x = -6e3 + Ball.RADIUS / 2;
 		if (this.y > Y_LIMIT - Ball.RADIUS / 2) this.y = Y_LIMIT - Ball.RADIUS / 2;
-		else if (this.y < -1350 + Ball.RADIUS / 2) this.y = -1350 + Ball.RADIUS / 2;
+		else if (this.y < -2025 + Ball.RADIUS / 2) this.y = -2025 + Ball.RADIUS / 2;
 	}
 };
 var Player$1 = class Player$1 {
 	x;
 	y;
-	static SPEED = 1e3;
-	static ACCELERATION = 5e3;
+	static GRAB_GRAVITY = 900;
+	static SPEED = 1500;
+	static ACCELERATION = 1e4;
 	static MIN_DECELERATION = 1e3;
-	static SOFT_DECELERATION = 8e3;
-	static QUICK_DECELERATION = 2e4;
-	static JUMP = 900;
+	static SOFT_DECELERATION = 1e4;
+	static QUICK_DECELERATION = 3e4;
+	static JUMP = 800;
 	static SPAWN_JUMP = 90;
 	static COOLDOWN = 1.5;
 	static WIDTH = 40;
 	static HEIGHT = 80;
 	static PUSH_DOWN = 1e3;
-	static THROW = 700;
-	static BOUNCE_X = 500;
+	static THROW = 1200;
+	static BOUNCE_X = 1e3;
 	static BOUNCE_Y = 100;
 	spawnX = null;
 	spawnY = null;
@@ -10307,7 +10312,7 @@ var Player$1 = class Player$1 {
 	isAlive() {
 		return this.alive < 0;
 	}
-	move(dt) {
+	move(dt, grabber) {
 		if (this.alive >= 0) {
 			this.alive -= dt;
 			if (this.alive >= 0) return;
@@ -10343,7 +10348,7 @@ var Player$1 = class Player$1 {
 			this.vx += Player$1.MIN_DECELERATION * dt;
 			if (this.vx > -Player$1.SPEED) this.vx = -Player$1.SPAWN_JUMP;
 		}
-		this.vy += GRAVITY * dt;
+		this.vy += (grabber ? Player$1.GRAB_GRAVITY : GRAVITY) * dt;
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 		if (this.pushDown) this.y += Player$1.PUSH_DOWN * dt;
@@ -10372,7 +10377,7 @@ var Player$1 = class Player$1 {
 		this.pushDown = obj.pushDown;
 	}
 	isOOB() {
-		return this.x < -4e3 + Player$1.WIDTH / 2 || this.x > X_LIMIT - Player$1.WIDTH / 2 || this.y < -1350 + Player$1.HEIGHT / 2 || this.y > Y_LIMIT - Player$1.HEIGHT / 2;
+		return this.x < -6e3 + Player$1.WIDTH / 2 || this.x > X_LIMIT - Player$1.WIDTH / 2 || this.y < -2025 + Player$1.HEIGHT / 2 || this.y > Y_LIMIT - Player$1.HEIGHT / 2;
 	}
 	die() {
 		this.vx = 0;
@@ -10384,7 +10389,7 @@ var Bucket = class {
 	x;
 	y;
 	team = null;
-	static SIZE = 70;
+	static SIZE = 110;
 	constructor(x, y) {
 		this.x = x;
 		this.y = y;
@@ -10393,8 +10398,8 @@ var Bucket = class {
 var Camera = class Camera {
 	x = 0;
 	y = 0;
-	static SCALE = .9;
-	static DURATION = .5;
+	static SCALE = .8;
+	static DURATION = .3;
 	startX = 0;
 	startY = 0;
 	targetX = 0;
@@ -10476,6 +10481,8 @@ var Camera = class Camera {
 };
 var ClientData$1 = class ClientData$1 {
 	firstFrame = true;
+	mouseX = 0;
+	mouseY = 0;
 	html;
 	time;
 	period;
@@ -10560,7 +10567,7 @@ var TutorialData = class {
 			this.game.ball.vy = 0;
 			this.game.ball.prevGrabber = -1;
 			if (this.game.ball.grabber === 0) this.step = 2;
-			if (player.x >= -800 && player.x <= WIDTH / 2 && player.y >= -450 && player.y <= HEIGHT / 2) this.step = 1;
+			if (player.x >= -1200 && player.x <= WIDTH / 2 && player.y >= -675 && player.y <= HEIGHT / 2) this.step = 1;
 			return "Go towards the ball (jump to do not fall)";
 		}
 		if (this.step === 1) {
@@ -10583,7 +10590,6 @@ var TutorialData = class {
 			if (clock >= this.wakeUp) {
 				bot.x = this.game.ball.x;
 				bot.y = this.game.ball.y;
-				console.log(player.x, player.y);
 				bot.target = {
 					type: "fixed",
 					x: player.x,
@@ -10653,6 +10659,138 @@ function applyCollisions(players) {
 		}
 	}
 }
+function getVectorToReachTarget(X, Y, N, g) {
+	if (X === 0) return {
+		x: 0,
+		y: Y > 0 ? N : -N,
+		success: false
+	};
+	const X2 = X * X;
+	const Y2 = Y * Y;
+	const N2 = N * N;
+	const g2 = g * g;
+	const delta = X2 * (N2 * N2 + 2 * N2 * g * Y - g2 * X2);
+	function fail() {
+		const n = N / Math.sqrt(X2 + Y2);
+		return {
+			x: X * n,
+			y: Y * n,
+			success: false
+		};
+	}
+	if (delta < 0) return fail();
+	const a = X2 + Y2;
+	const S = (-(-X2 * (N2 + g * Y)) + Math.sqrt(delta)) / (2 * a);
+	if (S <= 0) return fail();
+	const v0 = Math.sign(X) * Math.sqrt(S);
+	return {
+		x: v0,
+		y: v0 / X * (Y - g * X2 / (2 * S)),
+		success: true
+	};
+}
+function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
+	const X = destX - srcX;
+	const Y = destY - srcY;
+	let radius;
+	let lineWidth;
+	let outline = false;
+	if (color === true) {
+		lineWidth = 5;
+		ctx.strokeStyle = "black";
+		color = "black";
+		radius = 5;
+	} else if (color === false) {
+		lineWidth = 4;
+		ctx.strokeStyle = "grey";
+		color = "grey";
+		radius = 4;
+	} else {
+		lineWidth = 10;
+		ctx.strokeStyle = color;
+		radius = 10;
+		outline = true;
+	}
+	if (outline) {
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius + 2, 0, Math.PI * 2);
+		ctx.lineWidth = lineWidth + 4;
+		ctx.strokeStyle = "black";
+		ctx.stroke();
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
+		ctx.lineWidth = lineWidth;
+		ctx.strokeStyle = color;
+		ctx.stroke();
+	} else {
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
+		ctx.stroke();
+	}
+	const velocity = getVectorToReachTarget(X, Y, Player$1.THROW, Ball.GRAVITY);
+	if (velocity.x === 0 || !velocity.success) {
+		const dx = destX - srcX;
+		const dy = destY - srcY;
+		const distance = Math.sqrt(dx * dx + dy * dy);
+		if (distance === 0) return;
+		const startX = srcX + dx / distance * 40;
+		const startY = srcY + dy / distance * 40;
+		ctx.beginPath();
+		ctx.moveTo(startX, startY);
+		ctx.lineTo(destX, destY);
+		if (outline) {
+			ctx.lineWidth = lineWidth + 4;
+			ctx.strokeStyle = "black";
+			ctx.stroke();
+			ctx.beginPath();
+			ctx.moveTo(startX, startY);
+			ctx.lineTo(destX, destY);
+			ctx.lineWidth = lineWidth;
+			ctx.strokeStyle = color;
+			ctx.stroke();
+		} else ctx.stroke();
+		return;
+	}
+	const vx = velocity.x;
+	const vy = velocity.y;
+	const g = Ball.GRAVITY;
+	const T = X / vx;
+	if (T <= 0) return;
+	const steps = 50;
+	const points = [];
+	for (let i = 0; i <= steps; i++) {
+		const t = T * i / steps;
+		const x = srcX + vx * t;
+		const y = srcY + vy * t + g / 2 * t * t;
+		points.push({
+			x,
+			y
+		});
+	}
+	let startIndex = 0;
+	for (let i = 1; i < points.length; i++) {
+		const dx = points[i].x - srcX;
+		const dy = points[i].y - srcY;
+		if (Math.sqrt(dx * dx + dy * dy) >= 40) {
+			startIndex = i;
+			break;
+		}
+	}
+	const drawCurve = () => {
+		ctx.beginPath();
+		ctx.moveTo(points[startIndex].x, points[startIndex].y);
+		for (let i = startIndex + 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+		ctx.stroke();
+	};
+	if (outline) {
+		ctx.lineWidth = lineWidth + 4;
+		ctx.strokeStyle = "black";
+		drawCurve();
+	}
+	ctx.lineWidth = lineWidth;
+	ctx.strokeStyle = color;
+	drawCurve();
+}
 var GMAirBasket = class GMAirBasket extends GameMode {
 	static types = {
 		Player: Player$1,
@@ -10719,7 +10857,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		}
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = assigned[i];
-			p.initSpawn(redTeam ? -3200 : WIDTH * 2, 0, redTeam ? "red" : "blue");
+			p.initSpawn(redTeam ? -4800 : WIDTH * 2, 0, redTeam ? "red" : "blue");
 		}
 		return {
 			game,
@@ -10737,8 +10875,8 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
 		} else {
-			game.players[0].initSpawn(-3200, 0, "red");
-			game.players[1].initSpawn(3200, 0, "blue");
+			game.players[0].initSpawn(-4800, 0, "red");
+			game.players[1].initSpawn(4800, 0, "blue");
 		}
 		const clientData = new ClientData$1();
 		return {
@@ -10821,7 +10959,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			this.time += TIMES[this.timeStep];
 		}
 		if (this.isSuddenDeath() && this.redScore !== this.blueScore) this.finished = true;
-		for (const p of this.players) p.move(dt);
+		for (const [idx, p] of this.players.entries()) p.move(dt, idx === this.ball.grabber);
 		applyCollisions(this.players);
 		if (this.ball.grabber >= 0) {
 			const grabber = this.players[this.ball.grabber];
@@ -10829,11 +10967,10 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			else if (grabber.target && grabber.target.type === "fixed") {
 				const dx = grabber.target.x - grabber.x;
 				const dy = grabber.target.y - grabber.y;
-				const length = Math.sqrt(dx * dx + dy * dy);
-				if (length > 0) {
-					const inv = Player$1.THROW / length;
-					this.ball.vx = dx * inv;
-					this.ball.vy = dy * inv;
+				if (dx !== 0 || dy !== 0) {
+					const { x, y } = getVectorToReachTarget(dx, dy, Player$1.THROW, Ball.GRAVITY);
+					this.ball.vx = x;
+					this.ball.vy = y;
 					this.ball.removeGrabber();
 				}
 			}
@@ -10904,7 +11041,11 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			case "throwOff": player.target = null;
 		}
 	}
-	collectInputs(keyboard, mouse) {
+	collectInputs(keyboard, mouse, _data) {
+		const data = _data;
+		const throwTarget = mouse.getCoords();
+		data.mouseX = throwTarget.x;
+		data.mouseY = throwTarget.y;
 		function getMoveInput() {
 			const r0 = keyboard.first("right");
 			const l0 = keyboard.first("left");
@@ -10947,13 +11088,11 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			downOff: {},
 			action: "downOff"
 		});
-		if (mouse.press(0)) {
-			const throwTarget = mouse.getCoords();
-			inputs.push({
-				throwTarget,
-				action: "throwTarget"
-			});
-		} else if (mouse.killed(0)) inputs.push({
+		if (mouse.press(0)) inputs.push({
+			throwTarget,
+			action: "throwTarget"
+		});
+		else if (mouse.killed(0)) inputs.push({
 			throwOff: {},
 			action: "throwOff"
 		});
@@ -10964,6 +11103,68 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			x: this.ball.x - Ball.RADIUS / 2,
 			y: this.ball.y - Ball.RADIUS / 2
 		};
+	}
+	drawMinimap(ctx, playerIdx) {
+		const mapWidth = WIDTH * 5;
+		const mapHeight = HEIGHT * 3;
+		const MINIMAP_WIDTH = WIDTH * MINIMAP_RATIO;
+		const MINIMAP_HEIGHT = HEIGHT * MINIMAP_RATIO;
+		ctx.save();
+		ctx.translate(MINIMAP_X, MINIMAP_Y);
+		ctx.scale(MINIMAP_WIDTH / mapWidth, MINIMAP_HEIGHT / mapHeight);
+		ctx.translate(mapWidth / 2, mapHeight / 2);
+		ctx.fillStyle = "rgba(50, 50, 50, 0.7)";
+		ctx.fillRect(-6e3, -2025, mapWidth, mapHeight);
+		const player = this.players[playerIdx];
+		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) {
+			const cellX = -6e3 + x * WIDTH;
+			const cellY = -2025 + y * HEIGHT;
+			const ballInside = this.ball.x >= cellX && this.ball.x < cellX + WIDTH && this.ball.y >= cellY && this.ball.y < cellY + HEIGHT;
+			const playerInside = player.x >= cellX && player.x < cellX + WIDTH && player.y >= cellY && player.y < cellY + HEIGHT;
+			const bucketInside = this.buckets.some((bucket) => bucket.team === null && bucket.x >= cellX && bucket.x < cellX + WIDTH && bucket.y >= cellY && bucket.y < cellY + HEIGHT);
+			if (ballInside) ctx.fillStyle = "rgba(255, 165, 0, 0.35)";
+			else if (playerInside) ctx.fillStyle = "rgba(255, 255, 0, 0.35)";
+			else if (bucketInside) ctx.fillStyle = "rgba(0, 128, 0, 0.35)";
+			else continue;
+			ctx.fillRect(cellX, cellY, WIDTH, HEIGHT);
+		}
+		ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+		ctx.lineWidth = 1 / (MINIMAP_WIDTH / mapWidth);
+		for (let x = 1; x < 5; x++) {
+			const px = -6e3 + x * WIDTH;
+			ctx.beginPath();
+			ctx.moveTo(px, -2025);
+			ctx.lineTo(px, mapHeight / 2);
+			ctx.stroke();
+		}
+		for (let y = 1; y < 3; y++) {
+			const py = -2025 + y * HEIGHT;
+			ctx.beginPath();
+			ctx.moveTo(-6e3, py);
+			ctx.lineTo(mapWidth / 2, py);
+			ctx.stroke();
+		}
+		for (const bucket of this.buckets) {
+			ctx.fillStyle = "green";
+			if (bucket.team !== null) continue;
+			ctx.beginPath();
+			ctx.arc(bucket.x, bucket.y, 75, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		for (const [idx, player] of this.players.entries()) {
+			ctx.fillStyle = idx === playerIdx ? "yellow" : player.team === "red" ? "red" : "blue";
+			ctx.beginPath();
+			ctx.arc(player.x, player.y, idx === playerIdx ? 150 : 100, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		ctx.fillStyle = "orange";
+		ctx.beginPath();
+		ctx.arc(this.ball.x, this.ball.y, 150, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.restore();
+		ctx.strokeStyle = "white";
+		ctx.lineWidth = 2;
+		ctx.strokeRect(MINIMAP_X, MINIMAP_Y, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 	}
 	draw(ctx, playerIdx, _data, imageLoader) {
 		const data = _data;
@@ -10999,6 +11200,11 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		const h = playerTexture.height / 4;
 		const width = Player$1.WIDTH * 4 / 3;
 		for (const [idx, p] of this.players.entries()) {
+			if (idx === playerIdx) {
+				ctx.fillStyle = "#0f0";
+				const r = 1.3;
+				ctx.fillRect(p.x - r * Player$1.WIDTH / 2, p.y - r * Player$1.HEIGHT / 2, r * Player$1.WIDTH, r * Player$1.HEIGHT);
+			}
 			ctx.fillStyle = p.team;
 			let [tx, ty, dir] = data.getPlayerTextureCode(this.ball.grabber === idx, p, idx);
 			if (p.team === "red") tx += 3;
@@ -11014,7 +11220,15 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			const drawBallCoords = this.getBallDrawCoords();
 			ctx.drawImage(imageLoader.get("ball"), drawBallCoords.x, drawBallCoords.y, Ball.RADIUS, Ball.RADIUS);
 		}
+		{
+			const player = this.players[playerIdx];
+			let color;
+			if (this.ball.grabber === playerIdx) color = player.team;
+			else color = this.ball.prevGrabber !== playerIdx;
+			drawPlayerToTarget(ctx, player.x, player.y, data.mouseX, data.mouseY, color);
+		}
 		ctx.restore();
+		this.drawMinimap(ctx, playerIdx);
 	}
 	onDisconnection(id) {
 		this.players[id].connected = false;
@@ -11055,12 +11269,16 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			height: HEIGHT
 		};
 	}
-	evalMouseCoords(x, y, playerIdx) {
-		const player = this.players[playerIdx];
-		return {
-			x: x + player.x - WIDTH / 2,
-			y: y + player.y - HEIGHT / 2
+	evalMouseCoords(x, y, playerIdx, _clientData) {
+		const clientData = _clientData;
+		const cameraCoords = clientData.camera.getCoords();
+		const ret = {
+			x: (x - WIDTH / 2) / Camera.SCALE + cameraCoords.x,
+			y: (y - HEIGHT / 2) / Camera.SCALE + cameraCoords.y
 		};
+		clientData.mouseX = ret.x;
+		clientData.mouseY = ret.y;
+		return ret;
 	}
 	createTutorial() {
 		return new TutorialData(this);
@@ -11261,14 +11479,6 @@ function getGmFactory(gamemode) {
 //#region commons/protocolLoader.ts
 var protocolLoader = null;
 var loadedProtocols = /* @__PURE__ */ new Map();
-/**
-* Initializes the protocol loader mechanism.
-* @param loader A function that asynchronously fetches and returns a protobuf.Root
-*/
-function initProtocols(loader) {
-	protocolLoader = loader;
-	for (const name in gamemods) getProtocol(name).load();
-}
 /**
 * Returns a protocol manager for a specific game name.
 * @param name The name of the game/protocol
@@ -14780,6 +14990,7 @@ keyboardController.init();
 var MouseController = class {
 	adapter = null;
 	playerIdx = 0;
+	clientData = null;
 	rawX = 0;
 	rawY = 0;
 	presses = /* @__PURE__ */ new Set();
@@ -14790,9 +15001,10 @@ var MouseController = class {
 		window.addEventListener("mousedown", this.handleMouseDown);
 		window.addEventListener("mouseup", this.handleMouseUp);
 	}
-	setScreenCoordsAdapter(adapter, playerIdx) {
+	setScreenCoordsAdapter(adapter, playerIdx, clientData) {
 		this.adapter = adapter;
 		this.playerIdx = playerIdx;
+		this.clientData = clientData;
 	}
 	getCoords() {
 		if (this.adapter) {
@@ -14806,7 +15018,7 @@ var MouseController = class {
 			const offsetY = (screenHeight - gameHeight * scale) / 2;
 			const gameX = (this.rawX - offsetX) / scale;
 			const gameY = (this.rawY - offsetY) / scale;
-			return this.adapter.evalMouseCoords(gameX, gameY, this.playerIdx);
+			return this.adapter.evalMouseCoords(gameX, gameY, this.playerIdx, this.clientData);
 		}
 		return {
 			x: this.rawX,
@@ -15047,7 +15259,7 @@ var GameHandler = class {
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
-		mouseController.setScreenCoordsAdapter(this.gamemode, playerIdx);
+		mouseController.setScreenCoordsAdapter(this.gamemode, playerIdx, clientData);
 	}
 	receive(gdata) {
 		const msg = decodeFullMessage(this.protocols.ServerMessage.decode(gdata));
@@ -15093,7 +15305,7 @@ var GameHandler = class {
 	}
 	frame() {
 		const now = getNow();
-		const newInputs = this.gamemode.collectInputs(keyboardController, mouseController).map((data) => ({
+		const newInputs = this.gamemode.collectInputs(keyboardController, mouseController, this.clientData).map((data) => ({
 			...data,
 			timestamp: now
 		}));
@@ -15399,7 +15611,7 @@ var LocalGameHandler = class {
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
-		mouseController.setScreenCoordsAdapter(this.gamemode, 0);
+		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
 	}
 	start() {
 		this.clock = 0;
@@ -15434,7 +15646,7 @@ var LocalGameHandler = class {
 		const dt = (now - this.lastTime) / 1e3;
 		this.lastTime = now;
 		this.clock += dt;
-		const inputs = this.gamemode.collectInputs(keyboardController, mouseController);
+		const inputs = this.gamemode.collectInputs(keyboardController, mouseController, this.clientData);
 		keyboardController.frame();
 		mouseController.frame();
 		for (const input of inputs) this.gamemode.runInput(0, input);
@@ -15781,23 +15993,4 @@ var LeaderboardComponent = class {
 	}
 };
 var dom = module_default.reactive(new MainComponent());
-function initDom() {
-	document.addEventListener("alpine:init", () => {
-		module_default.data("main", () => dom);
-	});
-	window.Alpine = module_default;
-	window.dom = dom;
-	module_default.start();
-}
 //#endregion
-//#region client/src/index.ts
-function init() {
-	initProtocols(async (name) => {
-		const protoText = await (await fetch(window.PROTOCOLS_FOLDER + name + ".proto")).text();
-		return import_protobufjs.parse(protoText).root;
-	});
-	initDom();
-	dom.tryLoginWithKey();
-}
-//#endregion
-export { init };
