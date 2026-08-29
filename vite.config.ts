@@ -1,15 +1,15 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
+	root: "client",
+
 	build: {
-		outDir: "dist",
+		outDir: "../dist",
 		emptyOutDir: true,
 		minify: false,
 
 		rollupOptions: {
-			input: "client/src/index.ts",
-
-			preserveEntrySignatures: "strict",
+			input: "src/index.ts",
 
 			output: {
 				entryFileNames: "bundle.js",
