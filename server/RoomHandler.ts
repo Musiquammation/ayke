@@ -289,6 +289,7 @@ export class Room {
 		if (this.isFinished())
 			return; // already sent
 
+		this.finished = true;
 		this.onfinish();
 
 

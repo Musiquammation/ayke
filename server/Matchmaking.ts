@@ -303,7 +303,7 @@ class WaitingRoom {
 }
 
 class Matchmaking {
-	private static readonly STEP_INC = 2;
+	private static readonly STEP_INC = 100;
 
 	private rooms: WaitingRoom[] = [];
 
