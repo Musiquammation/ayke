@@ -11480,6 +11480,14 @@ function getGmFactory(gamemode) {
 var protocolLoader = null;
 var loadedProtocols = /* @__PURE__ */ new Map();
 /**
+* Initializes the protocol loader mechanism.
+* @param loader A function that asynchronously fetches and returns a protobuf.Root
+*/
+function initProtocols(loader) {
+	protocolLoader = loader;
+	for (const name in gamemods) getProtocol(name).load();
+}
+/**
 * Returns a protocol manager for a specific game name.
 * @param name The name of the game/protocol
 */
@@ -15993,4 +16001,23 @@ var LeaderboardComponent = class {
 	}
 };
 var dom = module_default.reactive(new MainComponent());
+function initDom() {
+	document.addEventListener("alpine:init", () => {
+		module_default.data("main", () => dom);
+	});
+	window.Alpine = module_default;
+	window.dom = dom;
+	module_default.start();
+}
 //#endregion
+//#region client/src/index.ts
+function init() {
+	initProtocols(async (name) => {
+		const protoText = await (await fetch(window.PROTOCOLS_FOLDER + name + ".proto")).text();
+		return import_protobufjs.parse(protoText).root;
+	});
+	initDom();
+	dom.tryLoginWithKey();
+}
+//#endregion
+export { init };
