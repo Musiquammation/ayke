@@ -1368,7 +1368,15 @@ export class GMAirBasket extends GameMode {
 		return {width: WIDTH, height: HEIGHT};
 	}
 
-	override evalMouseCoords(x: number, y: number, playerIdx: number) {
+	override evalMouseCoords(
+		x: number,
+		y: number,
+		playerIdx: number,
+		_clientData: any
+	) {
+		const clientData = _clientData as ClientData;
+		console.log(clientData);
+
 		const player = this.players[playerIdx];
 		return {
 			x: x + player.x - WIDTH/2,
