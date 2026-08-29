@@ -37,6 +37,9 @@ const BUCKET_POSITIONS: number[][] = [
 	[-2, +1], [-1, +1], [-0.25, +1], [+0.25, +1], [+1, +1], [+2, +1],
 ]
 
+const MINIMAP_X = WIDTH * 0.79;
+const MINIMAP_Y = HEIGHT * 0.01;
+const MINIMAP_RATIO = 0.2;
 
 class Ball {
 	static readonly RADIUS = 70;
@@ -319,7 +322,7 @@ class Camera {
 	x = 0;
 	y = 0;
 
-	static readonly SCALE = 0.9;
+	static readonly SCALE = 0.8;
 	static readonly DURATION = 0.3;
 
 	// Transition state variables
@@ -1391,6 +1394,182 @@ export class GMAirBasket extends GameMode {
 		return {x, y};
 	}
 
+
+
+	private drawMinimap(
+		ctx: CanvasRenderingContext2D,
+		playerIdx: number
+	) {
+		const mapWidth = WIDTH * 5;
+		const mapHeight = HEIGHT * 3;
+
+		const MINIMAP_WIDTH = WIDTH * MINIMAP_RATIO;
+		const MINIMAP_HEIGHT = HEIGHT * MINIMAP_RATIO;
+
+		ctx.save();
+
+		// Move to the minimap origin
+		ctx.translate(
+			MINIMAP_X,
+			MINIMAP_Y
+		);
+
+		// Scale world coordinates to minimap coordinates
+		ctx.scale(
+			MINIMAP_WIDTH / mapWidth,
+			MINIMAP_HEIGHT / mapHeight
+		);
+
+		// Move the world origin to the center of the minimap
+		ctx.translate(
+			mapWidth / 2,
+			mapHeight / 2
+		);
+
+		// Draw the minimap background
+		ctx.fillStyle = "rgba(50, 50, 50, 0.7)";
+		ctx.fillRect(
+			-mapWidth / 2,
+			-mapHeight / 2,
+			mapWidth,
+			mapHeight
+		);
+
+		const player = this.players[playerIdx];
+
+		// Draw cells
+		for (let y = 0; y < 3; y++) {
+			for (let x = 0; x < 5; x++) {
+				const cellX = -mapWidth / 2 + x * WIDTH;
+				const cellY = -mapHeight / 2 + y * HEIGHT;
+
+				const ballInside =
+					this.ball.x >= cellX &&
+					this.ball.x < cellX + WIDTH &&
+					this.ball.y >= cellY &&
+					this.ball.y < cellY + HEIGHT;
+
+				const playerInside =
+					player.x >= cellX &&
+					player.x < cellX + WIDTH &&
+					player.y >= cellY &&
+					player.y < cellY + HEIGHT;
+
+				const bucketInside = this.buckets.some(
+					bucket =>
+						bucket.team === null &&
+						bucket.x >= cellX &&
+						bucket.x < cellX + WIDTH &&
+						bucket.y >= cellY &&
+						bucket.y < cellY + HEIGHT
+				);
+
+				// Priority: orange > yellow > green
+				if (ballInside) {
+					ctx.fillStyle = "rgba(255, 165, 0, 0.35)";
+				} else if (playerInside) {
+					ctx.fillStyle = "rgba(255, 255, 0, 0.35)";
+				} else if (bucketInside) {
+					ctx.fillStyle = "rgba(0, 128, 0, 0.35)";
+				} else {
+					continue;
+				}
+
+				ctx.fillRect(
+					cellX,
+					cellY,
+					WIDTH,
+					HEIGHT
+				);
+			}
+		}
+
+		// Draw the 5x3 grid
+		ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+		ctx.lineWidth = 1 / (MINIMAP_WIDTH / mapWidth);
+
+		for (let x = 1; x < 5; x++) {
+			const px = -mapWidth / 2 + x * WIDTH;
+
+			ctx.beginPath();
+			ctx.moveTo(px, -mapHeight / 2);
+			ctx.lineTo(px, mapHeight / 2);
+			ctx.stroke();
+		}
+
+		for (let y = 1; y < 3; y++) {
+			const py = -mapHeight / 2 + y * HEIGHT;
+
+			ctx.beginPath();
+			ctx.moveTo(-mapWidth / 2, py);
+			ctx.lineTo(mapWidth / 2, py);
+			ctx.stroke();
+		}
+
+		// Draw remaining buckets
+		for (const bucket of this.buckets) {
+			ctx.fillStyle = "green";
+
+			if (bucket.team !== null)
+				continue;
+
+			ctx.beginPath();
+			ctx.arc(
+				bucket.x,
+				bucket.y,
+				75,
+				0,
+				Math.PI * 2
+			);
+			ctx.fill();
+		}
+
+		// Draw all players
+		for (const [idx, player] of this.players.entries()) {
+			ctx.fillStyle =
+				idx === playerIdx
+					? "yellow"
+					: player.team === "red"
+						? "red"
+						: "blue";
+
+			ctx.beginPath();
+			ctx.arc(
+				player.x,
+				player.y,
+				idx === playerIdx ? 150 : 100,
+				0,
+				Math.PI * 2
+			);
+			ctx.fill();
+		}
+
+		// Draw the ball
+		ctx.fillStyle = "orange";
+
+		ctx.beginPath();
+		ctx.arc(
+			this.ball.x,
+			this.ball.y,
+			150,
+			0,
+			Math.PI * 2
+		);
+		ctx.fill();
+
+		ctx.restore();
+
+		// Draw the minimap border in screen coordinates
+		ctx.strokeStyle = "white";
+		ctx.lineWidth = 2;
+		ctx.strokeRect(
+			MINIMAP_X,
+			MINIMAP_Y,
+			MINIMAP_WIDTH,
+			MINIMAP_HEIGHT
+		);
+	}
+
 	override draw(
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
@@ -1560,6 +1739,8 @@ export class GMAirBasket extends GameMode {
 		}
 
 		ctx.restore();
+
+		this.drawMinimap(ctx, playerIdx);
 	}
 
 
