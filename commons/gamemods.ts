@@ -49,7 +49,7 @@ export const gamemods: Record<
         textures: GMAirBasket.TEXTURES,
         name: "Air Basket",
         tropheesPerPlayer: 20,
-        skins: GMAirBasket.SKINS
+        skins: GMAirBasket.SKINS_IDS
     },
 };
 

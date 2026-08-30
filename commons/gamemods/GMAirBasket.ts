@@ -653,8 +653,9 @@ class TutorialData {
 
 function generateClientDom() {
 	return {
-		skin: 'joe',
+		skin: Object.keys(GMAirBasket.SKINS)[0],
 		preferTeam: 0,
+		SKINS: GMAirBasket.SKINS,
 
 		produce() {
 			const {StartData} = protocols.get();
@@ -662,7 +663,9 @@ function generateClientDom() {
 				skin: this.skin,
 				preferTeam: this.preferTeam
 			}).finish();
-		}
+		},
+
+		getIconPath
 	};
 }
 
@@ -928,6 +931,10 @@ function getTexturePath(id: string) {
 	return `/assets/games/airbasket/skins/${id}/grid.png`
 }
 
+function getIconPath(id: string) {
+	return `/assets/games/airbasket/skins/${id}/icon.png`
+}
+
 
 export class GMAirBasket extends GameMode {
 	static readonly types = {Player, Bucket};
@@ -988,14 +995,14 @@ export class GMAirBasket extends GameMode {
 				const d = decode(i);
 				let skin: string;
 				const pseudo = i < players.length ? players[i].pseudo : null;
-				if (pseudo !== null && GMAirBasket.SKINS.includes(d.skin)) {
+				if (pseudo !== null && GMAirBasket.SKINS_IDS.includes(d.skin)) {
 					if (await hasSkin('airbasket', d.skin, pseudo)) {
 						skin = d.skin as string;
 					} else {
-						skin = GMAirBasket.SKINS[0];
+						skin = GMAirBasket.SKINS_IDS[0];
 					}
 				} else {
-					skin = GMAirBasket.SKINS[0];
+					skin = GMAirBasket.SKINS_IDS[0];
 				}
 
 				return {
@@ -1080,14 +1087,15 @@ export class GMAirBasket extends GameMode {
 		if (data) {
 			const {players} = decodeFullMessage(StartDataClient.decode(data));
 	
-			let skinSet = new Set<string>();
+			const skinSet = new Set<string>();
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
 				clientData.skins.push(p.skin);
 				skinSet.add(p.skin);
 			}
+			console.log(skinSet);
 			skins = Object.fromEntries(
-				[...skinSet].map(key => [key, getTexturePath(key)])
+				[...skinSet].map(key => ['skin-' + key, getTexturePath(key)])
 			);
 
 		} else {
@@ -1095,7 +1103,7 @@ export class GMAirBasket extends GameMode {
 			game.players[1].initSpawn(+WIDTH * 2, 0, 'blue');
 			clientData.skins = Array.from(
 				{length: game.players.length},
-				()=>GMAirBasket.SKINS[0]
+				()=>GMAirBasket.SKINS_IDS[0]
 			);
 
 			skins = {};
@@ -1112,7 +1120,14 @@ export class GMAirBasket extends GameMode {
 
 	static readonly generateClientDom = generateClientDom;
 
-	static readonly SKINS = ['joe', 'luck', 'kwanita', 'nooby', 'willy'];
+	static readonly SKINS = {
+		joe: "Joe",
+		luck: "Luck",
+		kwanita: "Kwanita",
+		nooby: "Nooby",
+		willy: "Willy"
+	};
+	static readonly SKINS_IDS = Object.keys(GMAirBasket.SKINS);
 
 	static readonly TEXTURES = {
 		'ball': "/assets/games/airbasket/ball.png",
