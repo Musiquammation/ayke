@@ -924,7 +924,9 @@ function drawPlayerToTarget(
 	drawCurve();
 }
 
-
+function getTexturePath(id: string) {
+	return `/assets/games/airbasket/skins/${id}/grid.png`
+}
 
 
 export class GMAirBasket extends GameMode {
@@ -1066,28 +1068,46 @@ export class GMAirBasket extends GameMode {
 		}
 	}
 
-	static createClient(data: Uint8Array | null, total: number) {
+	static createClient(
+		data: Uint8Array | null,
+		total: number
+	) {
 		const game = new GMAirBasket(total);
 		const {StartDataClient} = protocols.get();
 		const clientData = new ClientData();
+		let skins: { [k: string]: string; };
 
 		if (data) {
 			const {players} = decodeFullMessage(StartDataClient.decode(data));
 	
+			let skinSet = new Set<string>();
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
 				clientData.skins.push(p.skin);
+				skinSet.add(p.skin);
 			}
+			skins = Object.fromEntries(
+				[...skinSet].map(key => [key, getTexturePath(key)])
+			);
+
 		} else {
 			game.players[0].initSpawn(-WIDTH * 2, 0, 'red');
 			game.players[1].initSpawn(+WIDTH * 2, 0, 'blue');
-			clientData.skins = ['joe', 'joe'];
+			clientData.skins = Array.from(
+				{length: game.players.length},
+				()=>GMAirBasket.SKINS[0]
+			);
+
+			skins = {};
 		}
 
-		console.log(clientData.skins);
 
-
-		return {game, data: clientData, html: clientData.html};
+		return {
+			game,
+			data: clientData,
+			html: clientData.html,
+			skins
+		};
 	}
 
 	static readonly generateClientDom = generateClientDom;
@@ -1100,7 +1120,7 @@ export class GMAirBasket extends GameMode {
 		'bucket-mid': "/assets/games/airbasket/bucket-mid.png",
 		'bucket-red': "/assets/games/airbasket/bucket-red.png",
 		'sky': "/assets/games/airbasket/sky.png",
-		'skin-default': "/assets/games/airbasket/skins/joe/grid.png"
+		'skin-joe': getTexturePath('joe')
 	};
 
 
@@ -1605,8 +1625,10 @@ export class GMAirBasket extends GameMode {
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
 		_data: any,
-		imageLoader: ImageLoader
+		_imageLoader: ImageLoader
 	) {
+		const imageLoader = _imageLoader.getFolder('airbasket');
+
 		const data = _data as ClientData;
 		if (data.firstFrame) {
 			data.firstFrame = false;
@@ -1670,11 +1692,6 @@ export class GMAirBasket extends GameMode {
 		}
 
 		// Draw players
-		const playerTexture = imageLoader.get('skin-default');
-		const w = playerTexture.width / 6;
-		const h = playerTexture.height / 4;
-		const width = Player.WIDTH * 4 / 3;
-
 		for (const [idx, p] of this.players.entries()) {
 			if (idx === playerIdx) {
 				ctx.fillStyle = "#0f0";
@@ -1698,6 +1715,12 @@ export class GMAirBasket extends GameMode {
 			if (p.team === 'red') {
 				tx += 3;
 			}
+
+			const playerTexture = imageLoader.get('skin-' + data.skins[idx]);
+			const w = playerTexture.width / 6;
+			const h = playerTexture.height / 4;
+			const width = Player.WIDTH * 4 / 3;
+
 
 			ctx.save();
 

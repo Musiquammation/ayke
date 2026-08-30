@@ -6,14 +6,14 @@ export class ImageLoader {
 	private placeholder: HTMLCanvasElement;
 	private pathRoot: string;
 
-	// Stores the raw, unmodified images
-	private baseImages: { [imageName: string]: HTMLImageElement } = {};
+	// Stores the raw, unmodified images, organized by folder and then by image name
+	private baseImages: { [folder: string]: { [imageName: string]: HTMLImageElement } } = {};
 	
-	// Stores the colored versions, accessed by imageName and then by colorId
-	private coloredImages: { [imageName: string]: { [colorId: number]: HTMLCanvasElement } } = {};
+	// Stores the colored versions, accessed by folder, then imageName, then by colorId
+	private coloredImages: { [folder: string]: { [imageName: string]: { [colorId: number]: HTMLCanvasElement } } } = {};
 	
-	// Registry of rules to apply, accessed by imageName and then by colorId
-	private colorRules: { [imageName: string]: { [colorId: number]: ColorRule[] } } = {};
+	// Registry of rules to apply, accessed by folder, then imageName, then by colorId
+	private colorRules: { [folder: string]: { [imageName: string]: { [colorId: number]: ColorRule[] } } } = {};
 
 	constructor(pathRoot: string) {
 		this.pathRoot = pathRoot;
@@ -88,42 +88,53 @@ export class ImageLoader {
 	/**
 	 * Internal helper to generate and cache a colored version of an image.
 	 */
-	private generateColoredVersion(name: string, id: number) {
-		const img = this.baseImages[name];
-		const rules = this.colorRules[name][id];
+	private generateColoredVersion(name: string, id: number, folderKey: string) {
+		const img = this.baseImages[folderKey]?.[name];
+		const rules = this.colorRules[folderKey]?.[name]?.[id];
 		
 		if (!img || !rules) return;
 
 		const canvas = this.recolorImage(img, rules);
 		
-		if (!this.coloredImages[name]) {
-			this.coloredImages[name] = {};
+		if (!this.coloredImages[folderKey]) {
+			this.coloredImages[folderKey] = {};
+		}
+		if (!this.coloredImages[folderKey][name]) {
+			this.coloredImages[folderKey][name] = {};
 		}
 		
-		this.coloredImages[name][id] = canvas;
+		this.coloredImages[folderKey][name][id] = canvas;
 	}
 
 	/**
-	 * Registers a coloring rule for a specific texture. 
+	 * Registers a coloring rule for a specific texture within a folder. 
 	 * Applies immediately to already loaded textures, and queues for future ones.
 	 */
-	setColorRule(name: string, id: number, rules: ColorRule[]): void {
-		if (!this.colorRules[name]) {
-			this.colorRules[name] = {};
-		}
-		this.colorRules[name][id] = rules;
+	setColorRule(name: string, id: number, rules: ColorRule[], folder: string | null = null): void {
+		const folderKey = folder ?? 'root';
+
+		if (!this.colorRules[folderKey]) this.colorRules[folderKey] = {};
+		if (!this.colorRules[folderKey][name]) this.colorRules[folderKey][name] = {};
+		
+		this.colorRules[folderKey][name][id] = rules;
 
 		// If the base image is already loaded, apply the rule right away (old textures)
-		if (this.baseImages[name]) {
-			this.generateColoredVersion(name, id);
+		if (this.baseImages[folderKey]?.[name]) {
+			this.generateColoredVersion(name, id, folderKey);
 		}
 	}
 
 	/**
-	 * Loads base images asynchronously and applies any pending color rules.
+	 * Loads base images asynchronously into a specific folder and applies any pending color rules.
 	 */
-	async load(list: { [key: string]: string }): Promise<void> {
+	async load(list: { [key: string]: string }, folder: string | null = null): Promise<void> {
+		const folderKey = folder ?? 'root';
 		this.totalCount += Object.keys(list).length;
+
+		// Initialize folder structure if it doesn't exist yet
+		if (!this.baseImages[folderKey]) {
+			this.baseImages[folderKey] = {};
+		}
 
 		const promises: Promise<void>[] = [];
 
@@ -141,14 +152,14 @@ export class ImageLoader {
 						i.src = URL.createObjectURL(blob);
 					});
 
-					// Store the raw base image
-					this.baseImages[name] = img;
+					// Store the raw base image in the proper folder
+					this.baseImages[folderKey][name] = img;
 
-					// Apply any rules that were registered before the image finished loading (new textures)
-					if (this.colorRules[name]) {
-						for (const idStr of Object.keys(this.colorRules[name])) {
+					// Apply any rules that were registered before the image finished loading
+					if (this.colorRules[folderKey]?.[name]) {
+						for (const idStr of Object.keys(this.colorRules[folderKey][name])) {
 							const id = parseInt(idStr, 10);
-							this.generateColoredVersion(name, id);
+							this.generateColoredVersion(name, id, folderKey);
 						}
 					}
 
@@ -172,27 +183,47 @@ export class ImageLoader {
 	}
 
 	/**
-	 * Retrieves an image or canvas texture.
+	 * Retrieves an image or canvas texture from a specific folder.
 	 * @param name - The asset key identifier.
 	 * @param colorId - The numeric ID of the color rule to apply.
+	 * @param folder - The folder name to look inside (defaults to 'root').
 	 */
-	get(name: string | null, colorId?: number): HTMLCanvasElement | HTMLImageElement {
+	get(name: string | null, colorId?: number, folder?: string | null): HTMLCanvasElement | HTMLImageElement {
 		if (name === null) return this.placeholder;
+
+		const folderKey = folder ?? 'root';
 
 		// Return a colored version if an ID is provided
 		if (colorId !== undefined) {
-			if (this.coloredImages[name] && this.coloredImages[name][colorId]) {
-				return this.coloredImages[name][colorId];
+			if (this.coloredImages[folderKey]?.[name]?.[colorId]) {
+				return this.coloredImages[folderKey][name][colorId];
 			}
 			return this.placeholder;
 		}
 
 		// Return the default raw image if no color ID is requested
-		if (this.baseImages[name]) {
-			return this.baseImages[name];
+		if (this.baseImages[folderKey]?.[name]) {
+			return this.baseImages[folderKey][name];
 		}
 
 		return this.placeholder;
+	}
+
+	/**
+	 * Returns a scoped object containing a `get` method bound to a specific folder.
+	 * It acts like an ImageLoader instance but without requiring the folder argument.
+	 * @param folder - The folder to bind to.
+	 */
+	getFolder(folder: string) {
+		return {
+			get: (name: string | null, colorId?: number): HTMLCanvasElement | HTMLImageElement => {
+				return this.get(name, colorId, folder);
+			},
+
+			setColorRule: (name: string, id: number, rules: ColorRule[]) => {
+				return this.setColorRule(name, id, rules, folder)
+			}
+		};
 	}
 
 	/**

@@ -156,10 +156,10 @@ class MainComponent {
 	}
 
 	openTutorialInPlay(gamemode: string) {
+		this.currentPage = "play";
 		this.panel = new TutorialInplayComponent(
 			new LocalGameHandler(gamemode)
 		);
-		this.currentPage = "play";
 	}
 
 	openLeaderboard() {
@@ -221,7 +221,7 @@ class GamePanelComponent {
 	async play() {
 		const factory = getGmFactory(this.gamemode);
 		dom.startLoading();
-		await imageLoader.load(factory.textures);
+		await imageLoader.load(factory.textures, this.gamemode);
 		dom.stopLoading();
 
 		dom.openWaitPlayPanel(this.gamemode);
@@ -238,7 +238,7 @@ class GamePanelComponent {
 		const factory = getGmFactory(this.gamemode);
 
 		dom.startLoading();
-		await imageLoader.load(factory.textures);
+		await imageLoader.load(factory.textures, this.gamemode);
 		dom.stopLoading();
 
 		dom.openTutorialInPlay(this.gamemode);
@@ -415,7 +415,8 @@ class TutorialInplayComponent {
 	private text = "";
 
 	constructor(public readonly game: LocalGameHandler) {
-		game.start();
+		dom.startLoading();
+		game.start().finally(() => dom.stopLoading());
 	}
 
 	setText(text: string) {

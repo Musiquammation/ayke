@@ -22,7 +22,8 @@ export const gamemods: Record<
         client(entry: Uint8Array | null, total: number): {
             game: GameMode,
             data: any,
-            html: HTMLDivElement | null
+            html: HTMLDivElement | null,
+            skins: { [k: string]: string; }
         },
         dom(): {produce: ()=>Uint8Array},
         textures: { [key: string]: string },
