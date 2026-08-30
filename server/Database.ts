@@ -13,7 +13,7 @@ interface QuickConnectionKeyRecord {
 	expiresAt: string | null;
 }
 
-class Database {
+export class Database {
 	private db: sqlite3.Database;
 
 	constructor(filepath: string) {
@@ -23,7 +23,7 @@ class Database {
 
 	/**
 	 * Initializes all database tables if they do not already exist.
-	 * Includes User, Gamemode, Progression, and QuickConnectionKey tables.
+	 * Includes User, Gamemode, Progression, QuickConnectionKey, Skin, and SkinUnlock tables.
 	 */
 	private initializeTables(): void {
 		this.db.exec(`
@@ -34,7 +34,8 @@ class Database {
 
 			CREATE TABLE IF NOT EXISTS Gamemode (
 				id TEXT PRIMARY KEY,
-				name TEXT NOT NULL
+				name TEXT NOT NULL,
+				defaultSkin TEXT
 			);
 
 			CREATE TABLE IF NOT EXISTS Progression (
@@ -52,6 +53,22 @@ class Database {
 				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
 				expiresAt DATETIME,
 				FOREIGN KEY (user) REFERENCES User(pseudo) ON DELETE CASCADE
+			);
+
+			CREATE TABLE IF NOT EXISTS Skin (
+				gamemode TEXT,
+				id TEXT,
+				PRIMARY KEY (gamemode, id),
+				FOREIGN KEY (gamemode) REFERENCES Gamemode(id)
+			);
+
+			CREATE TABLE IF NOT EXISTS SkinUnlock (
+				gamemode TEXT,
+				skinId TEXT,
+				user TEXT,
+				PRIMARY KEY (gamemode, skinId, user),
+				FOREIGN KEY (gamemode, skinId) REFERENCES Skin(gamemode, id),
+				FOREIGN KEY (gamemode, user) REFERENCES Progression(gamemode, user)
 			);
 		`);
 	}
@@ -273,7 +290,8 @@ class Database {
 					this.db.run(
 						`
 						INSERT INTO Progression (gamemode, user, trophees)
-						SELECT id, ?, 0 FROM Gamemode
+						SELECT id, ?, 0
+						FROM Gamemode
 						`,
 						[pseudo],
 						(err) => {
@@ -380,19 +398,27 @@ class Database {
 	 * @param modeId The unique gamemode identifier.
 	 * @param name The display name of the gamemode.
 	 */
-	enshureGamemode(modeId: string, name: string): Promise<void> {
+	enshureGamemode(
+		modeId: string,
+		name: string,
+		defaultSkin: string | null = null
+	): Promise<void> {
 		return new Promise((resolve, reject) => {
 			// Insert gamemode if it doesn't exist yet
 			this.db.run(
-				"INSERT OR IGNORE INTO Gamemode (id, name) VALUES (?, ?)",
-				[modeId, name],
+				`
+				INSERT OR IGNORE INTO Gamemode (id, name, defaultSkin)
+				VALUES (?, ?, ?)
+				`,
+				[modeId, name, defaultSkin],
 				(error) => {
 					if (error) {
 						reject(error);
 						return;
 					}
 
-					// Insert 0 trophies for all users for this gamemode, ignoring if they already exist
+					// Insert 0 trophies for all users for this gamemode,
+					// ignoring if they already exist
 					this.db.run(
 						`
 						INSERT OR IGNORE INTO Progression (gamemode, user, trophees)
@@ -404,7 +430,30 @@ class Database {
 								reject(error);
 								return;
 							}
-							resolve();
+
+							if (defaultSkin === null) {
+								resolve();
+								return;
+							}
+
+							// Unlock the default skin for all users
+							this.db.run(
+								`
+								INSERT OR IGNORE INTO SkinUnlock (gamemode, skinId, user)
+								SELECT ?, ?, user
+								FROM Progression
+								WHERE gamemode = ?
+								`,
+								[modeId, defaultSkin, modeId],
+								(error) => {
+									if (error) {
+										reject(error);
+										return;
+									}
+
+									resolve();
+								}
+							);
 						}
 					);
 				}
@@ -434,6 +483,119 @@ class Database {
 		});
 	}
 
+	// ==========================================
+	// SKIN METHODS
+	// ==========================================
+
+	/**
+	 * Ensures that all given skins exist for a gamemode.
+	 * If skinIds is not empty, the first skin is assigned to all existing progressions
+	 * of the gamemode.
+	 *
+	 * @param gamemode The gamemode ID.
+	 * @param skinIds The skin IDs to register.
+	 */
+	enshureSkins(
+		gamemode: string,
+		skinIds: string[]
+	): Promise<void> {
+		return new Promise((resolve, reject) => {
+			if (skinIds.length === 0) {
+				resolve();
+				return;
+			}
+
+			this.db.serialize(() => {
+				const statement = this.db.prepare(`
+					INSERT OR IGNORE INTO Skin (gamemode, id)
+					VALUES (?, ?)
+				`);
+
+				for (const skinId of skinIds) {
+					statement.run(gamemode, skinId);
+				}
+
+				statement.finalize((err) => {
+					if (err) {
+						reject(err);
+						return;
+					}
+
+					resolve();
+				});
+
+			});
+		});
+	}
+
+	/**
+	 * Checks whether a user has unlocked a skin.
+	 *
+	 * @param gamemode The gamemode ID.
+	 * @param skinId The skin ID.
+	 * @param user The username.
+	 * @returns A promise resolving to true if the skin is unlocked.
+	 */
+	hasSkin(
+		gamemode: string,
+		skinId: string,
+		user: string
+	): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			this.db.get<{ count: number }>(
+				`
+				SELECT COUNT(*) AS count
+				FROM SkinUnlock
+				WHERE gamemode = ?
+				  AND skinId = ?
+				  AND user = ?
+				`,
+				[gamemode, skinId, user],
+				(error, row) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+
+					resolve((row?.count ?? 0) > 0);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Unlocks a skin for a user.
+	 *
+	 * @param gamemode The gamemode ID.
+	 * @param skinId The skin ID.
+	 * @param user The username.
+	 * @returns A promise resolving to true if the skin was unlocked,
+	 *          or false if it was already unlocked.
+	 */
+	giveSkin(
+		gamemode: string,
+		skinId: string,
+		user: string
+	): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			this.db.run(
+				`
+				INSERT OR IGNORE INTO SkinUnlock (gamemode, skinId, user)
+				VALUES (?, ?, ?)
+				`,
+				[gamemode, skinId, user],
+				function (error) {
+					if (error) {
+						reject(error);
+						return;
+					}
+
+					resolve(this.changes > 0);
+				}
+			);
+		});
+	}
+
 	/**
 	 * Closes the SQLite database connection gracefully.
 	 */
@@ -456,7 +618,7 @@ class Database {
 	/**
 	 * Retrieves paginated leaderboard entries.
 	 * If gamemode is null, it aggregates total trophies across all gamemodes for each user.
-	 * 
+	 *
 	 * @param gamemode The specific gamemode ID, or null to get global rankings.
 	 * @param page The pagination index (0-based).
 	 * @returns A promise resolving to an array of top players and their scores.

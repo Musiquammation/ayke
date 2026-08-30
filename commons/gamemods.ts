@@ -22,7 +22,8 @@ export const gamemods: Record<
         dom(): {produce: ()=>Uint8Array},
         textures: { [key: string]: string },
         name: string,
-        tropheesPerPlayer: number
+        tropheesPerPlayer: number,
+        skins: string[]
     }
 > = {
     test: {
@@ -31,7 +32,8 @@ export const gamemods: Record<
         dom: GMTest.generateClientDom,
         textures: GMTest.TEXTURES,
         name: "Test",
-        tropheesPerPlayer: 20
+        tropheesPerPlayer: 2,
+        skins: []
     },
 
     airbasket: {
@@ -40,8 +42,8 @@ export const gamemods: Record<
         dom: GMAirBasket.generateClientDom,
         textures: GMAirBasket.TEXTURES,
         name: "Air Basket",
-        tropheesPerPlayer: 20
-
+        tropheesPerPlayer: 20,
+        skins: ['joe', 'luck', 'kwanita', 'nooby', 'willy']
     },
 };
 
