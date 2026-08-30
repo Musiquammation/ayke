@@ -5,15 +5,20 @@ import { GMTest } from "./gamemods/GMTest";
 interface Player {
     trophees: number;
     data: Uint8Array;
+    pseudo: string | null;
 }
 
 export const gamemods: Record<
     string,
     {
-        server(players: Player[], total: number): {
+        server(
+            players: Player[],
+            total: number,
+            hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
+        ): Promise<{
             game: GameMode,
             data: Uint8Array
-        },
+        }>,
         client(entry: Uint8Array | null, total: number): {
             game: GameMode,
             data: any,
@@ -43,7 +48,7 @@ export const gamemods: Record<
         textures: GMAirBasket.TEXTURES,
         name: "Air Basket",
         tropheesPerPlayer: 20,
-        skins: ['joe', 'luck', 'kwanita', 'nooby', 'willy']
+        skins: GMAirBasket.SKINS
     },
 };
 

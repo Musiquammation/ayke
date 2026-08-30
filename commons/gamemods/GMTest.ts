@@ -72,7 +72,7 @@ export class GMTest extends GameMode {
 		);
 	}
 
-	static createServ(players: PlayerInput[], total: number) {
+	static async createServ(players: PlayerInput[], total: number) {
 		const logger = GMTest.getLogger('game-test', LOG_LEVEL);
 
 		logger.debug("Starting choices " + JSON.stringify(players.map(p => {
