@@ -182,39 +182,38 @@ class Camera {
 	x = 0;
 	y = 0;
 
-	static readonly SCALE = 1;
+	static readonly SCALE = 0.8;
 	static readonly DURATION = 0.3;
 
 	// Transition state variables
 	private startX = 0;
 	private startY = 0;
+
+	// The target position represents the center of the current chunk
 	private targetX = 0;
 	private targetY = 0;
+
 	private isTransitioning = false;
 	private t = 0;
 
 	/**
-	 * Easing function: f([0;1]) -> [0;1]
-	 * Here we use a standard "Smoothstep" (ease-in-out) function as an example.
+	 * Smooth easing function mapping [0, 1] to [0, 1].
 	 */
 	private easing(t: number): number {
-		// Clamp t just in case
-		const clampedT = Math.max(0, Math.min(1, t)); 
+		const clampedT = Math.max(0, Math.min(1, t));
 		return clampedT * clampedT * (3 - 2 * clampedT);
 	}
 
 	/**
-	 * Calculates the center coordinates of the zone the player is currently in.
+	 * Returns the center coordinates of the zone containing the given position.
 	 */
 	private getZoneCenter(px: number, py: number) {
-		// Calculate the zone index based on the player's position
-		// Since zone starts at x*W - W/2, the center is exactly at x*W
 		let zx = Math.round(px / FULL_ROOM_SIZE);
 		let zy = Math.round(py / FULL_ROOM_SIZE);
 
-		// Clamp indices to your specific bounds: x in [-2, 2] and y in [-1, 1]
+		// Clamp the zone coordinates to the valid map range
 		zx = Math.max(-2, Math.min(2, zx));
-		zy = Math.max(-1, Math.min(1, zy));
+		zy = Math.max(-2, Math.min(2, zy));
 
 		return {
 			cx: zx * FULL_ROOM_SIZE,
@@ -223,66 +222,93 @@ class Camera {
 	}
 
 	/**
-	 * Updates the camera position.
-	 * @param px Player X position
-	 * @param py Player Y position
-	 * @param dt Delta time (time elapsed since last frame, e.g., in milliseconds)
+	 * Clamps a value between a minimum and maximum value.
 	 */
+	private clamp(value: number, min: number, max: number): number {
+		return Math.max(min, Math.min(max, value));
+	}
+
 	update(px: number, py: number, dt: number) {
 		const { cx, cy } = this.getZoneCenter(px, py);
 
-		// If the calculated zone center is different from our current target,
-		// it means the player has entered a new zone.
+		// Detect a change of chunk
 		if (cx !== this.targetX || cy !== this.targetY) {
-			// Setup the new transition. 
-			// We start from the CURRENT camera position to prevent snapping 
-			// if the zone changes while another transition is already running.
 			this.startX = this.x;
 			this.startY = this.y;
+
+			// Update the target chunk
 			this.targetX = cx;
 			this.targetY = cy;
-			
-			// Reset transition timer
+
 			this.t = 0;
 			this.isTransitioning = true;
 		}
 
+		// Calculate the camera bounds for the current target chunk.
+		// SCALE affects the size of the visible area in world coordinates.
+		const viewHalfW = WIDTH / (2 * Camera.SCALE);
+		const viewHalfH = HEIGHT / (2 * Camera.SCALE);
+
+		// The camera cannot move beyond the chunk boundaries.
+		// The screen half-size is taken into account so that the camera
+		// stops when reaching the edge of the chunk.
+		const minX = this.targetX - (FULL_ROOM_SIZE / 2) + viewHalfW;
+		const maxX = this.targetX + (FULL_ROOM_SIZE / 2) - viewHalfW;
+
+		// If rooms have a different height, replace FULL_ROOM_SIZE
+		// with the appropriate room height here.
+		const minY = this.targetY - (FULL_ROOM_SIZE / 2) + viewHalfH;
+		const maxY = this.targetY + (FULL_ROOM_SIZE / 2) - viewHalfH;
+
+		// The dynamic camera target is the player position,
+		// clamped to the current chunk boundaries.
+		const desiredX = this.clamp(px, minX, maxX);
+		const desiredY = this.clamp(py, minY, maxY);
+
+		// Apply camera movement
 		if (this.isTransitioning) {
 			this.t += dt;
 
 			if (this.t >= Camera.DURATION) {
-				// Transition is over
 				this.isTransitioning = false;
-				this.x = this.targetX;
-				this.y = this.targetY;
+				this.x = desiredX;
+				this.y = desiredY;
 			} else {
-				// Apply the easing function to interpolate the camera's position
 				const progress = this.easing(this.t / Camera.DURATION);
-				
-				this.x = this.startX + (this.targetX - this.startX) * progress;
-				this.y = this.startY + (this.targetY - this.startY) * progress;
+
+				// Interpolate towards the player's clamped position.
+				// Since desiredX/Y can change while the player moves,
+				// the camera will smoothly catch up to the player.
+				this.x = this.startX + (desiredX - this.startX) * progress;
+				this.y = this.startY + (desiredY - this.startY) * progress;
 			}
 		} else {
-			// Not transitioning, tightly lock to the target
-			this.x = this.targetX;
-			this.y = this.targetY;
+			// Outside of a transition, directly follow the clamped player position.
+			this.x = desiredX;
+			this.y = desiredY;
 		}
 	}
 
-	/**
-	 * Instantly moves the camera to the player's current zone, 
-	 * breaking any ongoing transition.
-	 */
 	teleport(px: number, py: number) {
 		const { cx, cy } = this.getZoneCenter(px, py);
-		
-		// Instantly snap coordinates
-		this.x = cx;
-		this.y = cy;
-		
-		// Break the transition and update targets
+
 		this.targetX = cx;
 		this.targetY = cy;
+
+		// Recalculate the camera bounds for the instant teleport.
+		const viewHalfW = WIDTH / (2 * Camera.SCALE);
+		const viewHalfH = HEIGHT / (2 * Camera.SCALE);
+
+		const minX = cx - (FULL_ROOM_SIZE / 2) + viewHalfW;
+		const maxX = cx + (FULL_ROOM_SIZE / 2) - viewHalfW;
+		const minY = cy - (FULL_ROOM_SIZE / 2) + viewHalfH;
+		const maxY = cy + (FULL_ROOM_SIZE / 2) - viewHalfH;
+
+		// Place the camera directly at the player's clamped position.
+		this.x = this.clamp(px, minX, maxX);
+		this.y = this.clamp(py, minY, maxY);
+
+		// Cancel any ongoing transition.
 		this.isTransitioning = false;
 		this.t = 0;
 	}
@@ -857,7 +883,7 @@ export class GMTurrets extends GameMode {
 
 
 		// Draw floors
-		ctx.fillStyle = "white";
+		ctx.fillStyle = "#777";
 		for (const f of this.floors) {
 			ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
 		}
