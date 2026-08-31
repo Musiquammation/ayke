@@ -42,6 +42,16 @@ button.selected {
 	color: white;
 }
 
+button {
+	cursor: pointer;
+}
+
+button.play-disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+	filter: grayscale(1);
+}
+
 
 
 
@@ -169,3 +179,4 @@ button.selected {
 
 	font-style: italic;
 }
+

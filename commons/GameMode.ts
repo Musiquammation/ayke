@@ -122,7 +122,6 @@ export abstract class GameMode {
 
 	abstract getMobileDesc(): MobileDescriptor | null;
 
-
 	abstract createTutorial(): TutorialData;
 
 	quickEmulate(duration: number, produceFinish: boolean = false) {

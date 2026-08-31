@@ -41,7 +41,10 @@
 						<template x-for="game in games">
 							<div>
 								<span x-text="game.name"></span>
-								<button @pointerup="playGame(game.key)">Play</button>
+								<button 
+									@pointerup="playGame(game.key)"
+									:class="{ 'play-disabled': isDisabled(game.key) }"
+								>Play</button>
 							</div>
 						</template>
 					</section>

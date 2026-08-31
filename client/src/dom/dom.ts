@@ -7,6 +7,7 @@ import { deleteGameHandler } from "../handlers/GameHandler";
 import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../handlers/WaitingPlayHandler";
 import { imageLoader } from "../handlers/imageLoader";
 import { LocalGameHandler } from "../handlers/LocalGameHandler";
+import { hasNavigatorMobile, hasNavigatorMouse } from "./clientNavigatorType";
 
 declare global {
 	interface Window {
@@ -395,15 +396,27 @@ class SigninComponent {
 
 class HomeComponent {
 	private games;
+	private readonly hasMobile = hasNavigatorMobile();
+	private readonly hasMouse = hasNavigatorMouse();
 
 	constructor() {
 		this.games = Object.entries(gamemods).map(([key, gamemode]) => ({
 			key,
+			computerOnly: gamemode.computerOnly,
 			name: gamemode.name
 		}));
 	}
 
+	isDisabled(gamemode: string) {
+		return this.games.find(g => g.key === gamemode)?.computerOnly && !this.hasMouse;
+	}
+
 	playGame(gamemode: string) {
+		if (this.isDisabled(gamemode)) {
+			alert("This game is reserved to PC players");
+			return
+		}
+
 		dom.openGamePanel(gamemode);
 	}
 }

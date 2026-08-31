@@ -2,6 +2,7 @@ import protobuf from "protobufjs";
 import { initProtocols } from "../../commons/protocolLoader";
 import { dom, initDom } from "./dom/dom";
 import { sendMessage } from "./messages/sendMessage";
+import { hasNavigatorMobile, hasNavigatorMouse } from "./dom/clientNavigatorType";
 
 declare global {
 	interface Window {
@@ -21,4 +22,3 @@ export function init() {
 
 	dom.tryLoginWithKey();
 }
-
