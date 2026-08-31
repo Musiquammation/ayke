@@ -2,6 +2,7 @@ import { GameMode } from "./GameMode";
 import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMTest } from "./gamemods/GMTest";
 import { GMTestSolo } from "./gamemods/GMTestSolo";
+import { GMTurrets } from "./gamemods/GMTurrets";
 import { SoloGameMode } from "./SoloGameMode";
 
 interface Player {
@@ -57,6 +58,17 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         dom: GMAirBasket.generateClientDom,
         textures: GMAirBasket.TEXTURES,
         name: "Air Basket",
+        tropheesPerPlayer: 20,
+        computerOnly: true
+    },
+
+    turrets: {
+        type: 'multiplayer',
+        server: GMTurrets.createServ,
+        client: GMTurrets.createClient,
+        dom: GMTurrets.generateClientDom,
+        textures: GMTurrets.TEXTURES,
+        name: "Turrets",
         tropheesPerPlayer: 20,
         computerOnly: true
     },

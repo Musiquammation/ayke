@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package game_turrets;
+
+message Empty {}
+
+message Player {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+	int32 dirX = 5;
+	int32 dirY = 6;
+	float alive = 7;
+	int32 score = 8;
+}
+
+message Turret {
+	bool taken = 1;
+	bool redTeam = 2;
+}
+
+message State {
+	repeated Player players = 1;
+	repeated Turret turrets = 2;
+	float time = 3;
+}
+
+message Throw {
+	float x = 1;
+	float y = 2;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		Empty right = 2;
+		Empty left = 3;
+		Empty stop = 4;
+		Empty jump = 5;
+		Empty downOn = 6;
+		Empty downOff = 7;
+		Throw throwTarget = 8;
+		Throw throwDir = 9;
+		Empty throwAuto = 10;
+		Empty throwOff = 11;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+
+
+message StartData {
+	int32 skin = 1;
+	int32 preferTeam = 2;
+}
+
+
+
+
+message StartPlayerInfo {
+	float x = 1;
+	float y = 2;
+	bool isRed = 3;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}
