@@ -198,7 +198,7 @@ export async function setGameHandler(
 ) {
 	const factory = getMultiGmFactory(gamemode);
 
-	const protocols = getProtocol(gamemode);
+	const protocols = getProtocol(gamemode, 'multiplayer');
 	await protocols.load();
 
 	const {game, data, html} = factory.client(startData, total);

@@ -20,26 +20,26 @@ export abstract class SoloGameMode {
 		data: any
 	): Fields[];
 
-	abstract runInput(playerIdx: number, input: Fields): void;
+	abstract runInput(input: Fields): void;
 
-	protected abstract run(dt: number): number | null;
+	protected abstract run(dt: number, clock: number): number | null;
 
 	abstract draw(
 		ctx: CanvasRenderingContext2D,
-		playerIdx: number,
 		data: any,
 		imageLoader: ImageLoader,
 		dt: number
 	): void;
 
-	quickEmulate(duration: number) {
+	quickEmulate(duration: number, clock: number) {
 		while (duration > SoloGameMode.MAX_DT) {
-			const f = this.run(SoloGameMode.MAX_DT);
+			const f = this.run(SoloGameMode.MAX_DT, clock);
 			if (f) {return f;}
 			duration -= SoloGameMode.MAX_DT;
+			clock += SoloGameMode.MAX_DT;
 		}
 
-		return this.run(duration);
+		return this.run(duration, clock);
 	}
 
 	abstract getSize(): ({width: number, height: number});

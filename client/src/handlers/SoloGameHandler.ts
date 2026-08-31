@@ -4,6 +4,8 @@ import { mouseController } from "../controllers/MouseController";
 import { mobileController } from "../controllers/MobileController";
 import { dom } from "../dom/dom";
 import { imageLoader } from "./imageLoader";
+import { Fields } from "../../../commons/Fields";
+import { getProtocol } from "../../../commons/protocolLoader";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -17,7 +19,11 @@ export class SoloGameHandler {
 	private readonly gameHeight: number;
 	private readonly allowsMobile: boolean;
 
+	private inputs: Uint8Array[] = [];
+	private Input: any;
+
 	constructor(
+		private readonly gamemodeId: string,
 		private readonly gamemode: SoloGameMode,
 		private readonly data: Uint8Array
 	) {
@@ -46,9 +52,13 @@ export class SoloGameHandler {
 		}
 	}
 
-	start() {
+	async start() {
 		this.clock = 0;
 		this.lastTime = performance.now();
+
+		const protocols = getProtocol(this.gamemodeId, 'solo')
+		await protocols.load();
+		this.Input = protocols.get().Input;
 
 		requestAnimationFrame(() => this.frame());
 	}
@@ -77,7 +87,6 @@ export class SoloGameHandler {
 		// Draw the game using its native resolution.
 		this.gamemode.draw(
 			ctx,
-			0,
 			this.data,
 			imageLoader,
 			dt
@@ -123,7 +132,6 @@ export class SoloGameHandler {
 		const dt = (now - this.lastTime) / 1000;
 
 		this.lastTime = now;
-		this.clock += dt;
 
 		// Collect and apply player inputs before simulating the game.
 		const inputs = this.gamemode.collectInputs(
@@ -138,12 +146,17 @@ export class SoloGameHandler {
 		mobileController.frame();
 
 		for (const input of inputs) {
-			this.gamemode.runInput(0, input);
+			this.gamemode.runInput(input);
+			this.inputs.push(this.Input.encode({
+				...input,
+				timestamp: this.clock
+			}));
 		}
 
-		const result = this.gamemode.quickEmulate(dt);
+		const result = this.gamemode.quickEmulate(dt, this.clock);
 
 		if (result !== null) {
+			console.log(result);
 			this.interrupted = true;
 			dom.openHome();
 			return;
@@ -151,6 +164,7 @@ export class SoloGameHandler {
 
 		this.draw(dt);
 
+		this.clock += dt;
 		requestAnimationFrame(() => this.frame());
 	}
 }

@@ -28,6 +28,9 @@ export class GMTestSolo extends SoloGameMode {
 	static generateClientDom = generateClientDom;
 	static create = ()=>new GMTestSolo();
 
+	private player = 500;
+	private move = 0;
+
 	init(category: string, rng: Prando, generateClientData: boolean) {
 		if (generateClientData) {
 			return new ClientData();
@@ -35,25 +38,43 @@ export class GMTestSolo extends SoloGameMode {
 	}
 
 	collectInputs(keyboard: IKeyboardController, mouse: IMouseController, mobile: IMobileController | null, data: any) {
-		return [];
+		const inputs = [];
+
+		if (keyboard.first('up')) {
+			inputs.push({move: -300});
+		}
+
+		if (keyboard.first('down')) {
+			inputs.push({move: +300});
+		}
+
+		if (keyboard.killed('up') || keyboard.killed('down')) {
+			inputs.push({move: 0.0000000000000001});
+		}
+
+		return inputs;
 	}
 
-	runInput(playerIdx: number, input: Fields): void {
-		
+	runInput(input: Fields): void {
+		this.move = input.move;
 	}
 
-	protected run(dt: number): number | null {
+	protected run(dt: number, clock: number): number | null {
+		this.player += this.move * dt;
+		if (this.player <= 0)
+			return clock; 
+
 		return null;
 	}
 
 	override draw(
 		ctx: CanvasRenderingContext2D,
-		playerIdx: number,
 		data: any,
 		imageLoader: ImageLoader,
 		dt: number
 	): void {
-
+		ctx.fillStyle = "red";
+		ctx.fillRect(0, this.player, 1600, 10);
 	}
 
 	getSize(): ({ width: number; height: number; }) {

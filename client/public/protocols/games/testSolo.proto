@@ -3,5 +3,6 @@ syntax = "proto3";
 package game_testSolo;
 
 message Input {
-	
+    double timestamp = 1;
+    float move = 2;
 }

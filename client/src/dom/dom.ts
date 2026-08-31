@@ -173,8 +173,8 @@ class MainComponent {
 		this.currentPage = "play";
 	}
 
-	openSoloPlayComponent(game: SoloGameMode, data: Uint8Array) {
-		this.panel = new SoloPlayComponent(game, data);
+	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, data: Uint8Array) {
+		this.panel = new SoloPlayComponent(gamemodeId, game, data);
 		this.currentPage = "play";
 	}
 
@@ -277,7 +277,11 @@ class SoloGamePanelComponent {
 		dom.startLoading();
 		await imageLoader.load(factory.textures);
 		dom.stopLoading();
-		dom.openSoloPlayComponent(factory.create(), this.data.produce())
+		dom.openSoloPlayComponent(
+			this.gamemode,
+			factory.create(),
+			this.data.produce()
+		)
 	}
 
 
@@ -380,8 +384,8 @@ class SoloPlayComponent {
 	public readonly game;
 	private readonly text = "";
 
-	constructor(game: SoloGameMode, data: Uint8Array) {
-		this.game = new SoloGameHandler(game, data);
+	constructor(gamemodeId: string, game: SoloGameMode, data: Uint8Array) {
+		this.game = new SoloGameHandler(gamemodeId, game, data);
 		this.game.start();
 	}
 }
