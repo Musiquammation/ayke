@@ -15,6 +15,15 @@ export interface IMouseController {
 	killed(button: number): boolean;	
 }
 
+export interface IMobileController {
+	getDigits(): {x: number, y: number}[];
+	first(button: number | string): boolean;
+	press(button: number | string): boolean;
+	killed(button: number | string): boolean;
+	showButton(button: string): void;
+	hideButton(button: string): void;
+}
+
 export interface ILogger {
 	debug(text: string): void;
 	info(text: string): void;
@@ -86,6 +95,7 @@ export abstract class GameMode {
 	abstract collectInputs(
 		keyboard: IKeyboardController,
 		mouse: IMouseController,
+		mobile: IMobileController | null,
 		data: any
 	): Fields[];
 	abstract draw(

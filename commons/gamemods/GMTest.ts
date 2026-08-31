@@ -1,5 +1,5 @@
 import { Fields } from "../Fields";
-import { FinishGame, GameMode, IKeyboardController, IMouseController } from "../GameMode";
+import { FinishGame, GameMode, IKeyboardController, IMobileController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
@@ -165,7 +165,12 @@ export class GMTest extends GameMode {
 		}
 	}
 
-	override collectInputs(keyboard: IKeyboardController, mouse: IMouseController) {
+	override collectInputs(
+		keyboard: IKeyboardController,
+		mouse: IMouseController,
+		mobile: IMobileController | null,
+		_data: any
+	) {
 		const inputs = [];
 
 		/* Really simplified logic */

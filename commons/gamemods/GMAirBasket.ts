@@ -1,6 +1,6 @@
 import { getLogger } from "../../server/Logger";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode, IKeyboardController, IMouseController } from "../GameMode";
+import { FinishGame, GameMode, IKeyboardController, IMobileController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
 import { decodeFullMessage } from "../util/decodeFullMessage";
@@ -1309,6 +1309,7 @@ export class GMAirBasket extends GameMode {
 	override collectInputs(
 		keyboard: IKeyboardController,
 		mouse: IMouseController,
+		mobile: IMobileController | null,
 		_data: any
 	) {
 		const data = _data as ClientData;
