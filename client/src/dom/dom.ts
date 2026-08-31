@@ -22,6 +22,11 @@ interface GamePanelData {
 	produce: () => Uint8Array<ArrayBufferLike>;
 }
 
+interface SoloGamePanelData {
+	produce: () => string;
+}
+
+
 interface PlayResults {
 	results: number[][];
 	teamEqualities: number[];
@@ -132,14 +137,15 @@ class MainComponent {
 		this.currentPage = "loading";
 
 		const factory = getGmFactory(gamemode);
-		const data = factory.dom();
 		const html = await this.templateLoader.load(gamemode);
 		this.currentPage = "game-panel";
 
 		if (factory.type === 'multiplayer') {
+			const data = factory.dom();
 			this.panel = new GamePanelComponent(gamemode, data, html);
 		} else {
-			this.panel = new SoloGamePanelComponent(gamemode, data, html);
+			const category = factory.dom();
+			this.panel = new SoloGamePanelComponent(gamemode, category, html);
 		}
 
 	}
@@ -179,8 +185,8 @@ class MainComponent {
 		this.currentPage = "play";
 	}
 
-	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, data: Uint8Array) {
-		this.panel = new SoloPlayComponent(gamemodeId, game, data);
+	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, category: string) {
+		this.panel = new SoloPlayComponent(gamemodeId, game, category);
 		this.currentPage = "play";
 	}
 
@@ -270,7 +276,7 @@ class GamePanelComponent {
 class SoloGamePanelComponent {
 	constructor(
 		public readonly gamemode: string,
-		public readonly data: GamePanelData,
+		public readonly data: SoloGamePanelData,
 		public readonly htmlContent: string
 	) {}
 
@@ -390,8 +396,8 @@ class SoloPlayComponent {
 	public readonly game;
 	private readonly text = "";
 
-	constructor(gamemodeId: string, game: SoloGameMode, data: Uint8Array) {
-		this.game = new SoloGameHandler(gamemodeId, game, data);
+	constructor(gamemodeId: string, game: SoloGameMode, category: string) {
+		this.game = new SoloGameHandler(gamemodeId, game, category);
 		this.game.start();
 	}
 }

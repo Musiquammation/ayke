@@ -32,7 +32,7 @@ interface SoloFactory {
     name: string;
     computerOnly: boolean;
     textures: { [key: string]: string },
-    dom(): {produce: ()=>Uint8Array},
+    dom(): {produce: ()=>string},
     create: ()=>SoloGameMode
 }
 

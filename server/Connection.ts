@@ -6,6 +6,7 @@ import { matchmaking } from "./Matchmaking";
 import { Room, roomHandler } from "./RoomHandler";
 import { getLogger } from "./Logger";
 import { Fields } from "../commons/Fields";
+import { evalSoloRunScore } from "./evalSoloRunScore";
 
 const logger = getLogger('connection');
 // logger.setLevel('debug');
@@ -177,6 +178,24 @@ export class Connection {
 				c.sendError(3, "Failed to retrieve leaderboard");
 			}
 		},
+
+		async soloRunInputs(c, d) {
+			const pseudo = c.getPseudo();
+			const db = await database;
+
+			const score = await evalSoloRunScore(
+				d.gamemode,
+				d.category,
+				d.seed,
+				d.inputs
+			);
+
+			const logger = getLogger('solo');
+			logger.info(`${pseudo} scored ${score} in ${
+				d.gamemode} (category=${d.category})`);
+
+			// db.registerSoloRecord(d.gamemode, d.category, c.getPseudo(), score);
+		}
 	};
 
 

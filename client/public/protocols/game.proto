@@ -16,6 +16,7 @@ message ClientMessage {
 		Empty askTimeDelta = 8;
 		string deleteConnectionKey = 9;
 		AskLeaderboard askLeaderboard = 10;
+		SoloRunInputs soloRunInputs = 11;
 	}
 }
 
@@ -48,6 +49,12 @@ message AskLeaderboard {
 	int32 page = 2;
 }
 
+message SoloRunInputs {
+	string gamemode = 1;
+	string category = 2;
+	int32 seed = 3;
+	repeated bytes inputs = 4;
+}
 
 
 

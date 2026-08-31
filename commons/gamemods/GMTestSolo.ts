@@ -13,7 +13,7 @@ function generateClientDom() {
 		category: "default",
 
 		produce() {
-			return new Uint8Array();
+			return this.category;
 		}
 	};
 }

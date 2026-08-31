@@ -1,4 +1,4 @@
-import { IMouseController } from "../../../commons/GameMode";
+import { IMouseController } from "../../../commons/util/controllerInterfaces";
 
 interface ScreenCoordsAdapter {
 	evalMouseCoords(

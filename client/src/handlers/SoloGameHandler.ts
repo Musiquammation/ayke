@@ -6,6 +6,8 @@ import { dom } from "../dom/dom";
 import { imageLoader } from "./imageLoader";
 import { Fields } from "../../../commons/Fields";
 import { getProtocol } from "../../../commons/protocolLoader";
+import Prando from "prando";
+import { sendMessage } from "../messages/sendMessage";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -19,22 +21,27 @@ export class SoloGameHandler {
 	private readonly gameHeight: number;
 	private readonly allowsMobile: boolean;
 
-	private inputs: Uint8Array[] = [];
+	private readonly inputs: Uint8Array[] = [];
 	private Input: any;
+	private readonly clientData: Uint8Array;
+	private readonly seed: number;
 
 	constructor(
 		private readonly gamemodeId: string,
 		private readonly gamemode: SoloGameMode,
-		private readonly data: Uint8Array
+		private readonly category: string
 	) {
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
+		this.seed = Math.floor(Math.random() * 2_000_000_000);
+
+		this.clientData = this.gamemode.init(category, new Prando(this.seed), true);
 
 		mouseController.setScreenCoordsAdapter(
 			this.gamemode,
 			0,
-			this.data
+			this.clientData
 		);
 
 		const mobileDesc = this.gamemode.getMobileDesc();
@@ -45,7 +52,7 @@ export class SoloGameHandler {
 			mobileController.setScreenCoordsAdapter(
 				this.gamemode,
 				0,
-				this.data
+				this.clientData
 			);
 		} else {
 			this.allowsMobile = false;
@@ -87,7 +94,7 @@ export class SoloGameHandler {
 		// Draw the game using its native resolution.
 		this.gamemode.draw(
 			ctx,
-			this.data,
+			this.clientData,
 			imageLoader,
 			dt
 		);
@@ -138,7 +145,7 @@ export class SoloGameHandler {
 			keyboardController,
 			mouseController,
 			this.allowsMobile ? mobileController : null,
-			this.data
+			this.clientData
 		);
 
 		keyboardController.frame();
@@ -150,12 +157,20 @@ export class SoloGameHandler {
 			this.inputs.push(this.Input.encode({
 				...input,
 				timestamp: this.clock
-			}));
+			}).finish());
 		}
 
 		const result = this.gamemode.quickEmulate(dt, this.clock);
 
 		if (result !== null) {
+			sendMessage({
+				soloRunInputs: {
+					gamemode: this.gamemodeId,
+					category: this.category,
+					seed: this.seed,
+					inputs: this.inputs
+				}
+			});
 			dom.openSoloComponent(result);
 			this.interrupted = true;
 			return;
