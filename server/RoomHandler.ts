@@ -3,7 +3,7 @@ import { FinishGame, GameMode } from "../commons/GameMode";
 import { Connection } from "./Connection";
 import { getLogger } from "./Logger";
 import { Fields } from "../commons/Fields";
-import { gamemods } from "../commons/gamemods";
+import { gamemods, getMultiGmFactory } from "../commons/gamemods";
 import { getProtocol } from "../commons/protocolLoader";
 import { pushSortedArrays } from "../commons/util/mergeSortedArrays";
 import { minBy } from "../commons/util/minBy";
@@ -93,7 +93,7 @@ export class Room {
 		this.gamemode.init();
 		this.latestData = this.gamemode.save();
 
-		const gdata = getProtocol(this.gamemodeId).get().ServerMessage.encode({
+		const gdata = getProtocol(this.gamemodeId, 'multiplayer').get().ServerMessage.encode({
 			timestamp: this.players[this.latestUser].lastClientDate,
 			state: this.latestData,
 			inputs: [],
@@ -134,7 +134,7 @@ export class Room {
 		const {
 			ClientMessage,
 			ServerMessage
-		} = getProtocol(this.gamemodeId).get();
+		} = getProtocol(this.gamemodeId, 'multiplayer').get();
 
 		const data = decodeFullMessage(ClientMessage.decode(encryptedData));
 
@@ -307,7 +307,7 @@ export class Room {
 				};
 			}
 
-			const tropheesPerPlayer = gamemods[this.gamemodeId].tropheesPerPlayer;
+			const tropheesPerPlayer = getMultiGmFactory(this.gamemodeId).tropheesPerPlayer;
 			const trophees = evalWonTrophees(finish).map((t, idx) => (
 				Math.floor(t*tropheesPerPlayer)
 			));
@@ -393,11 +393,7 @@ class RoomHandler {
 	private readonly rooms: Room[] = [];
 
 	append(gamemode: string, total: number, players: PlayerInput[]) {
-		const factory = gamemods[gamemode];
-		if (!factory) {
-			logger.error(`Invalid gamemode '${gamemode}'`);
-			return;
-		}
+		const factory = getMultiGmFactory(gamemode);
 
 		// Check players are'nt in a room
 		for (const player of players) {
