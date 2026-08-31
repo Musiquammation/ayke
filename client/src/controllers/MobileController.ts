@@ -82,7 +82,7 @@ export class MobileController implements IMobileController {
 	}
 
 	// Helper to resolve anchored coordinates to absolute screen pixels
-	private resolvePosition(
+	private resolveJoyPosition(
 		el: { x: number; xp: string; y: number; yp: string; size: number },
 		screenWidth: number,
 		screenHeight: number
@@ -106,6 +106,32 @@ export class MobileController implements IMobileController {
 		}
 
 		return { centerX, centerY, radius: el.size / 2 };
+	}
+
+	private resolveBtnPosition(
+		el: { x: number; xp: string; y: number; yp: string; size: number },
+		screenWidth: number,
+		screenHeight: number
+	): { centerX: number; centerY: number; size: number } {
+		let centerX = 0;
+		if (el.xp === 'right') {
+			centerX = screenWidth - el.x;
+		} else if (el.xp === 'ratio') {
+			centerX = el.x * screenWidth;
+		} else { // 'left'
+			centerX = el.x;
+		}
+
+		let centerY = 0;
+		if (el.yp === 'bottom') {
+			centerY = screenHeight - el.y;
+		} else if (el.yp === 'ratio') {
+			centerY = el.y * screenHeight;
+		} else { // 'top'
+			centerY = el.y;
+		}
+
+		return { centerX, centerY, size: el.size };
 	}
 
 	// Transform screen coordinates to internal game coordinates via scale & letterbox logic
@@ -149,11 +175,20 @@ export class MobileController implements IMobileController {
 			for (const [key, btn] of Object.entries(mobileData.buttons)) {
 				if (this.hiddenButtons.has(key)) continue;
 
-				const { centerX, centerY, radius } = this.resolvePosition(btn, screenWidth, screenHeight);
-				const dx = screenX - centerX;
-				const dy = screenY - centerY;
+				const { centerX, centerY, size } = this.resolveBtnPosition(
+					btn,
+					screenWidth,
+					screenHeight
+				);
 
-				if (dx * dx + dy * dy <= radius * radius) {
+				const halfSize = size / 2;
+
+				if (
+					screenX >= centerX - halfSize &&
+					screenX <= centerX + halfSize &&
+					screenY >= centerY - halfSize &&
+					screenY <= centerY + halfSize
+				) {
 					return key;
 				}
 			}
@@ -164,7 +199,7 @@ export class MobileController implements IMobileController {
 			for (const [key, joy] of Object.entries(mobileData.joysticks)) {
 				if (this.hiddenButtons.has(key)) continue;
 
-				const { centerX, centerY, radius } = this.resolvePosition(joy, screenWidth, screenHeight);
+				const { centerX, centerY, radius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
 				const dx = screenX - centerX;
 				const dy = screenY - centerY;
 
@@ -199,7 +234,7 @@ export class MobileController implements IMobileController {
 				const joyKey = touch.target;
 				const joy = mobileData.joysticks[joyKey];
 
-				const { centerX, centerY, radius: maxRadius } = this.resolvePosition(joy, screenWidth, screenHeight);
+				const { centerX, centerY, radius: maxRadius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
 
 				const dx = touch.screenX - centerX;
 				const dy = touch.screenY - centerY;
@@ -239,7 +274,7 @@ export class MobileController implements IMobileController {
 			for (const [key, joy] of Object.entries(mobileData.joysticks)) {
 				if (this.hiddenButtons.has(key)) continue;
 
-				const { centerX, centerY, radius } = this.resolvePosition(joy, screenWidth, screenHeight);
+				const { centerX, centerY, radius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
 				const values = this.getJoystick(key);
 
 				// Outer Ring / Base
@@ -268,20 +303,36 @@ export class MobileController implements IMobileController {
 			for (const [key, btn] of Object.entries(mobileData.buttons)) {
 				if (this.hiddenButtons.has(key)) continue;
 
-				const { centerX, centerY, radius } = this.resolvePosition(btn, screenWidth, screenHeight);
+				const { centerX, centerY, size } = this.resolveBtnPosition(
+					btn,
+					screenWidth,
+					screenHeight
+				);
+
 				const isPressed = this.press(key);
 
+				const halfSize = size / 2;
+				const radius = size * 0.2;
+
 				ctx.beginPath();
-				ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-				ctx.fillStyle = isPressed ? btn.color : btn.color + "66"; // Full opacity when pressed
+				ctx.roundRect(
+					centerX - halfSize,
+					centerY - halfSize,
+					size,
+					size,
+					radius
+				);
+
+				ctx.fillStyle = isPressed ? btn.color : btn.color + "66";
 				ctx.fill();
+
 				ctx.lineWidth = 2;
 				ctx.strokeStyle = "#FFFFFF";
 				ctx.stroke();
 
 				// Button Label
 				ctx.fillStyle = "#FFFFFF";
-				ctx.font = `bold ${Math.round(radius * 0.6)}px sans-serif`;
+				ctx.font = `bold ${Math.round(size * 0.3)}px sans-serif`;
 				ctx.textAlign = "center";
 				ctx.textBaseline = "middle";
 				ctx.fillText(key.toUpperCase(), centerX, centerY);

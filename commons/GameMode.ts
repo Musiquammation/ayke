@@ -18,6 +18,7 @@ export interface IMouseController {
 
 export interface IMobileController {
 	getDigits(): {x: number, y: number, id: number}[];
+	getJoystick(joy: string): {x: number, y: number};
 	first(button: number | string): boolean;
 	press(button: number | string): boolean;
 	killed(button: number | string): boolean;

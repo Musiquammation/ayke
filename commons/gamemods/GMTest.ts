@@ -190,7 +190,7 @@ export class GMTest extends GameMode {
 	
 		
 		if (mobile) {
-			console.log(JSON.stringify(mobile.getDigits()), mobile.first('up'), mobile.press('up'));
+			console.log(JSON.stringify(mobile.getDigits()), mobile.first('up'), mobile.press('up'), mobile.press('joy'), mobile.getJoystick('joy'));
 		}
 
 		return inputs;
@@ -240,7 +240,16 @@ export class GMTest extends GameMode {
 
 	override getMobileDesc(): MobileDescriptor {
 		return {
-			joysticks: {},
+			joysticks: {
+				joy: {
+					x: 100,
+					xp: 'left',
+					y: 120,
+					yp: 'bottom',
+					size: 100,
+					color: "#00ff00"
+				}
+			},
 
 			buttons: {
 				up: {
@@ -249,7 +258,7 @@ export class GMTest extends GameMode {
 					y: 120,
 					yp: 'bottom',
 					size: 50,
-					color: '#ff0000'
+					color: "#ff0000"
 				},
 
 				down: {
@@ -258,7 +267,7 @@ export class GMTest extends GameMode {
 					y: 70,
 					yp: 'bottom',
 					size: 50,
-					color: '#ff0000'
+					color: "#ff0000"
 				},
 			}
 		};
