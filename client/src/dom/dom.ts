@@ -1,5 +1,5 @@
 import Alpine from "alpinejs";
-import { gamemods, getMultiGmFactory } from "../../../commons/gamemods";
+import { gamemods, getGmFactory, getMultiGmFactory, getSoloGmFactory } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
 import { sendMessage } from "../messages/sendMessage";
 import { escapeHTML } from "../../../commons/util/escapeHTML";
@@ -8,6 +8,8 @@ import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../handlers/Wa
 import { imageLoader } from "../handlers/imageLoader";
 import { LocalGameHandler } from "../handlers/LocalGameHandler";
 import { hasNavigatorMobile, hasNavigatorMouse } from "./clientNavigatorType";
+import { SoloGameMode } from "../../../commons/SoloGameMode";
+import { SoloGameHandler } from "../handlers/SoloGameHandler";
 
 declare global {
 	interface Window {
@@ -44,9 +46,11 @@ class MainComponent {
 
 	panel: (
 		GamePanelComponent |
+		SoloGamePanelComponent |
 		WaitPlayPanelComponent |
 		PlayResultsComponent |
 		PlayComponent |
+		SoloPlayComponent |
 		LoginComponent |
 		SigninComponent |
 		HomeComponent |
@@ -126,11 +130,17 @@ class MainComponent {
 	async openGamePanel(gamemode: string) {
 		this.currentPage = "loading";
 
-		const factory = getMultiGmFactory(gamemode);
+		const factory = getGmFactory(gamemode);
 		const data = factory.dom();
 		const html = await this.templateLoader.load(gamemode);
-		this.panel = new GamePanelComponent(gamemode, data, html);
 		this.currentPage = "game-panel";
+
+		if (factory.type === 'multiplayer') {
+			this.panel = new GamePanelComponent(gamemode, data, html);
+		} else {
+			this.panel = new SoloGamePanelComponent(gamemode, data, html);
+		}
+
 	}
 
 	async openWaitPlayPanel(gamemode: string) {
@@ -160,6 +170,11 @@ class MainComponent {
 		this.panel = new TutorialInplayComponent(
 			new LocalGameHandler(gamemode)
 		);
+		this.currentPage = "play";
+	}
+
+	openSoloPlayComponent(game: SoloGameMode, data: Uint8Array) {
+		this.panel = new SoloPlayComponent(game, data);
 		this.currentPage = "play";
 	}
 
@@ -244,6 +259,28 @@ class GamePanelComponent {
 
 		dom.openTutorialInPlay(this.gamemode);
 	}
+}
+
+class SoloGamePanelComponent {
+	constructor(
+		public readonly gamemode: string,
+		public readonly data: GamePanelData,
+		public readonly htmlContent: string
+	) {}
+
+	uses(gamemode: string) {
+		return this.gamemode === gamemode;
+	}
+
+	async play() {
+		const factory = getSoloGmFactory(this.gamemode);
+		dom.startLoading();
+		await imageLoader.load(factory.textures);
+		dom.stopLoading();
+		dom.openSoloPlayComponent(factory.create(), this.data.produce())
+	}
+
+
 }
 
 class WaitPlayPanelComponent {
@@ -336,6 +373,16 @@ class PlayComponent {
 	 */
 	createPlayResults(results: PlayResults) {
 		return new PlayResultsComponent(results, this.pseudos, this.me);
+	}
+}
+
+class SoloPlayComponent {
+	public readonly game;
+	private readonly text = "";
+
+	constructor(game: SoloGameMode, data: Uint8Array) {
+		this.game = new SoloGameHandler(game, data);
+		this.game.start();
 	}
 }
 

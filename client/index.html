@@ -68,7 +68,9 @@
 					<h1 x-text="gamemode"></h1>
 					<div x-ref="gamePanel" x-html="htmlContent"></div>
 					<button x-on:click="play()">Play</button>
-					<button x-on:click="tutorial()">Tutorial</button>
+					<template x-if="typeof tutorial === 'function'">
+						<button x-on:click="tutorial()">Tutorial</button>
+					</template>
 				</div>
 			</template>
 

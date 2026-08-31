@@ -1,6 +1,8 @@
 import Prando from "prando";
 import { IKeyboardController, IMobileController, IMouseController } from "./util/controllerInterfaces";
 import { Fields } from "./Fields";
+import { ImageLoader } from "./util/ImageLoader";
+import { MobileDescriptor } from "../client/src/controllers/MobileController";
 
 export abstract class SoloGameMode {
 	public static readonly MAX_DT = 0.020; // 20ms
@@ -20,15 +22,34 @@ export abstract class SoloGameMode {
 
 	abstract runInput(playerIdx: number, input: Fields): void;
 
-	protected abstract run(dt: number, produceFinish: boolean): number | null;
+	protected abstract run(dt: number): number | null;
 
-	quickEmulate(duration: number, produceFinish: boolean = false) {
+	abstract draw(
+		ctx: CanvasRenderingContext2D,
+		playerIdx: number,
+		data: any,
+		imageLoader: ImageLoader,
+		dt: number
+	): void;
+
+	quickEmulate(duration: number) {
 		while (duration > SoloGameMode.MAX_DT) {
-			const f = this.run(SoloGameMode.MAX_DT, produceFinish);
-			if (f && produceFinish) {return f;}
+			const f = this.run(SoloGameMode.MAX_DT);
+			if (f) {return f;}
 			duration -= SoloGameMode.MAX_DT;
 		}
 
-		return this.run(duration, produceFinish);
+		return this.run(duration);
 	}
+
+	abstract getSize(): ({width: number, height: number});
+	
+	abstract evalMouseCoords(
+		x: number,
+		y: number,
+		playerIdx: number,
+		clientData: any
+	): {x: number, y: number};
+
+	abstract getMobileDesc(): MobileDescriptor | null;
 }

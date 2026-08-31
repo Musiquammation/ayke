@@ -2,6 +2,7 @@ import { GameMode } from "./GameMode";
 import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMTest } from "./gamemods/GMTest";
 import { GMTestSolo } from "./gamemods/GMTestSolo";
+import { SoloGameMode } from "./SoloGameMode";
 
 interface Player {
     trophees: number;
@@ -30,7 +31,9 @@ interface SoloFactory {
     type: 'solo';
     name: string;
     computerOnly: boolean;
+    textures: { [key: string]: string },
     dom(): {produce: ()=>Uint8Array},
+    create: ()=>SoloGameMode
 }
 
 export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
@@ -60,7 +63,9 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
 		type: 'solo',
 		name: "Test Solo",
 		computerOnly: false,
-		dom: GMTestSolo.generateClientDom
+		dom: GMTestSolo.generateClientDom,
+        textures: GMTestSolo.TEXTURES,
+        create: GMTestSolo.create
 	}
 };
 
@@ -78,6 +83,15 @@ export function getMultiGmFactory(gamemode: string) {
 export function getSoloGmFactory(gamemode: string) {
     const factory = gamemods[gamemode];
     if (!factory || factory.type !== 'solo') {
+        throw new Error(`Invalid gamemode '${gamemode}'`);
+    }
+
+    return factory;
+}
+
+export function getGmFactory(gamemode: string) {
+    const factory = gamemods[gamemode];
+    if (!factory) {
         throw new Error(`Invalid gamemode '${gamemode}'`);
     }
 
