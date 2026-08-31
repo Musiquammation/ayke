@@ -1,3 +1,4 @@
+import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { getLogger } from "../../server/Logger";
 import { Fields } from "../Fields";
 import { FinishGame, GameMode, IKeyboardController, IMobileController, IMouseController } from "../GameMode";
@@ -1818,7 +1819,10 @@ export class GMAirBasket extends GameMode {
 		clientData.mouseY = ret.y;
 
 		return ret;
+	}
 
+	override getMobileDesc() {
+		return null;
 	}
 
 

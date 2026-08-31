@@ -1,7 +1,8 @@
 import { GameMode } from "../../../commons/GameMode";
-import { gamemods, getGmFactory } from "../../../commons/gamemods";
+import { getGmFactory } from "../../../commons/gamemods";
 import { keyboardController } from "../controllers/KeyboardController";
 import { mouseController } from "../controllers/MouseController";
+import { mobileController } from "../controllers/MobileController";
 import { dom } from "../dom/dom";
 import { imageLoader } from "./imageLoader";
 
@@ -17,9 +18,10 @@ export class LocalGameHandler {
 	private readonly clientData;
 	private readonly gameWidth: number;
 	private readonly gameHeight: number;
+	private readonly allowsMobile;
 
 	constructor(gamemodeId: string) {
-		const factory = getGmFactory(gamemodeId);	
+		const factory = getGmFactory(gamemodeId);
 
 		const {game, data, html} = factory.client(null, 2);
 		const gameHtml = document.getElementById("game-html")!;
@@ -28,10 +30,24 @@ export class LocalGameHandler {
 		this.gamemode = game;
 		this.tutorial = this.gamemode.createTutorial();
 		this.clientData = data;
+
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
+
 		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
+
+		const mobileDesc = this.gamemode.getMobileDesc();
+		if (mobileDesc) {
+			this.allowsMobile = true;
+			mobileController.setScreenCoordsAdapter(
+				this.gamemode,
+				0,
+				data
+			);
+		} else {
+			this.allowsMobile = false;
+		}
 	}
 
 	start() {
@@ -81,6 +97,10 @@ export class LocalGameHandler {
 			ctx.fillRect(0, 0, canvas.width, offsetY); // Top bar
 			ctx.fillRect(0, canvas.height - offsetY, canvas.width, offsetY); // Bottom bar
 		}
+
+		if (this.allowsMobile) {
+			mobileController.draw(ctx);
+		}
 	}
 
 	private frame() {
@@ -95,12 +115,13 @@ export class LocalGameHandler {
 		const inputs = this.gamemode.collectInputs(
 			keyboardController,
 			mouseController,
+			this.allowsMobile ? mobileController : null,
 			this.clientData
 		);
 
 		keyboardController.frame();
 		mouseController.frame();
-
+		mobileController.frame();
 
 		for (const input of inputs) {
 			this.gamemode.runInput(0, input);

@@ -9,6 +9,7 @@ import { dom } from "../dom/dom";
 import { getProtocol, ProtocolTypes } from "../../../commons/protocolLoader";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { imageLoader } from "./imageLoader";
+import { mobileController } from "../controllers/MobileController";
 
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
@@ -47,6 +48,7 @@ class GameHandler {
 	private readonly gameWidth: number;
 	private readonly gameHeight: number;
 	private prevDraw: number | null = null;
+	private readonly allowsMobile;
 
 	constructor(
 		private readonly gamemodeId: string,
@@ -59,6 +61,14 @@ class GameHandler {
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
 		mouseController.setScreenCoordsAdapter(this.gamemode, playerIdx, clientData);
+
+		const mobileDesc = this.gamemode.getMobileDesc();
+		if (mobileDesc) {
+			this.allowsMobile = true;
+			mobileController.setScreenCoordsAdapter(gamemode, playerIdx, clientData);
+		} else {
+			this.allowsMobile = false;
+		}
 	}
 
 	receive(gdata: Uint8Array) {
@@ -131,6 +141,10 @@ class GameHandler {
 			ctx.fillRect(0, 0, canvas.width, offsetY); // Top bar
 			ctx.fillRect(0, canvas.height - offsetY, canvas.width, offsetY); // Bottom bar
 		}
+
+		if (this.allowsMobile) {
+			mobileController.draw(ctx);
+		}
 	}
 
 	frame() {
@@ -139,12 +153,14 @@ class GameHandler {
 		const newInputs = this.gamemode.collectInputs(
 			keyboardController,
 			mouseController,
+			this.allowsMobile ? mobileController : null,
 			this.clientData
 		).map(data => ({...data, timestamp: now}));
 		this.userInputs.push(...newInputs);
 
 		keyboardController.frame();
 		mouseController.frame();
+		mobileController.frame();
 
 		this.gamemode.emulate(
 			this.lastEmulation,

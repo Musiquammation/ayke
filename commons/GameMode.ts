@@ -1,6 +1,7 @@
 import protobuf from "protobufjs";
 import { Fields } from "./Fields";
 import { ImageLoader } from "./util/ImageLoader";
+import { MobileDescriptor } from "../client/src/controllers/MobileController";
 
 export interface IKeyboardController {
 	first(key: string): boolean;
@@ -16,7 +17,7 @@ export interface IMouseController {
 }
 
 export interface IMobileController {
-	getDigits(): {x: number, y: number}[];
+	getDigits(): {x: number, y: number, id: number}[];
 	first(button: number | string): boolean;
 	press(button: number | string): boolean;
 	killed(button: number | string): boolean;
@@ -116,7 +117,11 @@ export abstract class GameMode {
 		y: number,
 		playerIdx: number,
 		clientData: any
-		): {x: number, y: number};
+	): {x: number, y: number};
+
+	abstract getMobileDesc(): MobileDescriptor | null;
+
+
 	abstract createTutorial(): TutorialData;
 
 	quickEmulate(duration: number, produceFinish: boolean = false) {

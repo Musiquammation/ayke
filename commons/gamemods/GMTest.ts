@@ -1,3 +1,4 @@
+import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
 import { FinishGame, GameMode, IKeyboardController, IMobileController, IMouseController } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
@@ -186,7 +187,11 @@ export class GMTest extends GameMode {
 		if (keyboard.killed('up') || keyboard.killed('down')) {
 			inputs.push({move: 0.0000000000000001});
 		}
+	
 		
+		if (mobile) {
+			console.log(JSON.stringify(mobile.getDigits()), mobile.first('up'), mobile.press('up'));
+		}
 
 		return inputs;
 	}
@@ -231,6 +236,32 @@ export class GMTest extends GameMode {
 
 	override evalMouseCoords(x: number, y: number) {
 		return {x,y};
+	}
+
+	override getMobileDesc(): MobileDescriptor {
+		return {
+			joysticks: {},
+
+			buttons: {
+				up: {
+					x: 50,
+					xp: 'right',
+					y: 120,
+					yp: 'bottom',
+					size: 50,
+					color: '#ff0000'
+				},
+
+				down: {
+					x: 50,
+					xp: 'right',
+					y: 70,
+					yp: 'bottom',
+					size: 50,
+					color: '#ff0000'
+				},
+			}
+		};
 	}
 
 	override createTutorial() {
