@@ -1,5 +1,5 @@
 import Alpine from "alpinejs";
-import { gamemods, getGmFactory } from "../../../commons/gamemods";
+import { gamemods, getMultiGmFactory } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
 import { sendMessage } from "../messages/sendMessage";
 import { escapeHTML } from "../../../commons/util/escapeHTML";
@@ -126,7 +126,7 @@ class MainComponent {
 	async openGamePanel(gamemode: string) {
 		this.currentPage = "loading";
 
-		const factory = getGmFactory(gamemode);
+		const factory = getMultiGmFactory(gamemode);
 		const data = factory.dom();
 		const html = await this.templateLoader.load(gamemode);
 		this.panel = new GamePanelComponent(gamemode, data, html);
@@ -220,7 +220,7 @@ class GamePanelComponent {
 	}
 
 	async play() {
-		const factory = getGmFactory(this.gamemode);
+		const factory = getMultiGmFactory(this.gamemode);
 		dom.startLoading();
 		await imageLoader.load(factory.textures);
 		dom.stopLoading();
@@ -236,7 +236,7 @@ class GamePanelComponent {
 	}
 
 	async tutorial() {
-		const factory = getGmFactory(this.gamemode);
+		const factory = getMultiGmFactory(this.gamemode);
 
 		dom.startLoading();
 		await imageLoader.load(factory.textures);

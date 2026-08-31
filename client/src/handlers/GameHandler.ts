@@ -1,6 +1,6 @@
 import { Fields } from "../../../commons/Fields";
 import { GameMode } from "../../../commons/GameMode";
-import { gamemods, getGmFactory } from "../../../commons/gamemods";
+import { gamemods, getMultiGmFactory } from "../../../commons/gamemods";
 import { getNow, msgtypes } from "../messages/sendMessage";
 import { keyboardController } from "../controllers/KeyboardController"
 import { mouseController } from "../controllers/MouseController"
@@ -196,7 +196,7 @@ export async function setGameHandler(
 	startData: Uint8Array,
 	total: number
 ) {
-	const factory = getGmFactory(gamemode);
+	const factory = getMultiGmFactory(gamemode);
 
 	const protocols = getProtocol(gamemode);
 	await protocols.load();

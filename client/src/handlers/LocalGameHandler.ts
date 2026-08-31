@@ -1,5 +1,5 @@
 import { GameMode } from "../../../commons/GameMode";
-import { getGmFactory } from "../../../commons/gamemods";
+import { getMultiGmFactory } from "../../../commons/gamemods";
 import { keyboardController } from "../controllers/KeyboardController";
 import { mouseController } from "../controllers/MouseController";
 import { mobileController } from "../controllers/MobileController";
@@ -21,7 +21,7 @@ export class LocalGameHandler {
 	private readonly allowsMobile;
 
 	constructor(gamemodeId: string) {
-		const factory = getGmFactory(gamemodeId);
+		const factory = getMultiGmFactory(gamemodeId);
 
 		const {game, data, html} = factory.client(null, 2);
 		const gameHtml = document.getElementById("game-html")!;

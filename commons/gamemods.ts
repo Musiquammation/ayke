@@ -66,7 +66,7 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
 
 
 
-export function getGmFactory(gamemode: string) {
+export function getMultiGmFactory(gamemode: string) {
     const factory = gamemods[gamemode];
     if (!factory || factory.type !== 'multiplayer') {
         throw new Error(`Invalid gamemode '${gamemode}'`);
