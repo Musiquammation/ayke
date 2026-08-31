@@ -7,6 +7,7 @@ type ProtocolLoaderFn = (name: string) => Promise<protobuf.Root>;
 
 // Interface defining the expected message types for a game
 export interface ProtocolTypes {
+	type: 'multiplayer';
 	ServerMessage: protobuf.Type;
 	ClientMessage: protobuf.Type;
 	StartData: protobuf.Type;
@@ -15,10 +16,15 @@ export interface ProtocolTypes {
 	Input: protobuf.Type;
 }
 
+export interface SoloProtocolTypes {
+	type: 'solo';
+	Input: protobuf.Type;
+}
+
 // Internal state
 let protocolLoader: ProtocolLoaderFn | null = null;
 // The cache now stores the resolved types directly for maximum performance on get()
-const loadedProtocols = new Map<string, ProtocolTypes>();
+const loadedProtocols = new Map<string, ProtocolTypes | SoloProtocolTypes>();
 
 /**
  * Initializes the protocol loader mechanism.
@@ -28,35 +34,47 @@ export function initProtocols(loader: ProtocolLoaderFn): void {
 	protocolLoader = loader;
 
 	for (const name in gamemods) {
-		getProtocol(name).load();
+		const type = gamemods[name].type;
+		getProtocol(name, type).load();
 	}
 }
 
-/**
- * Returns a protocol manager for a specific game name.
- * @param name The name of the game/protocol
- */
-export function getProtocol(name: string) {
+export function getProtocol(name: string, type: 'multiplayer'): {
+	load(): Promise<void>;
+	get(): ProtocolTypes;
+};
+
+export function getProtocol(name: string, type: 'solo'): {
+	load(): Promise<void>;
+	get(): SoloProtocolTypes;
+};
+
+export function getProtocol(name: string, type: 'solo' | 'multiplayer'): {
+	load(): Promise<void>;
+	get(): ProtocolTypes | SoloProtocolTypes;
+};
+
+export function getProtocol(name: string, type: 'solo' | 'multiplayer') {
 	return {
-		/**
-		 * Asynchronously loads the protocol and caches the resolved types.
-		 * Should be called once during game initialization.
-		 */
 		async load(): Promise<void> {
 			if (!protocolLoader) {
-				throw new Error('Protocol loader is not initialized. Call initProtocols first.');
+				throw new Error(
+					'Protocol loader is not initialized. Call initProtocols first.'
+				);
 			}
-			
+
 			if (loadedProtocols.has(name)) {
-				return; // Types are already loaded and cached
+				return;
 			}
-			
-			try {
-				const root = await protocolLoader(name);
-				const namespace = `game_${name}`;
-				
-				// Perform lookupType operations ONCE during load
-				const resolvedTypes: ProtocolTypes = {
+
+			const root = await protocolLoader(name);
+			const namespace = `game_${name}`;
+
+			let resolvedTypes: ProtocolTypes | SoloProtocolTypes;
+
+			if (type === 'multiplayer') {
+				resolvedTypes = {
+					type: 'multiplayer',
 					ServerMessage: root.lookupType(`${namespace}.ServerMessage`),
 					ClientMessage: root.lookupType(`${namespace}.ClientMessage`),
 					StartData: root.lookupType(`${namespace}.StartData`),
@@ -64,24 +82,23 @@ export function getProtocol(name: string) {
 					State: root.lookupType(`${namespace}.State`),
 					Input: root.lookupType(`${namespace}.Input`),
 				};
-				
-				loadedProtocols.set(name, resolvedTypes);
-			} catch (error) {
-				throw error;
+			} else {
+				resolvedTypes = {
+					type: 'solo',
+					Input: root.lookupType(`${namespace}.Input`),
+				};
 			}
+
+			loadedProtocols.set(name, resolvedTypes);
 		},
 
-		/**
-		 * Synchronously retrieves the cached protobuf message types.
-		 * Super fast, safe to call frequently in a hot path (e.g., game loop).
-		 * Throws an error if the protocol has not been loaded yet.
-		 */
-		get(): ProtocolTypes {
+		get() {
 			const types = loadedProtocols.get(name);
-			
+
 			if (!types) {
-				const errMsg = `Protocol '${name}' is not loaded. Make sure to await load() before calling get().`;
-				throw new Error(errMsg);
+				throw new Error(
+					`Protocol '${name}' is not loaded. Make sure to await load() before calling get().`
+				);
 			}
 
 			return types;

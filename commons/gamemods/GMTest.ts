@@ -1,11 +1,12 @@
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode, IKeyboardController, IMobileController, IMouseController } from "../GameMode";
+import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
+import { FinishGame, GameMode} from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
 
-const protocols = getProtocol('test');
+const protocols = getProtocol('test', 'multiplayer');
 
 interface PlayerInput {
 	data: Uint8Array;

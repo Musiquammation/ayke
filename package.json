@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "alpinejs": "^3.16.2",
+    "prando": "^6.0.1",
     "protobufjs": "^8.7.2",
     "sqlite3": "^6.0.1",
     "tsx": "^4.23.12",

@@ -1,13 +1,14 @@
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { getLogger } from "../../server/Logger";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode, IKeyboardController, IMobileController, IMouseController } from "../GameMode";
+import { FinishGame, GameMode } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
+import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
 
-const protocols = getProtocol('airbasket');
+const protocols = getProtocol('airbasket', 'multiplayer');
 
 interface PlayerInput {
 	data: Uint8Array;
