@@ -139,6 +139,16 @@
 				</div>
 			</template>
 
+			<template x-if="uses('play-solo-results')">
+				<div x-data="panel">
+					<div>
+						<span>Score: </span>
+						<span x-text="result"></span>
+					</div>
+					<button @pointerup="returnHome()">Return home</button>
+				</div>
+			</template>
+
 			<!-- Login Page Template -->
 			<template x-if="uses('login')">
 				<div id="login-page" class="page">

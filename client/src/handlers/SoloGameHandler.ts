@@ -156,9 +156,8 @@ export class SoloGameHandler {
 		const result = this.gamemode.quickEmulate(dt, this.clock);
 
 		if (result !== null) {
-			console.log(result);
+			dom.openSoloComponent(result);
 			this.interrupted = true;
-			dom.openHome();
 			return;
 		}
 

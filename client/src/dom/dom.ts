@@ -49,6 +49,7 @@ class MainComponent {
 		SoloGamePanelComponent |
 		WaitPlayPanelComponent |
 		PlayResultsComponent |
+		SoloPlayResultComponent |
 		PlayComponent |
 		SoloPlayComponent |
 		LoginComponent |
@@ -164,6 +165,11 @@ class MainComponent {
 		this.panel = playPanel.createPlayResults(results);
 		this.currentPage = "play-results";
 		deleteGameHandler();
+	}
+
+	openSoloComponent(result: number) {
+		this.panel = new SoloPlayResultComponent(result);
+		this.currentPage = "play-solo-results";
 	}
 
 	openTutorialInPlay(gamemode: string) {
@@ -410,6 +416,17 @@ class PlayResultsComponent {
 	}
 }
 
+class SoloPlayResultComponent {
+	constructor(
+		readonly result: number
+	) {
+
+	}
+
+	returnHome() {
+		dom.openHome();
+	}
+}
 
 // Component handling the login form logic
 class LoginComponent {
