@@ -32,6 +32,8 @@ interface SoloFactory {
     name: string;
     computerOnly: boolean;
     textures: { [key: string]: string },
+    categories: string[],
+    minFirst: boolean,
     dom(): {produce: ()=>string},
     create: ()=>SoloGameMode
 }
@@ -65,6 +67,8 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
 		computerOnly: false,
 		dom: GMTestSolo.generateClientDom,
         textures: GMTestSolo.TEXTURES,
+        categories: GMTestSolo.CATEGORIES,
+        minFirst: GMTestSolo.MIN_FIRST,
         create: GMTestSolo.create
 	}
 };

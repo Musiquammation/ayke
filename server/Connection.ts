@@ -7,6 +7,7 @@ import { Room, roomHandler } from "./RoomHandler";
 import { getLogger } from "./Logger";
 import { Fields } from "../commons/Fields";
 import { evalSoloRunScore } from "./evalSoloRunScore";
+import { getSoloGmFactory } from "../commons/gamemods";
 
 const logger = getLogger('connection');
 // logger.setLevel('debug');
@@ -191,10 +192,38 @@ export class Connection {
 			);
 
 			const logger = getLogger('solo');
+			if (score === null) {
+				logger.warning(`${pseudo} scored null in ${
+					d.gamemode} (category=${d.category})`);
+
+				return;
+			}
+
 			logger.info(`${pseudo} scored ${score} in ${
 				d.gamemode} (category=${d.category})`);
 
-			// db.registerSoloRecord(d.gamemode, d.category, c.getPseudo(), score);
+			db.registerSoloRecord(
+				d.gamemode,
+				d.category,
+				c.getPseudo(),
+				score
+			);
+		},
+
+		async askSoloRecords(c, d) {
+			const db = await database;
+			const gamemode = d.gamemode;
+			const category = d.category;
+			const page = d.page || 0;
+
+			const entries = await db.getSoloRecords(
+				gamemode,
+				category,
+				page,
+				getSoloGmFactory(gamemode).minFirst
+			);
+
+			c.sendMessage({ soloRecords: { entries } });
 		}
 	};
 

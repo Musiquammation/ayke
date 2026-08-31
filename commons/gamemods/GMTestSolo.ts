@@ -25,6 +25,9 @@ class ClientData {
 export class GMTestSolo extends SoloGameMode {
 	static readonly TEXTURES = {};
 
+	static readonly CATEGORIES = ["default"];
+	static readonly MIN_FIRST = true;
+
 	static generateClientDom = generateClientDom;
 	static create = ()=>new GMTestSolo();
 

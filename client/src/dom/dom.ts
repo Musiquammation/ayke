@@ -62,6 +62,7 @@ class MainComponent {
 		HomeComponent |
 		TutorialInplayComponent |
 		LeaderboardComponent |
+		SoloLeaderboardComponent |
 		null
 	) = new HomeComponent();
 
@@ -197,6 +198,13 @@ class MainComponent {
 		panel.fetchLeaderboard();
 	}
 
+	openSoloLeaderboard() {
+		const panel = new SoloLeaderboardComponent();
+		this.panel = panel;
+		this.currentPage = "solo-leaderboard";
+		panel.fetchRecords();
+	}
+
 	
 
 
@@ -232,6 +240,11 @@ class MainComponent {
 	getLeaderboardPanel() {
 		return this.getPanel(LeaderboardComponent);
 	}
+
+	getSoloLeaderboardPanel() {
+		return this.getPanel(SoloLeaderboardComponent);
+	}
+
 }
 
 
@@ -510,7 +523,6 @@ class TutorialInplayComponent {
 	}
 }
 
-// Add this new class before MainComponent
 class LeaderboardComponent {
 	entries: { pseudo: string; trophees: number }[] = [];
 	gamemode: string | null = null;
@@ -563,6 +575,109 @@ class LeaderboardComponent {
 	}
 }
 
+class SoloLeaderboardComponent {
+	entries: { pseudo: string | null; score: number }[] = [];
+
+	gamemode: string;
+	category: string;
+
+	constructor() {
+		this.gamemode = "";
+		this.category = "";
+		for (let key in gamemods) {
+			if (gamemods[key].type === 'solo') {
+				this.gamemode = key;
+				this.category = gamemods[key].categories[0];
+			}
+		}
+	}
+
+	page: number = 0;
+
+	// Expose imported gamemods to the Alpine template.
+	gamemods = Object.fromEntries(
+		Object.entries(gamemods).filter(([_, factory]) => factory.type === 'solo')
+	);;
+
+	// Available categories for the current game mode.
+	getCategories() {
+		return getSoloGmFactory(this.gamemode).categories
+	}
+
+	/**
+	 * Request the current solo leaderboard page from the server.
+	 */
+	fetchRecords() {
+		sendMessage({
+			askSoloRecords: {
+				gamemode: this.gamemode,
+				category: this.category,
+				page: this.page
+			}
+		});
+	}
+
+	/**
+	 * Update the selected game mode and reset the page.
+	 */
+	setGamemode(mode: string) {
+		this.gamemode = mode;
+		this.page = 0;
+		this.fetchRecords();
+	}
+
+	/**
+	 * Update the selected category and reset the page.
+	 */
+	setCategory(category: string) {
+		this.category = category;
+		this.page = 0;
+		this.fetchRecords();
+	}
+
+	/**
+	 * Go to the next leaderboard page.
+	 */
+	nextPage() {
+		this.page++;
+		this.fetchRecords();
+	}
+
+	/**
+	 * Go to the previous leaderboard page.
+	 */
+	prevPage() {
+		if (this.page > 0) {
+			this.page--;
+			this.fetchRecords();
+		}
+	}
+
+	/**
+	 * Calculate the rank of an entry, taking ties into account.
+	 */
+	rank(index: number): number {
+		if (index === 0)
+			return this.page * 64 + 1;
+
+		if (this.entries[index].score === this.entries[index - 1].score)
+			return this.rank(index - 1);
+
+		return this.page * 64 + index + 1;
+	}
+
+	/**
+	 * Replace the current leaderboard entries with the server response.
+	 */
+	setSoloRecords(d: {
+		entries: {
+			pseudo: string | null;
+			score: number;
+		}[];
+	}) {
+		this.entries = d.entries;
+	}
+}
 
 
 

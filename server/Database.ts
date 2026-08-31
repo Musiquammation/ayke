@@ -13,6 +13,14 @@ interface QuickConnectionKeyRecord {
 	expiresAt: string | null;
 }
 
+interface SoloRecord {
+	id: number;
+	score: number;
+	pseudo: string | null;
+	gamemode: string;
+	category: string;
+}
+
 class Database {
 	private db: sqlite3.Database;
 
@@ -52,6 +60,14 @@ class Database {
 				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
 				expiresAt DATETIME,
 				FOREIGN KEY (user) REFERENCES User(pseudo) ON DELETE CASCADE
+			);
+
+			CREATE TABLE IF NOT EXISTS SoloRecord (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				score REAL NOT NULL,
+				pseudo TEXT,
+				gamemode TEXT NOT NULL,
+				category TEXT NOT NULL
 			);
 		`);
 	}
@@ -506,6 +522,83 @@ class Database {
 					}
 				);
 			}
+		});
+	}
+
+		// ==========================================
+	// SOLO RECORD METHODS
+	// ==========================================
+
+	/**
+	 * Registers a new solo game record.
+	 * @param gamemode The gamemode ID.
+	 * @param category The leaderboard category.
+	 * @param pseudo The player's username, or null for an anonymous player.
+	 * @param score The score achieved by the player.
+	 * @returns A promise resolving to the newly created record ID.
+	 */
+	registerSoloRecord(
+		gamemode: string,
+		category: string,
+		pseudo: string | null,
+		score: number
+	): Promise<number> {
+		return new Promise((resolve, reject) => {
+			this.db.run(
+				`
+				INSERT INTO SoloRecord (score, pseudo, gamemode, category)
+				VALUES (?, ?, ?, ?)
+				`,
+				[score, pseudo, gamemode, category],
+				function (error) {
+					if (error) {
+						reject(error);
+						return;
+					}
+
+					resolve(this.lastID);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Retrieves paginated solo game records for a gamemode and category.
+	 * @param gamemode The gamemode ID.
+	 * @param category The leaderboard category.
+	 * @param page The pagination index (0-based).
+	 * @param minFirst Whether lower scores should be ranked first.
+	 * @returns A promise resolving to the requested records.
+	 */
+	getSoloRecords(
+		gamemode: string,
+		category: string,
+		page: number,
+		minFirst: boolean
+	): Promise<SoloRecord[]> {
+		return new Promise((resolve, reject) => {
+			const limit = 64;
+			const offset = page * limit;
+			const order = minFirst ? "ASC" : "DESC";
+
+			this.db.all<SoloRecord>(
+				`
+				SELECT id, score, pseudo, gamemode, category
+				FROM SoloRecord
+				WHERE gamemode = ? AND category = ?
+				ORDER BY score ${order}, id ASC
+				LIMIT ? OFFSET ?
+				`,
+				[gamemode, category, limit, offset],
+				(error, rows) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+
+					resolve(rows ?? []);
+				}
+			);
 		});
 	}
 }

@@ -110,6 +110,14 @@ const runners: Record<string, (data: any) => void> = {
 			panel.entries = d.entries || []; 
 		}
 	},
+
+	soloRecords(d) {
+		if (dom.uses('solo-leaderboard')) {
+			const panel = dom.getSoloLeaderboardPanel();
+			console.log(d);
+			panel.setSoloRecords(d);
+		}
+	}
 };
 
 

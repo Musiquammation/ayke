@@ -52,6 +52,7 @@
 					<section>
 						<h2>Community</h2>
 						<button @pointerup="openLeaderboard()">View Leaderboard</button>
+						<button @pointerup="openSoloLeaderboard()">View Solo Leaderboard</button>
 					</section>
 
 				</div>
@@ -251,6 +252,51 @@
 						</template>
 					</div>
 					
+					<button @pointerup="openHome()">Go Home</button>
+				</div>
+			</template>
+
+			<template x-if="uses('solo-leaderboard')">
+				<div id="solo-leaderboard-page" class="page" x-data="panel">
+					<h2>Solo Leaderboard</h2>
+
+					<div class="leaderboard-controls">
+						<select x-model="gamemode" @change="setGamemode(gamemode)">
+							<template x-for="key in Object.keys(gamemods)" :key="key">
+								<option :value="key" x-text="gamemods[key].name"></option>
+							</template>
+						</select>
+
+						<select x-model="category" @change="setCategory(category)">
+							<template x-for="category in getCategories()" :key="category">
+								<option :value="category" x-text="category"></option>
+							</template>
+						</select>
+
+						<button @pointerup="prevPage()" :disabled="page === 0">
+							Previous
+						</button>
+
+						<span x-text="'Page ' + (page + 1)"></span>
+
+						<button @pointerup="nextPage()" :disabled="entries.length < 64">
+							Next
+						</button>
+					</div>
+
+					<div class="leaderboard-list">
+						<template x-for="(entry, index) in entries" :key="index">
+							<div
+								class="leaderboard-entry"
+								:class="{ 'leaderboard-me': isAuthenticated && entry.pseudo === pseudo }"
+							>
+								<span class="rank" x-text="rank(index)"></span>
+								<span class="pseudo" x-text="entry.pseudo ?? 'Anonymous'"></span>
+								<span class="score" x-text="entry.score"></span>
+							</div>
+						</template>
+					</div>
+
 					<button @pointerup="openHome()">Go Home</button>
 				</div>
 			</template>
