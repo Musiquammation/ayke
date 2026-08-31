@@ -23,15 +23,15 @@
 									<span>Connected as</span>
 									<i x-text="pseudo"></i>
 								</div>
-								<button @click="disconnect()">Disconnect</button>
+								<button @pointerup="disconnect()">Disconnect</button>
 							</div>
 
 						</template>
 
 						<template x-if="!isAuthenticated">
 							<div>
-								<button @click="openLogin()">Login</button>
-								<button @click="openSignin()">Create account</button>
+								<button @pointerup="openLogin()">Login</button>
+								<button @pointerup="openSignin()">Create account</button>
 							</div>
 						</template>
 					</section>
@@ -41,14 +41,14 @@
 						<template x-for="game in games">
 							<div>
 								<span x-text="game.name"></span>
-								<button @click="playGame(game.key)">Play</button>
+								<button @pointerup="playGame(game.key)">Play</button>
 							</div>
 						</template>
 					</section>
 
 					<section>
 						<h2>Community</h2>
-						<button @click="openLeaderboard()">View Leaderboard</button>
+						<button @pointerup="openLeaderboard()">View Leaderboard</button>
 					</section>
 
 				</div>
@@ -162,8 +162,8 @@
 						</template>
 						<div>
 							<button type="submit">Log In</button>
-							<button type="button" @click="openSignin()">Create an account</button>
-							<button type="button" @click="openHome()">Go home</button>
+							<button type="button" @pointerup="openSignin()">Create an account</button>
+							<button type="button" @pointerup="openHome()">Go home</button>
 						</div>
 					</form>
 				</div>
@@ -197,8 +197,8 @@
 						</template>
 						<div>
 							<button type="submit">Sign Up</button>
-							<button type="button" @click="openLogin()">Already have an account?</button>
-							<button type="button" @click="openHome()">Go home</button>
+							<button type="button" @pointerup="openLogin()">Already have an account?</button>
+							<button type="button" @pointerup="openHome()">Go home</button>
 						</div>
 					</form>
 				</div>
@@ -217,9 +217,9 @@
 							</template>
 						</select>
 						
-						<button @click="prevPage()" :disabled="page === 0">Previous</button>
+						<button @pointerup="prevPage()" :disabled="page === 0">Previous</button>
 						<span x-text="'Page ' + (page + 1)"></span>
-						<button @click="nextPage()" :disabled="entries.length < 64">Next</button>
+						<button @pointerup="nextPage()" :disabled="entries.length < 64">Next</button>
 					</div>
 
 					<div class="leaderboard-list">
@@ -236,7 +236,7 @@
 						</template>
 					</div>
 					
-					<button @click="openHome()">Go Home</button>
+					<button @pointerup="openHome()">Go Home</button>
 				</div>
 			</template>
 

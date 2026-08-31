@@ -7,19 +7,19 @@
 	<div>
 		<span>Preferred team:</span>
 		<button type="button"
-				@click="preferTeam = 0"
+				@pointerup="preferTeam = 0"
 				:class="{ selected: preferTeam === 0 }">
 			None
 		</button>
 
 		<button type="button"
-				@click="preferTeam = 1"
+				@pointerup="preferTeam = 1"
 				:class="{ selected: preferTeam === 1 }">
 			Red
 		</button>
 
 		<button type="button"
-				@click="preferTeam = -1"
+				@pointerup="preferTeam = -1"
 				:class="{ selected: preferTeam === -1 }">
 			Blue
 		</button>
