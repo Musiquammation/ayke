@@ -1,3 +1,4 @@
+import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { getLogger } from "../../server/Logger";
 import { Fields } from "../Fields";
 import { FinishGame, GameMode } from "../GameMode";
@@ -42,14 +43,11 @@ interface AutoTarget {
 }
 
 class Player {
-	static readonly GRAB_GRAVITY = 900;
 	static readonly SPEED = 1500;
 	static readonly ACCELERATION = 10000;
 	static readonly MIN_DECELERATION = 1000;
 	static readonly SOFT_DECELERATION = 10000;
 	static readonly QUICK_DECELERATION = 30000;
-	static readonly JUMP = 800;
-	static readonly SPAWN_JUMP = 90;
 	static readonly COOLDOWN = 1.5;
 	static readonly WIDTH = 40;
 	static readonly HEIGHT = 80;
@@ -57,17 +55,20 @@ class Player {
 	static readonly THROW = 1200;
 	static readonly BOUNCE_X = 1000;
 	static readonly BOUNCE_Y = 100;
+	// NOTE: GRAB_GRAVITY / JUMP / SPAWN_JUMP removed: movement is now free on both axes,
+	// there is no more gravity pulling the player down.
+	static readonly GRAB_GRAVITY = 900;
 
 	spawnX: number | null = null;
 	spawnY: number | null = null
 	connected = true;
 	alive = -1;
 	vx = 0;
-	vy = -Player.SPAWN_JUMP;
+	vy = 0; // was -Player.SPAWN_JUMP: no more spawn jump, player simply starts still
 	dirX = 0;
 	dirY = 0;
 	score = 0;
-	target : FixedTarget | DeltaTarget | AutoTarget | null = null;
+	target: FixedTarget | DeltaTarget | AutoTarget | null = null;
 	team: 'red' | 'blue' = 'red';
 
 	constructor(
@@ -88,49 +89,103 @@ class Player {
 		return this.alive < 0;
 	}
 
+	// Generic acceleration/deceleration for 2D movement.
+	// The input direction must have a length <= 1.
+	private static applyMovement(
+		dirX: number,
+		dirY: number,
+		vx: number,
+		vy: number,
+		dt: number
+	): [number, number] {
+		const dirLength2 = dirX*dirX + dirY*dirY;
+
+		// Clamp the input direction to a maximum length of 1.
+		if (dirLength2 >= 1) {
+			const inv = 1/Math.sqrt(dirLength2);
+			dirX *= inv;
+			dirY *= inv;
+		}
+
+		// No input: soft decelerate the velocity toward zero.
+		if (dirX === 0 && dirY === 0) {
+			const speed = Math.hypot(vx, vy);
+
+			if (speed === 0) {
+				return [0, 0];
+			}
+
+			const deceleration = Player.SOFT_DECELERATION * dt;
+
+			if (speed <= deceleration) {
+				return [0, 0];
+			}
+
+			const factor = (speed - deceleration) / speed;
+			return [vx * factor, vy * factor];
+		}
+
+		const speed = Math.hypot(vx, vy);
+
+		// Project the current velocity onto the desired direction.
+		const forwardSpeed = vx * dirX + vy * dirY;
+
+		if (forwardSpeed < 0) {
+			// Moving in the opposite direction: decelerate quickly.
+			const deceleration = Player.QUICK_DECELERATION * dt;
+
+			if (speed <= deceleration) {
+				return [0, 0];
+			}
+
+			const factor = (speed - deceleration) / speed;
+			return [vx * factor, vy * factor];
+		}
+
+		// The desired speed scales with the input length.
+		const targetSpeed = Player.SPEED * Math.hypot(dirX, dirY);
+
+		if (forwardSpeed < targetSpeed) {
+			const acceleration = Player.ACCELERATION * dt;
+			const newSpeed = Math.min(
+				forwardSpeed + acceleration,
+				targetSpeed
+			);
+
+			return [dirX / Math.hypot(dirX, dirY) * newSpeed,
+				dirY / Math.hypot(dirX, dirY) * newSpeed];
+		}
+
+		// Decelerate if the current velocity exceeds the target speed.
+		if (speed > targetSpeed) {
+			const deceleration = Player.MIN_DECELERATION * dt;
+			const newSpeed = Math.max(speed - deceleration, targetSpeed);
+
+			return [vx / speed * newSpeed, vy / speed * newSpeed];
+		}
+
+		return [vx, vy];
+	}
+
 	move(dt: number) {
 		if (this.alive >= 0) {
 			this.alive -= dt;
 			if (this.alive >= 0)
 				return;
 
-			if (this.spawnX !== null) {this.x = this.spawnX;}
-			if (this.spawnY !== null) {this.y = this.spawnY;}
+			if (this.spawnX !== null) { this.x = this.spawnX; }
+			if (this.spawnY !== null) { this.y = this.spawnY; }
 		}
 
-		// Set vx
-		if (this.dirX === 0) {
-			if (this.vx > 0) {
-				this.vx -= Player.SOFT_DECELERATION * dt;
-				if (this.vx < 0) this.vx = 0;
-			} else if (this.vx < 0) {
-				this.vx += Player.SOFT_DECELERATION * dt;
-				if (this.vx > 0) this.vx = 0;
-			}
-		} else if (this.dirX > 0) {
-			if (this.vx < 0) {
-				this.vx += Player.QUICK_DECELERATION * dt;
-				if (this.vx > 0) this.vx = 0;
-			} else if (this.vx < Player.SPEED) {
-				this.vx += Player.ACCELERATION * dt;
-				if (this.vx > Player.SPEED) this.vx = Player.SPEED;
-			} else if (this.vx > Player.SPEED) {
-				this.vx -= Player.MIN_DECELERATION * dt;
-				if (this.vx < Player.SPEED) this.vx = Player.SPAWN_JUMP;
-			}
-		} else /*if (this.dir < 0)*/ {
-			if (this.vx > 0) {
-				this.vx -= Player.QUICK_DECELERATION * dt;
-				if (this.vx < 0) this.vx = 0;
-			} else if (this.vx > -Player.SPEED) {
-				this.vx -= Player.ACCELERATION * dt;
-				if (this.vx < -Player.SPEED) this.vx = -Player.SPEED;
-			} else if (this.vx < -Player.SPEED) {
-				this.vx += Player.MIN_DECELERATION * dt;
-				if (this.vx > -Player.SPEED) this.vx = -Player.SPAWN_JUMP;
-			}
-		}
-		
+		// Apply the same acceleration/deceleration logic to both axes independently
+		[this.vx, this.vy] = Player.applyMovement(
+			this.dirX,
+			this.dirY,
+			this.vx,
+			this.vy,
+			dt
+		);
+
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 
@@ -154,7 +209,7 @@ class Player {
 
 	die() {
 		this.vx = 0;
-		this.vy = -Player.SPAWN_JUMP;
+		this.vy = 0;
 		this.alive = Player.COOLDOWN;
 	}
 }
@@ -324,13 +379,21 @@ class ClientData {
 	mouseY = 0;
 
 	readonly html: HTMLDivElement;
-
 	readonly time: HTMLDivElement;
-
 	readonly camera = new Camera();
 
 	private clientWasDead = true;
-	private lastDirs: Record<number, boolean> = {};
+
+	// Last direction sent to the server for each axis, used to avoid re-sending
+	// the same movement action every single frame when using an analog joystick
+	// (keyboard already handles this naturally via first()/killed()).
+	lastDirX = 0;
+	lastDirY = 0;
+
+	// Attack joystick state, used to distinguish a quick tap (-> auto throw)
+	// from holding + aiming (-> throwDir).
+	attackPressStart: number | null = null;
+	attackHasAimed = false;
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -338,7 +401,7 @@ class ClientData {
 
 		this.time = document.createElement("div");
 		this.time.classList.add("game-turrets-time");
-		
+
 		this.html.appendChild(this.time);
 	}
 
@@ -350,18 +413,16 @@ class ClientData {
 	}
 
 	update(game: GMTurrets, playerIdx: number) {
-		this.time.innerText = 
+		this.time.innerText =
 			ClientData.showTime(game.time);
 
-
-		// Player
 		const player = game.players[playerIdx];
 		if (this.clientWasDead && player.alive < 0) {
 			this.camera.teleport(player.x, player.y)
 		}
 		this.clientWasDead = (player.alive >= 0);
 
-		this.camera.update(player.x, player.y, 1/60);
+		this.camera.update(player.x, player.y, 1 / 60);
 	}
 }
 
@@ -622,26 +683,14 @@ export class GMTurrets extends GameMode {
 
 	override runInput(playerIdx: number, input: Fields): void {
 		const player = this.players[playerIdx];
+
 		switch (input.action) {
-			case 'right':
-				player.dirX = 1;
+			case 'dirX':
+				player.dirX = input.dirX;
 				break;
 
-			case 'left':
-				player.dirX = -1;
-				break;
-
-			case 'stop':
-				player.dirX = 0;
-				break;
-
-			case 'jump':
-				break;
-
-			case 'downOn':
-				break;
-
-			case 'downOff':
+			case 'dirY':
+				player.dirY = input.dirY;
 				break;
 
 			case 'throwTarget':
@@ -655,9 +704,13 @@ export class GMTurrets extends GameMode {
 			case 'throwDir':
 				player.target = {
 					type: 'delta',
-					dx: input.throwTarget.x,
-					dy: input.throwTarget.y,
+					dx: input.throwDir.x,
+					dy: input.throwDir.y,
 				};
+				break;
+
+			case 'throwAuto':
+				player.target = { type: 'auto' };
 				break;
 
 			case 'throwOff':
@@ -669,7 +722,7 @@ export class GMTurrets extends GameMode {
 	override collectInputs(
 		keyboard: IKeyboardController,
 		mouse: IMouseController,
-		mobile: IMobileController | null,
+		_mobile: IMobileController | null,
 		_data: any
 	) {
 		const data = _data as ClientData;
@@ -677,72 +730,136 @@ export class GMTurrets extends GameMode {
 		data.mouseX = throwTarget.x;
 		data.mouseY = throwTarget.y;
 
-		function getMoveInput(): Fields|null {
-			const r0 = keyboard.first('right');
-			const l0 = keyboard.first('left');
-
-			const right = {right: {}, action: 'right'};
-			const left = {left: {}, action: 'left'};
-			const stop = {stop: {}, action: 'stop'};
-	
-			if (r0 && !l0)
-				return right;
-			
-			if (!r0 && l0)
-				return left;
-			
-			if (r0 && l0)
-				return stop;
-	
-			const rK = keyboard.killed('right');
-			const lK = keyboard.killed('left');
-
-			if (rK && lK)
-				return stop;
-
-			const r = keyboard.press('right');
-			const l = keyboard.press('left');
-
-			if (rK) {
-				return l ? left : stop;
-			}
-
-			if (lK) {
-				return r ? right : stop;
-			}
-			
-			return null;
-		}
-
-
-		// Left / Right
 		const inputs: Fields[] = [];
-		const moveInput = getMoveInput();
-		if (moveInput) {
-			inputs.push(moveInput);
-		}
 
-		// Jump / Down
-		if (keyboard.first('up') || keyboard.first('jump')) {
-			inputs.push({jump: {}, action: 'jump'});
-		}
+		
 
-		if (keyboard.first('down')) {
-			inputs.push({downOn: {}, action: 'downOn'});
-		}
+		// --- Movement: ZQSD/arrows on desktop, joystick on mobile ---
+		if (false) {
+			const mobile: IMobileController = null as any as IMobileController;
+			const move = mobile.getJoystick('move');
 
-		if (keyboard.killed('down')) {
-			inputs.push({downOff: {}, action: 'downOff'});
-		}
-
-
-		// Target
-		if (mouse.press(0)) {
-			inputs.push({throwTarget, action: 'throwTarget'});
+			// Only send an action when the discretized direction actually changes,
+			// to avoid flooding the server every frame.
+			if (move.x !== data.lastDirX) {
+				inputs.push({
+					action: 'dirX',
+					dirX: move.x
+				});
+				data.lastDirX = move.x;
+			}
 			
-		} else if (mouse.killed(0)) {
-			inputs.push({throwOff: {}, action: 'throwOff'});
+			if (move.y !== data.lastDirY) {
+				inputs.push({
+					action: 'dirY',
+					dirY: move.y
+				});
+				data.lastDirY = move.y;
+			}
+
+			// --- Aiming: mobile joystick (tap = auto, hold+aim = throwDir) ---
+			const attack = mobile.getJoystick('attack');
+			const AIM_DEADZONE = 0.15;
+			const QUICK_TAP_MS = 180;
+
+			if (mobile.first('attack')) {
+				if (data.attackPressStart === null) {
+					data.attackPressStart = performance.now();
+					data.attackHasAimed = false;
+				}
+
+				const magnitude = Math.hypot(attack.x, attack.y);
+				if (magnitude > AIM_DEADZONE) {
+					data.attackHasAimed = true;
+					inputs.push({
+						throwTarget: { x: attack.x, y: attack.y },
+						action: 'throwDir'
+					});
+				}
+			} else if (data.attackPressStart !== null) {
+				const heldFor = performance.now() - data.attackPressStart;
+
+				if (!data.attackHasAimed && heldFor < QUICK_TAP_MS) {
+					inputs.push({ throwAuto: {}, action: 'throwAuto' });
+				} else {
+					inputs.push({ throwOff: {}, action: 'throwOff' });
+				}
+
+				data.attackPressStart = null;
+				data.attackHasAimed = false;
+			}
+
+
+
+		} else {
+			if (keyboard.press('right')) {
+				if (data.lastDirX !== 1) {
+					inputs.push({
+						action: 'dirX',
+						dirX: 1
+					});
+					data.lastDirX = 1;
+				}
+	
+			} else if (keyboard.press('left')) {
+				if (data.lastDirX !== -1) {
+					inputs.push({
+						action: 'dirX',
+						dirX: -1
+					});
+					data.lastDirX = -1;
+				}
+	
+			} else if (data.lastDirX !== 0) {
+				inputs.push({
+					action: 'dirX',
+					dirX: 0
+				});
+				data.lastDirX = 0;
+			}
+	
+			if (keyboard.press('down')) {
+				if (data.lastDirY !== 1) {
+					inputs.push({
+						action: 'dirY',
+						dirY: 1
+					});
+					data.lastDirY = 1;
+				}
+	
+			} else if (keyboard.press('up')) {
+				if (data.lastDirY !== -1) {
+					inputs.push({
+						action: 'dirY',
+						dirY: -1
+					});
+					data.lastDirY = -1;
+				}
+	
+			} else if (data.lastDirY !== 0) {
+				inputs.push({
+					action: 'dirY',
+					dirY: 0
+				});
+				data.lastDirY = 0;
+			}
+
+			// --- Aiming: mouse (desktop) ---
+			if (mouse.press(0)) {
+				inputs.push({ throwTarget, action: 'throwTarget' });
+			} else if (mouse.killed(0)) {
+				inputs.push({ throwOff: {}, action: 'throwOff' });
+			}
+
+
+			// --- Aiming: shift held (desktop) ---
+			if (keyboard.first('shift')) {
+				inputs.push({ throwAuto: {}, action: 'throwAuto' });
+			}
 		}
+
+
+
 
 		return inputs;
 	}
@@ -985,8 +1102,23 @@ export class GMTurrets extends GameMode {
 		return ret;
 	}
 
-	override getMobileDesc() {
-		return null;
+	override getMobileDesc(): MobileDescriptor {
+		return {
+			buttons: {
+
+			},
+
+			joysticks: {
+				move: {
+					x: 100,
+					xp: 'left',
+					y: 120,
+					yp: 'bottom',
+					size: 100,
+					color: "#00ff00"
+				}
+			}
+		};
 	}
 
 
@@ -1040,4 +1172,5 @@ export class GMTurrets extends GameMode {
 	}
 
 }
+
 

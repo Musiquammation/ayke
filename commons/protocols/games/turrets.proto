@@ -9,8 +9,8 @@ message Player {
 	float y = 2;
 	float vx = 3;
 	float vy = 4;
-	int32 dirX = 5;
-	int32 dirY = 6;
+	float dirX = 5;
+	float dirY = 6;
 	float alive = 7;
 	int32 score = 8;
 }
@@ -34,16 +34,14 @@ message Throw {
 message QInput {
 	double timestamp = 1;
 	oneof action {
-		Empty right = 2;
-		Empty left = 3;
-		Empty stop = 4;
-		Empty jump = 5;
-		Empty downOn = 6;
-		Empty downOff = 7;
-		Throw throwTarget = 8;
-		Throw throwDir = 9;
-		Empty throwAuto = 10;
-		Empty throwOff = 11;
+		float dirX = 2;
+		float dirY = 3;
+
+		// Aiming / throwing
+		Throw throwTarget = 4;
+		Throw throwDir = 5;
+		Empty throwAuto = 6;
+		Empty throwOff = 7;
 	}
 }
 
@@ -63,16 +61,10 @@ message ClientMessage {
 	repeated QInput inputs = 2;
 }
 
-
-
-
 message StartData {
 	int32 skin = 1;
 	int32 preferTeam = 2;
 }
-
-
-
 
 message StartPlayerInfo {
 	float x = 1;

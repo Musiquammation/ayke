@@ -70,7 +70,7 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         textures: GMTurrets.TEXTURES,
         name: "Turrets",
         tropheesPerPlayer: 20,
-        computerOnly: true
+        computerOnly: false
     },
 
 	testSolo: {
