@@ -382,6 +382,8 @@ class Player {
 									this.y,
 									dx,
 									dy,
+									this.vx,
+									this.vy,
 									this.team,
 									pat.dist,
 									pat.initSpeed
@@ -445,6 +447,8 @@ class Bullet {
 		public y: number,
 		public vx: number,
 		public vy: number,
+		public readonly sx: number,
+		public readonly sy: number,
 		public readonly ax: number,
 		public readonly ay: number,
 		public readonly maxDist: number,
@@ -457,6 +461,8 @@ class Bullet {
 		y: number,
 		vx0: number,
 		vy0: number,
+		sx: number,
+		sy: number,
 		team: 'red' | 'blue',
 		dist: number,
 		initSpeed: number
@@ -479,7 +485,7 @@ class Bullet {
 		const maxDist = dist;
 
 		return new Bullet(
-			x, y, vx, vy,
+			x, y, vx, vy, sx, sy,
 			ax, ay, maxDist, team, 0
 		);
 	}
@@ -504,8 +510,8 @@ class Bullet {
 		const dy = (oldVy + this.vy) * 0.5 * dt;
 		const frameDist = Math.hypot(dx, dy);
 
-		this.x += dx;
-		this.y += dy;
+		this.x += this.sx*dt + dx;
+		this.y += this.sy*dt + dy;
 		this.traveledDist += frameDist;
 
 		return (
@@ -1440,6 +1446,8 @@ export class GMTurrets extends GameMode {
 						b.y,
 						b.vx,
 						b.vy,
+						b.sx,
+						b.sy,
 						b.ax,
 						b.ay,
 						b.maxDist,
