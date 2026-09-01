@@ -57,8 +57,8 @@ class Player {
 
 	// --- Attack System Constants ---
 	static readonly ATTACK_FULL = 5.0;
-	static readonly ATTACK_RELOAD = 4.0;
-	static readonly ATTACK_COOLDOWN = 0.75;
+	static readonly ATTACK_RELOAD = 3.0;
+	static readonly ATTACK_COOLDOWN = 2.0;
 	static readonly ATTACK_DELAY = 0.5;
 
 	static readonly GRAB_GRAVITY = 900;
@@ -84,6 +84,7 @@ class Player {
 	attackMunitions = Player.ATTACK_FULL;
 	attackCooldown = 0;
 	attackTimer = Player.ATTACK_DELAY;
+	attackFullyReloading = false;
 
 	constructor(
 		public x: number,
@@ -222,22 +223,11 @@ class Player {
 
 		this.avoidOOB();
 
-		// --- Attack timers ---
+		// Attack cooldown
 		if (this.attackCooldown > 0) {
 			this.attackCooldown = Math.max(
 				0,
 				this.attackCooldown - dt
-			);
-		}
-
-		this.attackTimer += dt;
-
-		// Reload ammunition over time.
-		if (this.attackMunitions < Player.ATTACK_FULL) {
-			this.attackMunitions = Math.min(
-				Player.ATTACK_FULL,
-				this.attackMunitions
-					+ dt / Player.ATTACK_RELOAD
 			);
 		}
 	}
@@ -255,6 +245,9 @@ class Player {
 		// Attack state.
 		this.attackMunitions =
 			obj.attackMunitions ?? Player.ATTACK_FULL;
+
+		this.attackFullyReloading =
+			obj.attackReloading ?? false;
 	}
 
 	avoidOOB() {
@@ -265,6 +258,164 @@ class Player {
 		this.vx = 0;
 		this.vy = 0;
 		this.alive = Player.COOLDOWN;
+	}
+
+
+	attackLogic(dt: number, game: GMTurrets) {
+		/*
+		* The magazine has been emptied.
+		*
+		* The player must wait until the magazine is completely
+		* reloaded before being allowed to attack again.
+		*/
+		if (this.attackFullyReloading) {
+			this.attackMunitions = Math.min(
+				Player.ATTACK_FULL,
+				this.attackMunitions + dt * Player.ATTACK_RELOAD
+			);
+
+			if (this.attackMunitions >= Player.ATTACK_FULL) {
+				this.attackMunitions = Player.ATTACK_FULL;
+				this.attackFullyReloading = false;
+				this.attackTimer = Player.ATTACK_DELAY;
+			}
+
+			return;
+		}
+
+		// Attack logic.
+		if (this.target !== null && this.isAlive()) {
+			if (this.attackMunitions > 0) {
+				// Drain munitions while attacking.
+				this.attackMunitions = Math.max(
+					0,
+					this.attackMunitions - dt
+				);
+
+				this.attackCooldown = Player.ATTACK_COOLDOWN;
+				this.attackTimer += dt;
+
+				/*
+				* The magazine has just been emptied.
+				* Start the mandatory full reload.
+				*/
+				if (this.attackMunitions <= 0) {
+					this.attackMunitions = 0;
+					this.attackFullyReloading = true;
+					this.attackTimer = 0;
+					return;
+				}
+
+				// Fire bullets every ATTACK_DELAY seconds.
+				if (this.attackTimer >= Player.ATTACK_DELAY) {
+					this.attackTimer = 0;
+
+					// Determine base shooting angle.
+					let baseAngle = 0;
+
+					if (this.target.type === 'fixed') {
+						baseAngle = Math.atan2(
+							this.target.y - this.y,
+							this.target.x - this.x
+						);
+					} else if (this.target.type === 'delta') {
+						baseAngle = Math.atan2(
+							this.target.dy,
+							this.target.dx
+						);
+					} else if (this.target.type === 'auto') {
+						// Find the closest alive enemy.
+						let closestDist = Infinity;
+						let closestEnemy: Player | null = null;
+
+						for (const other of game.players) {
+							if (
+								other.team !== this.team &&
+								other.isAlive()
+							) {
+								const dist = Math.hypot(
+									other.x - this.x,
+									other.y - this.y
+								);
+
+								if (dist < closestDist) {
+									closestDist = dist;
+									closestEnemy = other;
+								}
+							}
+						}
+
+						if (closestEnemy) {
+							baseAngle = Math.atan2(
+								closestEnemy.y - this.y,
+								closestEnemy.x - this.x
+							);
+						} else {
+							// Default forward direction.
+							baseAngle =
+								this.team === 'red'
+									? Math.PI / 2
+									: -Math.PI / 2;
+						}
+					}
+
+					// Create bullets for every pattern.
+					for (const pat of Bullet.PATTERNS) {
+						const startAngle =
+							baseAngle - pat.angle / 2;
+
+						const step =
+							pat.count > 1
+								? pat.angle / (pat.count - 1)
+								: 0;
+
+						for (let i = 0; i < pat.count; i++) {
+							const a =
+								startAngle + i * step;
+
+							const dx = Math.cos(a);
+							const dy = Math.sin(a);
+
+							game.bullets.push(
+								Bullet.create(
+									this.x,
+									this.y,
+									dx,
+									dy,
+									this.team,
+									pat.dist,
+									pat.initSpeed
+								)
+							);
+						}
+					}
+				}
+			}
+			
+		} else {
+			/*
+			* Not attacking.
+			*
+			* The firing timer is kept ready so that shooting
+			* starts immediately when the player attacks.
+			*/
+			this.attackTimer = Math.min(this.attackTimer + dt, Player.ATTACK_DELAY);
+
+			if (this.attackCooldown > 0) {
+				this.attackCooldown = Math.max(
+					0,
+					this.attackCooldown - dt
+				);
+			}
+
+			if (this.attackCooldown <= 0) {
+				this.attackMunitions = Math.min(
+					Player.ATTACK_FULL,
+					this.attackMunitions + dt * Player.ATTACK_RELOAD
+				);
+			}
+
+		}
 	}
 }
 
@@ -357,7 +508,12 @@ class Bullet {
 		this.y += dy;
 		this.traveledDist += frameDist;
 
-		return this.traveledDist >= this.maxDist;
+		return (
+			this.traveledDist >= this.maxDist ||
+			Math.abs(this.x) > FULL_ROOM_SIZE * 3 || // OOB
+			Math.abs(this.y) > FULL_ROOM_SIZE * 3    // OOB
+
+		)
 	}
 }
 
@@ -794,119 +950,37 @@ export class GMTurrets extends GameMode {
 		);
 	}
 
-	override run(dt: number, produceFinish: boolean): FinishGame | null {
-		// Time management
+	override run(
+		dt: number,
+		produceFinish: boolean
+	): FinishGame | null {
+		// Time management.
 		this.time -= dt;
+
 		if (this.time <= 0) {
 			this.finished = true;
 		}
 
-		// Move players and handle attacks
-		for (const [idx, p] of this.players.entries()) {
+		// Move players and handle attacks.
+		for (const p of this.players) {
 			p.move(dt);
-
-			// Attack logic: player is aiming and is alive (alive < 0 means alive in this engine)
-			if (p.target !== null && p.isAlive()) {
-				
-				// Check if we still have munitions to fire
-				if (p.attackMunitions > 0) {
-					// Drain munitions continuously while holding attack
-					p.attackMunitions = Math.max(0, p.attackMunitions - dt);
-					p.attackCooldown = Player.ATTACK_COOLDOWN;
-					p.attackTimer += dt;
-
-					// Fire bullets every ATTACK_DELAY seconds
-					if (p.attackTimer >= Player.ATTACK_DELAY) {
-						p.attackTimer = 0; // Reset firing timer
-
-						// Determine base shooting angle
-						let baseAngle = 0;
-						if (p.target.type === 'fixed') {
-							baseAngle = Math.atan2(p.target.y - p.y, p.target.x - p.x);
-						} else if (p.target.type === 'delta') {
-							baseAngle = Math.atan2(p.target.dy, p.target.dx);
-						} else if (p.target.type === 'auto') {
-							// Find the closest alive enemy
-							let closestDist = Infinity;
-							let closestEnemy: Player | null = null;
-							for (const other of this.players) {
-								if (other.team !== p.team && other.isAlive()) {
-									const dist = Math.hypot(other.x - p.x, other.y - p.y);
-									if (dist < closestDist) {
-										closestDist = dist;
-										closestEnemy = other;
-									}
-								}
-							}
-							
-							if (closestEnemy) {
-								baseAngle = Math.atan2(closestEnemy.y - p.y, closestEnemy.x - p.x);
-							} else {
-								// Default forward direction if no enemies are found
-								baseAngle = p.team === 'red' ? Math.PI / 2 : -Math.PI / 2;
-							}
-						}
-
-
-						for (const pat of Bullet.PATTERNS) {
-							const startAngle = baseAngle - pat.angle / 2;
-							const step = pat.count > 1 ? pat.angle / (pat.count - 1) : 0;
-
-							for (let i = 0; i < pat.count; i++) {
-								const a = startAngle + i * step;
-
-								const dx = Math.cos(a);
-								const dy = Math.sin(a);
-
-								this.bullets.push(
-									Bullet.create(
-										p.x,
-										p.y,
-										dx,
-										dy,
-										p.team,
-										pat.dist,
-										pat.initSpeed
-									)
-								);
-							}
-						}
-					}
-				} else {
-					// Out of ammo: keep the timer ready so it fires immediately when ammo returns
-					p.attackTimer = Player.ATTACK_DELAY;
-				}
-			} else {
-				// Not attacking
-				p.attackTimer = Player.ATTACK_DELAY; // Ready to shoot immediately next time
-				
-				// Handle cooldown and reload
-				if (p.attackCooldown > 0) {
-					p.attackCooldown -= dt;
-				} else if (p.attackMunitions < Player.ATTACK_FULL) {
-					p.attackMunitions = Math.min(
-						Player.ATTACK_FULL, 
-						p.attackMunitions + Player.ATTACK_RELOAD * dt
-					);
-				}
-			}
+			p.attackLogic(dt, this);
 		}
 
-		// Move bullets and handle bounds
-		// Iterate backwards to safely remove elements during the loop
+		// Move bullets and handle bounds.
 		for (let i = this.bullets.length - 1; i >= 0; i--) {
 			const b = this.bullets[i];
 
-			// Basic Out Of Bounds check (despawn if too far away)
-			if (b.move(dt) || Math.abs(b.x) > FULL_ROOM_SIZE * 3 || Math.abs(b.y) > FULL_ROOM_SIZE * 3) {
+			if (b.move(dt)) {
 				this.bullets.splice(i, 1);
 			}
 		}
 
-		// Finish
+		// Finish.
 		if (produceFinish && this.finished) {
 			return this.produceFinish();
 		}
+
 		return null;
 	}
 
@@ -1263,16 +1337,44 @@ export class GMTurrets extends GameMode {
 			if (idx === playerIdx) {
 				const BAR_W = 80;
 				const BAR_H = 10;
-				const ratio = p.attackMunitions / Player.ATTACK_FULL;
-				
-				// Background of the bar (empty state)
+
+				const ratio =
+					p.attackMunitions / Player.ATTACK_FULL;
+
+				// Background.
 				ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-				ctx.fillRect(p.x - BAR_W / 2, p.y - Player.RADIUS - 20, BAR_W, BAR_H);
-				
-				// Foreground of the bar (current ammo)
-				// Turns orange if currently on cooldown (can't reload yet)
-				ctx.fillStyle = p.attackCooldown > 0 ? 'orange' : 'white';
-				ctx.fillRect(p.x - BAR_W / 2, p.y - Player.RADIUS - 20, BAR_W * ratio, BAR_H);
+				ctx.fillRect(
+					p.x - BAR_W / 2,
+					p.y - Player.RADIUS - 20,
+					BAR_W,
+					BAR_H
+				);
+
+				/*
+				* During a mandatory full reload, the entire bar is grey.
+				*/
+				if (p.attackFullyReloading) {
+					ctx.fillStyle = 'gray';
+
+					ctx.fillRect(
+						p.x - BAR_W / 2,
+						p.y - Player.RADIUS - 20,
+						BAR_W,
+						BAR_H
+					);
+				} else {
+					ctx.fillStyle =
+						p.attackCooldown > 0
+							? 'orange'
+							: 'white';
+
+					ctx.fillRect(
+						p.x - BAR_W / 2,
+						p.y - Player.RADIUS - 20,
+						BAR_W * ratio,
+						BAR_H
+					);
+				}
 			}
 		}
 
