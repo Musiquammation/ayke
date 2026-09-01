@@ -49,7 +49,6 @@ class KeyboardController implements IKeyboardController {
 
 	init() {
 		window.addEventListener("keydown", (event) => {
-			console.log(event.code);
 			const key = COMBINAISONS[event.code];
 
 			if (!key)

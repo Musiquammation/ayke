@@ -634,7 +634,6 @@ class Turret {
 			} else {
 				this.itemDamage += damage;
 				if (this.itemDamage >= TURRET_ITEM_DAMAGES) {
-					this.itemsToSpawn += TURRET_ITEM_COUNT;
 					this.pauseTimer = TURRET_PAUSE;
 					this.itemDamage = 0;
 					this.hp -= damage; // Apply the damage causing it to lose full HP
@@ -677,7 +676,9 @@ class Turret {
 		if (this.pauseTimer > 0) {
 			this.pauseTimer -= dt;
 			if (this.pauseTimer <= 0) {
+				// Timier is finished, let's give items
 				this.itemDamage = 0;
+				this.itemsToSpawn += TURRET_ITEM_COUNT;
 			}
 
 			return;
