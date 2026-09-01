@@ -538,7 +538,7 @@ class Bullet {
 	static readonly RADIUS = 10;
 
 	static readonly PATTERNS = [
-		{ count: 5, angle: Math.PI / 32, dist: 1600, initSpeed: 2000 },
+		{ count: 5, angle: Math.PI / 64, dist: 1600, initSpeed: 2000 },
 		{ count: 5, angle: Math.PI / 8, dist: 600, initSpeed: 1000 },
 		{ count: 5, angle: Math.PI / 4, dist: 200, initSpeed: 1000 }
 	];
