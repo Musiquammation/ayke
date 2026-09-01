@@ -34,6 +34,9 @@ const MINIMAP_X = WIDTH * 0.79;
 const MINIMAP_Y = HEIGHT * 0.01;
 const MINIMAP_RATIO = 0.2;
 
+const ITEM_COUNT = 3;
+const TURRET_ITEM_COUNT = 2;
+
 interface FixedTarget {
 	type: 'fixed';
 	x: number;
@@ -95,6 +98,10 @@ class Player {
 
 	target: FixedTarget | DeltaTarget | AutoTarget | null = null;
 	team: 'red' | 'blue' = 'red';
+
+	items: number[] = Array(ITEM_COUNT).fill(-1);
+	selectedItem: number = -1;
+
 
 	// --- Attack System Variables ---
 	attackMunitions = Player.ATTACK_FULL;
@@ -271,6 +278,11 @@ class Player {
 
 		this.attackFullyReloading =
 			obj.attackReloading ?? false;
+
+		this.items = obj.items && obj.items.length === ITEM_COUNT 
+			? [...obj.items] 
+			: Array(ITEM_COUNT).fill(-1);
+
 	}
 
 	avoidOOB() {
@@ -286,162 +298,159 @@ class Player {
 
 
 	attackLogic(dt: number, game: GMTurrets) {
-		/*
-		 * The magazine has been emptied.
-		 *
-		 * The player must wait until the magazine is completely
-		 * reloaded before being allowed to attack again.
-		 */
 		if (this.attackFullyReloading) {
-			this.attackMunitions = Math.min(
-				Player.ATTACK_FULL,
-				this.attackMunitions + dt * Player.ATTACK_SLOW_RELOAD
-			);
-
-			if (this.attackMunitions >= Player.ATTACK_FULL) {
-				this.attackMunitions = Player.ATTACK_FULL;
-				this.attackFullyReloading = false;
-				this.attackTimer = Player.ATTACK_DELAY;
-			}
-
+			this.processReloading(dt);
 			return;
 		}
 
-		// Attack logic.
 		if (this.target !== null && this.isAlive()) {
-			if (this.attackMunitions > 0) {
-				// Drain munitions while attacking.
-				this.attackMunitions = Math.max(
-					0,
-					this.attackMunitions - dt
-				);
+			if (this.selectedItem !== -1) {
+				this.executeItemAttack(game);
+			} else {
+				this.executeStandardAttack(dt, game);
+			}
+		} else {
+			this.processAttackCooldowns(dt);
+		}
+	}
 
-				this.attackCooldown = Player.ATTACK_COOLDOWN;
-				this.attackTimer += dt;
+	/**
+	 * Executes the logic of a selected item instead of firing a bullet.
+	 */
+	private executeItemAttack(game: GMTurrets) {
+		const itemId = this.items[this.selectedItem];
+		
+		// If slot is empty, cancel selection
+		if (itemId === -1) {
+			this.selectedItem = -1;
+			return;
+		}
 
-				/*
-				* The magazine has just been emptied.
-				* Start the mandatory full reload.
-				*/
-				if (this.attackMunitions <= 0) {
-					this.attackMunitions = 0;
-					this.attackFullyReloading = true;
-					this.attackTimer = 0;
-					return;
-				}
+		const itemDef = ITEMS[itemId];
+		if (!itemDef) {
+			this.selectedItem = -1;
+			return;
+		}
 
-				// Fire bullets every ATTACK_DELAY seconds.
-				if (this.attackTimer >= Player.ATTACK_DELAY) {
-					this.attackTimer -= Player.ATTACK_DELAY;
+		// Get the vector for the throw/attack
+		const [dx, dy] = this.resolveTargetVector(game);
 
-					// Determine base shooting angle.
-					let baseAngle = 0;
+		// Run item logic and apply replacement logic (consumed if null)
+		const nextItemId = itemDef.run(game, dx, dy);
+		this.items[this.selectedItem] = nextItemId !== null ? nextItemId : -1;
+		
+		// Reset selection and apply a generic cooldown for item usage
+		this.selectedItem = -1;
+		this.attackCooldown = Player.ATTACK_COOLDOWN; 
+	}
 
-					if (this.target.type === 'fixed') {
-						baseAngle = Math.atan2(
-							this.target.y - this.y,
-							this.target.x - this.x
-						);
-					} else if (this.target.type === 'delta') {
-						baseAngle = Math.atan2(
-							this.target.dy,
-							this.target.dx
-						);
-					} else if (this.target.type === 'auto') {
-						// Find the closest alive enemy.
-						let closestDist = Infinity;
-						let closestEnemy: Player | null = null;
+	/**
+	 * Converts the current targeting system into a raw direction vector (dx, dy).
+	 */
+	private resolveTargetVector(game: GMTurrets): [number, number] {
+		if (this.target?.type === 'fixed') {
+			return [this.target.x - this.x, this.target.y - this.y];
+		} 
+		
+		if (this.target?.type === 'delta') {
+			return [this.target.dx, this.target.dy];
+		} 
+		
+		if (this.target?.type === 'auto') {
+			let closestDist = Infinity;
+			let closestEnemy: Player | null = null;
 
-						for (const other of game.players) {
-							if (
-								other.team !== this.team &&
-								other.isAlive()
-							) {
-								const dist = Math.hypot(
-									other.x - this.x,
-									other.y - this.y
-								);
-
-								if (dist < closestDist) {
-									closestDist = dist;
-									closestEnemy = other;
-								}
-							}
-						}
-
-						if (closestEnemy) {
-							baseAngle = Math.atan2(
-								closestEnemy.y - this.y,
-								closestEnemy.x - this.x
-							);
-						} else {
-							// Default forward direction.
-							baseAngle =
-								this.team === 'red'
-									? Math.PI / 2
-									: -Math.PI / 2;
-						}
-					}
-
-					// Create bullets for every pattern.
-					for (const pat of Bullet.PATTERNS) {
-						const startAngle =
-							baseAngle - pat.angle / 2;
-
-						const step =
-							pat.count > 1
-								? pat.angle / (pat.count - 1)
-								: 0;
-
-						for (let i = 0; i < pat.count; i++) {
-							const a =
-								startAngle + i * step;
-
-							const dx = Math.cos(a);
-							const dy = Math.sin(a);
-
-							game.bullets.push(
-								Bullet.create(
-									this.x,
-									this.y,
-									dx,
-									dy,
-									this.vx,
-									this.vy,
-									this.team,
-									pat.dist,
-									pat.initSpeed,
-									false
-								)
-							);
-						}
+			for (const other of game.players) {
+				if (other.team !== this.team && other.isAlive()) {
+					const dist = Math.hypot(other.x - this.x, other.y - this.y);
+					if (dist < closestDist) {
+						closestDist = dist;
+						closestEnemy = other;
 					}
 				}
+			}
+
+			if (closestEnemy) {
+				return [closestEnemy.x - this.x, closestEnemy.y - this.y];
 			}
 			
-		} else {
-			/*
-			* Not attacking.
-			*
-			* The firing timer is kept ready so that shooting
-			* starts immediately when the player attacks.
-			*/
-			this.attackTimer = Math.min(this.attackTimer + dt, Player.ATTACK_DELAY);
+			// Default fallback direction
+			return this.team === 'red' ? [0, 1] : [0, -1];
+		}
 
-			if (this.attackCooldown > 0) {
-				this.attackCooldown = Math.max(
-					0,
-					this.attackCooldown - dt
-				);
+		return [0, 1];
+	}
+
+	/**
+	 * Extracts the old bullet firing logic for readability.
+	 */
+	private executeStandardAttack(dt: number, game: GMTurrets) {
+		if (this.attackMunitions <= 0) return;
+
+		this.attackMunitions = Math.max(0, this.attackMunitions - dt);
+		this.attackCooldown = Player.ATTACK_COOLDOWN;
+		this.attackTimer += dt;
+
+		if (this.attackMunitions <= 0) {
+			this.attackFullyReloading = true;
+			this.attackTimer = 0;
+			return;
+		}
+
+		if (this.attackTimer >= Player.ATTACK_DELAY) {
+			this.attackTimer -= Player.ATTACK_DELAY;
+			
+			const [dx, dy] = this.resolveTargetVector(game);
+			const baseAngle = Math.atan2(dy, dx);
+
+			// Create bullets for every pattern.
+			for (const pat of Bullet.PATTERNS) {
+				const startAngle = baseAngle - pat.angle / 2;
+				const step = pat.count > 1 ? pat.angle / (pat.count - 1) : 0;
+
+				for (let i = 0; i < pat.count; i++) {
+					const a = startAngle + i * step;
+					const bdx = Math.cos(a);
+					const bdy = Math.sin(a);
+
+					game.bullets.push(
+						Bullet.create(
+							this.x, this.y, bdx, bdy, this.vx, this.vy,
+							this.team, pat.dist, pat.initSpeed, false
+						)
+					);
+				}
 			}
+		}
+	}
 
-			if (this.attackCooldown <= 0) {
-				this.attackMunitions = Math.min(
-					Player.ATTACK_FULL,
-					this.attackMunitions + dt * Player.ATTACK_RELOAD
-				);
-			}
+	// Helper for attack logic extraction
+	private processReloading(dt: number) {
+		this.attackMunitions = Math.min(
+			Player.ATTACK_FULL,
+			this.attackMunitions + dt * Player.ATTACK_SLOW_RELOAD
+		);
 
+		if (this.attackMunitions >= Player.ATTACK_FULL) {
+			this.attackMunitions = Player.ATTACK_FULL;
+			this.attackFullyReloading = false;
+			this.attackTimer = Player.ATTACK_DELAY;
+		}
+	}
+
+	// Helper for attack logic extraction
+	private processAttackCooldowns(dt: number) {
+		this.attackTimer = Math.min(this.attackTimer + dt, Player.ATTACK_DELAY);
+
+		if (this.attackCooldown > 0) {
+			this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+		}
+
+		if (this.attackCooldown <= 0) {
+			this.attackMunitions = Math.min(
+				Player.ATTACK_FULL,
+				this.attackMunitions + dt * Player.ATTACK_RELOAD
+			);
 		}
 	}
 
@@ -528,6 +537,49 @@ class Player {
 		}
 	}
 
+
+	/**
+	 * Handles picking up an item on the map or selecting a slot in inventory.
+	 */
+	interactWithSlot(slot: number, game: GMTurrets) {
+		// Unselect
+		if (slot === this.selectedItem) {
+			this.selectedItem = -1;
+			return;
+		}
+
+		// Find if the player is standing on any item
+		const hoverItemIdx = game.itemsInMap.findIndex(item => {
+			const dist = Math.hypot(item.x - this.x, item.y - this.y);
+			return dist <= ItemInMap.RADIUS + Player.RADIUS;
+		});
+
+		if (hoverItemIdx !== -1) {
+			this.swapOrPickupItem(slot, hoverItemIdx, game);
+		} else {
+			this.selectedItem = slot;
+		}
+	}
+
+	/**
+	 * Swaps the current item in the slot with the one on the ground, or picks it up.
+	 */
+	private swapOrPickupItem(slot: number, mapItemIdx: number, game: GMTurrets) {
+		const mapItem = game.itemsInMap[mapItemIdx];
+		const currentSlotItemId = this.items[slot];
+
+		// Take the item from the map
+		this.items[slot] = mapItem.id;
+
+		if (currentSlotItemId !== -1) {
+			// We already had an item, swap it (drop the old one at the exact same place)
+			mapItem.id = currentSlotItemId;
+		} else {
+			// The slot was empty, consume the item from the map
+			game.itemsInMap.splice(mapItemIdx, 1);
+		}
+	}
+
 }
 
 
@@ -541,6 +593,10 @@ class Turret {
 	pauseTimer = 0;
 	startCooldown = 0;
 	attackCooldown = 0;
+
+	itemsToSpawn = 0;
+	spawnIdx = 0;
+
 
 	static readonly SIZE = 100;
 
@@ -578,7 +634,7 @@ class Turret {
 			} else {
 				this.itemDamage += damage;
 				if (this.itemDamage >= TURRET_ITEM_DAMAGES) {
-					console.log("You win 3 items");
+					this.itemsToSpawn += TURRET_ITEM_COUNT;
 					this.pauseTimer = TURRET_PAUSE;
 					this.itemDamage = 0;
 					this.hp -= damage; // Apply the damage causing it to lose full HP
@@ -607,12 +663,16 @@ class Turret {
 		this.pauseTimer = 0;
 		this.startCooldown = TURRET_START_COOLDOWN;
 		this.attackCooldown = 0;
+		this.itemsToSpawn = 0;
+		this.spawnIdx = newTeam === 'red' ? 2 : 6;
 	}
 
 	/**
 	 * Runs every frame to handle cooldowns and bullet spawning.
 	 */
 	frame(dt: number, game: GMTurrets) {
+		this.spawnPendingItems(game);
+
 		// Do not process logic if the turret is paused
 		if (this.pauseTimer > 0) {
 			this.pauseTimer -= dt;
@@ -655,6 +715,26 @@ class Turret {
 					true
 				));
 			}
+		}
+	}
+
+	/**
+	 * Spawns items incrementally at specific angles around the turret's border.
+	 */
+	private spawnPendingItems(game: GMTurrets) {
+		while (this.itemsToSpawn > 0) {
+			const angle = this.spawnIdx * (Math.PI / 4);
+			
+			const itemX = this.x + Math.cos(angle) * TURRET_RADIUS;
+			const itemY = this.y + Math.sin(angle) * TURRET_RADIUS;
+
+			// Add a random item (replace Math.random logic according to your needs)
+			const randomItemId = 0;
+			
+			game.itemsInMap.push(new ItemInMap(itemX, itemY, randomItemId));
+
+			this.spawnIdx += 3;
+			this.itemsToSpawn--;
 		}
 	}
 
@@ -729,7 +809,6 @@ class Turret {
 			barY -= (BAR_H + 4);
 
 			// Draw situational bars above HP
-			console.log(this.hp, TURRET_HP, this.itemDamage);
 			if (this.pauseTimer > 0) {
 				// TURRET_PAUSE (Gray)
 				ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -856,6 +935,67 @@ class Bullet {
 	}
 }
 
+class ItemInMap {
+	static readonly RADIUS = 40;
+
+	constructor(
+		public x: number,
+		public y: number,
+		public id: number
+	) {}
+
+	/**
+	 * Draws the item on the map using its icon or a fallback shape.
+	 */
+	draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoader) {
+		const itemDef = ITEMS[this.id];
+		if (!itemDef) return;
+
+		const img = imageLoader.get(itemDef.iconMap);
+
+		ctx.save();
+		ctx.translate(this.x, this.y);
+
+		if (img) {
+			ctx.drawImage(
+				img,
+				-ItemInMap.RADIUS,
+				-ItemInMap.RADIUS,
+				ItemInMap.RADIUS * 2,
+				ItemInMap.RADIUS * 2
+			);
+		} else {
+			// Fallback placeholder if texture is not yet loaded
+			ctx.fillStyle = '#ffaa00';
+			ctx.beginPath();
+			ctx.arc(0, 0, ItemInMap.RADIUS, 0, Math.PI * 2);
+			ctx.fill();
+
+			ctx.fillStyle = '#ffffff';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.font = 'bold 20px sans-serif';
+			ctx.fillText(`${this.id}`, 0, 0);
+		}
+
+		ctx.restore();
+	}
+}
+
+
+
+const ITEMS = [
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "Test",
+
+		run: (game: GMTurrets, dx: number, dy: number): number | null => {
+			console.log(`Used item with direction vector (${dx}, ${dy})`);
+			return null; 
+		}
+	}
+];
 
 
 
@@ -1084,6 +1224,68 @@ function generateClientDom() {
 	};
 }
 
+/**
+ * Renders a single inventory slot card in the HUD.
+ *
+ * @param ctx - The 2D rendering context.
+ * @param x - Top-left X coordinate of the slot card.
+ * @param y - Top-left Y coordinate of the slot card.
+ * @param size - Size (width and height) of the slot card.
+ * @param itemId - The ID of the item inside this slot (-1 if empty).
+ * @param slotIndex - Display number for keybinding (1, 2, 3).
+ * @param isSelected - True if the player currently selected this slot.
+ * @param imageLoader - Image assets container.
+ */
+function drawItemHand(
+	ctx: CanvasRenderingContext2D,
+	x: number,
+	y: number,
+	size: number,
+	itemId: number,
+	slotIndex: number,
+	isSelected: boolean,
+	imageLoader: ImageLoader
+) {
+	ctx.save();
+
+	// 1. Slot Background
+	ctx.fillStyle = isSelected ? '#ffcc00' : 'rgba(30, 30, 30, 0.75)';
+	ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(255, 255, 255, 0.4)';
+	ctx.lineWidth = isSelected ? 4 : 2;
+
+	ctx.fillRect(x, y, size, size);
+	ctx.strokeRect(x, y, size, size);
+
+	// 2. Draw Item Icon (if slot is occupied)
+	if (itemId !== -1 && ITEMS[itemId]) {
+		const itemDef = ITEMS[itemId];
+		const img = imageLoader.get(itemDef.iconHand);
+
+		const padding = size * 0.15;
+		const imgSize = size - padding * 2;
+
+		if (img) {
+			ctx.drawImage(img, x + padding, y + padding, imgSize, imgSize);
+		} else {
+			// Fallback text icon
+			ctx.fillStyle = isSelected ? '#000000' : '#ffffff';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.font = 'bold 18px sans-serif';
+			ctx.fillText(itemDef.name.charAt(0), x + size / 2, y + size / 2);
+		}
+	}
+
+	// 3. Slot Key Binding Label (top-left inside box)
+	ctx.fillStyle = isSelected ? '#000000' : '#ffffff';
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'top';
+	ctx.font = 'bold 16px sans-serif';
+	ctx.fillText(`${slotIndex}`, x + 6, y + 4);
+
+	ctx.restore();
+}
+
 
 interface Floor {
 	x0: number;
@@ -1105,6 +1307,8 @@ export class GMTurrets extends GameMode {
 	readonly turrets: Turret[] = [];
 	readonly floors: Floor[] = [];
 	readonly bullets: Bullet[] = [];
+	readonly itemsInMap: ItemInMap[] = [];
+
 
 	time = 600;
 
@@ -1364,6 +1568,13 @@ export class GMTurrets extends GameMode {
 			case 'throwOff':
 				player.target = null;
 				break;
+
+			case 'useItem':
+				if (input.useItem && input.useItem.slot !== undefined) {
+					player.interactWithSlot(input.useItem.slot, this);
+				}
+				break;
+
 		}
 	}
 
@@ -1437,6 +1648,14 @@ export class GMTurrets extends GameMode {
 			}
 
 
+			for (let slot = 0; slot < ITEM_COUNT; slot++) {
+				if (mobile.first(String(slot+1))) {
+					inputs.push({ useItem: { slot }, action: 'useItem' });
+				}
+			}
+
+
+
 
 		} else {
 			if (keyboard.press('right')) {
@@ -1502,6 +1721,14 @@ export class GMTurrets extends GameMode {
 			// --- Aiming: shift held (desktop) ---
 			if (keyboard.first('shift')) {
 				inputs.push({ throwAuto: {}, action: 'throwAuto' });
+			}
+
+
+			// Use items
+			for (let slot = 0; slot < ITEM_COUNT; slot++) {
+				if (keyboard.first(String(slot+1))) {
+					inputs.push({ useItem: { slot }, action: 'useItem' });
+				}
 			}
 		}
 
@@ -1620,6 +1847,37 @@ export class GMTurrets extends GameMode {
 		);
 	}
 
+	/**
+	 * Draws the inventory bar at the top-left corner of the screen.
+	 */
+	private drawInventoryHUD(
+		ctx: CanvasRenderingContext2D,
+		player: Player,
+		imageLoader: ImageLoader
+	) {
+		const startX = 30;
+		const startY = 30;
+		const slotSize = 70;
+		const spacing = 15;
+
+		for (let i = 0; i < ITEM_COUNT; i++) {
+			const x = startX + i * (slotSize + spacing);
+			const itemId = player.items[i] ?? -1;
+			const isSelected = player.selectedItem === i;
+
+			drawItemHand(
+				ctx,
+				x,
+				startY,
+				slotSize,
+				itemId,
+				i + 1,
+				isSelected,
+				imageLoader
+			);
+		}
+	}
+
 	override draw(
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
@@ -1653,6 +1911,11 @@ export class GMTurrets extends GameMode {
 		for (const turret of this.turrets) {
 			turret.drawBackground(ctx);
 		}
+
+		// Draw items
+		for (const item of this.itemsInMap) {
+			item.draw(ctx, imageLoader);
+		}
 		
 		// Draw bullets
 		for (const b of this.bullets) {
@@ -1675,9 +1938,12 @@ export class GMTurrets extends GameMode {
 		// Restore the canvas state after leaving the camera coordinate space
 		ctx.restore();
 
-		// Display the death screen when the local player is dead
+		// Draw top-left Inventory HUD
 		const localPlayer = this.players[playerIdx];
-		if (localPlayer && !localPlayer.isAlive()) {
+		this.drawInventoryHUD(ctx, localPlayer, imageLoader);
+
+		// Display the death screen when the local player is dead
+		if (!localPlayer.isAlive()) {
 			// Draw a semi-transparent black overlay over the entire screen
 			ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
 			ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -1689,13 +1955,12 @@ export class GMTurrets extends GameMode {
 
 			// Draw the death message
 			ctx.font = 'bold 80px sans-serif';
-			ctx.fillText('VOUS ÊTES MORT', WIDTH / 2, HEIGHT / 2 - 40);
+			ctx.fillText("YOU DIED", WIDTH / 2, HEIGHT / 2 - 40);
 
 			// Draw the remaining respawn time
 			ctx.font = '40px sans-serif';
-			const respawnTime = Math.ceil(localPlayer.alive);
 			ctx.fillText(
-				`Réapparition dans ${respawnTime}s`,
+				`Respawn in ${localPlayer.alive.toFixed(1)}s`,
 				WIDTH / 2,
 				HEIGHT / 2 + 40
 			);
@@ -1703,6 +1968,8 @@ export class GMTurrets extends GameMode {
 
 		this.drawMinimap(ctx, playerIdx);
 	}
+
+
 
 
 	override onDisconnection(id: number): void {
@@ -1714,6 +1981,7 @@ export class GMTurrets extends GameMode {
 		
 		const object: Fields = {
 			players: this.players,
+			
 			turrets: this.turrets.map(t => ({
 				taken: t.team !== null,
 				redTeam: t.team === 'red',
@@ -1724,7 +1992,9 @@ export class GMTurrets extends GameMode {
 				startCooldown: t.startCooldown,
 				attackCooldown: t.attackCooldown
 			})),
+
 			time: this.time,
+
 			bullets: this.bullets.map(b => ({
 				x: b.x,
 				y: b.y,
@@ -1733,7 +2003,9 @@ export class GMTurrets extends GameMode {
 				a: b.a,
 				fromTurret: b.fromTurret,
 				isRed: b.team === 'red'
-			}))
+			})),
+
+			items: this.itemsInMap,
 		};
 
 		return State.encode(object).finish();
@@ -1760,6 +2032,8 @@ export class GMTurrets extends GameMode {
 			t.pauseTimer = bucket.pauseTimer;
 			t.startCooldown = bucket.startCooldown;
 			t.attackCooldown = bucket.attackCooldown;
+			t.itemsToSpawn = bucket.itemsToSpawn;
+			t.spawnIdx = bucket.spawnIdx;
 		}
 
 		// Rebuild the bullets array from state
@@ -1777,6 +2051,14 @@ export class GMTurrets extends GameMode {
 						b.fromTurret
 					)
 				);
+			}
+		}
+
+		// Rebuild items in map array
+		this.itemsInMap.length = 0;
+		if (obj.items) {
+			for (const item of obj.items) {
+				this.itemsInMap.push(new ItemInMap(item.x, item.y, item.id));
 			}
 		}
 

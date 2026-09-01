@@ -4,6 +4,12 @@ package game_turrets;
 
 message Empty {}
 
+message ItemInMap {
+	float x = 1;
+	float y = 2;
+	int32 id = 3;
+}
+
 message Player {
 	float x = 1;
 	float y = 2;
@@ -16,6 +22,8 @@ message Player {
 	float attackMunitions = 9;
 	float hp = 10;
 	float maxHp = 11;
+	repeated int32 items = 12;
+	int32 selectedItem = 13;
 }
 
 message Bullet {
@@ -37,6 +45,8 @@ message Turret {
 	float pauseTimer = 6;
 	float startCooldown = 7;
 	float attackCooldown = 8;
+	int32 itemsToSpawn = 9;
+	int32 spawnIdx = 10;
 }
 
 message State {
@@ -44,6 +54,7 @@ message State {
 	repeated Turret turrets = 2;
 	float time = 3;
 	repeated Bullet bullets = 4;
+	repeated ItemInMap items = 5;
 }
 
 message Throw {
@@ -51,17 +62,20 @@ message Throw {
 	float y = 2;
 }
 
+message ItemAction {
+	int32 slot = 1;
+}
+
 message QInput {
 	double timestamp = 1;
 	oneof action {
 		float dirX = 2;
 		float dirY = 3;
-
-		// Aiming / throwing
 		Throw throwTarget = 4;
 		Throw throwDir = 5;
 		Empty throwAuto = 6;
 		Empty throwOff = 7;
+		ItemAction useItem = 8;
 	}
 }
 
