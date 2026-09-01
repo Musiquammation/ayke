@@ -49,27 +49,41 @@ class Player {
 	static readonly SOFT_DECELERATION = 10000;
 	static readonly QUICK_DECELERATION = 30000;
 	static readonly COOLDOWN = 1.5;
-	static readonly WIDTH = 40;
-	static readonly HEIGHT = 80;
+	static readonly RADIUS = 60;
 	static readonly PUSH_DOWN = 1000;
 	static readonly THROW = 1200;
 	static readonly BOUNCE_X = 1000;
 	static readonly BOUNCE_Y = 100;
-	// NOTE: GRAB_GRAVITY / JUMP / SPAWN_JUMP removed: movement is now free on both axes,
-	// there is no more gravity pulling the player down.
+
+	// --- Attack System Constants ---
+	static readonly ATTACK_FULL = 5.0;
+	static readonly ATTACK_RELOAD = 4.0;
+	static readonly ATTACK_COOLDOWN = 0.75;
+	static readonly ATTACK_DELAY = 0.5;
+
 	static readonly GRAB_GRAVITY = 900;
 
 	spawnX: number | null = null;
-	spawnY: number | null = null
+	spawnY: number | null = null;
+
 	connected = true;
 	alive = -1;
+
 	vx = 0;
-	vy = 0; // was -Player.SPAWN_JUMP: no more spawn jump, player simply starts still
+	vy = 0;
+
 	dirX = 0;
 	dirY = 0;
+
 	score = 0;
+
 	target: FixedTarget | DeltaTarget | AutoTarget | null = null;
 	team: 'red' | 'blue' = 'red';
+
+	// --- Attack System Variables ---
+	attackMunitions = Player.ATTACK_FULL;
+	attackCooldown = 0;
+	attackTimer = Player.ATTACK_DELAY;
 
 	constructor(
 		public x: number,
@@ -98,11 +112,11 @@ class Player {
 		vy: number,
 		dt: number
 	): [number, number] {
-		const dirLength2 = dirX*dirX + dirY*dirY;
+		const dirLength2 = dirX * dirX + dirY * dirY;
 
 		// Clamp the input direction to a maximum length of 1.
 		if (dirLength2 >= 1) {
-			const inv = 1/Math.sqrt(dirLength2);
+			const inv = 1 / Math.sqrt(dirLength2);
 			dirX *= inv;
 			dirY *= inv;
 		}
@@ -122,6 +136,7 @@ class Player {
 			}
 
 			const factor = (speed - deceleration) / speed;
+
 			return [vx * factor, vy * factor];
 		}
 
@@ -139,11 +154,13 @@ class Player {
 			}
 
 			const factor = (speed - deceleration) / speed;
+
 			return [vx * factor, vy * factor];
 		}
 
 		// The desired speed scales with the input length.
-		const targetSpeed = Player.SPEED * Math.hypot(dirX, dirY);
+		const dirLength = Math.hypot(dirX, dirY);
+		const targetSpeed = Player.SPEED * dirLength;
 
 		if (forwardSpeed < targetSpeed) {
 			const acceleration = Player.ACCELERATION * dt;
@@ -152,16 +169,24 @@ class Player {
 				targetSpeed
 			);
 
-			return [dirX / Math.hypot(dirX, dirY) * newSpeed,
-				dirY / Math.hypot(dirX, dirY) * newSpeed];
+			return [
+				dirX / dirLength * newSpeed,
+				dirY / dirLength * newSpeed
+			];
 		}
 
 		// Decelerate if the current velocity exceeds the target speed.
 		if (speed > targetSpeed) {
 			const deceleration = Player.MIN_DECELERATION * dt;
-			const newSpeed = Math.max(speed - deceleration, targetSpeed);
+			const newSpeed = Math.max(
+				speed - deceleration,
+				targetSpeed
+			);
 
-			return [vx / speed * newSpeed, vy / speed * newSpeed];
+			return [
+				vx / speed * newSpeed,
+				vy / speed * newSpeed
+			];
 		}
 
 		return [vx, vy];
@@ -170,14 +195,20 @@ class Player {
 	move(dt: number) {
 		if (this.alive >= 0) {
 			this.alive -= dt;
-			if (this.alive >= 0)
-				return;
 
-			if (this.spawnX !== null) { this.x = this.spawnX; }
-			if (this.spawnY !== null) { this.y = this.spawnY; }
+			if (this.alive >= 0) {
+				return;
+			}
+
+			if (this.spawnX !== null) {
+				this.x = this.spawnX;
+			}
+
+			if (this.spawnY !== null) {
+				this.y = this.spawnY;
+			}
 		}
 
-		// Apply the same acceleration/deceleration logic to both axes independently
 		[this.vx, this.vy] = Player.applyMovement(
 			this.dirX,
 			this.dirY,
@@ -190,6 +221,25 @@ class Player {
 		this.y += this.vy * dt;
 
 		this.avoidOOB();
+
+		// --- Attack timers ---
+		if (this.attackCooldown > 0) {
+			this.attackCooldown = Math.max(
+				0,
+				this.attackCooldown - dt
+			);
+		}
+
+		this.attackTimer += dt;
+
+		// Reload ammunition over time.
+		if (this.attackMunitions < Player.ATTACK_FULL) {
+			this.attackMunitions = Math.min(
+				Player.ATTACK_FULL,
+				this.attackMunitions
+					+ dt / Player.ATTACK_RELOAD
+			);
+		}
 	}
 
 	load(obj: Fields) {
@@ -201,10 +251,14 @@ class Player {
 		this.dirY = obj.dirY;
 		this.alive = obj.alive;
 		this.score = obj.score;
+
+		// Attack state.
+		this.attackMunitions =
+			obj.attackMunitions ?? Player.ATTACK_FULL;
 	}
 
 	avoidOOB() {
-		/// TODO: edit this.x, y if oob 
+		/// TODO: edit this.x, y if oob
 	}
 
 	die() {
@@ -213,7 +267,6 @@ class Player {
 		this.alive = Player.COOLDOWN;
 	}
 }
-
 
 
 class Turret {
@@ -227,8 +280,86 @@ class Turret {
 	) {}
 }
 
+class Bullet {
+	static readonly RADIUS = 10;
 
+	static readonly PATTERNS = [
+		{ count: 5, angle: Math.PI / 16, dist: 1600, initSpeed: 2000 },
+		{ count: 5, angle: Math.PI / 8, dist: 600, initSpeed: 1000 },
+		{ count: 5, angle: Math.PI / 4, dist: 200, initSpeed: 1000 }
+	];
 
+	constructor(
+		public x: number,
+		public y: number,
+		public vx: number,
+		public vy: number,
+		public readonly ax: number,
+		public readonly ay: number,
+		public readonly maxDist: number,
+		public readonly team: 'red' | 'blue',
+		public traveledDist: number
+	) {}
+
+	static create(
+		x: number,
+		y: number,
+		vx0: number,
+		vy0: number,
+		team: 'red' | 'blue',
+		dist: number,
+		initSpeed: number
+	) {
+		const length = Math.hypot(vx0, vy0);
+
+		// Direction of the bullet.
+		const dx = length > 0 ? vx0 / length : 0;
+		const dy = length > 0 ? vy0 / length : 0;
+
+		// v^2 = v0^2 + 2ad
+		const acceleration = -initSpeed * initSpeed / (2 * dist);
+
+		const vx = dx * initSpeed;
+		const vy = dy * initSpeed;
+
+		const ax = dx * acceleration;
+		const ay = dy * acceleration;
+
+		const maxDist = dist;
+
+		return new Bullet(
+			x, y, vx, vy,
+			ax, ay, maxDist, team, 0
+		);
+	}
+
+	move(dt: number): boolean {
+		const oldVx = this.vx;
+		const oldVy = this.vy;
+
+		// Constant acceleration.
+		this.vx += this.ax * dt;
+		this.vy += this.ay * dt;
+
+		// Don't allow the bullet to start moving backwards.
+		const speed = Math.hypot(this.vx, this.vy);
+		if (speed <= 0) {
+			this.vx = 0;
+			this.vy = 0;
+		}
+
+		// Distance traveled during this frame.
+		const dx = (oldVx + this.vx) * 0.5 * dt;
+		const dy = (oldVy + this.vy) * 0.5 * dt;
+		const frameDist = Math.hypot(dx, dy);
+
+		this.x += dx;
+		this.y += dy;
+		this.traveledDist += frameDist;
+
+		return this.traveledDist >= this.maxDist;
+	}
+}
 
 
 
@@ -478,11 +609,14 @@ export class GMTurrets extends GameMode {
 	readonly players: Player[];
 	readonly turrets: Turret[] = [];
 	readonly floors: Floor[] = [];
+	readonly bullets: Bullet[] = [];
 
 	time = 600;
 
 	finished = false;
 	internalFrameTick = 0;
+
+
 
 	private constructor(total: number) {
 		super();
@@ -661,18 +795,113 @@ export class GMTurrets extends GameMode {
 	}
 
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
-		// Time
+		// Time management
 		this.time -= dt;
 		if (this.time <= 0) {
 			this.finished = true;
 		}
 
-
-		// Move
+		// Move players and handle attacks
 		for (const [idx, p] of this.players.entries()) {
 			p.move(dt);
+
+			// Attack logic: player is aiming and is alive (alive < 0 means alive in this engine)
+			if (p.target !== null && p.isAlive()) {
+				
+				// Check if we still have munitions to fire
+				if (p.attackMunitions > 0) {
+					// Drain munitions continuously while holding attack
+					p.attackMunitions = Math.max(0, p.attackMunitions - dt);
+					p.attackCooldown = Player.ATTACK_COOLDOWN;
+					p.attackTimer += dt;
+
+					// Fire bullets every ATTACK_DELAY seconds
+					if (p.attackTimer >= Player.ATTACK_DELAY) {
+						p.attackTimer = 0; // Reset firing timer
+
+						// Determine base shooting angle
+						let baseAngle = 0;
+						if (p.target.type === 'fixed') {
+							baseAngle = Math.atan2(p.target.y - p.y, p.target.x - p.x);
+						} else if (p.target.type === 'delta') {
+							baseAngle = Math.atan2(p.target.dy, p.target.dx);
+						} else if (p.target.type === 'auto') {
+							// Find the closest alive enemy
+							let closestDist = Infinity;
+							let closestEnemy: Player | null = null;
+							for (const other of this.players) {
+								if (other.team !== p.team && other.isAlive()) {
+									const dist = Math.hypot(other.x - p.x, other.y - p.y);
+									if (dist < closestDist) {
+										closestDist = dist;
+										closestEnemy = other;
+									}
+								}
+							}
+							
+							if (closestEnemy) {
+								baseAngle = Math.atan2(closestEnemy.y - p.y, closestEnemy.x - p.x);
+							} else {
+								// Default forward direction if no enemies are found
+								baseAngle = p.team === 'red' ? Math.PI / 2 : -Math.PI / 2;
+							}
+						}
+
+
+						for (const pat of Bullet.PATTERNS) {
+							const startAngle = baseAngle - pat.angle / 2;
+							const step = pat.count > 1 ? pat.angle / (pat.count - 1) : 0;
+
+							for (let i = 0; i < pat.count; i++) {
+								const a = startAngle + i * step;
+
+								const dx = Math.cos(a);
+								const dy = Math.sin(a);
+
+								this.bullets.push(
+									Bullet.create(
+										p.x,
+										p.y,
+										dx,
+										dy,
+										p.team,
+										pat.dist,
+										pat.initSpeed
+									)
+								);
+							}
+						}
+					}
+				} else {
+					// Out of ammo: keep the timer ready so it fires immediately when ammo returns
+					p.attackTimer = Player.ATTACK_DELAY;
+				}
+			} else {
+				// Not attacking
+				p.attackTimer = Player.ATTACK_DELAY; // Ready to shoot immediately next time
+				
+				// Handle cooldown and reload
+				if (p.attackCooldown > 0) {
+					p.attackCooldown -= dt;
+				} else if (p.attackMunitions < Player.ATTACK_FULL) {
+					p.attackMunitions = Math.min(
+						Player.ATTACK_FULL, 
+						p.attackMunitions + Player.ATTACK_RELOAD * dt
+					);
+				}
+			}
 		}
 
+		// Move bullets and handle bounds
+		// Iterate backwards to safely remove elements during the loop
+		for (let i = this.bullets.length - 1; i >= 0; i--) {
+			const b = this.bullets[i];
+
+			// Basic Out Of Bounds check (despawn if too far away)
+			if (b.move(dt) || Math.abs(b.x) > FULL_ROOM_SIZE * 3 || Math.abs(b.y) > FULL_ROOM_SIZE * 3) {
+				this.bullets.splice(i, 1);
+			}
+		}
 
 		// Finish
 		if (produceFinish && this.finished) {
@@ -997,15 +1226,13 @@ export class GMTurrets extends GameMode {
 		ctx.scale(Camera.SCALE, Camera.SCALE);
 		ctx.translate(-cameraCoords.x, -cameraCoords.y);
 
-
 		// Draw floors
 		ctx.fillStyle = "#777";
 		for (const f of this.floors) {
 			ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
 		}
 		
-
-		// Turrets
+		// Draw Turrets
 		for (const turret of this.turrets) {
 			ctx.drawImage(
 				imageLoader.get(null),
@@ -1016,21 +1243,37 @@ export class GMTurrets extends GameMode {
 			);
 		}
 
-		// Draw players
-		const playerTexture = imageLoader.get('skin-default');
-		const w = playerTexture.width / 6;
-		const h = playerTexture.height / 4;
-		const width = Player.WIDTH * 4 / 3;
+		// Draw bullets
+		for (const b of this.bullets) {
+			ctx.fillStyle = b.team === 'red' ? '#ff6666' : '#6666ff';
+			ctx.beginPath();
+			ctx.arc(b.x, b.y, Bullet.RADIUS, 0, Math.PI * 2);
+			ctx.fill();
+		}
 
+		// Draw players
 		for (const [idx, p] of this.players.entries()) {
 			ctx.fillStyle = p.team;
 
-			ctx.fillRect(
-				p.x - Player.WIDTH/2,
-				p.y - Player.HEIGHT/2,
-				Player.WIDTH,
-				Player.HEIGHT
-			);
+			ctx.beginPath();
+			ctx.arc(p.x, p.y, Player.RADIUS, 0, Math.PI * 2);
+			ctx.fill();
+
+			// Draw the attack bar ONLY for the current local player
+			if (idx === playerIdx) {
+				const BAR_W = 80;
+				const BAR_H = 10;
+				const ratio = p.attackMunitions / Player.ATTACK_FULL;
+				
+				// Background of the bar (empty state)
+				ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+				ctx.fillRect(p.x - BAR_W / 2, p.y - Player.RADIUS - 20, BAR_W, BAR_H);
+				
+				// Foreground of the bar (current ammo)
+				// Turns orange if currently on cooldown (can't reload yet)
+				ctx.fillStyle = p.attackCooldown > 0 ? 'orange' : 'white';
+				ctx.fillRect(p.x - BAR_W / 2, p.y - Player.RADIUS - 20, BAR_W * ratio, BAR_H);
+			}
 		}
 
 		ctx.restore();
@@ -1045,13 +1288,25 @@ export class GMTurrets extends GameMode {
 
 	override save(): Uint8Array {
 		const {State} = protocols.get();
+		
 		const object: Fields = {
-			players: this.players,
+			players: this.players, // Protobuf will automatically pick up attackMunitions
 			turrets: this.turrets.map(b => ({
 				taken: b.team !== null,
 				redTeam: b.team === 'red'
 			})),
 			time: this.time,
+			bullets: this.bullets.map(b => ({
+				x: b.x,
+				y: b.y,
+				vx: b.vx,
+				vy: b.vy,
+				ax: b.ax,
+				ay: b.ay,
+				maxDist: b.maxDist,
+				isRed: b.team === 'red',
+				traveledDist: b.traveledDist
+			}))
 		};
 
 		return State.encode(object).finish();
@@ -1060,6 +1315,7 @@ export class GMTurrets extends GameMode {
 	override load(data: Uint8Array): void {
 		const {State} = protocols.get();
 		const obj = State.decode(data);
+		
 		for (const [idx, player] of obj.players.entries()) {
 			this.players[idx].load(player);
 		}
@@ -1072,6 +1328,25 @@ export class GMTurrets extends GameMode {
 			}
 		}
 
+		// Rebuild the bullets array from state
+		this.bullets.length = 0;
+		if (obj.bullets) {
+			for (const b of obj.bullets) {
+				this.bullets.push(
+					new Bullet(
+						b.x,
+						b.y,
+						b.vx,
+						b.vy,
+						b.ax,
+						b.ay,
+						b.maxDist,
+						b.isRed ? 'red' : 'blue',
+						b.traveledDist
+					)
+				);
+			}
+		}
 
 		this.time = obj.time;
 	}

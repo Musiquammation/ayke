@@ -13,6 +13,19 @@ message Player {
 	float dirY = 6;
 	float alive = 7;
 	int32 score = 8;
+	float attackMunitions = 9;
+}
+
+message Bullet {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+	float ax = 5;
+	float ay = 6;
+	float maxDist = 7;
+	bool isRed = 8;
+	float traveledDist = 9;
 }
 
 message Turret {
@@ -24,6 +37,7 @@ message State {
 	repeated Player players = 1;
 	repeated Turret turrets = 2;
 	float time = 3;
+	repeated Bullet bullets = 4;
 }
 
 message Throw {
