@@ -20,7 +20,15 @@ const HEIGHT = 1350;
 const FULL_ROOM_SIZE = WIDTH * 2.5;
 const ROOM_SIZE = WIDTH * 1.5;
 const BRIDGE_SIZE = WIDTH * 0.3;
+const BULLET_DAMAGE = 15;
+
 const TURRET_RADIUS = WIDTH * 0.6;
+const TURRET_ACTIVATION = 1000;
+const TURRET_COOLDOWN = 2.0; 
+const TURRET_HP = 2000;
+const TURRET_START_COOLDOWN = 5.0;
+const TURRET_ITEM_DAMAGES = 500;
+const TURRET_PAUSE = 12.5;
 
 const MINIMAP_X = WIDTH * 0.79;
 const MINIMAP_Y = HEIGHT * 0.01;
@@ -58,7 +66,6 @@ class Player {
 
 	// --- Health System ---
 	static readonly MAX_HP = 100;
-	static readonly BULLET_DAMAGE = 20;
 
 	// --- Attack System Constants ---
 	static readonly ATTACK_FULL = 5.0;
@@ -325,7 +332,7 @@ class Player {
 
 				// Fire bullets every ATTACK_DELAY seconds.
 				if (this.attackTimer >= Player.ATTACK_DELAY) {
-					this.attackTimer = 0;
+					this.attackTimer -= Player.ATTACK_DELAY;
 
 					// Determine base shooting angle.
 					let baseAngle = 0;
@@ -403,7 +410,8 @@ class Player {
 									this.vy,
 									this.team,
 									pat.dist,
-									pat.initSpeed
+									pat.initSpeed,
+									false
 								)
 							);
 						}
@@ -526,13 +534,223 @@ class Player {
 class Turret {
 	team: 'red' | 'blue' | null = null;
 
-	static readonly SIZE = 60;
+	// State variables
+	activation = 0;
+	hp = 0;
+	itemDamage = 0;
+	pauseTimer = 0;
+	startCooldown = 0;
+	attackCooldown = 0;
+
+	static readonly SIZE = 100;
 
 	constructor(
 		public readonly x: number,
 		public readonly y: number
 	) {}
+
+	/**
+	 * Handles damage dealt to the turret by bullets.
+	 */
+	hit(damage: number, attackerTeam: 'red' | 'blue') {
+		// 1. Uncaptured State: Damage contributes to activation points
+		if (this.team === null) {
+			if (attackerTeam === 'red') {
+				this.activation += damage;
+			} else {
+				this.activation -= damage;
+			}
+
+			// Capture threshold checks
+			if (this.activation >= TURRET_ACTIVATION) {
+				this.capture('red');
+			} else if (this.activation <= -TURRET_ACTIVATION) {
+				this.capture('blue');
+			}
+			return;
+		}
+
+		// 2. Captured State
+		if (this.team === attackerTeam) {
+			// Friendly fire heals the turret
+			if (this.hp < TURRET_HP) {
+				this.hp = Math.min(TURRET_HP, this.hp + damage);
+			} else {
+				this.itemDamage += damage;
+				if (this.itemDamage >= TURRET_ITEM_DAMAGES) {
+					console.log("You win 3 items");
+					this.pauseTimer = TURRET_PAUSE;
+					this.itemDamage = 0;
+					this.hp -= damage; // Apply the damage causing it to lose full HP
+				}
+			}
+		} else {
+			// Enemy fire logic
+			this.hp -= damage;
+			this.itemDamage = 0;
+
+			// Change team if destroyed
+			if (this.hp <= 0) {
+				this.capture(attackerTeam);
+			}
+		}
+	}
+
+	/**
+	 * Private helper to reset state upon a team capture.
+	 */
+	private capture(newTeam: 'red' | 'blue') {
+		this.team = newTeam;
+		this.hp = TURRET_HP;
+		this.activation = 0;
+		this.itemDamage = 0;
+		this.pauseTimer = 0;
+		this.startCooldown = TURRET_START_COOLDOWN;
+		this.attackCooldown = 0;
+	}
+
+	/**
+	 * Runs every frame to handle cooldowns and bullet spawning.
+	 */
+	frame(dt: number, game: GMTurrets) {
+		// Do not process logic if the turret is paused
+		if (this.pauseTimer > 0) {
+			this.pauseTimer -= dt;
+			if (this.pauseTimer <= 0) {
+				this.itemDamage = 0;
+			}
+
+			return;
+		}
+
+		// Uncaptured turrets do nothing
+		if (this.team === null) return;
+
+		// Initial delay before a newly captured turret starts attacking
+		if (this.startCooldown > 0) {
+			this.startCooldown -= dt;
+			return;
+		}
+
+		this.attackCooldown -= dt;
+		if (this.attackCooldown <= 0) {
+			this.attackCooldown = TURRET_COOLDOWN;
+			
+			const BULLETS_COUNT = 250;
+			const BULLET_SPEED = 5000; 
+
+			// Spawn bullets in a full circle around the turret
+			for (let i = 0; i < BULLETS_COUNT; i++) {
+				const angle = i * (Math.PI * 2 / BULLETS_COUNT);
+				const vx = Math.cos(angle) * BULLET_SPEED;
+				const vy = Math.sin(angle) * BULLET_SPEED;
+				
+				game.bullets.push(Bullet.create(
+					this.x, this.y, 
+					vx, vy, 
+					0, 0, 
+					this.team, 
+					TURRET_RADIUS,
+					BULLET_SPEED,
+					true
+				));
+			}
+		}
+	}
+
+
+	/**
+	 * Draw range circle of the turret.
+	 */
+	drawBackground(ctx: CanvasRenderingContext2D) {
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, TURRET_RADIUS, 0, Math.PI * 2);
+
+		if (this.team === 'red') {
+			ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+			ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+		} else if (this.team === 'blue') {
+			ctx.fillStyle = 'rgba(0, 0, 255, 0.15)';
+			ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)';
+		} else {
+			ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+			ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+		}
+
+		ctx.fill();
+
+		ctx.lineWidth = 8;
+		ctx.stroke();
+	}
+
+	/**
+	 * Draws the turret, and all related status bars.
+	 */
+	draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoader) {
+		// Draw Base Turret
+		ctx.drawImage(
+			imageLoader.get(null),
+			this.x - Turret.SIZE / 2,
+			this.y - Turret.SIZE / 2,
+			Turret.SIZE,
+			Turret.SIZE
+		);
+
+		// Bar configuration
+		const BAR_W = 80;
+		const BAR_H = 10;
+		let barY = this.y - Turret.SIZE / 2 - 20;
+
+		if (this.team === null) {
+			// Draw TURRET_ACTIVATION bar (split left/right)
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+			ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
+
+			const center = this.x;
+			const ratio = Math.abs(this.activation) / TURRET_ACTIVATION;
+			const fillW = (BAR_W / 2) * ratio;
+
+			if (this.activation > 0) {
+				ctx.fillStyle = 'red';
+				ctx.fillRect(center, barY, fillW, BAR_H);
+			} else if (this.activation < 0) {
+				ctx.fillStyle = 'blue';
+				ctx.fillRect(center - fillW, barY, fillW, BAR_H);
+			}
+		} else {
+			// Draw TURRET_HP bar
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+			ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
+
+			ctx.fillStyle = this.team;
+			const hpRatio = Math.max(0, this.hp / TURRET_HP);
+			ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W * hpRatio, BAR_H);
+			
+			barY -= (BAR_H + 4);
+
+			// Draw situational bars above HP
+			console.log(this.hp, TURRET_HP, this.itemDamage);
+			if (this.pauseTimer > 0) {
+				// TURRET_PAUSE (Gray)
+				ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
+
+				ctx.fillStyle = 'gray';
+				const pauseRatio = this.pauseTimer / TURRET_PAUSE;
+				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W * pauseRatio, BAR_H);
+			} else if (this.hp === TURRET_HP && this.itemDamage > 0) {
+				// TURRET_ITEM_DAMAGES (Green)
+				ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
+
+				ctx.fillStyle = '#22cc22'; 
+				const itemRatio = this.itemDamage / TURRET_ITEM_DAMAGES;
+				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W * itemRatio, BAR_H);
+			}
+		}
+	}
 }
+
 
 class Bullet {
 	static readonly RADIUS = 10;
@@ -549,7 +767,8 @@ class Bullet {
 		public vx: number,
 		public vy: number,
 		public readonly a: number,
-		public readonly team: 'red' | 'blue'
+		public readonly team: 'red' | 'blue',
+		public readonly fromTurret: boolean
 	) {}
 
 	static create(
@@ -561,7 +780,8 @@ class Bullet {
 		sy: number,
 		team: 'red' | 'blue',
 		dist: number,
-		initSpeed: number
+		initSpeed: number,
+		fromTurret: boolean
 	) {
 		const length = Math.hypot(vx0, vy0);
 
@@ -577,7 +797,7 @@ class Bullet {
 		// v^2 = v0^2 + 2ad
 		const a = initSpeed * initSpeed / (2 * dist);
 
-		return new Bullet(x, y, vx, vy, a, team);
+		return new Bullet(x, y, vx, vy, a, team, fromTurret);
 	}
 
 	move(dt: number): boolean {
@@ -603,15 +823,32 @@ class Bullet {
 
 	attack(game: GMTurrets) {
 		const SR = Player.RADIUS + Bullet.RADIUS;
-		const SR2 = SR*SR;
+		const SR2 = SR * SR;
+
+		// Check player collisions
 		for (const p of game.players) {
 			if (p.isAlive() && p.team !== this.team) {
 				const dx = p.x - this.x;
 				const dy = p.y - this.y;
-				if (dx*dx + dy*dy < SR2) {
-					p.hit(Player.BULLET_DAMAGE);
+				if (dx * dx + dy * dy < SR2) {
+					p.hit(BULLET_DAMAGE);
 					return true;
 				}
+			}
+		}
+
+		// Check turret collisions
+		if (this.fromTurret)
+			return false;
+
+		const TR = Turret.SIZE / 2 + Bullet.RADIUS;
+		const TR2 = TR * TR;
+		for (const t of game.turrets) {
+			const dx = t.x - this.x;
+			const dy = t.y - this.y;
+			if (dx * dx + dy * dy < TR2) {
+				t.hit(BULLET_DAMAGE, this.team);
+				return true;
 			}
 		}
 
@@ -884,8 +1121,15 @@ export class GMTurrets extends GameMode {
 			() => new Player(0, 0)
 		);
 
-		for (let x = -2; x <= 2; x++) {
-			for (let y = -2; y <= 2; y++) {
+		// for (let x = -2; x <= 2; x++) {
+			// for (let y = -2; y <= 2; y++) {
+		for (let x = 0; x <= 0; x++) {
+			for (let y = 0; y <= 0; y++) {
+				this.turrets.push(new Turret(
+					x * FULL_ROOM_SIZE,
+					y * FULL_ROOM_SIZE
+				));
+
 				const floorX = x * FULL_ROOM_SIZE;
 				const floorY = y * FULL_ROOM_SIZE;
 
@@ -1020,13 +1264,13 @@ export class GMTurrets extends GameMode {
 		} else {
 			game.players[0].initSpawn(
 				0,
-				-FULL_ROOM_SIZE * 2,
+				-100 * 2,
 				'red'
 			);
 
 			game.players[1].initSpawn(
 				0,
-				+FULL_ROOM_SIZE * 2,
+				100 * 2,
 				'blue'
 			);
 		}
@@ -1056,29 +1300,28 @@ export class GMTurrets extends GameMode {
 		dt: number,
 		produceFinish: boolean
 	): FinishGame | null {
-		// Time management.
 		this.time -= dt;
 
 		if (this.time <= 0) {
 			this.finished = true;
 		}
 
-		// Move players and handle attacks.
 		for (const p of this.players) {
 			p.move(dt);
-			p.attackLogic(dt, this);
+			p.attackLogic(dt, this); 
 		}
 
-		// Move bullets and handle bounds.
+		for (const turret of this.turrets) {
+			turret.frame(dt, this);
+		}
+
 		for (let i = this.bullets.length - 1; i >= 0; i--) {
 			const b = this.bullets[i];
-
 			if (b.move(dt) || b.attack(this)) {
 				this.bullets.splice(i, 1);
 			}
 		}
 
-		// Finish.
 		if (produceFinish && this.finished) {
 			return this.produceFinish();
 		}
@@ -1405,24 +1648,23 @@ export class GMTurrets extends GameMode {
 		for (const f of this.floors) {
 			ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
 		}
-		
-		// Draw Turrets
-		for (const turret of this.turrets) {
-			ctx.drawImage(
-				imageLoader.get(null),
-				turret.x - Turret.SIZE/2,
-				turret.y - Turret.SIZE/2,
-				Turret.SIZE,
-				Turret.SIZE
-			);
-		}
 
+		// Draw turret backgrounds
+		for (const turret of this.turrets) {
+			turret.drawBackground(ctx);
+		}
+		
 		// Draw bullets
 		for (const b of this.bullets) {
 			ctx.fillStyle = b.team === 'red' ? '#ff6666' : '#6666ff';
 			ctx.beginPath();
 			ctx.arc(b.x, b.y, Bullet.RADIUS, 0, Math.PI * 2);
 			ctx.fill();
+		}
+
+		// Draw turrets
+		for (const turret of this.turrets) {
+			turret.draw(ctx, imageLoader);
 		}
 
 		// Draw all players
@@ -1471,10 +1713,16 @@ export class GMTurrets extends GameMode {
 		const {State} = protocols.get();
 		
 		const object: Fields = {
-			players: this.players, // Protobuf will automatically pick up attackMunitions
-			turrets: this.turrets.map(b => ({
-				taken: b.team !== null,
-				redTeam: b.team === 'red'
+			players: this.players,
+			turrets: this.turrets.map(t => ({
+				taken: t.team !== null,
+				redTeam: t.team === 'red',
+				activation: t.activation,
+				hp: t.hp,
+				itemDamage: t.itemDamage,
+				pauseTimer: t.pauseTimer,
+				startCooldown: t.startCooldown,
+				attackCooldown: t.attackCooldown
 			})),
 			time: this.time,
 			bullets: this.bullets.map(b => ({
@@ -1483,6 +1731,7 @@ export class GMTurrets extends GameMode {
 				vx: b.vx,
 				vy: b.vy,
 				a: b.a,
+				fromTurret: b.fromTurret,
 				isRed: b.team === 'red'
 			}))
 		};
@@ -1499,11 +1748,18 @@ export class GMTurrets extends GameMode {
 		}
 
 		for (const [idx, bucket] of obj.turrets.entries()) {
+			const t = this.turrets[idx];
 			if (!bucket.taken) {
-				this.turrets[idx].team = null;
+				t.team = null;
 			} else {
-				this.turrets[idx].team = bucket.redTeam ? 'red' : 'blue';
+				t.team = bucket.redTeam ? 'red' : 'blue';
 			}
+			t.activation = bucket.activation;
+			t.hp = bucket.hp;
+			t.itemDamage = bucket.itemDamage;
+			t.pauseTimer = bucket.pauseTimer;
+			t.startCooldown = bucket.startCooldown;
+			t.attackCooldown = bucket.attackCooldown;
 		}
 
 		// Rebuild the bullets array from state
@@ -1517,7 +1773,8 @@ export class GMTurrets extends GameMode {
 						b.vx,
 						b.vy,
 						b.a,
-						b.isRed ? 'red' : 'blue'
+						b.isRed ? 'red' : 'blue',
+						b.fromTurret
 					)
 				);
 			}

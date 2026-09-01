@@ -25,11 +25,18 @@ message Bullet {
 	float vy = 4;
 	float a = 5;
 	bool isRed = 6;
+	bool fromTurret = 7;
 }
 
 message Turret {
 	bool taken = 1;
 	bool redTeam = 2;
+	float activation = 3;
+	float hp = 4;
+	float itemDamage = 5;
+	float pauseTimer = 6;
+	float startCooldown = 7;
+	float attackCooldown = 8;
 }
 
 message State {
