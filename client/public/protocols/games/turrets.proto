@@ -14,6 +14,8 @@ message Player {
 	float alive = 7;
 	int32 score = 8;
 	float attackMunitions = 9;
+	float hp = 10;
+	float maxHp = 11;
 }
 
 message Bullet {

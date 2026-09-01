@@ -48,12 +48,17 @@ class Player {
 	static readonly MIN_DECELERATION = 1000;
 	static readonly SOFT_DECELERATION = 10000;
 	static readonly QUICK_DECELERATION = 30000;
-	static readonly COOLDOWN = 1.5;
+	static readonly COOLDOWN = 3.0;
+
 	static readonly RADIUS = 60;
 	static readonly PUSH_DOWN = 1000;
 	static readonly THROW = 1200;
 	static readonly BOUNCE_X = 1000;
 	static readonly BOUNCE_Y = 100;
+
+	// --- Health System ---
+	static readonly MAX_HP = 100;
+	static readonly BULLET_DAMAGE = 20;
 
 	// --- Attack System Constants ---
 	static readonly ATTACK_FULL = 5.0;
@@ -77,6 +82,9 @@ class Player {
 	dirY = 0;
 
 	score = 0;
+
+	hp = Player.MAX_HP;
+	maxHp = Player.MAX_HP;
 
 	target: FixedTarget | DeltaTarget | AutoTarget | null = null;
 	team: 'red' | 'blue' = 'red';
@@ -105,8 +113,6 @@ class Player {
 		return this.alive < 0;
 	}
 
-	// Generic acceleration/deceleration for 2D movement.
-	// The input direction must have a length <= 1.
 	private static applyMovement(
 		dirX: number,
 		dirY: number,
@@ -160,7 +166,6 @@ class Player {
 			return [vx * factor, vy * factor];
 		}
 
-		// The desired speed scales with the input length.
 		const dirLength = Math.hypot(dirX, dirY);
 		const targetSpeed = Player.SPEED * dirLength;
 
@@ -177,7 +182,6 @@ class Player {
 			];
 		}
 
-		// Decelerate if the current velocity exceeds the target speed.
 		if (speed > targetSpeed) {
 			const deceleration = Player.MIN_DECELERATION * dt;
 			const newSpeed = Math.max(
@@ -202,6 +206,7 @@ class Player {
 				return;
 			}
 
+			// Reset at respawn
 			if (this.spawnX !== null) {
 				this.x = this.spawnX;
 			}
@@ -209,6 +214,12 @@ class Player {
 			if (this.spawnY !== null) {
 				this.y = this.spawnY;
 			}
+
+			this.hp = this.maxHp;
+			this.attackMunitions = Player.ATTACK_FULL;
+			this.attackFullyReloading = false;
+			this.attackCooldown = 0;
+			this.attackTimer = Player.ATTACK_DELAY;
 		}
 
 		[this.vx, this.vy] = Player.applyMovement(
@@ -224,7 +235,7 @@ class Player {
 
 		this.avoidOOB();
 
-		// Attack cooldown
+		// Attack cooldown.
 		if (this.attackCooldown > 0) {
 			this.attackCooldown = Math.max(
 				0,
@@ -243,6 +254,10 @@ class Player {
 		this.alive = obj.alive;
 		this.score = obj.score;
 
+		// Health state.
+		this.hp = obj.hp;
+		this.maxHp = obj.maxHp;
+
 		// Attack state.
 		this.attackMunitions =
 			obj.attackMunitions ?? Player.ATTACK_FULL;
@@ -259,16 +274,17 @@ class Player {
 		this.vx = 0;
 		this.vy = 0;
 		this.alive = Player.COOLDOWN;
+		this.hp = 0;
 	}
 
 
 	attackLogic(dt: number, game: GMTurrets) {
 		/*
-		* The magazine has been emptied.
-		*
-		* The player must wait until the magazine is completely
-		* reloaded before being allowed to attack again.
-		*/
+		 * The magazine has been emptied.
+		 *
+		 * The player must wait until the magazine is completely
+		 * reloaded before being allowed to attack again.
+		 */
 		if (this.attackFullyReloading) {
 			this.attackMunitions = Math.min(
 				Player.ATTACK_FULL,
@@ -420,6 +436,90 @@ class Player {
 
 		}
 	}
+
+	hit(damages: number) {
+		this.hp -= damages;
+		if (this.hp <= 0) {
+			this.die();
+		}
+	}
+
+
+	draw(
+		ctx: CanvasRenderingContext2D,
+		currentPlayer: boolean
+	) {
+		// Skip dead players
+		if (!this.isAlive()) return;
+
+		// Draw the player using their team color
+		ctx.fillStyle = this.team;
+
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, Player.RADIUS, 0, Math.PI * 2);
+		ctx.fill();
+
+		const BAR_W = 80;
+		const BAR_H = 10;
+
+		// Draw the health bar for every player
+		const hpRatio = Math.max(0, this.hp / this.maxHp);
+
+		// Draw the health bar background
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+		ctx.fillRect(
+			this.x - BAR_W / 2,
+			this.y - Player.RADIUS - 15,
+			BAR_W,
+			BAR_H
+		);
+
+		// Draw the current health
+		ctx.fillStyle = '#22cc22';
+		ctx.fillRect(
+			this.x - BAR_W / 2,
+			this.y - Player.RADIUS - 15,
+			BAR_W * hpRatio,
+			BAR_H
+		);
+
+		// Draw the attack bar only for the local player
+		if (currentPlayer) {
+			const ratio = this.attackMunitions / Player.ATTACK_FULL;
+
+			// Draw the attack bar background.
+			// It is positioned 15px above the health bar to prevent overlap.
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+			ctx.fillRect(
+				this.x - BAR_W / 2,
+				this.y - Player.RADIUS - 30,
+				BAR_W,
+				BAR_H
+			);
+
+			if (this.attackFullyReloading) {
+				// Display a gray bar while the attack is fully reloading
+				ctx.fillStyle = 'gray';
+				ctx.fillRect(
+					this.x - BAR_W / 2,
+					this.y - Player.RADIUS - 30,
+					BAR_W,
+					BAR_H
+				);
+			} else {
+				// Display orange while the attack is on cooldown,
+				// otherwise use white for the available ammunition
+				ctx.fillStyle = this.attackCooldown > 0 ? 'orange' : 'white';
+				ctx.fillRect(
+					this.x - BAR_W / 2,
+					this.y - Player.RADIUS - 30,
+					BAR_W * ratio,
+					BAR_H
+				);
+			}
+		}
+	}
+
 }
 
 
@@ -469,11 +569,13 @@ class Bullet {
 		const dx = length > 0 ? vx0 / length : 0;
 		const dy = length > 0 ? vy0 / length : 0;
 
-		// v^2 = v0^2 + 2ad
-		const a = initSpeed * initSpeed / (2 * dist);
-
 		const vx = dx * initSpeed + sx;
 		const vy = dy * initSpeed + sy;
+
+		initSpeed = Math.hypot(vx, vy);
+
+		// v^2 = v0^2 + 2ad
+		const a = initSpeed * initSpeed / (2 * dist);
 
 		return new Bullet(x, y, vx, vy, a, team);
 	}
@@ -492,10 +594,28 @@ class Bullet {
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 
+		// Check OOB
 		return (
-			Math.abs(this.x) > FULL_ROOM_SIZE * 3 || // OOB
-			Math.abs(this.y) > FULL_ROOM_SIZE * 3    // OOB
+			Math.abs(this.x) > FULL_ROOM_SIZE * 3 ||
+			Math.abs(this.y) > FULL_ROOM_SIZE * 3
 		);
+	}
+
+	attack(game: GMTurrets) {
+		const SR = Player.RADIUS + Bullet.RADIUS;
+		const SR2 = SR*SR;
+		for (const p of game.players) {
+			if (p.isAlive() && p.team !== this.team) {
+				const dx = p.x - this.x;
+				const dy = p.y - this.y;
+				if (dx*dx + dy*dy < SR2) {
+					p.hit(Player.BULLET_DAMAGE);
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 }
 
@@ -953,7 +1073,7 @@ export class GMTurrets extends GameMode {
 		for (let i = this.bullets.length - 1; i >= 0; i--) {
 			const b = this.bullets[i];
 
-			if (b.move(dt)) {
+			if (b.move(dt) || b.attack(this)) {
 				this.bullets.splice(i, 1);
 			}
 		}
@@ -1186,8 +1306,6 @@ export class GMTurrets extends GameMode {
 			mapHeight
 		);
 
-		const player = this.players[playerIdx];
-
 
 		// Draw the 5x3 grid
 		ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
@@ -1307,60 +1425,39 @@ export class GMTurrets extends GameMode {
 			ctx.fill();
 		}
 
-		// Draw players
+		// Draw all players
 		for (const [idx, p] of this.players.entries()) {
-			ctx.fillStyle = p.team;
-
-			ctx.beginPath();
-			ctx.arc(p.x, p.y, Player.RADIUS, 0, Math.PI * 2);
-			ctx.fill();
-
-			// Draw the attack bar ONLY for the current local player
-			if (idx === playerIdx) {
-				const BAR_W = 80;
-				const BAR_H = 10;
-
-				const ratio =
-					p.attackMunitions / Player.ATTACK_FULL;
-
-				// Background.
-				ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-				ctx.fillRect(
-					p.x - BAR_W / 2,
-					p.y - Player.RADIUS - 20,
-					BAR_W,
-					BAR_H
-				);
-
-				/*
-				* During a mandatory full reload, the entire bar is grey.
-				*/
-				if (p.attackFullyReloading) {
-					ctx.fillStyle = 'gray';
-
-					ctx.fillRect(
-						p.x - BAR_W / 2,
-						p.y - Player.RADIUS - 20,
-						BAR_W,
-						BAR_H
-					);
-				} else {
-					ctx.fillStyle =
-						p.attackCooldown > 0
-							? 'orange'
-							: 'white';
-
-					ctx.fillRect(
-						p.x - BAR_W / 2,
-						p.y - Player.RADIUS - 20,
-						BAR_W * ratio,
-						BAR_H
-					);
-				}
-			}
+			p.draw(ctx, idx === playerIdx);
 		}
 
+		// Restore the canvas state after leaving the camera coordinate space
 		ctx.restore();
+
+		// Display the death screen when the local player is dead
+		const localPlayer = this.players[playerIdx];
+		if (localPlayer && !localPlayer.isAlive()) {
+			// Draw a semi-transparent black overlay over the entire screen
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+			ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+			// Configure text rendering
+			ctx.fillStyle = 'white';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+
+			// Draw the death message
+			ctx.font = 'bold 80px sans-serif';
+			ctx.fillText('VOUS ÊTES MORT', WIDTH / 2, HEIGHT / 2 - 40);
+
+			// Draw the remaining respawn time
+			ctx.font = '40px sans-serif';
+			const respawnTime = Math.ceil(localPlayer.alive);
+			ctx.fillText(
+				`Réapparition dans ${respawnTime}s`,
+				WIDTH / 2,
+				HEIGHT / 2 + 40
+			);
+		}
 
 		this.drawMinimap(ctx, playerIdx);
 	}
