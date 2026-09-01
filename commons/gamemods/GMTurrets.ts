@@ -21,6 +21,7 @@ const FULL_ROOM_SIZE = WIDTH * 2.5;
 const ROOM_SIZE = WIDTH * 1.5;
 const BRIDGE_SIZE = WIDTH * 0.3;
 const BULLET_DAMAGE = 15;
+const WORLD_LIMIT = FULL_ROOM_SIZE * 2.5;
 
 const TURRET_RADIUS = WIDTH * 0.6;
 const TURRET_ACTIVATION = 1000;
@@ -286,7 +287,15 @@ class Player {
 	}
 
 	avoidOOB() {
-		/// TODO: edit this.x, y if oob
+		this.x = Math.max(
+			-WORLD_LIMIT + Player.RADIUS,
+			Math.min(WORLD_LIMIT - Player.RADIUS, this.x)
+		);
+
+		this.y = Math.max(
+			-WORLD_LIMIT + Player.RADIUS,
+			Math.min(WORLD_LIMIT - Player.RADIUS, this.y)
+		);
 	}
 
 	die() {
@@ -896,8 +905,8 @@ class Bullet {
 
 		// Check OOB
 		return (
-			Math.abs(this.x) > FULL_ROOM_SIZE * 3 ||
-			Math.abs(this.y) > FULL_ROOM_SIZE * 3
+			Math.abs(this.x) > WORLD_LIMIT ||
+			Math.abs(this.y) > WORLD_LIMIT
 		);
 	}
 
