@@ -58,6 +58,7 @@ class Player {
 	// --- Attack System Constants ---
 	static readonly ATTACK_FULL = 5.0;
 	static readonly ATTACK_RELOAD = 3.0;
+	static readonly ATTACK_SLOW_RELOAD = 1.8;
 	static readonly ATTACK_COOLDOWN = 2.0;
 	static readonly ATTACK_DELAY = 0.5;
 
@@ -271,7 +272,7 @@ class Player {
 		if (this.attackFullyReloading) {
 			this.attackMunitions = Math.min(
 				Player.ATTACK_FULL,
-				this.attackMunitions + dt * Player.ATTACK_RELOAD
+				this.attackMunitions + dt * Player.ATTACK_SLOW_RELOAD
 			);
 
 			if (this.attackMunitions >= Player.ATTACK_FULL) {
@@ -437,7 +438,7 @@ class Bullet {
 	static readonly RADIUS = 10;
 
 	static readonly PATTERNS = [
-		{ count: 5, angle: Math.PI / 16, dist: 1600, initSpeed: 2000 },
+		{ count: 5, angle: Math.PI / 32, dist: 1600, initSpeed: 2000 },
 		{ count: 5, angle: Math.PI / 8, dist: 600, initSpeed: 1000 },
 		{ count: 5, angle: Math.PI / 4, dist: 200, initSpeed: 1000 }
 	];
@@ -447,13 +448,8 @@ class Bullet {
 		public y: number,
 		public vx: number,
 		public vy: number,
-		public readonly sx: number,
-		public readonly sy: number,
-		public readonly ax: number,
-		public readonly ay: number,
-		public readonly maxDist: number,
-		public readonly team: 'red' | 'blue',
-		public traveledDist: number
+		public readonly a: number,
+		public readonly team: 'red' | 'blue'
 	) {}
 
 	static create(
@@ -474,52 +470,32 @@ class Bullet {
 		const dy = length > 0 ? vy0 / length : 0;
 
 		// v^2 = v0^2 + 2ad
-		const acceleration = -initSpeed * initSpeed / (2 * dist);
+		const a = initSpeed * initSpeed / (2 * dist);
 
-		const vx = dx * initSpeed;
-		const vy = dy * initSpeed;
+		const vx = dx * initSpeed + sx;
+		const vy = dy * initSpeed + sy;
 
-		const ax = dx * acceleration;
-		const ay = dy * acceleration;
-
-		const maxDist = dist;
-
-		return new Bullet(
-			x, y, vx, vy, sx, sy,
-			ax, ay, maxDist, team, 0
-		);
+		return new Bullet(x, y, vx, vy, a, team);
 	}
 
 	move(dt: number): boolean {
-		const oldVx = this.vx;
-		const oldVy = this.vy;
+		const norm = Math.hypot(this.vx, this.vy);
+		const nextNorm = norm - this.a * dt;
 
-		// Constant acceleration.
-		this.vx += this.ax * dt;
-		this.vy += this.ay * dt;
+		if (nextNorm <= 0)
+			return true;
 
-		// Don't allow the bullet to start moving backwards.
-		const speed = Math.hypot(this.vx, this.vy);
-		if (speed <= 0) {
-			this.vx = 0;
-			this.vy = 0;
-		}
+		const r = nextNorm / norm;
+		this.vx = this.vx * r;
+		this.vy = this.vy * r;
 
-		// Distance traveled during this frame.
-		const dx = (oldVx + this.vx) * 0.5 * dt;
-		const dy = (oldVy + this.vy) * 0.5 * dt;
-		const frameDist = Math.hypot(dx, dy);
-
-		this.x += this.sx*dt + dx;
-		this.y += this.sy*dt + dy;
-		this.traveledDist += frameDist;
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
 
 		return (
-			this.traveledDist >= this.maxDist ||
 			Math.abs(this.x) > FULL_ROOM_SIZE * 3 || // OOB
 			Math.abs(this.y) > FULL_ROOM_SIZE * 3    // OOB
-
-		)
+		);
 	}
 }
 
@@ -1409,11 +1385,8 @@ export class GMTurrets extends GameMode {
 				y: b.y,
 				vx: b.vx,
 				vy: b.vy,
-				ax: b.ax,
-				ay: b.ay,
-				maxDist: b.maxDist,
-				isRed: b.team === 'red',
-				traveledDist: b.traveledDist
+				a: b.a,
+				isRed: b.team === 'red'
 			}))
 		};
 
@@ -1446,13 +1419,8 @@ export class GMTurrets extends GameMode {
 						b.y,
 						b.vx,
 						b.vy,
-						b.sx,
-						b.sy,
-						b.ax,
-						b.ay,
-						b.maxDist,
-						b.isRed ? 'red' : 'blue',
-						b.traveledDist
+						b.a,
+						b.isRed ? 'red' : 'blue'
 					)
 				);
 			}

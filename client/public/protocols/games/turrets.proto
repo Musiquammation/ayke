@@ -21,13 +21,8 @@ message Bullet {
 	float y = 2;
 	float vx = 3;
 	float vy = 4;
-	float sx = 5;
-	float sy = 6;
-	float ax = 7;
-	float ay = 8;
-	float maxDist = 9;
-	bool isRed = 10;
-	float traveledDist = 11;
+	float a = 5;
+	bool isRed = 6;
 }
 
 message Turret {
