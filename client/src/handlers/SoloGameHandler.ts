@@ -8,6 +8,7 @@ import { Fields } from "../../../commons/Fields";
 import { getProtocol } from "../../../commons/protocolLoader";
 import Prando from "prando";
 import { sendMessage } from "../messages/sendMessage";
+import { hasNavigatorMouse } from "../dom/clientNavigatorType";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -144,7 +145,7 @@ export class SoloGameHandler {
 		const inputs = this.gamemode.collectInputs(
 			keyboardController,
 			mouseController,
-			this.allowsMobile ? mobileController : null,
+			(this.allowsMobile && !hasNavigatorMouse()) ? mobileController : null,
 			this.clientData
 		);
 

@@ -722,7 +722,7 @@ export class GMTurrets extends GameMode {
 	override collectInputs(
 		keyboard: IKeyboardController,
 		mouse: IMouseController,
-		_mobile: IMobileController | null,
+		mobile: IMobileController | null,
 		_data: any
 	) {
 		const data = _data as ClientData;
@@ -735,8 +735,7 @@ export class GMTurrets extends GameMode {
 		
 
 		// --- Movement: ZQSD/arrows on desktop, joystick on mobile ---
-		if (false) {
-			const mobile: IMobileController = null as any as IMobileController;
+		if (mobile) {
 			const move = mobile.getJoystick('move');
 
 			// Only send an action when the discretized direction actually changes,
