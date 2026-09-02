@@ -20,10 +20,15 @@ message Player {
 	float alive = 7;
 	int32 score = 8;
 	float attackMunitions = 9;
-	float hp = 10;
-	float maxHp = 11;
-	repeated int32 items = 12;
-	int32 selectedItem = 13;
+	float attackCooldown = 10;
+	float attackTimer = 11;
+	bool attackFullyReloading = 12;
+	float hp = 13;
+	float maxHp = 14;
+	repeated int32 items = 15;
+	int32 selectedItem = 16;
+	bool invincible = 17;
+	float speedMultiplier = 18;
 }
 
 message Bullet {

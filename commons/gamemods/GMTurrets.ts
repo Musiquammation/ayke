@@ -291,16 +291,19 @@ class Player {
 		this.maxHp = obj.maxHp;
 
 		// Attack state.
-		this.attackMunitions =
-			obj.attackMunitions ?? Player.ATTACK_FULL;
-
-		this.attackFullyReloading =
-			obj.attackReloading ?? false;
+		this.attackMunitions = obj.attackMunitions;
+		this.attackFullyReloading = obj.attackFullyReloading;
+		this.attackCooldown = obj.attackCooldown;
+		this.attackTimer = obj.attackTimer;
 
 		this.items = obj.items && obj.items.length === ITEM_COUNT 
 			? [...obj.items] 
 			: Array(ITEM_COUNT).fill(-1);
 
+		this.selectedItem = obj.selectedItem;
+
+		this.invincible = obj.invincible;
+		this.speedMultiplier = obj.speedMultiplier;
 	}
 
 	avoidOOB() {
@@ -1085,7 +1088,11 @@ class ELifeSlider extends AbstractEntity {
 	getType(): EntityType { return 'lifeSlider'; }
 
 	save(): Fields {
-		return { x: this.x, y: this.y, vx: this.vx, vy: this.vy, radius: this.radius };
+		return {
+			vx: this.vx,
+			vy: this.vy,
+			radius: this.radius
+		};
 	}
 
 	load(data: Fields) {
