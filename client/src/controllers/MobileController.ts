@@ -1,4 +1,4 @@
-import { IMobileController } from "../../../commons/GameMode";
+import type { IMobileController } from "../../../commons/GameMode";
 
 export interface MobileDescriptor {
 	joysticks: {

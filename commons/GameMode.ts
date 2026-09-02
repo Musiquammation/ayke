@@ -185,4 +185,4 @@ export function setGameModeLoggerGenerator(loggerGenerator: LoggerGenerator) {
 	_loggerGenerator = loggerGenerator;
 }
 
-export { IKeyboardController };
+export { IKeyboardController, IMobileController };

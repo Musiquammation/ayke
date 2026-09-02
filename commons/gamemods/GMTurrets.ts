@@ -1647,23 +1647,20 @@ export class GMTurrets extends GameMode {
 
 			// --- Aiming: mobile joystick (tap = auto, hold+aim = throwDir) ---
 			const attack = mobile.getJoystick('attack');
-			const AIM_DEADZONE = 0.15;
 			const QUICK_TAP_MS = 180;
 
-			if (mobile.first('attack')) {
+			if (mobile.press('attack')) {
 				if (data.attackPressStart === null) {
 					data.attackPressStart = performance.now();
 					data.attackHasAimed = false;
 				}
 
-				const magnitude = Math.hypot(attack.x, attack.y);
-				if (magnitude > AIM_DEADZONE) {
-					data.attackHasAimed = true;
-					inputs.push({
-						throwTarget: { x: attack.x, y: attack.y },
-						action: 'throwDir'
-					});
-				}
+				data.attackHasAimed = true;
+				inputs.push({
+					throwDir: { x: attack.x, y: attack.y },
+					action: 'throwDir'
+				});
+
 			} else if (data.attackPressStart !== null) {
 				const heldFor = performance.now() - data.attackPressStart;
 
@@ -2185,7 +2182,32 @@ export class GMTurrets extends GameMode {
 	override getMobileDesc(): MobileDescriptor {
 		return {
 			buttons: {
+				['1']: {
+					x: 50,
+					xp: 'right',
+					y: 180,
+					yp: 'bottom',
+					size: 30,
+					color: "#00ff00"
+				},
 
+				['2']: {
+					x: 50,
+					xp: 'right',
+					y: 220,
+					yp: 'bottom',
+					size: 30,
+					color: "#00ff00"
+				},
+
+				['3']: {
+					x: 50,
+					xp: 'right',
+					y: 260,
+					yp: 'bottom',
+					size: 30,
+					color: "#00ff00"
+				}
 			},
 
 			joysticks: {
@@ -2194,7 +2216,16 @@ export class GMTurrets extends GameMode {
 					xp: 'left',
 					y: 120,
 					yp: 'bottom',
-					size: 100,
+					size: 80,
+					color: "#00ff00"
+				},
+
+				attack: {
+					x: 100,
+					xp: 'right',
+					y: 120,
+					yp: 'bottom',
+					size: 80,
 					color: "#00ff00"
 				}
 			}
