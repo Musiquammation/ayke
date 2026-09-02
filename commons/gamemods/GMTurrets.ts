@@ -1335,10 +1335,8 @@ export class GMTurrets extends GameMode {
 			() => new Player(0, 0)
 		);
 
-		// for (let x = -2; x <= 2; x++) {
-			// for (let y = -2; y <= 2; y++) {
-		for (let x = 0; x <= 0; x++) {
-			for (let y = 0; y <= 0; y++) {
+		for (let y = -2; y <= 2; y++) {
+			for (let x = -2; x <= 2; x++) {
 				this.turrets.push(new Turret(
 					x * FULL_ROOM_SIZE,
 					y * FULL_ROOM_SIZE
@@ -1787,7 +1785,52 @@ export class GMTurrets extends GameMode {
 		);
 
 
-		// Draw the 5x3 grid
+		// Draw cells
+		for (let y = 0; y < 5; y++) {
+			for (let x = 0; x < 5; x++) {
+				const cellX = -mapWidth / 2 + x * FULL_ROOM_SIZE;
+				const cellY = -mapHeight / 2 + y * FULL_ROOM_SIZE;
+
+				const turret = this.turrets[y*5+x];
+
+				let r;
+				let g;
+				let b;
+				if (turret.team === 'red') {
+					r = 255;
+					g = 0;
+					b = 0;
+				} else if (turret.team === 'blue') {
+					r = 0;
+					g = 0;
+					b = 255;
+				} else {
+					continue;
+				}
+
+				ctx.fillStyle = `rgb(${r}, ${g}, ${b}, 0.35)`;
+
+				ctx.fillRect(
+					cellX,
+					cellY,
+					FULL_ROOM_SIZE,
+					FULL_ROOM_SIZE
+				);
+
+				if (turret.pauseTimer > 0) {
+					const s = (TURRET_PAUSE - turret.pauseTimer) * (FULL_ROOM_SIZE / TURRET_PAUSE);
+					ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 1)`;
+					ctx.fillRect(
+						cellX + FULL_ROOM_SIZE/2 - s/2,
+						cellY + FULL_ROOM_SIZE/2 - s/2,
+						s,
+						s
+					);
+				}
+			}
+		}
+
+		// Draw the 5x5 grid
 		ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
 		ctx.lineWidth = 1 / (MINIMAP_SIZE / mapWidth);
 
@@ -1809,7 +1852,21 @@ export class GMTurrets extends GameMode {
 			ctx.stroke();
 		}
 
-		// Draw remaining buckets
+		// Draw items
+		ctx.fillStyle = "#f0f";
+		for (const item of this.itemsInMap) {
+			ctx.beginPath();
+			ctx.arc(
+				item.x,
+				item.y,
+				175,
+				0,
+				Math.PI * 2
+			);
+			ctx.fill();
+		}
+
+		// Draw remaining turrets
 		for (const turret of this.turrets) {
 			ctx.fillStyle = turret.team ?? "green";
 
@@ -1817,7 +1874,7 @@ export class GMTurrets extends GameMode {
 			ctx.arc(
 				turret.x,
 				turret.y,
-				75,
+				215,
 				0,
 				Math.PI * 2
 			);
@@ -1825,6 +1882,8 @@ export class GMTurrets extends GameMode {
 		}
 
 		// Draw all players
+		ctx.strokeStyle = "white";
+		ctx.lineWidth = 100;
 		for (const [idx, player] of this.players.entries()) {
 			ctx.fillStyle =
 				idx === playerIdx
@@ -1837,11 +1896,12 @@ export class GMTurrets extends GameMode {
 			ctx.arc(
 				player.x,
 				player.y,
-				idx === playerIdx ? 150 : 100,
+				idx === playerIdx ? 400 : 300,
 				0,
 				Math.PI * 2
 			);
 			ctx.fill();
+			ctx.stroke();
 		}
 
 		ctx.restore();
