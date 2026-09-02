@@ -875,6 +875,23 @@ class Turret {
 			}
 		}
 	}
+
+	load(obj: Fields) {
+		if (!obj.taken) {
+			this.team = null;
+		} else {
+			this.team = obj.redTeam ? 'red' : 'blue';
+		}
+
+		this.activation = obj.activation;
+		this.hp = obj.hp;
+		this.itemDamage = obj.itemDamage;
+		this.pauseTimer = obj.pauseTimer;
+		this.startCooldown = obj.startCooldown;
+		this.attackCooldown = obj.attackCooldown;
+		this.itemsToSpawn = obj.itemsToSpawn;
+		this.spawnIdx = obj.spawnIdx;
+	}
 }
 
 
@@ -2449,6 +2466,7 @@ export class GMTurrets extends GameMode {
 			this.finished = true;
 		}
 
+
 		// 1. Wipe every per-frame effect (invincibility, speed, fast-attack...).
 		this.resetEffects();
 
@@ -3066,7 +3084,9 @@ export class GMTurrets extends GameMode {
 				itemDamage: t.itemDamage,
 				pauseTimer: t.pauseTimer,
 				startCooldown: t.startCooldown,
-				attackCooldown: t.attackCooldown
+				attackCooldown: t.attackCooldown,
+				itemsToSpawn: t.itemsToSpawn,
+				spawnIdx: t.spawnIdx,
 			})),
 
 			time: this.time,
@@ -3097,21 +3117,9 @@ export class GMTurrets extends GameMode {
 			this.players[idx].load(player);
 		}
 
-		for (const [idx, bucket] of obj.turrets.entries()) {
-			const t = this.turrets[idx];
-			if (!bucket.taken) {
-				t.team = null;
-			} else {
-				t.team = bucket.redTeam ? 'red' : 'blue';
-			}
-			t.activation = bucket.activation;
-			t.hp = bucket.hp;
-			t.itemDamage = bucket.itemDamage;
-			t.pauseTimer = bucket.pauseTimer;
-			t.startCooldown = bucket.startCooldown;
-			t.attackCooldown = bucket.attackCooldown;
-			t.itemsToSpawn = bucket.itemsToSpawn;
-			t.spawnIdx = bucket.spawnIdx;
+		for (const [idx, turret] of obj.turrets.entries()) {
+			this.turrets[idx].load(turret);
+			
 		}
 
 		// Rebuild the bullets array from state
