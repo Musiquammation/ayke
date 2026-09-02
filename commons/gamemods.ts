@@ -25,7 +25,7 @@ export const gamemods: Record<
             html: HTMLDivElement | null,
             skins: { [k: string]: string; }
         },
-        dom(): {produce: ()=>Uint8Array},
+        dom(generateClientDom: string[]): {produce: ()=>Uint8Array},
         textures: { [key: string]: string },
         name: string,
         tropheesPerPlayer: number,

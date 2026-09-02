@@ -597,6 +597,45 @@ export class Database {
 	}
 
 	/**
+	 * Retrieves all skins unlocked by a user for a specific gamemode.
+	 *
+	 * @param pseudo The username.
+	 * @param gamemode The gamemode ID.
+	 * @returns A promise resolving to an array of unlocked skin IDs.
+	 */
+	getUnlockedSkins(
+		pseudo: string,
+		gamemode: string
+	): Promise<string[]> {
+		return new Promise((resolve, reject) => {
+			this.db.all<{ skinId: string }>(
+				`
+				SELECT skinId
+				FROM SkinUnlock
+				WHERE user = ?
+				AND gamemode = ?
+
+				UNION
+
+				SELECT defaultSkin AS skinId
+				FROM Gamemode
+				WHERE id = ?
+				AND defaultSkin IS NOT NULL
+				`,
+				[pseudo, gamemode, gamemode],
+				(error, rows) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+
+					resolve(rows?.map(row => row.skinId) ?? []);
+				}
+			);
+		});
+	}
+
+	/**
 	 * Closes the SQLite database connection gracefully.
 	 */
 	close(): Promise<void> {

@@ -7,6 +7,7 @@ import { deleteGameHandler } from "../handlers/GameHandler";
 import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../handlers/WaitingPlayHandler";
 import { imageLoader } from "../handlers/imageLoader";
 import { LocalGameHandler } from "../handlers/LocalGameHandler";
+import { waitSkinsResponsePromise } from "../messages/recvMessage";
 
 declare global {
 	interface Window {
@@ -125,8 +126,19 @@ class MainComponent {
 	async openGamePanel(gamemode: string) {
 		this.currentPage = "loading";
 
+		let unlockedSkins;
 		const factory = getGmFactory(gamemode);
-		const data = factory.dom();
+
+		if (factory.skins.length === 0) {
+			unlockedSkins = 0;
+		} else if (this.pseudo === null) {
+			unlockedSkins = [factory.skins[0]];
+		} else {
+			sendMessage({askSkins: gamemode});
+			unlockedSkins = await waitSkinsResponsePromise();
+		}
+
+		const data = factory.dom(unlockedSkins);
 		const html = await this.templateLoader.load(gamemode);
 		this.panel = new GamePanelComponent(gamemode, data, html);
 		this.currentPage = "game-panel";

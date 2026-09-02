@@ -16,6 +16,7 @@ message ClientMessage {
 		Empty askTimeDelta = 8;
 		string deleteConnectionKey = 9;
 		AskLeaderboard askLeaderboard = 10;
+		string askSkins = 11;
 	}
 }
 
@@ -74,6 +75,7 @@ message ServerMessage {
 		WaitingAllowBots waitingAllowBots = 10;
 		FinishGame finishGame = 11;
 		LeaderboardResult leaderboardResult = 12;
+		SkinsResponse skinsResponse = 13;
 	}
 }
 
@@ -146,4 +148,8 @@ message LeaderboardEntry {
 
 message LeaderboardResult {
 	repeated LeaderboardEntry entries = 1;
+}
+
+message SkinsResponse {
+	repeated string skins = 1;
 }

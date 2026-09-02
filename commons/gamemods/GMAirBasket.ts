@@ -651,11 +651,12 @@ class TutorialData {
 
 
 
-function generateClientDom() {
+function generateClientDom(unlockedSkins: string[]) {
 	return {
 		skin: Object.keys(GMAirBasket.SKINS)[0],
 		preferTeam: 0,
 		SKINS: GMAirBasket.SKINS,
+		unlockedSkins: unlockedSkins,
 
 		produce() {
 			const {StartData} = protocols.get();
@@ -663,6 +664,10 @@ function generateClientDom() {
 				skin: this.skin,
 				preferTeam: this.preferTeam
 			}).finish();
+		},
+
+		hasSkin(skin: string) {
+			return this.unlockedSkins.includes(skin);
 		},
 
 		getIconPath
@@ -985,7 +990,7 @@ export class GMAirBasket extends GameMode {
 			if (i < players.length)
 				return decodeFullMessage(StartData.decode(players[i].data));
 
-			return generateClientDom();
+			return generateClientDom([]);
 		}
 
 
