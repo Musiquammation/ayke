@@ -362,8 +362,6 @@ class Player {
 		const nextItemId = itemDef.run(game, this, dx, dy);
 		this.items[this.selectedItem] = nextItemId !== null ? nextItemId : -1;
 		
-		// Reset selection and apply a generic cooldown for item usage
-		this.selectedItem = -1;
 		this.attackCooldown = Player.ATTACK_COOLDOWN; 
 	}
 
