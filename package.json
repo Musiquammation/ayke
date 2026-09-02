@@ -3,11 +3,16 @@
   "scripts": {
     "sync": "cp -r commons/protocols client/public",
     "client": "vite",
-    "build-client": "vite build",
+    "build-bundle": "vite build --mode bundle",
+    "build": "vite build",
     "server": "tsx watch server/server.ts",
     "test": "tsx draft/test.ts"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/status-bar": "^8.0.3",
     "alpinejs": "^3.16.2",
     "prando": "^6.0.1",
     "protobufjs": "^8.7.2",
