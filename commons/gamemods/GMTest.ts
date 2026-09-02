@@ -74,7 +74,7 @@ export class GMTest extends GameMode {
 		);
 	}
 
-	static createServ(players: PlayerInput[], total: number) {
+	static async createServ(players: PlayerInput[], total: number) {
 		const logger = GMTest.getLogger('game-test', LOG_LEVEL);
 
 		logger.debug("Starting choices " + JSON.stringify(players.map(p => {
@@ -108,7 +108,7 @@ export class GMTest extends GameMode {
 			p.y = 1000;
 			p.team = i%2==0 ? 'red' : 'blue';
 		}
-		return {game, data: new ClientData(), html: null};
+		return {game, data: new ClientData(), html: null, skins: {}};
 	}
 
 	static readonly generateClientDom = generateClientDom;

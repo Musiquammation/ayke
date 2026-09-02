@@ -224,6 +224,25 @@ export class Connection {
 			);
 
 			c.sendMessage({ soloRecords: { entries } });
+		},
+
+		async askSkins(c, gamemode) {
+			try {
+				const pseudo = c.getPseudo();
+				if (!pseudo) {
+					throw "Pseudo is null";
+				}
+
+				const db = await database;
+				const skins = await db.getUnlockedSkins(pseudo, gamemode);
+
+				c.sendMessage({ skinsResponse: {skins} });
+
+			} catch (error) {
+				console.error("Failed to fetch unlocked skins:", error);
+				c.sendError(3, "Failed to retrieve unlocked kins");
+			}
+
 		}
 	};
 

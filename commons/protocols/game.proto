@@ -18,6 +18,7 @@ message ClientMessage {
 		AskLeaderboard askLeaderboard = 10;
 		SoloRunInputs soloRunInputs = 11;
 		AskSoloRecords askSoloRecords = 12;
+		string askSkins = 13;
 	}
 }
 
@@ -89,6 +90,7 @@ message ServerMessage {
 		FinishGame finishGame = 11;
 		LeaderboardResult leaderboardResult = 12;
 		SoloRecords soloRecords = 13;
+		SkinsResponse skinsResponse = 14;
 	}
 }
 
@@ -173,3 +175,6 @@ message SoloRecords {
 }
 
 
+message SkinsResponse {
+	repeated string skins = 1;
+}

@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { initDbWithGamemods } from "./initDbWithGamemods";
 import protobuf from "protobufjs";
 import fs from "fs";
 import http from "http";
@@ -10,7 +11,10 @@ import { database, initDb } from "./Database";
 import { getLogger } from "./Logger";
 import { initProtocols } from "../commons/protocolLoader";
 import { setGameModeLoggerGenerator } from "../commons/GameMode";
-import { gamemods } from "../commons/gamemods";
+import { readdir } from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
 
 const PORT = Number(process.env.PORT);
 const PROTOCOL_PATH = process.env.PROTOCOL_PATH;
@@ -68,19 +72,12 @@ setGameModeLoggerGenerator((name, level) => {
 })
 
 // Put gamemods in database
-database.then(db => {
-	for (const key of Object.keys(gamemods)) {
-		db.enshureGamemode(key, gamemods[key].name);
-	}
-})
+database.then(initDbWithGamemods);
 
 
 
 
 
-import { readdir } from "node:fs/promises";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 
 // Load bots
 (async function() {

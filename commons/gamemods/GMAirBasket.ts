@@ -1,5 +1,3 @@
-import { MobileDescriptor } from "../../client/src/controllers/MobileController";
-import { getLogger } from "../../server/Logger";
 import { Fields } from "../Fields";
 import { FinishGame, GameMode } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
@@ -12,6 +10,7 @@ const protocols = getProtocol('airbasket', 'multiplayer');
 
 interface PlayerInput {
 	data: Uint8Array;
+	pseudo: string | null;
 }
 
 const GRAVITY = 1100;
@@ -438,6 +437,7 @@ class ClientData {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
+	skins: string[] = [];
 
 	readonly html: HTMLDivElement;
 
@@ -652,10 +652,12 @@ class TutorialData {
 
 
 
-function generateClientDom() {
+function generateClientDom(unlockedSkins: string[]) {
 	return {
-		skin: 0,
+		skin: Object.keys(GMAirBasket.SKINS)[0],
 		preferTeam: 0,
+		SKINS: GMAirBasket.SKINS,
+		unlockedSkins: unlockedSkins,
 
 		produce() {
 			const {StartData} = protocols.get();
@@ -663,7 +665,13 @@ function generateClientDom() {
 				skin: this.skin,
 				preferTeam: this.preferTeam
 			}).finish();
-		}
+		},
+
+		hasSkin(skin: string) {
+			return this.unlockedSkins.includes(skin);
+		},
+
+		getIconPath
 	};
 }
 
@@ -925,7 +933,13 @@ function drawPlayerToTarget(
 	drawCurve();
 }
 
+function getTexturePath(id: string) {
+	return `/assets/games/airbasket/skins/${id}/grid.png`
+}
 
+function getIconPath(id: string) {
+	return `/assets/games/airbasket/skins/${id}/icon.png`
+}
 
 
 export class GMAirBasket extends GameMode {
@@ -963,7 +977,11 @@ export class GMAirBasket extends GameMode {
 		this.buckets = BUCKET_POSITIONS.map(([x, y]) => new Bucket(x*WIDTH, y*HEIGHT));
 	}
 
-	static createServ(players: PlayerInput[], total: number) {
+	static async createServ(
+		players: PlayerInput[],
+		total: number,
+		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
+	) {
 		const {StartData, StartDataClient} = protocols.get();
 
 		const game = new GMAirBasket(total);
@@ -973,15 +991,34 @@ export class GMAirBasket extends GameMode {
 			if (i < players.length)
 				return decodeFullMessage(StartData.decode(players[i].data));
 
-			return generateClientDom();
+			return generateClientDom([]);
 		}
 
+
 		// Pre-decode all player messages once for performance
-		const playerInfos = game.players.map((p, i) => ({
-			player: p,
-			index: i,
-			pref: decode(i).preferTeam ?? 0
-		}));
+		const playerInfos = await Promise.all(
+			game.players.map(async (p, i) => {
+				const d = decode(i);
+				let skin: string;
+				const pseudo = i < players.length ? players[i].pseudo : null;
+				if (pseudo !== null && GMAirBasket.SKINS_IDS.includes(d.skin)) {
+					if (await hasSkin('airbasket', d.skin, pseudo)) {
+						skin = d.skin as string;
+					} else {
+						skin = GMAirBasket.SKINS_IDS[0];
+					}
+				} else {
+					skin = GMAirBasket.SKINS_IDS[0];
+				}
+
+				return {
+					player: p,
+					index: i,
+					skin: skin,
+					pref: d.preferTeam ?? 0
+				}
+			})
+		);
 
 		const totalPlayers = playerInfos.length;
 		const maxPerTeam = Math.ceil(totalPlayers / 2);
@@ -1030,9 +1067,10 @@ export class GMAirBasket extends GameMode {
 
 
 		const data = StartDataClient.encode({
-			players: game.players.map(p => ({
+			players: game.players.map((p, idx) => ({
 				x: p.spawnX,
 				y: p.spawnY,
+				skin: playerInfos[idx].skin,
 				isRed: p.team === 'red'
 			}))
 		}).finish();
@@ -1043,27 +1081,59 @@ export class GMAirBasket extends GameMode {
 		}
 	}
 
-	static createClient(data: Uint8Array | null, total: number) {
+	static createClient(
+		data: Uint8Array | null,
+		total: number
+	) {
 		const game = new GMAirBasket(total);
 		const {StartDataClient} = protocols.get();
+		const clientData = new ClientData();
+		let skins: { [k: string]: string; };
 
 		if (data) {
 			const {players} = decodeFullMessage(StartDataClient.decode(data));
 	
+			const skinSet = new Set<string>();
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
+				clientData.skins.push(p.skin);
+				skinSet.add(p.skin);
 			}
+			console.log(skinSet);
+			skins = Object.fromEntries(
+				[...skinSet].map(key => ['skin-' + key, getTexturePath(key)])
+			);
+
 		} else {
 			game.players[0].initSpawn(-WIDTH * 2, 0, 'red');
 			game.players[1].initSpawn(+WIDTH * 2, 0, 'blue');
+			clientData.skins = Array.from(
+				{length: game.players.length},
+				()=>GMAirBasket.SKINS_IDS[0]
+			);
+
+			skins = {};
 		}
 
 
-		const clientData = new ClientData();
-		return {game, data: clientData, html: clientData.html};
+		return {
+			game,
+			data: clientData,
+			html: clientData.html,
+			skins
+		};
 	}
 
 	static readonly generateClientDom = generateClientDom;
+
+	static readonly SKINS = {
+		joe: "Joe",
+		luck: "Luck",
+		kwanita: "Kwanita",
+		nooby: "Nooby",
+		willy: "Willy"
+	};
+	static readonly SKINS_IDS = Object.keys(GMAirBasket.SKINS);
 
 	static readonly TEXTURES = {
 		'ball': "/assets/games/airbasket/ball.png",
@@ -1071,7 +1141,7 @@ export class GMAirBasket extends GameMode {
 		'bucket-mid': "/assets/games/airbasket/bucket-mid.png",
 		'bucket-red': "/assets/games/airbasket/bucket-red.png",
 		'sky': "/assets/games/airbasket/sky.png",
-		'skin-default': "/assets/games/airbasket/skins/joe/grid.png"
+		'skin-joe': getTexturePath('joe')
 	};
 
 
@@ -1577,8 +1647,10 @@ export class GMAirBasket extends GameMode {
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
 		_data: any,
-		imageLoader: ImageLoader
+		_imageLoader: ImageLoader
 	) {
+		const imageLoader = _imageLoader.getFolder('airbasket');
+
 		const data = _data as ClientData;
 		if (data.firstFrame) {
 			data.firstFrame = false;
@@ -1642,11 +1714,6 @@ export class GMAirBasket extends GameMode {
 		}
 
 		// Draw players
-		const playerTexture = imageLoader.get('skin-default');
-		const w = playerTexture.width / 6;
-		const h = playerTexture.height / 4;
-		const width = Player.WIDTH * 4 / 3;
-
 		for (const [idx, p] of this.players.entries()) {
 			if (idx === playerIdx) {
 				ctx.fillStyle = "#0f0";
@@ -1670,6 +1737,12 @@ export class GMAirBasket extends GameMode {
 			if (p.team === 'red') {
 				tx += 3;
 			}
+
+			const playerTexture = imageLoader.get('skin-' + data.skins[idx]);
+			const w = playerTexture.width / 6;
+			const h = playerTexture.height / 4;
+			const width = Player.WIDTH * 4 / 3;
+
 
 			ctx.save();
 

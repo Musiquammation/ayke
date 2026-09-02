@@ -7,23 +7,30 @@ import { SoloGameMode } from "./SoloGameMode";
 interface Player {
     trophees: number;
     data: Uint8Array;
+    pseudo: string | null;
 }
 
 interface MultiplayerFactory {
     type: 'multiplayer';
-    server(players: Player[], total: number): {
+    server(
+        players: Player[],
+        total: number,
+        hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
+    ): Promise<{
         game: GameMode,
         data: Uint8Array
-    },
+    }>,
     client(entry: Uint8Array | null, total: number): {
         game: GameMode,
         data: any,
-        html: HTMLDivElement | null
+        html: HTMLDivElement | null,
+        skins: { [key: string]: string },
     },
-    dom(): {produce: ()=>Uint8Array},
+    dom(unlockedSkins: string[]): {produce: ()=>Uint8Array},
     textures: { [key: string]: string },
     name: string,
     tropheesPerPlayer: number,
+    skins: string[],
     computerOnly: boolean
 }
 
@@ -46,8 +53,9 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         dom: GMTest.generateClientDom,
         textures: GMTest.TEXTURES,
         name: "Test",
-        tropheesPerPlayer: 20,
-        computerOnly: false
+        computerOnly: false,
+        tropheesPerPlayer: 2,
+        skins: []
     },
 
     airbasket: {
@@ -58,7 +66,8 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         textures: GMAirBasket.TEXTURES,
         name: "Air Basket",
         tropheesPerPlayer: 20,
-        computerOnly: true
+        computerOnly: true,
+        skins: GMAirBasket.SKINS_IDS
     },
 
 	testSolo: {
@@ -72,6 +81,7 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         create: GMTestSolo.create
 	}
 };
+
 
 
 

@@ -10,6 +10,7 @@ import { LocalGameHandler } from "../handlers/LocalGameHandler";
 import { hasNavigatorMobile, hasNavigatorMouse } from "./clientNavigatorType";
 import { SoloGameMode } from "../../../commons/SoloGameMode";
 import { SoloGameHandler } from "../handlers/SoloGameHandler";
+import { waitSkinsResponsePromise } from "../messages/recvMessage";
 
 declare global {
 	interface Window {
@@ -138,11 +139,25 @@ class MainComponent {
 		this.currentPage = "loading";
 
 		const factory = getGmFactory(gamemode);
+		let unlockedSkins;
+		if (factory.type === 'multiplayer') {
+			if (factory.skins.length === 0) {
+				unlockedSkins = 0;
+			} else if (this.pseudo === null) {
+				unlockedSkins = [factory.skins[0]];
+			} else {
+				sendMessage({askSkins: gamemode});
+				unlockedSkins = await waitSkinsResponsePromise();
+			}
+
+		}
+
 		const html = await this.templateLoader.load(gamemode);
 		this.currentPage = "game-panel";
 
+
 		if (factory.type === 'multiplayer') {
-			const data = factory.dom();
+			const data = factory.dom(unlockedSkins);
 			this.panel = new GamePanelComponent(gamemode, data, html);
 		} else {
 			const category = factory.dom();
@@ -180,10 +195,10 @@ class MainComponent {
 	}
 
 	openTutorialInPlay(gamemode: string) {
+		this.currentPage = "play";
 		this.panel = new TutorialInplayComponent(
 			new LocalGameHandler(gamemode)
 		);
-		this.currentPage = "play";
 	}
 
 	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, category: string) {
@@ -262,7 +277,7 @@ class GamePanelComponent {
 	async play() {
 		const factory = getMultiGmFactory(this.gamemode);
 		dom.startLoading();
-		await imageLoader.load(factory.textures);
+		await imageLoader.load(factory.textures, this.gamemode);
 		dom.stopLoading();
 
 		dom.openWaitPlayPanel(this.gamemode);
@@ -279,7 +294,7 @@ class GamePanelComponent {
 		const factory = getMultiGmFactory(this.gamemode);
 
 		dom.startLoading();
-		await imageLoader.load(factory.textures);
+		await imageLoader.load(factory.textures, this.gamemode);
 		dom.stopLoading();
 
 		dom.openTutorialInPlay(this.gamemode);
@@ -515,7 +530,8 @@ class TutorialInplayComponent {
 	private text = "";
 
 	constructor(public readonly game: LocalGameHandler) {
-		game.start();
+		dom.startLoading();
+		game.start().finally(() => dom.stopLoading());
 	}
 
 	setText(text: string) {

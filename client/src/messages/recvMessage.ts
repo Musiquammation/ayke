@@ -1,5 +1,5 @@
 import { getGameHandler, setGameHandler } from "../handlers/GameHandler";
-import { msgtypes, sendMessage } from "./sendMessage";
+import { sendMessage } from "./sendMessage";
 import { getWaitingPlayHandler, setWaitingPlayHandler } from "../handlers/WaitingPlayHandler"
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { unflattenPositiveArrays } from "../../../commons/util/flattenArrays";
@@ -117,9 +117,25 @@ const runners: Record<string, (data: any) => void> = {
 			console.log(d);
 			panel.setSoloRecords(d);
 		}
+	},
+
+	skinsResponse(d) {
+		console.log(d);
+		if (skinsResponseResolve) {
+			skinsResponseResolve(d.skins);
+			skinsResponseResolve = null;
+		}
 	}
 };
 
+
+let skinsResponseResolve: ((d: any) => void) | null = null;
+
+export function waitSkinsResponsePromise(): Promise<any> {
+	return new Promise(resolve => {
+		skinsResponseResolve = resolve;
+	});
+}
 
 export function recvMessage(msg: protobuf.ReflectedMessage) {
 	runners[msg.message](msg[msg.message]);

@@ -20,10 +20,12 @@ export class LocalGameHandler {
 	private readonly gameHeight: number;
 	private readonly allowsMobile;
 
+	private readonly imageLoaderPromise;
+
 	constructor(gamemodeId: string) {
 		const factory = getMultiGmFactory(gamemodeId);
 
-		const {game, data, html} = factory.client(null, 2);
+		const {game, data, html, skins} = factory.client(null, 2);
 		const gameHtml = document.getElementById("game-html")!;
 		gameHtml.innerHTML = "";
 		if (html) { gameHtml.appendChild(html); }
@@ -48,9 +50,12 @@ export class LocalGameHandler {
 		} else {
 			this.allowsMobile = false;
 		}
+		
+		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
 	}
 
-	start() {
+	async start() {
+		await this.imageLoaderPromise;
 		this.clock = 0;
 		this.lastTime = performance.now();
 		requestAnimationFrame(() => this.frame());

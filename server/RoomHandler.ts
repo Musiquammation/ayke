@@ -392,7 +392,7 @@ export class Room {
 class RoomHandler {
 	private readonly rooms: Room[] = [];
 
-	append(gamemode: string, total: number, players: PlayerInput[]) {
+	async append(gamemode: string, total: number, players: PlayerInput[]) {
 		const factory = getMultiGmFactory(gamemode);
 
 		// Check players are'nt in a room
@@ -405,7 +405,12 @@ class RoomHandler {
 			}
 		}
 
-		const created = factory.server(players, total);
+		const db = await database;
+		const created = await factory.server(
+			players,
+			total,
+			(gm, skinId, user) => db.hasSkin(gm, skinId, user)
+		);
 		const room = new Room(
 			gamemode,
 			created.game,
