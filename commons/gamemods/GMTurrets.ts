@@ -366,8 +366,14 @@ class Player {
 		// The owner (this player) is passed so the item knows where to
 		// spawn its entity and which team it belongs to.
 		const nextItemId = itemDef.run(game, this, dx, dy);
-		this.items[this.selectedItem] = nextItemId !== null ? nextItemId : -1;
-		
+		if (nextItemId === null) {
+			this.items[this.selectedItem] = -1;
+		} else {
+			this.items[this.selectedItem] = nextItemId;
+			this.target = null;
+			/// TODO: fix this logic
+		}
+
 		this.attackCooldown = Player.ATTACK_COOLDOWN; 
 	}
 
