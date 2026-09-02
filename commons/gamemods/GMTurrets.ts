@@ -1094,8 +1094,6 @@ class ELifeSlider extends AbstractEntity {
 	}
 
 	load(data: Fields) {
-		this.x = data.x;
-		this.y = data.y;
 		this.vx = data.vx;
 		this.vy = data.vy;
 		this.radius = data.radius;
@@ -1119,6 +1117,7 @@ class ELifeSlider extends AbstractEntity {
 	}
 
 	run(dt: number, game: GMTurrets): boolean {
+		console.log(JSON.stringify(this));
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 
