@@ -137,6 +137,7 @@ message State {
 	repeated Bullet bullets = 4;
 	repeated ItemInMap items = 5;
 	repeated Entity entities = 6;
+	int32 cycleStep = 7;
 }
 
 message Throw {

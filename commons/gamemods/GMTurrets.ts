@@ -40,6 +40,14 @@ const STAR_DURATION = 10;
 const ITEM_COUNT = 3;
 const TURRET_ITEM_COUNT = 2;
 
+const ITEMS_CYCLE = [
+	2, 5, 1, 3, 2, 0, 4, 5, 2, 1,
+	6, 7, 1, 0, 3, 4, 2, 1, 3, 0,
+	2, 0, 4, 2, 1, 5, 7, 2, 0, 4,
+	5, 2, 1, 3, 2, 0, 4, 2, 4, 1,
+	7, 3, 2, 0, 4, 2, 1, 5, 2, 0
+];
+
 interface FixedTarget {
 	type: 'fixed';
 	x: number;
@@ -829,7 +837,7 @@ class Turret {
 			const itemY = this.y + Math.sin(angle) * TURRET_RADIUS;
 
 			// Add a random item (replace Math.random logic according to your needs)
-			const randomItemId = 7;
+			const randomItemId = ITEMS_CYCLE[game.makeCycleStep()];
 			
 			game.itemsInMap.push(new ItemInMap(itemX, itemY, randomItemId));
 
@@ -2298,6 +2306,7 @@ export class GMTurrets extends GameMode {
 	finished = false;
 	internalFrameTick = 0;
 
+	private cycleStep = 0;
 
 
 	private constructor(total: number) {
@@ -3205,6 +3214,8 @@ export class GMTurrets extends GameMode {
 			items: this.itemsInMap,
 
 			entities: this.entities.map(serializeEntity),
+
+			cycleStep: this.cycleStep
 		};
 
 		return State.encode(object).finish();
@@ -3258,6 +3269,7 @@ export class GMTurrets extends GameMode {
 		}
 
 		this.time = obj.time;
+		this.cycleStep = obj.cycleStep;
 	}
 
 
@@ -3388,4 +3400,13 @@ export class GMTurrets extends GameMode {
 		};
 	}
 
+	makeCycleStep() {
+		const s = this.cycleStep;
+		this.cycleStep++;
+		if (this.cycleStep >= 3) {
+			this.cycleStep = 0;
+		}
+
+		return s;
+	}
 }
