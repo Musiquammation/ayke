@@ -605,6 +605,7 @@ class Turret {
 
 	itemsToSpawn = 0;
 	spawnIdx = 0;
+	prevCapture: 'red' |'blue' | boolean = false;
 
 
 	static readonly SIZE = 100;
@@ -664,6 +665,7 @@ class Turret {
 	 * Private helper to reset state upon a team capture.
 	 */
 	private capture(newTeam: 'red' | 'blue') {
+		this.prevCapture = this.team ?? true;
 		this.team = newTeam;
 		this.hp = TURRET_HP;
 		this.activation = 0;
@@ -679,6 +681,20 @@ class Turret {
 	 * Runs every frame to handle cooldowns and bullet spawning.
 	 */
 	frame(dt: number, game: GMTurrets) {
+		if (this.prevCapture === true) {
+			if (this.team === 'red') {
+				game.redScore++;
+			} else {
+				game.blueScore++;
+			}
+		} else if (this.prevCapture === 'red') {
+			game.redScore--;
+			game.blueScore++;
+		} else if (this.prevCapture === 'blue') {
+			game.redScore++;
+			game.blueScore--;
+		}
+
 		this.spawnPendingItems(game);
 
 		// Do not process logic if the turret is paused
@@ -1321,6 +1337,8 @@ export class GMTurrets extends GameMode {
 
 
 	time = 600;
+	redScore = 0;
+	blueScore = 0;
 
 	finished = false;
 	internalFrameTick = 0;
@@ -1514,7 +1532,11 @@ export class GMTurrets extends GameMode {
 	): FinishGame | null {
 		this.time -= dt;
 
-		if (this.time <= 0) {
+		// Finish condition
+		if (
+			this.time <= 0 ||
+			(this.redScore + this.blueScore >= this.turrets.length)
+		) {
 			this.finished = true;
 		}
 
