@@ -29,6 +29,7 @@ message Player {
 	int32 selectedItem = 16;
 	bool invincible = 17;
 	float speedMultiplier = 18;
+	float starDuration = 19;
 }
 
 message Bullet {
@@ -85,6 +86,7 @@ message EntityBallon {
 	float radius = 1;
 	bool redTeam = 2;
 	bool exploded = 3;
+	float growthSpeed = 4;
 }
 
 // A high-HP troop charging the nearest enemy turret.
@@ -97,7 +99,6 @@ message EntityTank {
 message EntityBooster {
 	float hp = 1;
 	bool redTeam = 2;
-	float buffTimer = 3;
 }
 
 // Attached to the player who used the item; grants a temporary effect.
