@@ -93,7 +93,7 @@ export class Room {
 		this.gamemode.init();
 		this.latestData = this.gamemode.save();
 
-		const gdata = getProtocol(this.gamemodeId).get().ServerMessage.encode({
+		const gdata = getProtocol(this.gamemodeId, 'multiplayer').get().ServerMessage.encode({
 			timestamp: this.players[this.latestUser].lastClientDate,
 			state: this.latestData,
 			inputs: [],
@@ -134,7 +134,7 @@ export class Room {
 		const {
 			ClientMessage,
 			ServerMessage
-		} = getProtocol(this.gamemodeId).get();
+		} = getProtocol(this.gamemodeId, 'multiplayer').get();
 
 		const data = decodeFullMessage(ClientMessage.decode(encryptedData));
 

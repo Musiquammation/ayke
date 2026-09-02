@@ -20,10 +20,16 @@ message Player {
 	float alive = 7;
 	int32 score = 8;
 	float attackMunitions = 9;
-	float hp = 10;
-	float maxHp = 11;
-	repeated int32 items = 12;
-	int32 selectedItem = 13;
+	float attackCooldown = 10;
+	float attackTimer = 11;
+	bool attackFullyReloading = 12;
+	float hp = 13;
+	float maxHp = 14;
+	repeated int32 items = 15;
+	int32 selectedItem = 16;
+	bool invincible = 17;
+	float speedMultiplier = 18;
+	float starDuration = 19;
 }
 
 message Bullet {
@@ -49,12 +55,88 @@ message Turret {
 	int32 spawnIdx = 10;
 }
 
+// ---------------------------------------------------------------------------
+// Entities: everything an item can spawn into the world (sliders, walls,
+// balloons, troops, traps...). Each concrete type gets its own message with
+// only the fields it actually needs; `Entity.etype` picks which one is set.
+// ---------------------------------------------------------------------------
+
+// A no-damage-for-everyone circle that travels in a straight line.
+message EntityLifeSlider {
+	float vx = 1;
+	float vy = 2;
+	float radius = 3;
+}
+
+// Like EntityLifeSlider, but only protects its own team.
+message EntityShieldSlider {
+	float vx = 1;
+	float vy = 2;
+	float radius = 3;
+	bool redTeam = 4;
+}
+
+// A square that blocks bullets while `timer` counts down to zero.
+message EntityWall {
+	float timer = 1;
+}
+
+// A growing circle that explodes once it detects an enemy.
+message EntityBallon {
+	float radius = 1;
+	bool redTeam = 2;
+	bool exploded = 3;
+	float growthSpeed = 4;
+}
+
+// A high-HP troop charging the nearest enemy turret.
+message EntityTank {
+	float hp = 1;
+	bool redTeam = 2;
+}
+
+// A low-HP troop that buffs the nearest friendly turret on contact.
+message EntityBooster {
+	float hp = 1;
+	bool redTeam = 2;
+}
+
+// Attached to the player who used the item; grants a temporary effect.
+message EntityStar {
+	int32 playerIdx = 1;
+	float timer = 2;
+}
+
+// Shared by TrapI / TrapII / TrapIII - `level` (1-3) tells them apart.
+message EntityTrap {
+	bool redTeam = 1;
+	int32 level = 2;
+	bool triggered = 3;
+}
+
+message Entity {
+	float x = 1;
+	float y = 2;
+
+	oneof etype {
+		EntityLifeSlider lifeSlider = 3;
+		EntityShieldSlider shieldSlider = 4;
+		EntityWall wall = 5;
+		EntityBallon ballon = 6;
+		EntityTank tank = 7;
+		EntityBooster booster = 8;
+		EntityStar star = 9;
+		EntityTrap trap = 10;
+	}
+}
+
 message State {
 	repeated Player players = 1;
 	repeated Turret turrets = 2;
 	float time = 3;
 	repeated Bullet bullets = 4;
 	repeated ItemInMap items = 5;
+	repeated Entity entities = 6;
 }
 
 message Throw {

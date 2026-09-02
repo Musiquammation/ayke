@@ -1,6 +1,7 @@
 import { Fields } from "../../commons/Fields";
 import { GMAirBasket } from "../../commons/gamemods/GMAirBasket";
 import { getBestInArray } from "../../commons/util/getBestInArray";
+import { norm2 } from "../../commons/util/norm2";
 import { appendBots, botActionNodeHelper } from "../Bot";
 import { getLogger } from "../Logger";
 
@@ -186,9 +187,6 @@ function dataConstructor(): Data {
 	return new Data();
 }
 
-function norm2(dx: number, dy: number) {
-	return dx*dx + dy*dy;
-}
 
 
 // Refactored single bot loop combining all behaviors

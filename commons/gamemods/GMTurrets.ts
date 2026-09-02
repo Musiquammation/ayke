@@ -1,3 +1,4 @@
+import { norm2 } from "../../commons/util/norm2";
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { getLogger } from "../../server/Logger";
 import { Fields } from "../Fields";
@@ -21,19 +22,20 @@ const FULL_ROOM_SIZE = WIDTH * 2.5;
 const ROOM_SIZE = WIDTH * 1.5;
 const BRIDGE_SIZE = WIDTH * 0.3;
 const BULLET_DAMAGE = 15;
-const WORLD_LIMIT = FULL_ROOM_SIZE * 2.5;
 
 const TURRET_RADIUS = WIDTH * 0.6;
-const TURRET_ACTIVATION = 1000;
+const TURRET_ACTIVATION = 100;
 const TURRET_COOLDOWN = 2.0; 
-const TURRET_HP = 2000;
+const TURRET_HP = 200;
 const TURRET_START_COOLDOWN = 5.0;
 const TURRET_ITEM_DAMAGES = 500;
-const TURRET_PAUSE = 12.5;
+const TURRET_PAUSE = 1.25;
 
 const MINIMAP_X = WIDTH * 0.79;
 const MINIMAP_Y = HEIGHT * 0.01;
 const MINIMAP_RATIO = 0.2;
+
+const STAR_DURATION = 10;
 
 const ITEM_COUNT = 3;
 const TURRET_ITEM_COUNT = 2;
@@ -102,6 +104,7 @@ class Player {
 
 	items: number[] = Array(ITEM_COUNT).fill(-1);
 	selectedItem: number = -1;
+	starDuration = -1;
 
 
 	// --- Attack System Variables ---
@@ -109,6 +112,13 @@ class Player {
 	attackCooldown = 0;
 	attackTimer = Player.ATTACK_DELAY;
 	attackFullyReloading = false;
+
+	// --- Per-frame entity effects ---
+	// These are wiped every frame by resetEffects() and re-applied by any
+	// active entity (EStar, ...) that still targets this player, so an
+	// effect only lasts as long as its owning entity keeps re-applying it.
+	invincible = false;
+	speedMultiplier = 1;
 
 	constructor(
 		public x: number,
@@ -128,12 +138,23 @@ class Player {
 		return this.alive < 0;
 	}
 
+	/**
+	 * Wipes every per-frame effect. Called once at the start of the frame,
+	 * before entities run and possibly re-apply their effects.
+	 */
+	resetEffects() {
+		this.invincible = false;
+		this.speedMultiplier = 1;
+		this.starDuration = -1;
+	}
+
 	private static applyMovement(
 		dirX: number,
 		dirY: number,
 		vx: number,
 		vy: number,
-		dt: number
+		dt: number,
+		speedMultiplier: number
 	): [number, number] {
 		const dirLength2 = dirX * dirX + dirY * dirY;
 
@@ -182,7 +203,7 @@ class Player {
 		}
 
 		const dirLength = Math.hypot(dirX, dirY);
-		const targetSpeed = Player.SPEED * dirLength;
+		const targetSpeed = Player.SPEED * speedMultiplier * dirLength;
 
 		if (forwardSpeed < targetSpeed) {
 			const acceleration = Player.ACCELERATION * dt;
@@ -242,7 +263,8 @@ class Player {
 			this.dirY,
 			this.vx,
 			this.vy,
-			dt
+			dt,
+			this.speedMultiplier
 		);
 
 		this.x += this.vx * dt;
@@ -274,28 +296,24 @@ class Player {
 		this.maxHp = obj.maxHp;
 
 		// Attack state.
-		this.attackMunitions =
-			obj.attackMunitions ?? Player.ATTACK_FULL;
-
-		this.attackFullyReloading =
-			obj.attackReloading ?? false;
+		this.attackMunitions = obj.attackMunitions;
+		this.attackFullyReloading = obj.attackFullyReloading;
+		this.attackCooldown = obj.attackCooldown;
+		this.attackTimer = obj.attackTimer;
 
 		this.items = obj.items && obj.items.length === ITEM_COUNT 
 			? [...obj.items] 
 			: Array(ITEM_COUNT).fill(-1);
 
+		this.selectedItem = obj.selectedItem;
+
+		this.invincible = obj.invincible;
+		this.speedMultiplier = obj.speedMultiplier;
+		this.starDuration = obj.starDuration;
 	}
 
 	avoidOOB() {
-		this.x = Math.max(
-			-WORLD_LIMIT + Player.RADIUS,
-			Math.min(WORLD_LIMIT - Player.RADIUS, this.x)
-		);
-
-		this.y = Math.max(
-			-WORLD_LIMIT + Player.RADIUS,
-			Math.min(WORLD_LIMIT - Player.RADIUS, this.y)
-		);
+		/// TODO: edit this.x, y if oob
 	}
 
 	die() {
@@ -344,12 +362,18 @@ class Player {
 		// Get the vector for the throw/attack
 		const [dx, dy] = this.resolveTargetVector(game);
 
-		// Run item logic and apply replacement logic (consumed if null)
-		const nextItemId = itemDef.run(game, dx, dy);
-		this.items[this.selectedItem] = nextItemId !== null ? nextItemId : -1;
-		
-		// Reset selection and apply a generic cooldown for item usage
-		this.selectedItem = -1;
+		// Run item logic and apply replacement logic (consumed if null).
+		// The owner (this player) is passed so the item knows where to
+		// spawn its entity and which team it belongs to.
+		const nextItemId = itemDef.run(game, this, dx, dy);
+		if (nextItemId === null) {
+			this.items[this.selectedItem] = -1;
+		} else {
+			this.items[this.selectedItem] = nextItemId;
+			this.target = null;
+			/// TODO: fix this logic
+		}
+
 		this.attackCooldown = Player.ATTACK_COOLDOWN; 
 	}
 
@@ -464,6 +488,10 @@ class Player {
 	}
 
 	hit(damages: number) {
+		// EStar grants temporary invincibility - re-applied every frame by
+		// its entity, so it is checked here rather than cached.
+		if (this.invincible) return;
+
 		this.hp -= damages;
 		if (this.hp <= 0) {
 			this.die();
@@ -478,7 +506,6 @@ class Player {
 		// Skip dead players
 		if (!this.isAlive()) return;
 
-		// Draw the player using their team color
 		ctx.fillStyle = this.team;
 
 		ctx.beginPath();
@@ -488,10 +515,9 @@ class Player {
 		const BAR_W = 80;
 		const BAR_H = 10;
 
-		// Draw the health bar for every player
 		const hpRatio = Math.max(0, this.hp / this.maxHp);
 
-		// Draw the health bar background
+		// Draw the health bar
 		ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
 		ctx.fillRect(
 			this.x - BAR_W / 2,
@@ -500,7 +526,6 @@ class Player {
 			BAR_H
 		);
 
-		// Draw the current health
 		ctx.fillStyle = '#22cc22';
 		ctx.fillRect(
 			this.x - BAR_W / 2,
@@ -513,36 +538,55 @@ class Player {
 		if (currentPlayer) {
 			const ratio = this.attackMunitions / Player.ATTACK_FULL;
 
-			// Draw the attack bar background.
-			// It is positioned 15px above the health bar to prevent overlap.
+			const y = this.y - Player.RADIUS - 30;
+
 			ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
 			ctx.fillRect(
 				this.x - BAR_W / 2,
-				this.y - Player.RADIUS - 30,
+				y,
 				BAR_W,
 				BAR_H
 			);
 
 			if (this.attackFullyReloading) {
-				// Display a gray bar while the attack is fully reloading
 				ctx.fillStyle = 'gray';
 				ctx.fillRect(
 					this.x - BAR_W / 2,
-					this.y - Player.RADIUS - 30,
+					y,
 					BAR_W,
 					BAR_H
 				);
 			} else {
-				// Display orange while the attack is on cooldown,
-				// otherwise use white for the available ammunition
 				ctx.fillStyle = this.attackCooldown > 0 ? 'orange' : 'white';
 				ctx.fillRect(
 					this.x - BAR_W / 2,
-					this.y - Player.RADIUS - 30,
+					y,
 					BAR_W * ratio,
 					BAR_H
 				);
 			}
+		}
+
+		// Draw the star duration bar
+		if (this.starDuration > 0) {
+			const STAR_DURATION = 6;
+			const ratio = Math.min(1, this.starDuration / STAR_DURATION);
+
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+			ctx.fillRect(
+				this.x - BAR_W / 2,
+				this.y - Player.RADIUS - 40,
+				BAR_W,
+				BAR_H
+			);
+
+			ctx.fillStyle = 'yellow';
+			ctx.fillRect(
+				this.x - BAR_W / 2,
+				this.y - Player.RADIUS - 30,
+				BAR_W * ratio,
+				BAR_H
+			);
 		}
 	}
 
@@ -589,6 +633,13 @@ class Player {
 		}
 	}
 
+	getTeam() {
+		return this.team;
+	}
+
+	getRadius() {
+		return Player.RADIUS;
+	}
 }
 
 
@@ -607,6 +658,10 @@ class Turret {
 	spawnIdx = 0;
 	prevCapture: 'red' |'blue' | boolean = false;
 
+	// --- Per-frame entity effects ---
+	// Wiped every frame by resetEffects() and re-applied by EBooster while
+	// it is attached to this turret.
+	attackSpeedMultiplier = 1;
 
 	static readonly SIZE = 100;
 
@@ -614,6 +669,22 @@ class Turret {
 		public readonly x: number,
 		public readonly y: number
 	) {}
+
+	/**
+	 * Wipes every per-frame effect. Called once at the start of the frame,
+	 * before entities run and possibly re-apply their effects.
+	 */
+	resetEffects() {
+		this.attackSpeedMultiplier = 1;
+	}
+
+	/**
+	 * Applies (or refreshes, for this frame) a fast-attack buff.
+	 * Called every frame by an attached EBooster while its buff lasts.
+	 */
+	applyFastAttackEffect(adder: number) {
+		this.attackSpeedMultiplier += adder;
+	}
 
 	/**
 	 * Handles damage dealt to the turret by bullets.
@@ -694,6 +765,7 @@ class Turret {
 			game.redScore++;
 			game.blueScore--;
 		}
+		this.prevCapture = false;
 
 		this.spawnPendingItems(game);
 
@@ -718,7 +790,9 @@ class Turret {
 			return;
 		}
 
-		this.attackCooldown -= dt;
+		// EBooster speeds up the turret's fire rate for as long as it
+		// keeps re-applying attackSpeedMultiplier this frame.
+		this.attackCooldown -= dt * this.attackSpeedMultiplier;
 		if (this.attackCooldown <= 0) {
 			this.attackCooldown = TURRET_COOLDOWN;
 			
@@ -755,7 +829,7 @@ class Turret {
 			const itemY = this.y + Math.sin(angle) * TURRET_RADIUS;
 
 			// Add a random item (replace Math.random logic according to your needs)
-			const randomItemId = 0;
+			const randomItemId = 7;
 			
 			game.itemsInMap.push(new ItemInMap(itemX, itemY, randomItemId));
 
@@ -854,6 +928,31 @@ class Turret {
 			}
 		}
 	}
+
+	load(obj: Fields) {
+		if (!obj.taken) {
+			this.team = null;
+		} else {
+			this.team = obj.redTeam ? 'red' : 'blue';
+		}
+
+		this.activation = obj.activation;
+		this.hp = obj.hp;
+		this.itemDamage = obj.itemDamage;
+		this.pauseTimer = obj.pauseTimer;
+		this.startCooldown = obj.startCooldown;
+		this.attackCooldown = obj.attackCooldown;
+		this.itemsToSpawn = obj.itemsToSpawn;
+		this.spawnIdx = obj.spawnIdx;
+	}
+
+	getTeam() {
+		return this.team;
+	}
+
+	getRadius() {
+		return Turret.SIZE;
+	}
 }
 
 
@@ -921,44 +1020,774 @@ class Bullet {
 
 		// Check OOB
 		return (
-			Math.abs(this.x) > WORLD_LIMIT ||
-			Math.abs(this.y) > WORLD_LIMIT
+			Math.abs(this.x) > FULL_ROOM_SIZE * 3 ||
+			Math.abs(this.y) > FULL_ROOM_SIZE * 3
 		);
 	}
 
 	attack(game: GMTurrets) {
-		const SR = Player.RADIUS + Bullet.RADIUS;
-		const SR2 = SR * SR;
+		// EWall blocks bullets outright while it stands.
+		if (game.isBlockedByWall(this.x, this.y)) {
+			return true;
+		}
 
-		// Check player collisions
+		for (const [target, kind] of game.damageableEntities()) {
+			const team = target.getTeam();
+			if (kind === 'turret') {
+				if (this.fromTurret) {continue;}
+			} else if (team === this.team) {continue;}
+
+			const radius = Bullet.RADIUS + target.getRadius();
+			const dx = target.x - this.x;
+			const dy = target.y - this.y;
+			if (dx * dx + dy * dy > radius*radius)
+				continue;
+
+			if (
+				(kind === 'player' && game.isInsideNoDamageZone(this.x, this.y, this.team))
+			) {
+				continue;
+			}
+
+			
+			target.hit(BULLET_DAMAGE, this.team);
+			return true;
+		}
+
+		return false;
+	}
+}
+
+// ============================================================================
+// Entity system
+//
+// An "entity" is anything spawned into the world by an item (sliders, walls,
+// balloons, troops, traps...) that needs to live and animate across frames -
+// as opposed to an ItemInMap, which is a static pickup lying on the ground.
+//
+// Entities are spawned via a `static create(...)` factory that computes any
+// derived state (e.g. turning a direction into a velocity) from the values
+// available in-game, e.g. `ELifeSlider.create(owner.x, owner.y, dx, dy)`.
+// The plain constructor, by contrast, takes every field verbatim; it is used
+// only by entityConstructors below to rebuild an entity straight from the
+// (already fully-computed) fields decoded off the wire.
+// ============================================================================
+
+type EntityType =
+	| 'lifeSlider'
+	| 'shieldSlider'
+	| 'wall'
+	| 'ballon'
+	| 'tank'
+	| 'booster'
+	| 'star'
+	| 'trap';
+
+abstract class AbstractEntity {
+	constructor(
+		public x: number,
+		public y: number
+	) {}
+
+	// Serializes the entity-specific fields. x/y are handled separately by
+	// the caller since every entity has them - see serializeEntity().
+	abstract save(): Fields;
+
+	abstract getType(): EntityType;
+
+	// Renders the entity in world space (already translated/scaled by the
+	// camera transform - see GMTurrets.draw()).
+	abstract draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoader): void;
+
+	// Advances the entity by dt seconds. Returning false removes the entity
+	// from the world on this frame (expired, exploded, died, consumed...).
+	abstract run(dt: number, game: GMTurrets): boolean;
+
+	drawInFront() {return false;}
+
+	abstract getTeam(): 'red' | 'blue' | null;
+}
+
+/**
+ * A circle that travels in a straight line until it leaves the map.
+ * While a point sits inside it, NO player of ANY team can take damage there.
+ */
+class ELifeSlider extends AbstractEntity {
+	static readonly SPEED = 125;
+	static readonly RADIUS = 500;
+
+	constructor(
+		x: number,
+		y: number,
+		public vx: number,
+		public vy: number,
+		public radius: number
+	) {
+		super(x, y);
+	}
+
+	/**
+	 * In-game factory: turns the throw direction (dirX, dirY) into a
+	 * velocity and returns a fresh slider. Used by ITEMS' `run()`.
+	 */
+	static create(x: number, y: number, dirX: number, dirY: number): ELifeSlider {
+		const len = Math.hypot(dirX, dirY) || 1;
+		return new ELifeSlider(
+			x,
+			y,
+			(dirX / len) * ELifeSlider.SPEED,
+			(dirY / len) * ELifeSlider.SPEED,
+			ELifeSlider.RADIUS
+		);
+	}
+
+	getType(): EntityType { return 'lifeSlider'; }
+
+	// x/y are NOT included here: serializeEntity() already carries them for
+	// every entity, so only the type-specific fields are saved.
+	save(): Fields {
+		return {
+			vx: this.vx,
+			vy: this.vy,
+			radius: this.radius
+		};
+	}
+
+	// LifeSlider protects everyone inside it, whatever their team.
+	protects(px: number, py: number, _team: 'red' | 'blue'): boolean {
+		return Math.hypot(px - this.x, py - this.y) <= this.radius;
+	}
+
+	draw(ctx: CanvasRenderingContext2D) {
+		ctx.save();
+		ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
+		ctx.strokeStyle = 'rgba(0, 255, 0, 0.7)';
+		ctx.lineWidth = 4;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		ctx.restore();
+	}
+
+	run(dt: number, game: GMTurrets): boolean {
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+
+		// Removed once fully out of bounds.
+		return !game.isOOB(this.x, this.y, this.radius);
+	}
+
+	override drawInFront(): boolean {
+		return true;
+	}
+
+	override getTeam() {
+		return null;
+	}
+}
+
+/**
+ * Like ELifeSlider, but only protects its own team, and travels faster.
+ */
+class EShieldSlider extends AbstractEntity {
+	static readonly SPEED = 200; // faster than ELifeSlider
+	static readonly RADIUS = 200;
+
+	constructor(
+		x: number,
+		y: number,
+		public vx: number,
+		public vy: number,
+		public radius: number,
+		public team: 'red' | 'blue'
+	) {
+		super(x, y);
+	}
+
+	/**
+	 * In-game factory: turns the throw direction (dirX, dirY) into a
+	 * velocity and returns a fresh shield slider for `team`.
+	 */
+	static create(x: number, y: number, dirX: number, dirY: number, team: 'red' | 'blue'): EShieldSlider {
+		const len = Math.hypot(dirX, dirY) || 1;
+		return new EShieldSlider(
+			x,
+			y,
+			(dirX / len) * EShieldSlider.SPEED,
+			(dirY / len) * EShieldSlider.SPEED,
+			EShieldSlider.RADIUS,
+			team
+		);
+	}
+
+	getType(): EntityType { return 'shieldSlider'; }
+
+	save(): Fields {
+		return { vx: this.vx, vy: this.vy, radius: this.radius, redTeam: this.team === 'red' };
+	}
+
+	// Only protects players on the same team as the slider's owner.
+	protects(px: number, py: number, team: 'red' | 'blue'): boolean {
+		return team === this.team && Math.hypot(px - this.x, py - this.y) <= this.radius;
+	}
+
+	draw(ctx: CanvasRenderingContext2D) {
+		ctx.save();
+		ctx.fillStyle = this.team === 'red' ? 'rgba(255, 0, 0, 0.15)' : 'rgba(0, 0, 255, 0.15)';
+		ctx.strokeStyle = this.team === 'red' ? 'rgba(255, 80, 80, 0.8)' : 'rgba(80, 80, 255, 0.8)';
+		ctx.lineWidth = 4;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		ctx.restore();
+	}
+
+	run(dt: number, game: GMTurrets): boolean {
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+
+		return !game.isOOB(this.x, this.y, this.radius);
+	}
+
+	override drawInFront(): boolean {
+		return true;
+	}
+
+	override getTeam() {
+		return this.team;
+	}
+}
+
+/**
+ * A square that blocks bullets (but not players) for 10 * Wall.DURATION.
+ */
+class EWall extends AbstractEntity {
+	static readonly DURATION = 3; // one "unit" of duration, shown to the player
+	static readonly TOTAL_DURATION = 10 * EWall.DURATION;
+	static readonly SIZE = 180;
+
+	constructor(
+		x: number,
+		y: number,
+		public timer: number = EWall.TOTAL_DURATION
+	) {
+		super(x, y);
+	}
+
+	/** In-game factory: drops a fresh wall at (x, y), fully charged. */
+	static create(x: number, y: number): EWall {
+		return new EWall(x, y);
+	}
+
+	getType(): EntityType { return 'wall'; }
+
+	save(): Fields {
+		return { timer: this.timer };
+	}
+
+	// Used by Bullet.attack() through game.isBlockedByWall().
+	blocksBullet(bx: number, by: number): boolean {
+		const half = EWall.SIZE / 2;
+		return Math.abs(bx - this.x) <= half && Math.abs(by - this.y) <= half;
+	}
+
+	draw(ctx: CanvasRenderingContext2D) {
+		const half = EWall.SIZE / 2;
+
+		ctx.save();
+		ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
+		ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+		ctx.lineWidth = 4;
+		ctx.fillRect(this.x - half, this.y - half, EWall.SIZE, EWall.SIZE);
+		ctx.strokeRect(this.x - half, this.y - half, EWall.SIZE, EWall.SIZE);
+
+		// Remaining duration, shown as a countdown in "Wall.DURATION units".
+		ctx.fillStyle = '#ffffff';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.font = 'bold 32px sans-serif';
+		ctx.fillText((this.timer / EWall.DURATION).toFixed(1), this.x, this.y);
+		ctx.restore();
+	}
+
+	run(dt: number): boolean {
+		this.timer -= dt;
+		return this.timer > 0;
+	}
+
+	drawInFront(): boolean {
+		return true;
+	}
+
+	override getTeam() {
+		return null;
+	}
+}
+
+
+class EBallon extends AbstractEntity {
+	static readonly GROWTH_ACCELERATION = 60;
+	static readonly PADDING = 120;
+	static readonly DAMAGE = 150;
+
+	constructor(
+		x: number,
+		y: number,
+		public team: 'red' | 'blue',
+		public radius: number = 0,
+		public growthSpeed: number = 0,
+		public exploded: boolean = false
+	) {
+		super(x, y);
+	}
+
+	static create(x: number, y: number, team: 'red' | 'blue'): EBallon {
+		return new EBallon(x, y, team);
+	}
+
+	getType(): EntityType { return 'ballon'; }
+
+	save(): Fields {
+		return {
+			radius: this.radius,
+			redTeam: this.team === 'red',
+			exploded: this.exploded,
+			growthSpeed: this.growthSpeed
+		};
+	}
+
+	private detectsEnemy(game: GMTurrets): boolean {
+		const playerRange = this.radius + Player.RADIUS;
+		const playerRange2 = playerRange * playerRange;
+
 		for (const p of game.players) {
-			if (p.isAlive() && p.team !== this.team) {
-				const dx = p.x - this.x;
-				const dy = p.y - this.y;
-				if (dx * dx + dy * dy < SR2) {
-					p.hit(BULLET_DAMAGE);
-					return true;
-				}
+			if (
+				p.isAlive() &&
+				p.team !== this.team &&
+				norm2(p.x - this.x, p.y - this.y) <= playerRange2
+			) {
+				return true;
 			}
 		}
 
-		// Check turret collisions
-		if (this.fromTurret)
-			return false;
+		const turretRange = this.radius + Turret.SIZE;
+		const turretRange2 = turretRange * turretRange;
 
-		const TR = Turret.SIZE / 2 + Bullet.RADIUS;
-		const TR2 = TR * TR;
 		for (const t of game.turrets) {
-			const dx = t.x - this.x;
-			const dy = t.y - this.y;
-			if (dx * dx + dy * dy < TR2) {
-				t.hit(BULLET_DAMAGE, this.team);
+			if (norm2(t.x - this.x, t.y - this.y) <= turretRange2) {
 				return true;
 			}
 		}
 
 		return false;
 	}
+
+	draw(ctx: CanvasRenderingContext2D) {
+		ctx.save();
+		ctx.fillStyle = this.team === 'red'
+			? 'rgba(255, 60, 60, 0.5)'
+			: 'rgba(60, 60, 255, 0.5)';
+		ctx.strokeStyle = this.team === 'red' ? '#ff3333' : '#3333ff';
+		ctx.lineWidth = 3;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		ctx.restore();
+	}
+
+	run(dt: number, game: GMTurrets): boolean {
+		if (this.exploded) return false;
+
+		// Constant acceleration of the growth speed.
+		this.growthSpeed += EBallon.GROWTH_ACCELERATION * dt;
+
+		// Radius grows according to the current growth speed.
+		this.radius += this.growthSpeed * dt;
+
+		if (this.detectsEnemy(game)) {
+			game.damageAllInRadius(
+				this.x,
+				this.y,
+				this.radius + EBallon.PADDING,
+				this.team,
+				EBallon.DAMAGE,
+				{ spareTurrets: true }
+			);
+			this.exploded = true;
+		}
+
+		return true;
+	}
+
+	override getTeam() {
+		return this.team;
+	}
+}
+
+
+/**
+ * A high-HP troop that walks toward the nearest enemy turret and dies on
+ * contact, dealing damage to it.
+ */
+class ETank extends AbstractEntity {
+	static readonly MAX_HP = 400;
+	static readonly SPEED = 250;
+	static readonly RADIUS = 50;
+	static readonly TURRET_DAMAGE = 25;
+
+	constructor(
+		x: number,
+		y: number,
+		public team: 'red' | 'blue',
+		public hp: number = ETank.MAX_HP
+	) {
+		super(x, y);
+	}
+
+	/** In-game factory: spawns a fresh, full-HP tank for `team`. */
+	static create(x: number, y: number, team: 'red' | 'blue'): ETank {
+		return new ETank(x, y, team);
+	}
+
+	getType(): EntityType { return 'tank'; }
+
+	save(): Fields {
+		return { hp: this.hp, redTeam: this.team === 'red' };
+	}
+
+	// Can take bullet damage - surfaced through game.damageableEntities().
+	hit(amount: number) {
+		this.hp -= amount;
+	}
+
+	draw(ctx: CanvasRenderingContext2D) {
+		const BAR_W = 80;
+		const BAR_H = 10;
+
+		ctx.save();
+		ctx.fillStyle = this.team;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, ETank.RADIUS, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.strokeStyle = '#000000';
+		ctx.lineWidth = 3;
+		ctx.stroke();
+
+		// HP bar.
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+		ctx.fillRect(this.x - BAR_W / 2, this.y - ETank.RADIUS - 15, BAR_W, BAR_H);
+		ctx.fillStyle = '#22cc22';
+		ctx.fillRect(this.x - BAR_W / 2, this.y - ETank.RADIUS - 15, BAR_W * (this.hp / ETank.MAX_HP), BAR_H);
+		ctx.restore();
+	}
+
+	run(dt: number, game: GMTurrets): boolean {
+		if (this.hp <= 0) return false;
+
+		const target = game.nearestEnemyTurret(this.x, this.y, this.team);
+		if (!target) return true; // no enemy turret standing - stay put
+
+		const dx = target.x - this.x;
+		const dy = target.y - this.y;
+		const dist2 = norm2(dx, dy);
+
+		if (dist2 <= ETank.RADIUS * ETank.RADIUS) {
+			target.hit(ETank.TURRET_DAMAGE, this.team);
+			return false; // the tank dies on center contact
+		}
+
+		const dist = Math.sqrt(dist2);
+		this.x += (dx / dist) * ETank.SPEED * dt;
+		this.y += (dy / dist) * ETank.SPEED * dt;
+		return true;
+	}
+
+	override getTeam() {
+		return this.team;
+	}
+
+	getRadius() {
+		return ETank.RADIUS;
+	}
+}
+
+/**
+ * A low-HP troop that walks toward the nearest friendly turret and, on
+ * contact, grants it a fast-attack buff for a limited duration.
+ */
+class EBooster extends AbstractEntity {
+	static readonly MAX_HP = 300;
+	static readonly SPEED = 350;
+	static readonly RADIUS = 30;
+	static readonly BUFF_ADDER = 0.5;
+	static readonly FRAME_DAMAGES = 30;
+
+
+	constructor(
+		x: number,
+		y: number,
+		public team: 'red' | 'blue',
+		public hp: number = EBooster.MAX_HP
+	) {
+		super(x, y);
+	}
+
+	/** In-game factory: spawns a fresh, full-HP, unattached booster for `team`. */
+	static create(x: number, y: number, team: 'red' | 'blue'): EBooster {
+		return new EBooster(x, y, team);
+	}
+
+	getType(): EntityType { return 'booster'; }
+
+	save(): Fields {
+		return { hp: this.hp, redTeam: this.team === 'red'};
+	}
+
+	hit(amount: number) {
+		this.hp -= amount;
+	}
+
+	draw(ctx: CanvasRenderingContext2D) {
+		ctx.save();
+
+		ctx.fillStyle = this.team;
+		ctx.strokeStyle = '#ffcc00';
+		ctx.lineWidth = 3;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, EBooster.RADIUS, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+
+		ctx.restore();
+	}
+
+	private nearestFriendlyTurret(game: GMTurrets): Turret | null {
+		let best: Turret | null = null;
+		let bestDist = Infinity;
+
+		for (const t of game.turrets) {
+			if (t.team !== this.team) continue;
+			const d = Math.hypot(t.x - this.x, t.y - this.y);
+			if (d < bestDist) {
+				bestDist = d;
+				best = t;
+			}
+		}
+
+		return best;
+	}
+
+	run(dt: number, game: GMTurrets): boolean {
+		if (this.hp <= 0) return false;
+
+		const target = this.nearestFriendlyTurret(game);
+		if (!target) return true;
+
+		const dx = target.x - this.x;
+		const dy = target.y - this.y;
+		const dist2 = norm2(dx, dy);
+
+		if (dist2 <= EBooster.RADIUS*EBooster.RADIUS) {
+			target.applyFastAttackEffect(EBooster.BUFF_ADDER);
+			this.hp -= dt * EBooster.FRAME_DAMAGES;
+			return this.hp > 0;
+		}
+
+		const dist = Math.sqrt(dist2);
+		this.x += (dx / dist) * EBooster.SPEED * dt;
+		this.y += (dy / dist) * EBooster.SPEED * dt;
+		return true;
+	}
+
+	override getTeam() {
+		return this.team;
+	}
+
+	getRadius() {
+		return EBooster.RADIUS;
+	}
+}
+
+/**
+ * Attached to the player who threw it. Grants invincibility and a speed
+ * boost for Star.DURATION, re-applied every frame like a Booster buff.
+ */
+class EStar extends AbstractEntity {
+	static readonly SPEED_MULTIPLIER = 1.6;
+
+	constructor(
+		x: number,
+		y: number,
+		public playerIdx: number,
+		public timer: number = STAR_DURATION
+	) {
+		super(x, y);
+	}
+
+	/** In-game factory: attaches a fresh star buff to `playerIdx`. */
+	static create(x: number, y: number, playerIdx: number): EStar {
+		return new EStar(x, y, playerIdx);
+	}
+
+	getType(): EntityType { return 'star'; }
+
+	draw(ctx: CanvasRenderingContext2D) {}
+
+	save(): Fields {
+		return { playerIdx: this.playerIdx, timer: this.timer };
+	}
+
+	run(dt: number, game: GMTurrets): boolean {
+		const player = game.players[this.playerIdx];
+		if (!player || !player.isAlive() || this.timer <= 0) return false;
+
+		// Wiped by player.resetEffects() at the top of the frame, then
+		// re-applied here every frame while the star is still active.
+		player.invincible = true;
+		player.speedMultiplier = Math.max(player.speedMultiplier, EStar.SPEED_MULTIPLIER);
+
+		this.x = player.x;
+		this.y = player.y;
+		this.timer -= dt;
+		player.starDuration = Math.max(player.starDuration, this.timer);
+		return this.timer > 0;
+	}
+
+	override getTeam() {
+		return null;
+	}
+}
+
+/**
+ * A visible trap zone. If touched by an enemy it explodes, damaging enemies
+ * in a wider radius. There is only ever one kind of trap entity: TrapI,
+ * TrapII and TrapIII are ITEMS that all spawn the exact same ETrap - they
+ * only differ in which item is handed back to the player once used (see the
+ * Trap item chain further down).
+ */
+class ETrap extends AbstractEntity {
+	static readonly TRIGGER_RADIUS = 160;   // zone that must be touched to trigger
+	static readonly EXPLOSION_RADIUS = 260; // wider damage radius once triggered
+	static readonly DAMAGE = 250;
+
+	constructor(
+		x: number,
+		y: number,
+		public team: 'red' | 'blue',
+		public triggered: boolean = false
+	) {
+		super(x, y);
+	}
+
+	/** In-game factory: drops a fresh, untriggered trap for `team`. */
+	static create(x: number, y: number, team: 'red' | 'blue'): ETrap {
+		return new ETrap(x, y, team);
+	}
+
+	getType(): EntityType { return 'trap'; }
+
+	save(): Fields {
+		return { redTeam: this.team === 'red', triggered: this.triggered };
+	}
+
+	private touchedByEnemy(game: GMTurrets): boolean {
+		for (const p of game.players) {
+			if (p.isAlive() && p.team !== this.team && Math.hypot(p.x - this.x, p.y - this.y) <= ETrap.TRIGGER_RADIUS) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	draw(ctx: CanvasRenderingContext2D) {
+		const color = this.team === 'red' ? '#ff5555' : '#5555ff';
+
+		ctx.save();
+
+		// Wider explosion radius, shown as a faint dashed guide.
+		ctx.strokeStyle = color;
+		ctx.globalAlpha = 0.35;
+		ctx.setLineDash([10, 10]);
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, ETrap.EXPLOSION_RADIUS, 0, Math.PI * 2);
+		ctx.stroke();
+
+		// Visible trigger zone.
+		ctx.setLineDash([]);
+		ctx.globalAlpha = 0.6;
+		ctx.fillStyle = color;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, ETrap.TRIGGER_RADIUS, 0, Math.PI * 2);
+		ctx.fill();
+
+		ctx.restore();
+	}
+
+	run(dt: number, game: GMTurrets): boolean {
+		// Removed the frame after exploding, once damage has been applied.
+		if (this.triggered) return false;
+
+		if (this.touchedByEnemy(game)) {
+			// Unlike Ballon, the trap does NOT spare turrets.
+			game.damageAllInRadius(this.x, this.y, ETrap.EXPLOSION_RADIUS, this.team, ETrap.DAMAGE, { spareTurrets: false });
+			this.triggered = true;
+		}
+
+		return true;
+	}
+
+	override getTeam() {
+		return this.team;
+	}
+}
+
+/**
+ * Maps every EntityType to a factory that rebuilds the runtime entity
+ * straight from its decoded, type-specific fields (the payload produced by
+ * that same entity's save()). Used only when loading a snapshot from the
+ * network - see deserializeEntity() and GMTurrets.load().
+ */
+const entityConstructors: Record<EntityType, (x: number, y: number, obj: Fields) => AbstractEntity> = {
+	lifeSlider: (x, y, obj) => new ELifeSlider(x, y, obj.vx, obj.vy, obj.radius),
+	shieldSlider: (x, y, obj) => new EShieldSlider(x, y, obj.vx, obj.vy, obj.radius, obj.redTeam ? 'red' : 'blue'),
+	wall: (x, y, obj) => new EWall(x, y, obj.timer),
+	ballon: (x, y, obj) => new EBallon(x, y, obj.redTeam ? 'red' : 'blue', obj.radius, obj.growthSpeed, obj.exploded),
+	tank: (x, y, obj) => new ETank(x, y, obj.redTeam ? 'red' : 'blue', obj.hp),
+	booster: (x, y, obj) => new EBooster(x, y, obj.redTeam ? 'red' : 'blue', obj.hp),
+	star: (x, y, obj) => new EStar(x, y, obj.playerIdx, obj.timer),
+	trap: (x, y, obj) => new ETrap(x, y, obj.redTeam ? 'red' : 'blue', obj.triggered),
+};
+
+/**
+ * Converts a runtime entity into the wire shape described by the `Entity`
+ * message: x/y plus the oneof `etype` field named after the entity's own
+ * type, holding its type-specific payload. Since the protobuf field names
+ * match EntityType exactly, this binds automatically - no switch needed.
+ */
+function serializeEntity(e: AbstractEntity): Fields {
+	return { x: e.x, y: e.y, [e.getType()]: e.save() };
+}
+
+/**
+ * Rebuilds a runtime entity from a decoded `Entity` protobuf message.
+ * `msg.etype` is the virtual field protobufjs generates for a `oneof`: a
+ * string naming whichever member is currently set (e.g. "lifeSlider",
+ * "trap"...). That name is both the EntityType and the payload's key, so it
+ * picks the right factory and the right payload in one go.
+ */
+function deserializeEntity(msg: Fields): AbstractEntity {
+	const type = msg.etype as EntityType;
+	const ctor = entityConstructors[type];
+
+	if (!ctor) {
+		throw new Error(`deserializeEntity: unrecognized etype "${type}"`);
+	}
+
+	return ctor(msg.x, msg.y, msg[type]);
 }
 
 class ItemInMap {
@@ -1010,17 +1839,142 @@ class ItemInMap {
 
 
 
+// Stable indices into ITEMS, used by the Trap chain to hand back the next
+// item in the sequence (TrapIII -> TrapII -> TrapI -> nothing).
+const ITEM_IDS = {
+	LifeSlider: 0,
+	ShieldSlider: 1,
+	Wall: 2,
+	Ballon: 3,
+	Tank: 4,
+	Booster: 5,
+	Star: 6,
+	TrapIII: 7,
+	TrapII: 8,
+	TrapI: 9,
+} as const;
+
 const ITEMS = [
+	// 0 - LifeSlider: sends off a no-damage-for-everyone slider in the aimed direction.
 	{
 		iconMap: "none",
 		iconHand: "none",
-		name: "Test",
+		name: "LifeSlider",
 
-		run: (game: GMTurrets, dx: number, dy: number): number | null => {
-			console.log(`Used item with direction vector (${dx}, ${dy})`);
-			return null; 
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(ELifeSlider.create(owner.x, owner.y, dx, dy));
+			return null;
 		}
-	}
+	},
+
+	// 1 - ShieldSlider: like LifeSlider, faster, only protects the owner's team.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "ShieldSlider",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(EShieldSlider.create(owner.x, owner.y, dx, dy, owner.team));
+			return null;
+		}
+	},
+
+	// 2 - Wall: drops a bullet-blocking square at the owner's feet.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "Wall",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(EWall.create(owner.x, owner.y));
+			return null;
+		}
+	},
+
+	// 3 - Ballon: drops a growing balloon that explodes on detecting an enemy.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "Ballon",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(EBallon.create(owner.x, owner.y, owner.team));
+			return null;
+		}
+	},
+
+	// 4 - Tank: spawns a high-HP troop that charges the nearest enemy turret.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "Tank",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(ETank.create(owner.x, owner.y, owner.team));
+			return null;
+		}
+	},
+
+	// 5 - Booster: spawns a troop that buffs the nearest friendly turret on contact.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "Booster",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(EBooster.create(owner.x, owner.y, owner.team));
+			return null;
+		}
+	},
+
+	// 6 - Star: grants the owner invincibility + speed for a limited time.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "Star",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			const ownerIdx = game.players.indexOf(owner);
+			game.entities.push(EStar.create(owner.x, owner.y, ownerIdx));
+			return null;
+		}
+	},
+
+	// 7 - TrapIII: strongest trap, downgrades to TrapII once used.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "TrapIII",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(ETrap.create(owner.x, owner.y, owner.team));
+			return ITEM_IDS.TrapII;
+		}
+	},
+
+	// 8 - TrapII: downgrades to TrapI once used.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "TrapII",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(ETrap.create(owner.x, owner.y, owner.team));
+			return ITEM_IDS.TrapI;
+		}
+	},
+
+	// 9 - TrapI: weakest trap, last of the chain - nothing given back once used.
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "TrapI",
+
+		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
+			game.entities.push(ETrap.create(owner.x, owner.y, owner.team));
+			return null;
+		}
+	},
 ];
 
 
@@ -1334,6 +2288,7 @@ export class GMTurrets extends GameMode {
 	readonly floors: Floor[] = [];
 	readonly bullets: Bullet[] = [];
 	readonly itemsInMap: ItemInMap[] = [];
+	readonly entities: AbstractEntity[] = [];
 
 
 	time = 600;
@@ -1540,13 +2495,23 @@ export class GMTurrets extends GameMode {
 			this.finished = true;
 		}
 
-		for (const p of this.players) {
-			p.move(dt);
-			p.attackLogic(dt, this); 
-		}
 
+		// 1. Wipe every per-frame effect (invincibility, speed, fast-attack...).
+		this.resetEffects();
+
+		// 2. Advance entities. Any effect an entity grants (EStar, EBooster)
+		//    is re-applied here, right after being wiped above.
+		this.runEntities(dt);
+
+		// 3. Turret cooldowns / bullet & item spawning.
 		for (const turret of this.turrets) {
 			turret.frame(dt, this);
+		}
+
+		// 4. Player movement and attack logic.
+		for (const p of this.players) {
+			p.move(dt);
+			p.attackLogic(dt, this);
 		}
 
 		for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -1561,6 +2526,134 @@ export class GMTurrets extends GameMode {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Wipes the per-frame effects of every player and turret. Must run
+	 * before runEntities(), so that active entities can re-apply theirs.
+	 */
+	private resetEffects() {
+		for (const p of this.players) p.resetEffects();
+		for (const t of this.turrets) t.resetEffects();
+	}
+
+	/**
+	 * Advances every entity by dt, dropping the ones whose run() returns
+	 * false (expired, exploded, consumed, died...).
+	 */
+	private runEntities(dt: number) {
+		for (let i = this.entities.length - 1; i >= 0; i--) {
+			if (!this.entities[i].run(dt, this)) {
+				this.entities.splice(i, 1);
+			}
+		}
+	}
+
+	/**
+	 * True once (x, y) - inflated by `margin` - has fully left the map.
+	 * Used by the sliders to know when to disappear.
+	 */
+	isOOB(x: number, y: number, margin = 0): boolean {
+		const limit = FULL_ROOM_SIZE * 3;
+		return (
+			x < -limit - margin || x > limit + margin ||
+			y < -limit - margin || y > limit + margin
+		);
+	}
+
+	/**
+	 * True if (x, y) currently sits inside an ELifeSlider (protects
+	 * everyone) or an EShieldSlider of the given team (protects only its
+	 * own team). Checked by Bullet.attack() before applying player damage.
+	 */
+	isInsideNoDamageZone(x: number, y: number, team: 'red' | 'blue'): boolean {
+		for (const e of this.entities) {
+			if (e instanceof ELifeSlider && e.protects(x, y, team)) return true;
+			if (e instanceof EShieldSlider && e.protects(x, y, team)) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * True if (x, y) sits inside an EWall's square. Checked by
+	 * Bullet.attack() to stop bullets outright.
+	 */
+	isBlockedByWall(x: number, y: number): boolean {
+		for (const e of this.entities) {
+			if (e instanceof EWall && e.blocksBullet(x, y)) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Closest captured turret NOT belonging to `team`, or null if none.
+	 * Used by ETank to find where to charge.
+	 */
+	nearestEnemyTurret(x: number, y: number, team: 'red' | 'blue'): Turret | null {
+		let best: Turret | null = null;
+		let bestDist = Infinity;
+
+		for (const t of this.turrets) {
+			if (t.team === null || t.team === team) continue;
+			const d = Math.hypot(t.x - x, t.y - y);
+			if (d < bestDist) {
+				bestDist = d;
+				best = t;
+			}
+		}
+
+		return best;
+	}
+
+	/**
+	 * Iterator over every player / turret / entity that can currently take
+	 * damage - used by damageAllInRadius() for area-effect entities
+	 * (EBallon, ETrap).
+	 */
+	*damageableEntities() {
+		for (const p of this.players) {
+			if (!p.isAlive()) continue;
+			yield [p, 'player'] as [Player, 'player'];
+		}
+
+		for (const t of this.turrets) {
+			yield [t, 'turret'] as [Turret, 'turret'];
+		}
+
+		for (const e of this.entities) {
+			if (e instanceof ETank || e instanceof EBooster) {
+				yield [e, 'entity'] as [ETank | EBooster, 'entity'];
+			}
+		}
+	}
+
+	/**
+	 * Applies `damage` to every damageable thing of the opposite team to
+	 * `sourceTeam` within `radius` of (x, y). Respects no-damage zones.
+	 * Used by EBallon (spareTurrets: true) and ETrap (spareTurrets: false).
+	 */
+	damageAllInRadius(
+		x: number,
+		y: number,
+		radius: number,
+		sourceTeam: 'red' | 'blue',
+		damage: number,
+		options: { spareTurrets: boolean }
+	) {
+		for (const [target, kind] of this.damageableEntities()) {
+			const team = target.getTeam();
+			if (
+				(team === sourceTeam) ||
+				(team === null) ||
+				(options.spareTurrets && kind==='turret') ||
+				(Math.hypot(target.x - x, target.y - y) > radius) ||
+				this.isInsideNoDamageZone(target.x, target.y, team)
+			) {
+				continue;
+			}
+
+			target.hit(damage, sourceTeam);
+		}
 	}
 
 	override runInput(playerIdx: number, input: Fields): void {
@@ -2005,6 +3098,13 @@ export class GMTurrets extends GameMode {
 		for (const item of this.itemsInMap) {
 			item.draw(ctx, imageLoader);
 		}
+
+		// Draw entities (sliders, walls, balloons, troops, traps...)
+		for (const entity of this.entities) {
+			if (!entity.drawInFront()) {
+				entity.draw(ctx, imageLoader);
+			}
+		}
 		
 		// Draw bullets
 		for (const b of this.bullets) {
@@ -2022,6 +3122,12 @@ export class GMTurrets extends GameMode {
 		// Draw all players
 		for (const [idx, p] of this.players.entries()) {
 			p.draw(ctx, idx === playerIdx);
+		}
+
+		for (const entity of this.entities) {
+			if (entity.drawInFront()) {
+				entity.draw(ctx, imageLoader);
+			}
 		}
 
 		// Restore the canvas state after leaving the camera coordinate space
@@ -2079,7 +3185,9 @@ export class GMTurrets extends GameMode {
 				itemDamage: t.itemDamage,
 				pauseTimer: t.pauseTimer,
 				startCooldown: t.startCooldown,
-				attackCooldown: t.attackCooldown
+				attackCooldown: t.attackCooldown,
+				itemsToSpawn: t.itemsToSpawn,
+				spawnIdx: t.spawnIdx,
 			})),
 
 			time: this.time,
@@ -2090,11 +3198,13 @@ export class GMTurrets extends GameMode {
 				vx: b.vx,
 				vy: b.vy,
 				a: b.a,
-				fromTurret: b.fromTurret,
-				isRed: b.team === 'red'
+				isRed: b.team === 'red',
+				fromTurret: b.fromTurret
 			})),
 
 			items: this.itemsInMap,
+
+			entities: this.entities.map(serializeEntity),
 		};
 
 		return State.encode(object).finish();
@@ -2108,21 +3218,9 @@ export class GMTurrets extends GameMode {
 			this.players[idx].load(player);
 		}
 
-		for (const [idx, bucket] of obj.turrets.entries()) {
-			const t = this.turrets[idx];
-			if (!bucket.taken) {
-				t.team = null;
-			} else {
-				t.team = bucket.redTeam ? 'red' : 'blue';
-			}
-			t.activation = bucket.activation;
-			t.hp = bucket.hp;
-			t.itemDamage = bucket.itemDamage;
-			t.pauseTimer = bucket.pauseTimer;
-			t.startCooldown = bucket.startCooldown;
-			t.attackCooldown = bucket.attackCooldown;
-			t.itemsToSpawn = bucket.itemsToSpawn;
-			t.spawnIdx = bucket.spawnIdx;
+		for (const [idx, turret] of obj.turrets.entries()) {
+			this.turrets[idx].load(turret);
+			
 		}
 
 		// Rebuild the bullets array from state
@@ -2148,6 +3246,14 @@ export class GMTurrets extends GameMode {
 		if (obj.items) {
 			for (const item of obj.items) {
 				this.itemsInMap.push(new ItemInMap(item.x, item.y, item.id));
+			}
+		}
+
+		// Rebuild entities from state
+		this.entities.length = 0;
+		if (obj.entities) {
+			for (const e of obj.entities) {
+				this.entities.push(deserializeEntity(e));
 			}
 		}
 
@@ -2283,5 +3389,3 @@ export class GMTurrets extends GameMode {
 	}
 
 }
-
-
