@@ -2111,7 +2111,7 @@ class Camera {
 	x = 0;
 	y = 0;
 
-	static readonly SCALE = 0.8;
+	static readonly SCALE = 0.7;
 	static readonly DURATION = 0.3;
 
 	// Transition state variables
@@ -3130,6 +3130,8 @@ export class GMTurrets extends GameMode {
 		}
 
 		// Draw remaining turrets
+		ctx.strokeStyle = "black";
+		ctx.lineWidth = 10;
 		for (const turret of this.turrets) {
 			ctx.fillStyle = turret.team ?? "green";
 
@@ -3142,6 +3144,16 @@ export class GMTurrets extends GameMode {
 				Math.PI * 2
 			);
 			ctx.fill();
+
+			ctx.beginPath();
+			ctx.arc(
+				turret.x,
+				turret.y,
+				TURRET_RADIUS,
+				0,
+				Math.PI * 2
+			);
+			ctx.stroke();
 		}
 
 		// Draw all players
