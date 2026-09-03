@@ -31,6 +31,7 @@ message Player {
 	float speedMultiplier = 18;
 	float starDuration = 19;
 	int32 kills = 20;
+	float healCooldown = 21;
 }
 
 message Bullet {

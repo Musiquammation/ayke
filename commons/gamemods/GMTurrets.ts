@@ -79,7 +79,8 @@ class Player {
 
 	// --- Health System ---
 	static readonly MAX_HP = 600;
-	static readonly HP_INC = 30;
+	static readonly HP_INC = 100;
+	static readonly HEAL_COOLDOWN = 3;
 
 	// --- Attack System Constants ---
 	static readonly ATTACK_FULL = 5.0;
@@ -106,6 +107,7 @@ class Player {
 
 	hp = Player.MAX_HP;
 	maxHp = Player.MAX_HP;
+	healCooldown = Player.HEAL_COOLDOWN;
 
 	target: FixedTarget | DeltaTarget | AutoTarget | null = null;
 	team: 'red' | 'blue' = 'red';
@@ -279,7 +281,12 @@ class Player {
 
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
-		this.hp = Math.min(this.hp + Player.HP_INC * dt, Player.MAX_HP);
+
+		if (this.healCooldown > 0)
+			this.healCooldown -= dt;
+
+		if (this.healCooldown <= 0)
+			this.hp = Math.min(this.hp + Player.HP_INC * dt, Player.MAX_HP);
 
 		this.avoidOOB();
 
@@ -349,6 +356,7 @@ class Player {
 		// Health state.
 		this.hp = obj.hp;
 		this.maxHp = obj.maxHp;
+		this.healCooldown = obj.healCooldown;
 
 		// Attack state.
 		this.attackMunitions = obj.attackMunitions;
@@ -380,6 +388,7 @@ class Player {
 		this.vy = 0;
 		this.alive = Player.COOLDOWN;
 		this.hp = 0;
+		this.healCooldown = Player.HEAL_COOLDOWN;
 	}
 
 
@@ -552,6 +561,8 @@ class Player {
 		if (this.invincible || this.hp <= 0) {
 			return;
 		}
+
+		this.healCooldown = Player.HEAL_COOLDOWN;
 
 		this.hp -= damages;
 		if (this.hp <= 0) {
