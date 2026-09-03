@@ -915,6 +915,31 @@ class Turret {
 		// keeps re-applying attackSpeedMultiplier this frame.
 		this.attackCooldown -= dt * this.attackSpeedMultiplier;
 		if (this.attackCooldown <= 0) {
+			// Check there are ennemies in room
+			let notFound = true;
+			for (const [entity, kind] of game.damageableEntities()) {
+				if (
+					kind === 'turret' ||
+					entity.getTeam() === this.team
+				) {continue;}
+
+				if (
+					entity.x < this.x - ROOM_SIZE/2 ||
+					entity.x > this.x + ROOM_SIZE/2 ||
+					entity.y < this.y - ROOM_SIZE/2 ||
+					entity.y > this.y + ROOM_SIZE/2
+				) {
+					continue;
+				}
+
+				notFound = false;
+			}
+
+			if (notFound)
+				return;
+
+
+			// Throw bullets
 			this.attackCooldown = TURRET_COOLDOWN;
 			
 			const BULLETS_COUNT = 250;
