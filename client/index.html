@@ -68,9 +68,9 @@
 				<div id="test-page" class="page" x-data="panel">
 					<h1 x-text="gamemode"></h1>
 					<div x-ref="gamePanel" x-html="htmlContent"></div>
-					<button x-on:click="play()">Play</button>
+					<button @pointerup="play()">Play</button>
 					<template x-if="typeof tutorial === 'function'">
-						<button x-on:click="tutorial()">Tutorial</button>
+						<button @pointerup="tutorial()">Tutorial</button>
 					</template>
 				</div>
 			</template>
@@ -136,7 +136,7 @@
 						</template>
 					</div>
 					
-					<button x-on:click="returnHome()">Return Menu</button>
+					<button @pointerup="returnHome()">Return Menu</button>
 				</div>
 			</template>
 

@@ -10,6 +10,7 @@ import { getProtocol, ProtocolTypes } from "../../../commons/protocolLoader";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { imageLoader } from "./imageLoader";
 import { mobileController } from "../controllers/MobileController";
+import { hasNavigatorMouse } from "../dom/clientNavigatorType";
 
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
@@ -153,7 +154,7 @@ class GameHandler {
 		const newInputs = this.gamemode.collectInputs(
 			keyboardController,
 			mouseController,
-			this.allowsMobile ? mobileController : null,
+			(this.allowsMobile && !hasNavigatorMouse()) ? mobileController : null,
 			this.clientData
 		).map(data => ({...data, timestamp: now}));
 		this.userInputs.push(...newInputs);

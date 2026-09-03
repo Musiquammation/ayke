@@ -1,6 +1,22 @@
 import { IKeyboardController } from "../../../commons/util/controllerInterfaces";
+const KEYS = [
+	'up',
+	'down',
+	'left',
+	'right',
+	'jump',
+	'0',
+	'1',
+	'2',
+	'3',
+	'4',
+	'5',
+	'6',
+	'7',
+	'8',
+	'9',
+] as const;
 
-const KEYS = ['up', 'down', 'left', 'right', 'jump'] as const;
 type Key = typeof KEYS[number];
 
 const COMBINAISONS: Record<string, Key> = {
@@ -14,8 +30,18 @@ const COMBINAISONS: Record<string, Key> = {
 	KeyW: 'up',
 	KeyS: 'down',
 	Space: 'jump',
-};
 
+	Digit0: '0',
+	Digit1: '1',
+	Digit2: '2',
+	Digit3: '3',
+	Digit4: '4',
+	Digit5: '5',
+	Digit6: '6',
+	Digit7: '7',
+	Digit8: '8',
+	Digit9: '9',
+};
 class KeyboardController implements IKeyboardController {
 	private firstKeys = new Set<Key>();
 	private pressedKeys = new Set<Key>();

@@ -3,6 +3,7 @@ import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMSuperTicTacToe } from "./gamemods/GMSuperTicTacToe";
 import { GMTest } from "./gamemods/GMTest";
 import { GMTestSolo } from "./gamemods/GMTestSolo";
+import { GMTurrets } from "./gamemods/GMTurrets";
 import { SoloGameMode } from "./SoloGameMode";
 
 interface Player {
@@ -79,6 +80,18 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         textures: GMSuperTicTacToe.TEXTURES,
         name: "Super tic tac toe",
         tropheesPerPlayer: 3,
+        computerOnly: false,
+        skins: []
+    },
+
+    turrets: {
+        type: 'multiplayer',
+        server: GMTurrets.createServ,
+        client: GMTurrets.createClient,
+        dom: GMTurrets.generateClientDom,
+        textures: GMTurrets.TEXTURES,
+        name: "Turrets",
+        tropheesPerPlayer: 20,
         computerOnly: false,
         skins: []
     },

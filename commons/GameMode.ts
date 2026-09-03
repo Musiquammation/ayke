@@ -1,8 +1,7 @@
-import protobuf from "protobufjs";
+import type { IKeyboardController, ILogger, IMobileController, IMouseController } from "./util/controllerInterfaces";
 import { Fields } from "./Fields";
 import { ImageLoader } from "./util/ImageLoader";
 import { MobileDescriptor } from "../client/src/controllers/MobileController";
-import { IKeyboardController, ILogger, IMobileController, IMouseController } from "./util/controllerInterfaces";
 
 
 interface TutorialData {
@@ -185,3 +184,5 @@ export abstract class GameMode {
 export function setGameModeLoggerGenerator(loggerGenerator: LoggerGenerator) {
 	_loggerGenerator = loggerGenerator;
 }
+
+export { IKeyboardController, IMobileController };
