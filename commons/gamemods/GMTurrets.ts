@@ -3403,7 +3403,7 @@ export class GMTurrets extends GameMode {
 	makeCycleStep() {
 		const s = this.cycleStep;
 		this.cycleStep++;
-		if (this.cycleStep >= 3) {
+		if (this.cycleStep >= ITEMS_CYCLE.length) {
 			this.cycleStep = 0;
 		}
 
