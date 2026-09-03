@@ -47,6 +47,14 @@ const ITEMS_CYCLE = [
 	7, 3, 2, 0, 4, 2, 1, 5, 2, 0
 ];
 
+const SPAWN_COLORS: ('red' | 'blue' | null)[][] = [
+	['red' , 'red' , 'red' , 'red' , 'red'],
+	['red' ,  null ,  null , null , 'red'],
+	[ null ,  null ,  null , null  , null ],
+	['blue',  null ,  null , null , 'blue'],
+	['blue','blue' ,'blue' ,'blue' ,'blue' ],
+];
+
 interface FixedTarget {
 	type: 'fixed';
 	x: number;
@@ -740,8 +748,6 @@ class Player {
 }
 
 class Turret {
-	team: 'red' | 'blue' | null = null;
-
 	// State variables
 	activation = 0;
 	hp = 0;
@@ -769,7 +775,8 @@ class Turret {
 
 	constructor(
 		public readonly x: number,
-		public readonly y: number
+		public readonly y: number,
+		public team: 'red' | 'blue' | null = null
 	) {}
 
 	/**
@@ -2443,7 +2450,8 @@ export class GMTurrets extends GameMode {
 			for (let x = -2; x <= 2; x++) {
 				this.turrets.push(new Turret(
 					x * FULL_ROOM_SIZE,
-					y * FULL_ROOM_SIZE
+					y * FULL_ROOM_SIZE,
+					SPAWN_COLORS[y+2][x+2]
 				));
 
 				const floorX = x * FULL_ROOM_SIZE;
