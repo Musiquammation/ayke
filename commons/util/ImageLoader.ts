@@ -1,5 +1,16 @@
 interface ColorRule { prev: string; next: string };
 
+export interface ImageLoaderFolder {
+	get: (
+		(name: string | null, colorId?: number | undefined) =>
+			HTMLCanvasElement | HTMLImageElement
+	);
+
+	setColorRule: (
+		(name: string, id: number, rules: ColorRule[]) => void
+	);
+}
+
 export class ImageLoader {
 	private loadedCount = 0;
 	private totalCount = 0;
@@ -214,7 +225,7 @@ export class ImageLoader {
 	 * It acts like an ImageLoader instance but without requiring the folder argument.
 	 * @param folder - The folder to bind to.
 	 */
-	getFolder(folder: string) {
+	getFolder(folder: string): ImageLoaderFolder {
 		return {
 			get: (name: string | null, colorId?: number): HTMLCanvasElement | HTMLImageElement => {
 				return this.get(name, colorId, folder);

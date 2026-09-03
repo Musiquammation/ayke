@@ -6,7 +6,7 @@ import { FinishGame, GameMode } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
-import { ImageLoader } from "../util/ImageLoader";
+import { ImageLoaderFolder, ImageLoader } from "../util/ImageLoader";
 
 const protocols = getProtocol('turrets', 'multiplayer');
 
@@ -584,7 +584,7 @@ class Player {
 
 	draw(
 		ctx: CanvasRenderingContext2D,
-		imageLoader: ImageLoader,
+		imageLoader: ImageLoaderFolder,
 		currentPlayer: boolean,
 		lastAngle: number
 	) {
@@ -1012,7 +1012,7 @@ class Turret {
 	/**
 	 * Draws the turret, and all related status bars.
 	 */
-	draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoader) {
+	draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
 		// Draw Base Turret
 		let colorId;
 		if (this.team === 'blue') {
@@ -1264,7 +1264,7 @@ abstract class AbstractEntity {
 
 	// Renders the entity in world space (already translated/scaled by the
 	// camera transform - see GMTurrets.draw()).
-	abstract draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoader): void;
+	abstract draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder): void;
 
 	// Advances the entity by dt seconds. Returning false removes the entity
 	// from the world on this frame (expired, exploded, died, consumed...).
@@ -1971,7 +1971,7 @@ class ItemInMap {
 	/**
 	 * Draws the item on the map using its icon or a fallback shape.
 	 */
-	draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoader) {
+	draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
 		const itemDef = ITEMS[this.id];
 		if (!itemDef) return;
 
@@ -2386,7 +2386,7 @@ function drawItemHand(
 	itemId: number,
 	slotIndex: number,
 	isSelected: boolean,
-	imageLoader: ImageLoader
+	imageLoader: ImageLoaderFolder
 ) {
 	ctx.save();
 
@@ -3235,7 +3235,7 @@ export class GMTurrets extends GameMode {
 	private drawInventoryHUD(
 		ctx: CanvasRenderingContext2D,
 		player: Player,
-		imageLoader: ImageLoader
+		imageLoader: ImageLoaderFolder
 	) {
 		const startX = 30;
 		const startY = 30;
