@@ -289,6 +289,50 @@ class Player {
 		}
 	}
 
+	avoidOutOfFloor(floors: Floor[]) {
+		if (!floors || floors.length === 0) return;
+
+		// Check if player is already inside at least one floor bounds
+		let isInsideAnyFloor = false;
+		for (const f of floors) {
+			if (this.x >= f.x0 && this.x <= f.x1 && this.y >= f.y0 && this.y <= f.y1) {
+				isInsideAnyFloor = true;
+				break;
+			}
+		}
+
+		// If fully grounded inside a valid floor, no adjustment needed
+		if (isInsideAnyFloor) return;
+
+		// Player walked off a floor: clamp position smoothly to the nearest valid floor point
+		let closestX = this.x;
+		let closestY = this.y;
+		let minDistanceSq = Infinity;
+
+		for (const f of floors) {
+			// Clamp current position to current floor bounding box
+			const clampedX = Math.max(f.x0, Math.min(this.x, f.x1));
+			const clampedY = Math.max(f.y0, Math.min(this.y, f.y1));
+
+			// Calculate squared distance to avoid expensive Math.sqrt calls
+			const dx = this.x - clampedX;
+			const dy = this.y - clampedY;
+			const distSq = dx * dx + dy * dy;
+
+			// Keep track of the nearest point across all floors
+			if (distSq < minDistanceSq) {
+				minDistanceSq = distSq;
+				closestX = clampedX;
+				closestY = clampedY;
+			}
+		}
+
+		// Apply smooth position correction to the closest floor edge/corner
+		this.x = closestX;
+		this.y = closestY;
+	}
+
+	
 	load(obj: Fields) {
 		this.x = obj.x;
 		this.y = obj.y;
@@ -2562,6 +2606,7 @@ export class GMTurrets extends GameMode {
 		// 4. Player movement and attack logic.
 		for (const p of this.players) {
 			p.move(dt);
+			p.avoidOutOfFloor(this.floors);
 			p.attackLogic(dt, this);
 		}
 
@@ -3117,6 +3162,8 @@ export class GMTurrets extends GameMode {
 		_data: any,
 		imageLoader: ImageLoader
 	) {
+		ctx.imageSmoothingEnabled = false;
+
 		const data = _data as ClientData;
 		if (data.firstFrame) {
 			data.firstFrame = false;
