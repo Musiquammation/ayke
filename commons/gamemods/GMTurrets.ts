@@ -1481,7 +1481,7 @@ class ETank extends AbstractEntity {
 		ctx.arc(this.x, this.y, ETank.RADIUS, 0, Math.PI * 2);
 		ctx.fill();
 		ctx.strokeStyle = '#000000';
-		ctx.lineWidth = 3;
+		ctx.lineWidth = 10;
 		ctx.stroke();
 
 		// HP bar.
@@ -1563,7 +1563,7 @@ class EBooster extends AbstractEntity {
 
 		ctx.fillStyle = this.team;
 		ctx.strokeStyle = '#ffcc00';
-		ctx.lineWidth = 3;
+		ctx.lineWidth = 10;
 		ctx.beginPath();
 		ctx.arc(this.x, this.y, EBooster.RADIUS, 0, Math.PI * 2);
 		ctx.fill();
