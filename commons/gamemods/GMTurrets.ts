@@ -111,8 +111,6 @@ class Player {
 	dirX = 0;
 	dirY = 0;
 
-	score = 0;
-
 	hp = Player.MAX_HP;
 	maxHp = Player.MAX_HP;
 	healCooldown = Player.HEAL_COOLDOWN;
@@ -359,7 +357,6 @@ class Player {
 		this.dirX = obj.dirX;
 		this.dirY = obj.dirY;
 		this.alive = obj.alive;
-		this.score = obj.score;
 
 		// Health state.
 		this.hp = obj.hp;
@@ -3577,24 +3574,27 @@ export class GMTurrets extends GameMode {
 		// Internal sort
 		for (const team of [redTeam, blueTeam]) {
 			// Sort
-			team.sort((a, b) => this.players[b].score - this.players[a].score);
+			team.sort((a, b) => this.players[b].kills - this.players[a].kills);
 
 			// Detect equalities
 			for (let i = 0; i < team.length - 2; i++) {
-				const a = this.players[team[i]].score;
-				const b = this.players[team[i+1]].score;
+				const a = this.players[team[i]].kills;
+				const b = this.players[team[i+1]].kills;
 				if (a === b) {
 					playerEqualities.push(team[i]);
 				}
 			}
 		}
 
-
 		let teams: number[][];
 		const teamEqualities: number[] = [];
-		/// TODO: Sort teams
-		{
+		if (this.redScore > this.blueScore) {
 			teams = [redTeam, blueTeam];
+		} else if (this.redScore < this.blueScore) {
+			teams = [blueTeam, redTeam];
+		} else {
+			teams = [blueTeam, redTeam];
+			teamEqualities.push(0);
 		}
 
 		return {

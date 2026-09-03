@@ -18,7 +18,7 @@ message Player {
 	float dirX = 5;
 	float dirY = 6;
 	float alive = 7;
-	int32 score = 8;
+	float healCooldown = 8;
 	float attackMunitions = 9;
 	float attackCooldown = 10;
 	float attackTimer = 11;
@@ -31,7 +31,6 @@ message Player {
 	float speedMultiplier = 18;
 	float starDuration = 19;
 	int32 kills = 20;
-	float healCooldown = 21;
 }
 
 message Bullet {
