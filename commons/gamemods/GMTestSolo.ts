@@ -6,8 +6,6 @@ import { getProtocol } from "../protocolLoader";
 import { ImageLoader } from "../util/ImageLoader";
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 
-const protocols = getProtocol('testSolo', 'solo');
-
 function generateClientDom() {
 	return {
 		category: "default",
