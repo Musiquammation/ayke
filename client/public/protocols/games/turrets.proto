@@ -30,6 +30,7 @@ message Player {
 	bool invincible = 17;
 	float speedMultiplier = 18;
 	float starDuration = 19;
+	int32 kills = 20;
 }
 
 message Bullet {
@@ -39,7 +40,7 @@ message Bullet {
 	float vy = 4;
 	float a = 5;
 	bool isRed = 6;
-	bool fromTurret = 7;
+	int32 owner = 7;
 }
 
 message Turret {

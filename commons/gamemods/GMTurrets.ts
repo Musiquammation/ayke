@@ -114,6 +114,8 @@ class Player {
 	selectedItem: number = -1;
 	starDuration = -1;
 
+	kills = 0;
+
 
 	// --- Attack System Variables ---
 	attackMunitions = Player.ATTACK_FULL;
@@ -362,14 +364,14 @@ class Player {
 		this.invincible = obj.invincible;
 		this.speedMultiplier = obj.speedMultiplier;
 		this.starDuration = obj.starDuration;
+		this.kills = obj.kills;
 	}
 
 	avoidOOB() {
 		const LIMIT = FULL_ROOM_SIZE*3;
 		const r = Player.RADIUS;
-
-		this.x = Math.max(r, Math.min(LIMIT - r, this.x));
-		this.y = Math.max(r, Math.min(LIMIT - r, this.y));
+		this.x = Math.max(-LIMIT + r, Math.min(LIMIT - r, this.x));
+		this.y = Math.max(-LIMIT + r, Math.min(LIMIT - r, this.y));
 	}
 
 	die() {
@@ -380,7 +382,7 @@ class Player {
 	}
 
 
-	attackLogic(dt: number, game: GMTurrets) {
+	attackLogic(dt: number, idx: number, game: GMTurrets) {
 		if (this.attackFullyReloading) {
 			this.processReloading(dt);
 			return;
@@ -390,7 +392,7 @@ class Player {
 			if (this.selectedItem !== -1) {
 				this.executeItemAttack(game);
 			} else {
-				this.executeStandardAttack(dt, game);
+				this.executeStandardAttack(dt, idx, game);
 			}
 		} else {
 			this.processAttackCooldowns(dt);
@@ -473,7 +475,7 @@ class Player {
 	/**
 	 * Extracts the old bullet firing logic for readability.
 	 */
-	private executeStandardAttack(dt: number, game: GMTurrets) {
+	private executeStandardAttack(dt: number, idx: number, game: GMTurrets) {
 		if (this.attackMunitions <= 0) return;
 
 		this.attackMunitions = Math.max(0, this.attackMunitions - dt);
@@ -505,7 +507,7 @@ class Player {
 					game.bullets.push(
 						Bullet.create(
 							this.x, this.y, bdx, bdy, this.vx, this.vy,
-							this.team, pat.dist, pat.initSpeed, false
+							this.team, pat.dist, pat.initSpeed, idx
 						)
 					);
 				}
@@ -543,14 +545,20 @@ class Player {
 		}
 	}
 
-	hit(damages: number) {
+	hit(damages: number, attacker: Player | null) {
 		// EStar grants temporary invincibility - re-applied every frame by
 		// its entity, so it is checked here rather than cached.
-		if (this.invincible) return;
+		if (this.invincible || this.hp <= 0) {
+			return;
+		}
 
 		this.hp -= damages;
 		if (this.hp <= 0) {
 			this.die();
+			if (attacker) {
+				attacker.kills++;
+				console.log(attacker.kills);
+			}
 		}
 	}
 
@@ -890,7 +898,7 @@ class Turret {
 					this.team, 
 					TURRET_RADIUS,
 					BULLET_SPEED,
-					true
+					-1
 				));
 			}
 		}
@@ -1059,7 +1067,7 @@ class Bullet {
 		public vy: number,
 		public readonly a: number,
 		public readonly team: 'red' | 'blue',
-		public readonly fromTurret: boolean
+		public readonly owner: number
 	) {}
 
 	static create(
@@ -1072,7 +1080,7 @@ class Bullet {
 		team: 'red' | 'blue',
 		dist: number,
 		initSpeed: number,
-		fromTurret: boolean
+		owner: number
 	) {
 		const length = Math.hypot(vx0, vy0);
 
@@ -1088,7 +1096,7 @@ class Bullet {
 		// v^2 = v0^2 + 2ad
 		const a = initSpeed * initSpeed / (2 * dist);
 
-		return new Bullet(x, y, vx, vy, a, team, fromTurret);
+		return new Bullet(x, y, vx, vy, a, team, owner);
 	}
 
 	move(dt: number): boolean {
@@ -1118,10 +1126,12 @@ class Bullet {
 			return true;
 		}
 
+		const attacker = this.owner < 0 ? null : game.players[this.owner];
+
 		for (const [target, kind] of game.damageableEntities()) {
 			const team = target.getTeam();
 			if (kind === 'turret') {
-				if (this.fromTurret) {continue;}
+				if (this.owner) {continue;}
 			} else if (team === this.team) {continue;}
 
 			const radius = Bullet.RADIUS + target.getRadius();
@@ -1141,7 +1151,12 @@ class Bullet {
 			}
 
 			
-			target.hit(BULLET_DAMAGE, this.team);
+			if (kind === 'player') {
+				target.hit(BULLET_DAMAGE, attacker);
+			} else {
+				target.hit(BULLET_DAMAGE, this.team);
+			}
+			
 			return true;
 		}
 
@@ -2608,10 +2623,10 @@ export class GMTurrets extends GameMode {
 		}
 
 		// 4. Player movement and attack logic.
-		for (const p of this.players) {
+		for (const [idx, p] of this.players.entries()) {
 			p.move(dt);
 			p.avoidOutOfFloor(this.floors);
-			p.attackLogic(dt, this);
+			p.attackLogic(dt, idx, this);
 		}
 
 		for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -2752,7 +2767,11 @@ export class GMTurrets extends GameMode {
 				continue;
 			}
 
-			target.hit(damage, sourceTeam);
+			if (kind === 'player') {
+				target.hit(damage, null);
+			} else {
+				target.hit(damage, sourceTeam);
+			}
 		}
 	}
 
@@ -3309,7 +3328,7 @@ export class GMTurrets extends GameMode {
 				vy: b.vy,
 				a: b.a,
 				isRed: b.team === 'red',
-				fromTurret: b.fromTurret
+				owner: b.owner
 			})),
 
 			items: this.itemsInMap,
@@ -3347,7 +3366,7 @@ export class GMTurrets extends GameMode {
 						b.vy,
 						b.a,
 						b.isRed ? 'red' : 'blue',
-						b.fromTurret
+						b.owner
 					)
 				);
 			}
