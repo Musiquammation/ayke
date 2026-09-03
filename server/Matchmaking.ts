@@ -1,4 +1,5 @@
 import { Fields } from "../commons/Fields";
+import { getMultiGmFactory } from "../commons/gamemods";
 import { Connection } from "./Connection";
 import { database } from "./Database";
 import { getLogger, setLoggerLevel } from "./Logger";
@@ -21,7 +22,8 @@ function generateIdentifier() {
 function getWaitedPlayers(gamemode: string, data: any): number {
 	logger.debug(`[getWaitedPlayers] gamemode=${gamemode}, data=${JSON.stringify(data)}`);
 
-	const result = 4;
+	const gm = getMultiGmFactory(gamemode);
+	const result = gm.defaultPlayerCount;
 
 	logger.debug(`[getWaitedPlayers] result=${result}`);
 

@@ -33,7 +33,8 @@ interface MultiplayerFactory {
     name: string,
     tropheesPerPlayer: number,
     skins: string[],
-    computerOnly: boolean
+    computerOnly: boolean,
+    defaultPlayerCount: number
 }
 
 interface SoloFactory {
@@ -57,7 +58,8 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         name: "Test",
         computerOnly: false,
         tropheesPerPlayer: 2,
-        skins: []
+        skins: [],
+        defaultPlayerCount: 4
     },
 
     airbasket: {
@@ -69,7 +71,8 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         name: "Air Basket",
         tropheesPerPlayer: 20,
         computerOnly: true,
-        skins: GMAirBasket.SKINS_IDS
+        skins: GMAirBasket.SKINS_IDS,
+        defaultPlayerCount: 4
     },
 
     superTicTacToe: {
@@ -81,7 +84,8 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         name: "Super tic tac toe",
         tropheesPerPlayer: 3,
         computerOnly: false,
-        skins: []
+        skins: [],
+        defaultPlayerCount: 2
     },
 
     turrets: {
@@ -93,7 +97,8 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         name: "Turrets",
         tropheesPerPlayer: 20,
         computerOnly: false,
-        skins: []
+        skins: [],
+        defaultPlayerCount: 4
     },
 
 	testSolo: {
