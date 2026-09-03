@@ -1083,7 +1083,11 @@ class Bullet {
 				continue;
 
 			if (
-				(kind === 'player' && game.isInsideNoDamageZone(this.x, this.y, this.team))
+				(kind !== 'turret' && game.isInsideNoDamageZone(
+					this.x, this.y,
+					target.getRadius(),
+					target.getTeam()
+				))
 			) {
 				continue;
 			}
@@ -1193,8 +1197,9 @@ class ELifeSlider extends AbstractEntity {
 	}
 
 	// LifeSlider protects everyone inside it, whatever their team.
-	protects(px: number, py: number, _team: 'red' | 'blue'): boolean {
-		return Math.hypot(px - this.x, py - this.y) <= this.radius;
+	protects(px: number, py: number, radius: number, _team: 'red' | 'blue'): boolean {
+		const sr = this.radius + radius;
+		return norm2(px - this.x, py - this.y) <= sr*sr;
 	}
 
 	draw(ctx: CanvasRenderingContext2D) {
@@ -1267,8 +1272,9 @@ class EShieldSlider extends AbstractEntity {
 	}
 
 	// Only protects players on the same team as the slider's owner.
-	protects(px: number, py: number, team: 'red' | 'blue'): boolean {
-		return team === this.team && Math.hypot(px - this.x, py - this.y) <= this.radius;
+	protects(px: number, py: number, radius: number, team: 'red' | 'blue'): boolean {
+		const sr = this.radius + radius;
+		return team === this.team && norm2(px - this.x, py - this.y) <= sr*sr;
 	}
 
 	draw(ctx: CanvasRenderingContext2D) {
@@ -2611,10 +2617,10 @@ export class GMTurrets extends GameMode {
 	 * everyone) or an EShieldSlider of the given team (protects only its
 	 * own team). Checked by Bullet.attack() before applying player damage.
 	 */
-	isInsideNoDamageZone(x: number, y: number, team: 'red' | 'blue'): boolean {
+	isInsideNoDamageZone(x: number, y: number, radius: number, team: 'red' | 'blue'): boolean {
 		for (const e of this.entities) {
-			if (e instanceof ELifeSlider && e.protects(x, y, team)) return true;
-			if (e instanceof EShieldSlider && e.protects(x, y, team)) return true;
+			if (e instanceof ELifeSlider && e.protects(x, y, radius, team)) return true;
+			if (e instanceof EShieldSlider && e.protects(x, y, radius, team)) return true;
 		}
 		return false;
 	}
@@ -2692,7 +2698,7 @@ export class GMTurrets extends GameMode {
 				(team === null) ||
 				(options.spareTurrets && kind==='turret') ||
 				(Math.hypot(target.x - x, target.y - y) > radius) ||
-				this.isInsideNoDamageZone(target.x, target.y, team)
+				this.isInsideNoDamageZone(target.x, target.y, target.getRadius(), team)
 			) {
 				continue;
 			}
