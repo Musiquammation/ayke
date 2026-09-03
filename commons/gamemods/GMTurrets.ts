@@ -29,7 +29,6 @@ const TURRET_COOLDOWN = 2.0;
 const TURRET_HP = 200;
 const TURRET_START_COOLDOWN = 5.0;
 const TURRET_ITEM_DAMAGES = 500;
-const TURRET_PAUSE = 1.25;
 
 const MINIMAP_X = WIDTH * 0.79;
 const MINIMAP_Y = HEIGHT * 0.01;
@@ -728,7 +727,6 @@ class Player {
 	}
 }
 
-
 class Turret {
 	team: 'red' | 'blue' | null = null;
 
@@ -736,7 +734,8 @@ class Turret {
 	activation = 0;
 	hp = 0;
 	itemDamage = 0;
-	pauseTimer = 0;
+	itemLoadingTimer = 0;
+	fullLoadingTimer = 0;
 	startCooldown = 0;
 	attackCooldown = 0;
 
@@ -750,6 +749,10 @@ class Turret {
 	attackSpeedMultiplier = 1;
 
 	static readonly SIZE = 100;
+
+	static constPerUnit(u: number) {
+		return 3 * Math.sqrt(u);
+	}
 
 	constructor(
 		public readonly x: number,
@@ -770,6 +773,14 @@ class Turret {
 	 */
 	applyFastAttackEffect(adder: number) {
 		this.attackSpeedMultiplier += adder;
+	}
+
+	setItemLoading(game: GMTurrets) {
+		const cost = Turret.constPerUnit(
+			game.turrets.filter(i => i.team === this.team).length
+		);
+		this.itemLoadingTimer = cost;
+		this.fullLoadingTimer = cost;
 	}
 
 	/**
@@ -801,7 +812,7 @@ class Turret {
 			} else {
 				this.itemDamage += damage;
 				if (this.itemDamage >= TURRET_ITEM_DAMAGES) {
-					this.pauseTimer = TURRET_PAUSE;
+					this.fullLoadingTimer = -1; // ask setItemLoading
 					this.itemDamage = 0;
 					this.hp -= damage; // Apply the damage causing it to lose full HP
 				}
@@ -827,7 +838,7 @@ class Turret {
 		this.hp = TURRET_HP;
 		this.activation = 0;
 		this.itemDamage = 0;
-		this.pauseTimer = 0;
+		this.itemLoadingTimer = 0;
 		this.startCooldown = TURRET_START_COOLDOWN;
 		this.attackCooldown = 0;
 		this.itemsToSpawn = 0;
@@ -855,10 +866,14 @@ class Turret {
 
 		this.spawnPendingItems(game);
 
+		if (this.fullLoadingTimer < 0) {
+			this.setItemLoading(game);
+		}
+
 		// Do not process logic if the turret is paused
-		if (this.pauseTimer > 0) {
-			this.pauseTimer -= dt;
-			if (this.pauseTimer <= 0) {
+		if (this.itemLoadingTimer > 0) {
+			this.itemLoadingTimer -= dt;
+			if (this.itemLoadingTimer <= 0) {
 				// Timier is finished, let's give items
 				this.itemDamage = 0;
 				this.itemsToSpawn += TURRET_ITEM_COUNT;
@@ -1004,13 +1019,13 @@ class Turret {
 			barY -= (BAR_H + 4);
 
 			// Draw situational bars above HP
-			if (this.pauseTimer > 0) {
+			if (this.itemLoadingTimer > 0 && this.fullLoadingTimer > 0) {
 				// TURRET_PAUSE (Gray)
 				ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
 				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
 
 				ctx.fillStyle = 'gray';
-				const pauseRatio = this.pauseTimer / TURRET_PAUSE;
+				const pauseRatio = this.itemLoadingTimer / this.fullLoadingTimer;
 				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W * pauseRatio, BAR_H);
 			} else if (this.hp === TURRET_HP && this.itemDamage > 0) {
 				// TURRET_ITEM_DAMAGES (Green)
@@ -1034,11 +1049,12 @@ class Turret {
 		this.activation = obj.activation;
 		this.hp = obj.hp;
 		this.itemDamage = obj.itemDamage;
-		this.pauseTimer = obj.pauseTimer;
+		this.itemLoadingTimer = obj.itemLoadingTimer;
 		this.startCooldown = obj.startCooldown;
 		this.attackCooldown = obj.attackCooldown;
 		this.itemsToSpawn = obj.itemsToSpawn;
 		this.spawnIdx = obj.spawnIdx;
+		this.fullLoadingTimer = obj.fullLoadingTimer;
 	}
 
 	getTeam() {
@@ -1131,7 +1147,7 @@ class Bullet {
 		for (const [target, kind] of game.damageableEntities()) {
 			const team = target.getTeam();
 			if (kind === 'turret') {
-				if (this.owner) {continue;}
+				if (this.owner < 0) {continue;}
 			} else if (team === this.team) {continue;}
 
 			const radius = Bullet.RADIUS + target.getRadius();
@@ -3048,8 +3064,11 @@ export class GMTurrets extends GameMode {
 					FULL_ROOM_SIZE
 				);
 
-				if (turret.pauseTimer > 0) {
-					const s = (TURRET_PAUSE - turret.pauseTimer) * (FULL_ROOM_SIZE / TURRET_PAUSE);
+				if (turret.itemLoadingTimer > 0 && turret.fullLoadingTimer > 0) {
+					const s = (
+						(turret.fullLoadingTimer - turret.itemLoadingTimer) *
+						(FULL_ROOM_SIZE / turret.fullLoadingTimer)
+					);
 					ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 1)`;
 					ctx.fillRect(
 						cellX + FULL_ROOM_SIZE/2 - s/2,
@@ -3312,7 +3331,8 @@ export class GMTurrets extends GameMode {
 				activation: t.activation,
 				hp: t.hp,
 				itemDamage: t.itemDamage,
-				pauseTimer: t.pauseTimer,
+				itemLoadingTimer: t.itemLoadingTimer,
+				fullLoadingTimer: t.fullLoadingTimer,
 				startCooldown: t.startCooldown,
 				attackCooldown: t.attackCooldown,
 				itemsToSpawn: t.itemsToSpawn,

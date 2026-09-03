@@ -49,11 +49,12 @@ message Turret {
 	float activation = 3;
 	float hp = 4;
 	float itemDamage = 5;
-	float pauseTimer = 6;
+	float itemLoadingTimer = 6;
 	float startCooldown = 7;
 	float attackCooldown = 8;
 	int32 itemsToSpawn = 9;
 	int32 spawnIdx = 10;
+	float fullLoadingTimer = 11;
 }
 
 // ---------------------------------------------------------------------------
