@@ -365,7 +365,11 @@ class Player {
 	}
 
 	avoidOOB() {
-		/// TODO: edit this.x, y if oob
+		const LIMIT = FULL_ROOM_SIZE*3;
+		const r = Player.RADIUS;
+
+		this.x = Math.max(r, Math.min(LIMIT - r, this.x));
+		this.y = Math.max(r, Math.min(LIMIT - r, this.y));
 	}
 
 	die() {
