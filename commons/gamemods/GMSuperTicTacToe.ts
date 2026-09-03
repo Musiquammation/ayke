@@ -507,6 +507,13 @@ export class GMSuperTicTacToe extends GameMode {
 			if (cell !== null) {
 				inputs.push({ action: 'cell', cell });
 			}
+		} else if (mobile && mobile.first(0)) {
+			const {x, y} = mobile.getDigits()[0];
+			const cell = GMSuperTicTacToe.cellFromBoardCoords(x, y);
+			if (cell !== null) {
+				inputs.push({ action: 'cell', cell });
+			}
+
 		}
 
 		return inputs;

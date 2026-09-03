@@ -79,7 +79,7 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         textures: GMSuperTicTacToe.TEXTURES,
         name: "Super tic tac toe",
         tropheesPerPlayer: 3,
-        computerOnly: true,
+        computerOnly: false,
         skins: []
     },
 

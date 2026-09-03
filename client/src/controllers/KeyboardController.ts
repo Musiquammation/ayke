@@ -1,4 +1,4 @@
-import { IKeyboardController } from "../../../commons/GameMode";
+import { IKeyboardController } from "../../../commons/util/controllerInterfaces";
 
 const KEYS = ['up', 'down', 'left', 'right', 'jump'] as const;
 type Key = typeof KEYS[number];
