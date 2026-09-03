@@ -24,9 +24,9 @@ const BRIDGE_SIZE = WIDTH * 0.3;
 const BULLET_DAMAGE = 15;
 
 const TURRET_RADIUS = WIDTH * 0.6;
-const TURRET_ACTIVATION = 100;
+const TURRET_ACTIVATION = 2000;
 const TURRET_COOLDOWN = 2.0; 
-const TURRET_HP = 200;
+const TURRET_HP = 1200;
 const TURRET_START_COOLDOWN = 5.0;
 const TURRET_ITEM_DAMAGES = 500;
 
@@ -64,12 +64,12 @@ interface AutoTarget {
 }
 
 class Player {
-	static readonly SPEED = 1500;
-	static readonly ACCELERATION = 10000;
-	static readonly MIN_DECELERATION = 1000;
-	static readonly SOFT_DECELERATION = 10000;
-	static readonly QUICK_DECELERATION = 30000;
-	static readonly COOLDOWN = 3.0;
+	static readonly SPEED = 2000;
+	static readonly ACCELERATION = 12000;
+	static readonly MIN_DECELERATION = 1100;
+	static readonly SOFT_DECELERATION = 12000;
+	static readonly QUICK_DECELERATION = 40000;
+	static readonly COOLDOWN = 2.0;
 
 	static readonly RADIUS = 60;
 	static readonly PUSH_DOWN = 1000;
@@ -78,7 +78,8 @@ class Player {
 	static readonly BOUNCE_Y = 100;
 
 	// --- Health System ---
-	static readonly MAX_HP = 100;
+	static readonly MAX_HP = 600;
+	static readonly HP_INC = 30;
 
 	// --- Attack System Constants ---
 	static readonly ATTACK_FULL = 5.0;
@@ -278,6 +279,7 @@ class Player {
 
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
+		this.hp = Math.min(this.hp + Player.HP_INC * dt, Player.MAX_HP);
 
 		this.avoidOOB();
 
@@ -556,7 +558,6 @@ class Player {
 			this.die();
 			if (attacker) {
 				attacker.kills++;
-				console.log(attacker.kills);
 			}
 		}
 	}
@@ -751,7 +752,8 @@ class Turret {
 	static readonly SIZE = 100;
 
 	static constPerUnit(u: number) {
-		return 3 * Math.sqrt(u);
+		const m = 0.115 * u + 0.137;
+		return 1.2 * m * m;
 	}
 
 	constructor(
