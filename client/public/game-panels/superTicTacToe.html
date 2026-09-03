@@ -1,0 +1,29 @@
+<div x-data="data">
+	<div class="sttt-container">
+		<div class="sttt-field">
+			<span>Preferred team :</span>
+			<div class="sttt-team-select">
+				<button type="button"
+						class="sttt-btn"
+						@pointerup="preferTeam = 0"
+						:class="{ selected: preferTeam === 0 }">
+					None
+				</button>
+
+				<button type="button"
+						class="sttt-btn"
+						@pointerup="preferTeam = 1"
+						:class="{ selected: preferTeam === 1 }">
+					Red
+				</button>
+
+				<button type="button"
+						class="sttt-btn"
+						@pointerup="preferTeam = -1"
+						:class="{ selected: preferTeam === -1 }">
+					Blue
+				</button>
+			</div>
+		</div>
+	</div>
+</div>

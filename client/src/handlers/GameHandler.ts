@@ -201,7 +201,7 @@ export async function setGameHandler(
 	const protocols = getProtocol(gamemode, 'multiplayer');
 	await protocols.load();
 
-	const {game, data, html, skins} = factory.client(startData, total);
+	const {game, data, html, skins} = factory.client(startData, total, playerIdx);
 
 	await imageLoader.load(skins, gamemode);
 

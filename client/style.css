@@ -198,7 +198,7 @@ button.play-disabled {
 
 
 /* ==================== */
-/* AIRBASKET             */
+/* AIRBASKET            */
 /* ==================== */
 .game-airbasket-client-data {
 	position: fixed;
@@ -308,3 +308,62 @@ button.play-disabled {
 	font-style: italic;
 }
 
+
+
+
+
+
+
+/* ==================== */
+/* SUPER_TIC_TAC_TOE    */
+/* ==================== */
+.game-superTicTacToe-client-data {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	justify-content: center;
+
+	width: 96vw;
+
+	font-family: sans-serif;
+	font-size: 2vh;
+
+	pointer-events: none;
+}
+
+.game-superTicTacToe-status {
+	display: flex;
+	align-items: center;
+	gap: 1vw;
+}
+
+.game-superTicTacToe-you,
+.game-superTicTacToe-opponent {
+	padding: 0.8vh 1.2vw;
+
+	border-radius: 0.6vh;
+
+	font-weight: bold;
+
+	transition:
+		opacity 0.25s ease,
+		filter 0.25s ease,
+		transform 0.25s ease;
+}
+
+.game-superTicTacToe-red {
+	color: #e53935;
+}
+
+.game-superTicTacToe-blue {
+	color: #1e88e5;
+}
+
+.game-superTicTacToe-disabled {
+	opacity: 0.3;
+	filter: grayscale(1);
+	transform: scale(0.95);
+}

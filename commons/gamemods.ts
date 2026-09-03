@@ -1,5 +1,6 @@
 import { GameMode } from "./GameMode";
 import { GMAirBasket } from "./gamemods/GMAirBasket";
+import { GMSuperTicTacToe } from "./gamemods/GMSuperTicTacToe";
 import { GMTest } from "./gamemods/GMTest";
 import { GMTestSolo } from "./gamemods/GMTestSolo";
 import { SoloGameMode } from "./SoloGameMode";
@@ -20,7 +21,7 @@ interface MultiplayerFactory {
         game: GameMode,
         data: Uint8Array
     }>,
-    client(entry: Uint8Array | null, total: number): {
+    client(entry: Uint8Array | null, total: number, playerIdx: number): {
         game: GameMode,
         data: any,
         html: HTMLDivElement | null,
@@ -68,6 +69,18 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         tropheesPerPlayer: 20,
         computerOnly: true,
         skins: GMAirBasket.SKINS_IDS
+    },
+
+    superTicTacToe: {
+        type: 'multiplayer',
+        server: GMSuperTicTacToe.createServ,
+        client: GMSuperTicTacToe.createClient,
+        dom: GMSuperTicTacToe.generateClientDom,
+        textures: GMSuperTicTacToe.TEXTURES,
+        name: "Super tic tac toe",
+        tropheesPerPlayer: 3,
+        computerOnly: true,
+        skins: []
     },
 
 	testSolo: {
