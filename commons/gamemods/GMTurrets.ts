@@ -509,16 +509,36 @@ class Player {
 
 	draw(
 		ctx: CanvasRenderingContext2D,
-		currentPlayer: boolean
+		imageLoader: ImageLoader,
+		currentPlayer: boolean,
+		lastAngle: number
 	) {
 		// Skip dead players
-		if (!this.isAlive()) return;
+		if (!this.isAlive()) {
+			return lastAngle;
+		}
 
-		ctx.fillStyle = this.team;
 
-		ctx.beginPath();
-		ctx.arc(this.x, this.y, Player.RADIUS, 0, Math.PI * 2);
-		ctx.fill();
+		const r = 32/13;
+		let a;
+		if (this.dirX !== 0 || this.dirY !== 0) {
+			a = Math.atan2(this.dirY, this.dirX);
+		} else if (this.vx !== 0 || this.vy !== 0) {
+			a = Math.atan2(this.vy, this.vx);
+		} else {
+			a = lastAngle;
+		}
+		ctx.save();
+		ctx.translate(this.x, this.y);
+		ctx.rotate(a);
+		ctx.drawImage(
+			imageLoader.get("player-" + this.team),
+			-Player.RADIUS * r / 2,
+			-Player.RADIUS * r / 2,
+			Player.RADIUS * r,
+			Player.RADIUS * r
+		);
+		ctx.restore();
 
 		const BAR_W = 80;
 		const BAR_H = 10;
@@ -596,6 +616,8 @@ class Player {
 				BAR_H
 			);
 		}
+
+		return a;
 	}
 
 
@@ -876,8 +898,17 @@ class Turret {
 	 */
 	draw(ctx: CanvasRenderingContext2D, imageLoader: ImageLoader) {
 		// Draw Base Turret
+		let colorId;
+		if (this.team === 'blue') {
+			colorId = 1;
+		} else if (this.team === 'red') {
+			colorId = 0;
+		} else {
+			colorId = undefined;
+		}
+
 		ctx.drawImage(
-			imageLoader.get(null),
+			imageLoader.get('turret', colorId),
 			this.x - Turret.SIZE / 2,
 			this.y - Turret.SIZE / 2,
 			Turret.SIZE,
@@ -1814,32 +1845,23 @@ class ItemInMap {
 		const itemDef = ITEMS[this.id];
 		if (!itemDef) return;
 
-		const img = imageLoader.get(itemDef.iconMap);
-
 		ctx.save();
 		ctx.translate(this.x, this.y);
 
-		if (img) {
-			ctx.drawImage(
-				img,
-				-ItemInMap.RADIUS,
-				-ItemInMap.RADIUS,
-				ItemInMap.RADIUS * 2,
-				ItemInMap.RADIUS * 2
-			);
-		} else {
-			// Fallback placeholder if texture is not yet loaded
-			ctx.fillStyle = '#ffaa00';
-			ctx.beginPath();
-			ctx.arc(0, 0, ItemInMap.RADIUS, 0, Math.PI * 2);
-			ctx.fill();
-
-			ctx.fillStyle = '#ffffff';
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.font = 'bold 20px sans-serif';
-			ctx.fillText(`${this.id}`, 0, 0);
-		}
+		ctx.fillStyle = "#ddd";
+		ctx.fillRect(
+			-ItemInMap.RADIUS,
+			-ItemInMap.RADIUS,
+			ItemInMap.RADIUS * 2,
+			ItemInMap.RADIUS * 2
+		);
+		ctx.drawImage(
+			imageLoader.get(itemDef.iconMap),
+			-ItemInMap.RADIUS,
+			-ItemInMap.RADIUS,
+			ItemInMap.RADIUS * 2,
+			ItemInMap.RADIUS * 2
+		);
 
 		ctx.restore();
 	}
@@ -1865,8 +1887,8 @@ const ITEM_IDS = {
 const ITEMS = [
 	// 0 - LifeSlider: sends off a no-damage-for-everyone slider in the aimed direction.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "lifeSlider",
+		iconHand: "lifeSlider",
 		name: "LifeSlider",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -1877,8 +1899,8 @@ const ITEMS = [
 
 	// 1 - ShieldSlider: like LifeSlider, faster, only protects the owner's team.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "shieldSlider",
+		iconHand: "shieldSlider",
 		name: "ShieldSlider",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -1889,8 +1911,8 @@ const ITEMS = [
 
 	// 2 - Wall: drops a bullet-blocking square at the owner's feet.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "wall",
+		iconHand: "wall",
 		name: "Wall",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -1901,8 +1923,8 @@ const ITEMS = [
 
 	// 3 - Ballon: drops a growing balloon that explodes on detecting an enemy.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "ballon",
+		iconHand: "ballon",
 		name: "Ballon",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -1913,8 +1935,8 @@ const ITEMS = [
 
 	// 4 - Tank: spawns a high-HP troop that charges the nearest enemy turret.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "tank",
+		iconHand: "tank",
 		name: "Tank",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -1925,8 +1947,8 @@ const ITEMS = [
 
 	// 5 - Booster: spawns a troop that buffs the nearest friendly turret on contact.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "booster",
+		iconHand: "booster",
 		name: "Booster",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -1950,8 +1972,8 @@ const ITEMS = [
 
 	// 7 - TrapIII: strongest trap, downgrades to TrapII once used.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "trap",
+		iconHand: "trap",
 		name: "TrapIII",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -1962,8 +1984,8 @@ const ITEMS = [
 
 	// 8 - TrapII: downgrades to TrapI once used.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "trap",
+		iconHand: "trap",
 		name: "TrapII",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -1974,8 +1996,8 @@ const ITEMS = [
 
 	// 9 - TrapI: weakest trap, last of the chain - nothing given back once used.
 	{
-		iconMap: "none",
-		iconHand: "none",
+		iconMap: "trap",
+		iconHand: "trap",
 		name: "TrapI",
 
 		run: (game: GMTurrets, owner: Player, dx: number, dy: number): number | null => {
@@ -2148,6 +2170,8 @@ class ClientData {
 	// from holding + aiming (-> throwDir).
 	attackPressStart: number | null = null;
 	attackHasAimed = false;
+
+	playerAngles: Record<number, number> = {};
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -2476,7 +2500,19 @@ export class GMTurrets extends GameMode {
 
 	static readonly generateClientDom = generateClientDom;
 
-	static readonly TEXTURES = {};
+	static readonly TEXTURES = {
+		'player-blue': "/assets/games/turrets/player-blue.png",
+		'player-red': "/assets/games/turrets/player-red.png",
+		'turret': "/assets/games/turrets/turret.png",
+		'ballon': "/assets/games/turrets/items/ballon.png",
+		'booster': "/assets/games/turrets/items/booster.png",
+		'lifeSlider': "/assets/games/turrets/items/lifeSlider.png",
+		'shieldSlider': "/assets/games/turrets/items/shieldSlider.png",
+		'star': "/assets/games/turrets/items/star.png",
+		'tank': "/assets/games/turrets/items/tank.png",
+		'trap': "/assets/games/turrets/items/trap.png",
+		'wall': "/assets/games/turrets/items/wall.png"
+	};
 
 
 	override init(): void {
@@ -3078,6 +3114,9 @@ export class GMTurrets extends GameMode {
 		const data = _data as ClientData;
 		if (data.firstFrame) {
 			data.firstFrame = false;
+
+			imageLoader.setColorRule('turret', 0, [{prev: "#6abe30", next: "#ff0044"}]);
+			imageLoader.setColorRule('turret', 1, [{prev: "#6abe30", next: "#0044ff"}]);
 		}
 
 		data.update(this, playerIdx);
@@ -3130,7 +3169,12 @@ export class GMTurrets extends GameMode {
 
 		// Draw all players
 		for (const [idx, p] of this.players.entries()) {
-			p.draw(ctx, idx === playerIdx);
+			data.playerAngles[idx] = p.draw(
+				ctx,
+				imageLoader,
+				idx === playerIdx,
+				data.playerAngles[idx] ?? 0
+			);
 		}
 
 		for (const entity of this.entities) {
