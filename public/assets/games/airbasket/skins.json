@@ -1,0 +1,31 @@
+{
+    "list": [
+        {
+            "id": "joe",
+            "name": "Joe"
+        },
+
+        {
+            "id": "luck",
+            "name": "Luck"
+        },
+
+        {
+            "id": "kwanita",
+            "name": "Kwanita"
+        },
+
+        {
+            "id": "nooby",
+            "name": "Nooby"
+        },
+
+        {
+            "id": "willy",
+            "name": "Willy"
+        }
+    ],
+
+
+    "default": "joe"
+}

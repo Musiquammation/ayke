@@ -10159,12 +10159,12 @@ function isMessage(value) {
 }
 //#endregion
 //#region commons/gamemods/GMAirBasket.ts
-var protocols$1 = getProtocol("airbasket");
-var GRAVITY = 1100;
-var WIDTH = 2400;
-var HEIGHT = 1350;
-var X_LIMIT = WIDTH * 2.5;
-var Y_LIMIT = HEIGHT * 1.5;
+var protocols$3 = getProtocol("airbasket", "multiplayer");
+var GRAVITY$1 = 1100;
+var WIDTH$2 = 2400;
+var HEIGHT$2 = 1350;
+var X_LIMIT = WIDTH$2 * 2.5;
+var Y_LIMIT = HEIGHT$2 * 1.5;
 var TIMES = [
 	180,
 	60,
@@ -10210,9 +10210,9 @@ var BUCKET_POSITIONS = [
 	[1, 1],
 	[2, 1]
 ];
-var MINIMAP_X = WIDTH * .79;
-var MINIMAP_Y = HEIGHT * .01;
-var MINIMAP_RATIO = .2;
+var MINIMAP_X$1 = WIDTH$2 * .79;
+var MINIMAP_Y$1 = HEIGHT$2 * .01;
+var MINIMAP_RATIO$1 = .2;
 var Ball = class Ball {
 	static RADIUS = 70;
 	static SPAWN_JUMP = 20;
@@ -10262,14 +10262,14 @@ var Ball = class Ball {
 		if (this.y <= -1350) this.vy = 0;
 		else this.vy = -Ball.EJECT;
 		if (this.x < -2400) this.vx = Ball.EJECT;
-		if (this.x > WIDTH) this.vx = -Ball.EJECT;
+		if (this.x > WIDTH$2) this.vx = -Ball.EJECT;
 		if (this.x > X_LIMIT - Ball.RADIUS / 2) this.x = X_LIMIT - Ball.RADIUS / 2;
 		else if (this.x < -6e3 + Ball.RADIUS / 2) this.x = -6e3 + Ball.RADIUS / 2;
 		if (this.y > Y_LIMIT - Ball.RADIUS / 2) this.y = Y_LIMIT - Ball.RADIUS / 2;
 		else if (this.y < -2025 + Ball.RADIUS / 2) this.y = -2025 + Ball.RADIUS / 2;
 	}
 };
-var Player$1 = class Player$1 {
+var Player$3 = class Player$3 {
 	x;
 	y;
 	static GRAB_GRAVITY = 900;
@@ -10292,7 +10292,7 @@ var Player$1 = class Player$1 {
 	connected = true;
 	alive = -1;
 	vx = 0;
-	vy = -Player$1.SPAWN_JUMP;
+	vy = -Player$3.SPAWN_JUMP;
 	dir = 0;
 	pushDown = false;
 	score = 0;
@@ -10321,45 +10321,45 @@ var Player$1 = class Player$1 {
 		}
 		if (this.dir === 0) {
 			if (this.vx > 0) {
-				this.vx -= Player$1.SOFT_DECELERATION * dt;
+				this.vx -= Player$3.SOFT_DECELERATION * dt;
 				if (this.vx < 0) this.vx = 0;
 			} else if (this.vx < 0) {
-				this.vx += Player$1.SOFT_DECELERATION * dt;
+				this.vx += Player$3.SOFT_DECELERATION * dt;
 				if (this.vx > 0) this.vx = 0;
 			}
 		} else if (this.dir > 0) {
 			if (this.vx < 0) {
-				this.vx += Player$1.QUICK_DECELERATION * dt;
+				this.vx += Player$3.QUICK_DECELERATION * dt;
 				if (this.vx > 0) this.vx = 0;
-			} else if (this.vx < Player$1.SPEED) {
-				this.vx += Player$1.ACCELERATION * dt;
-				if (this.vx > Player$1.SPEED) this.vx = Player$1.SPEED;
-			} else if (this.vx > Player$1.SPEED) {
-				this.vx -= Player$1.MIN_DECELERATION * dt;
-				if (this.vx < Player$1.SPEED) this.vx = Player$1.SPAWN_JUMP;
+			} else if (this.vx < Player$3.SPEED) {
+				this.vx += Player$3.ACCELERATION * dt;
+				if (this.vx > Player$3.SPEED) this.vx = Player$3.SPEED;
+			} else if (this.vx > Player$3.SPEED) {
+				this.vx -= Player$3.MIN_DECELERATION * dt;
+				if (this.vx < Player$3.SPEED) this.vx = Player$3.SPAWN_JUMP;
 			}
 		} else if (this.vx > 0) {
-			this.vx -= Player$1.QUICK_DECELERATION * dt;
+			this.vx -= Player$3.QUICK_DECELERATION * dt;
 			if (this.vx < 0) this.vx = 0;
-		} else if (this.vx > -Player$1.SPEED) {
-			this.vx -= Player$1.ACCELERATION * dt;
-			if (this.vx < -Player$1.SPEED) this.vx = -Player$1.SPEED;
-		} else if (this.vx < -Player$1.SPEED) {
-			this.vx += Player$1.MIN_DECELERATION * dt;
-			if (this.vx > -Player$1.SPEED) this.vx = -Player$1.SPAWN_JUMP;
+		} else if (this.vx > -Player$3.SPEED) {
+			this.vx -= Player$3.ACCELERATION * dt;
+			if (this.vx < -Player$3.SPEED) this.vx = -Player$3.SPEED;
+		} else if (this.vx < -Player$3.SPEED) {
+			this.vx += Player$3.MIN_DECELERATION * dt;
+			if (this.vx > -Player$3.SPEED) this.vx = -Player$3.SPAWN_JUMP;
 		}
-		this.vy += (grabber ? Player$1.GRAB_GRAVITY : GRAVITY) * dt;
+		this.vy += (grabber ? Player$3.GRAB_GRAVITY : GRAVITY$1) * dt;
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
-		if (this.pushDown) this.y += Player$1.PUSH_DOWN * dt;
+		if (this.pushDown) this.y += Player$3.PUSH_DOWN * dt;
 		if (this.isOOB()) this.die();
 	}
 	touchsBall(ball) {
 		return collisions.RectCircle({
 			x: this.x,
 			y: this.y,
-			w: Player$1.WIDTH,
-			h: Player$1.HEIGHT
+			w: Player$3.WIDTH,
+			h: Player$3.HEIGHT
 		}, {
 			x: ball.x,
 			y: ball.y,
@@ -10377,12 +10377,12 @@ var Player$1 = class Player$1 {
 		this.pushDown = obj.pushDown;
 	}
 	isOOB() {
-		return this.x < -6e3 + Player$1.WIDTH / 2 || this.x > X_LIMIT - Player$1.WIDTH / 2 || this.y < -2025 + Player$1.HEIGHT / 2 || this.y > Y_LIMIT - Player$1.HEIGHT / 2;
+		return this.x < -6e3 + Player$3.WIDTH / 2 || this.x > X_LIMIT - Player$3.WIDTH / 2 || this.y < -2025 + Player$3.HEIGHT / 2 || this.y > Y_LIMIT - Player$3.HEIGHT / 2;
 	}
 	die() {
 		this.vx = 0;
-		this.vy = -Player$1.SPAWN_JUMP;
-		this.alive = Player$1.COOLDOWN;
+		this.vy = -Player$3.SPAWN_JUMP;
+		this.alive = Player$3.COOLDOWN;
 	}
 };
 var Bucket = class {
@@ -10395,7 +10395,7 @@ var Bucket = class {
 		this.y = y;
 	}
 };
-var Camera = class Camera {
+var Camera$1 = class Camera$1 {
 	x = 0;
 	y = 0;
 	static SCALE = .8;
@@ -10418,13 +10418,13 @@ var Camera = class Camera {
 	* Calculates the center coordinates of the zone the player is currently in.
 	*/
 	getZoneCenter(px, py) {
-		let zx = Math.round(px / WIDTH);
-		let zy = Math.round(py / HEIGHT);
+		let zx = Math.round(px / WIDTH$2);
+		let zy = Math.round(py / HEIGHT$2);
 		zx = Math.max(-2, Math.min(2, zx));
 		zy = Math.max(-1, Math.min(1, zy));
 		return {
-			cx: zx * WIDTH,
-			cy: zy * HEIGHT
+			cx: zx * WIDTH$2,
+			cy: zy * HEIGHT$2
 		};
 	}
 	/**
@@ -10445,12 +10445,12 @@ var Camera = class Camera {
 		}
 		if (this.isTransitioning) {
 			this.t += dt;
-			if (this.t >= Camera.DURATION) {
+			if (this.t >= Camera$1.DURATION) {
 				this.isTransitioning = false;
 				this.x = this.targetX;
 				this.y = this.targetY;
 			} else {
-				const progress = this.easing(this.t / Camera.DURATION);
+				const progress = this.easing(this.t / Camera$1.DURATION);
 				this.x = this.startX + (this.targetX - this.startX) * progress;
 				this.y = this.startY + (this.targetY - this.startY) * progress;
 			}
@@ -10479,21 +10479,22 @@ var Camera = class Camera {
 		};
 	}
 };
-var ClientData$1 = class ClientData$1 {
+var ClientData$4 = class ClientData$4 {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
+	skins = [];
 	html;
 	time;
 	period;
 	redScore;
 	blueScore;
-	camera = new Camera();
+	camera = new Camera$1();
 	clientWasDead = true;
 	lastDirs = {};
 	constructor() {
 		this.html = document.createElement("div");
-		this.html.classList.add("game-airbasket-client-data");
+		this.html.classList.add("game-airbasket-root");
 		this.time = document.createElement("div");
 		this.time.classList.add("game-airbasket-time");
 		this.period = document.createElement("div");
@@ -10520,8 +10521,8 @@ var ClientData$1 = class ClientData$1 {
 		return `${Math.floor(time / 60)}:${(time % 60).toFixed(1).padStart(4, "0")}`;
 	}
 	update(game, playerIdx) {
-		this.time.innerText = ClientData$1.showTime(game.time);
-		this.period.innerText = ClientData$1.PERIODS[game.timeStep];
+		this.time.innerText = ClientData$4.showTime(game.time);
+		this.period.innerText = ClientData$4.PERIODS[game.timeStep];
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
 		const player = game.players[playerIdx];
@@ -10550,7 +10551,7 @@ var ClientData$1 = class ClientData$1 {
 		];
 	}
 };
-var TutorialData = class {
+var TutorialData$2 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -10567,7 +10568,7 @@ var TutorialData = class {
 			this.game.ball.vy = 0;
 			this.game.ball.prevGrabber = -1;
 			if (this.game.ball.grabber === 0) this.step = 2;
-			if (player.x >= -1200 && player.x <= WIDTH / 2 && player.y >= -675 && player.y <= HEIGHT / 2) this.step = 1;
+			if (player.x >= -1200 && player.x <= WIDTH$2 / 2 && player.y >= -675 && player.y <= HEIGHT$2 / 2) this.step = 1;
 			return "Go towards the ball (jump to do not fall)";
 		}
 		if (this.step === 1) {
@@ -10610,17 +10611,23 @@ var TutorialData = class {
 		return [3].includes(this.step);
 	}
 };
-function generateClientDom$1() {
+function generateClientDom$4(unlockedSkins) {
 	return {
-		skin: 0,
+		skin: Object.keys(GMAirBasket.SKINS)[0],
 		preferTeam: 0,
+		SKINS: GMAirBasket.SKINS,
+		unlockedSkins,
 		produce() {
-			const { StartData } = protocols$1.get();
+			const { StartData } = protocols$3.get();
 			return StartData.encode({
 				skin: this.skin,
 				preferTeam: this.preferTeam
 			}).finish();
-		}
+		},
+		hasSkin(skin) {
+			return this.unlockedSkins.includes(skin);
+		},
+		getIconPath
 	};
 }
 function lighten(hex, factor) {
@@ -10641,7 +10648,7 @@ function applyCollisions(players) {
 		if (!p1.isAlive() || !p2.isAlive()) continue;
 		const dx = p1.x - p2.x;
 		const dy = p1.y - p2.y;
-		if (Math.abs(dx) < Player$1.WIDTH && Math.abs(dy) < Player$1.HEIGHT) {
+		if (Math.abs(dx) < Player$3.WIDTH && Math.abs(dy) < Player$3.HEIGHT) {
 			const dist = Math.sqrt(dx * dx + dy * dy);
 			let nx = 0;
 			let ny = 0;
@@ -10652,10 +10659,10 @@ function applyCollisions(players) {
 				nx = dx / dist;
 				ny = dy / dist;
 			}
-			p1.vx += nx * Player$1.BOUNCE_X;
-			p1.vy += ny * Player$1.BOUNCE_Y;
-			p2.vx -= nx * Player$1.BOUNCE_X;
-			p2.vy -= ny * Player$1.BOUNCE_Y;
+			p1.vx += nx * Player$3.BOUNCE_X;
+			p1.vy += ny * Player$3.BOUNCE_Y;
+			p2.vx -= nx * Player$3.BOUNCE_X;
+			p2.vy -= ny * Player$3.BOUNCE_Y;
 		}
 	}
 }
@@ -10727,7 +10734,7 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
 		ctx.stroke();
 	}
-	const velocity = getVectorToReachTarget(X, Y, Player$1.THROW, Ball.GRAVITY);
+	const velocity = getVectorToReachTarget(X, Y, Player$3.THROW, Ball.GRAVITY);
 	if (velocity.x === 0 || !velocity.success) {
 		const dx = destX - srcX;
 		const dy = destY - srcY;
@@ -10791,15 +10798,21 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 	ctx.strokeStyle = color;
 	drawCurve();
 }
+function getTexturePath(id) {
+	return `/assets/games/airbasket/skins/${id}/grid.png`;
+}
+function getIconPath(id) {
+	return `/assets/games/airbasket/skins/${id}/icon.png`;
+}
 var GMAirBasket = class GMAirBasket extends GameMode {
 	static types = {
-		Player: Player$1,
+		Player: Player$3,
 		Bucket
 	};
 	static DATA = {
-		GRAVITY,
-		WIDTH,
-		HEIGHT,
+		GRAVITY: GRAVITY$1,
+		WIDTH: WIDTH$2,
+		HEIGHT: HEIGHT$2,
 		X_LIMIT,
 		Y_LIMIT
 	};
@@ -10815,20 +10828,30 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	internalFrameTick = 0;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$1(0, 0));
-		this.buckets = BUCKET_POSITIONS.map(([x, y]) => new Bucket(x * WIDTH, y * HEIGHT));
+		this.players = Array.from({ length: total }, () => new Player$3(0, 0));
+		this.buckets = BUCKET_POSITIONS.map(([x, y]) => new Bucket(x * WIDTH$2, y * HEIGHT$2));
 	}
-	static createServ(players, total) {
-		const { StartData, StartDataClient } = protocols$1.get();
+	static async createServ(players, total, hasSkin) {
+		const { StartData, StartDataClient } = protocols$3.get();
 		const game = new GMAirBasket(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom$1();
+			return generateClientDom$4([]);
 		}
-		const playerInfos = game.players.map((p, i) => ({
-			player: p,
-			index: i,
-			pref: decode(i).preferTeam ?? 0
+		const playerInfos = await Promise.all(game.players.map(async (p, i) => {
+			const d = decode(i);
+			let skin;
+			const pseudo = i < players.length ? players[i].pseudo : null;
+			if (pseudo !== null && GMAirBasket.SKINS_IDS.includes(d.skin)) {
+				if (await hasSkin("airbasket", d.skin, pseudo)) skin = d.skin;
+				else skin = GMAirBasket.SKINS_IDS[0];
+			} else skin = GMAirBasket.SKINS_IDS[0];
+			return {
+				player: p,
+				index: i,
+				skin,
+				pref: d.preferTeam ?? 0
+			};
 		}));
 		const totalPlayers = playerInfos.length;
 		const maxPerTeam = Math.ceil(totalPlayers / 2);
@@ -10857,42 +10880,62 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		}
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = assigned[i];
-			p.initSpawn(redTeam ? -4800 : WIDTH * 2, 0, redTeam ? "red" : "blue");
+			p.initSpawn(redTeam ? -4800 : WIDTH$2 * 2, 0, redTeam ? "red" : "blue");
 		}
 		return {
 			game,
-			data: StartDataClient.encode({ players: game.players.map((p) => ({
+			data: StartDataClient.encode({ players: game.players.map((p, idx) => ({
 				x: p.spawnX,
 				y: p.spawnY,
+				skin: playerInfos[idx].skin,
 				isRed: p.team === "red"
 			})) }).finish()
 		};
 	}
 	static createClient(data, total) {
 		const game = new GMAirBasket(total);
-		const { StartDataClient } = protocols$1.get();
+		const { StartDataClient } = protocols$3.get();
+		const clientData = new ClientData$4();
+		let skins;
 		if (data) {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
-			for (const [idx, p] of players.entries()) game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
+			const skinSet = /* @__PURE__ */ new Set();
+			for (const [idx, p] of players.entries()) {
+				game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
+				clientData.skins.push(p.skin);
+				skinSet.add(p.skin);
+			}
+			console.log(skinSet);
+			skins = Object.fromEntries([...skinSet].map((key) => ["skin-" + key, getTexturePath(key)]));
 		} else {
 			game.players[0].initSpawn(-4800, 0, "red");
 			game.players[1].initSpawn(4800, 0, "blue");
+			clientData.skins = Array.from({ length: game.players.length }, () => GMAirBasket.SKINS_IDS[0]);
+			skins = {};
 		}
-		const clientData = new ClientData$1();
 		return {
 			game,
 			data: clientData,
-			html: clientData.html
+			html: clientData.html,
+			skins
 		};
 	}
-	static generateClientDom = generateClientDom$1;
+	static generateClientDom = generateClientDom$4;
+	static SKINS = {
+		joe: "Joe",
+		luck: "Luck",
+		kwanita: "Kwanita",
+		nooby: "Nooby",
+		willy: "Willy"
+	};
+	static SKINS_IDS = Object.keys(GMAirBasket.SKINS);
 	static TEXTURES = {
 		"ball": "/assets/games/airbasket/ball.png",
 		"bucket-blue": "/assets/games/airbasket/bucket-blue.png",
 		"bucket-mid": "/assets/games/airbasket/bucket-mid.png",
 		"bucket-red": "/assets/games/airbasket/bucket-red.png",
 		"sky": "/assets/games/airbasket/sky.png",
-		"skin-default": "/assets/games/airbasket/skins/joe/grid.png"
+		"skin-joe": getTexturePath("joe")
 	};
 	init() {}
 	getBotIds(count) {
@@ -10902,8 +10945,8 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		const rect = {
 			x: player.x,
 			y: player.y,
-			w: Player$1.WIDTH,
-			h: Player$1.HEIGHT
+			w: Player$3.WIDTH,
+			h: Player$3.HEIGHT
 		};
 		for (const bucket of this.buckets) {
 			if (bucket.team !== null) continue;
@@ -10968,7 +11011,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 				const dx = grabber.target.x - grabber.x;
 				const dy = grabber.target.y - grabber.y;
 				if (dx !== 0 || dy !== 0) {
-					const { x, y } = getVectorToReachTarget(dx, dy, Player$1.THROW, Ball.GRAVITY);
+					const { x, y } = getVectorToReachTarget(dx, dy, Player$3.THROW, Ball.GRAVITY);
 					this.ball.vx = x;
 					this.ball.vy = y;
 					this.ball.removeGrabber();
@@ -11016,7 +11059,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 				player.dir = 0;
 				break;
 			case "jump":
-				if (this.ball.grabber !== playerIdx) player.vy = -Player$1.JUMP;
+				if (this.ball.grabber !== playerIdx) player.vy = -Player$3.JUMP;
 				break;
 			case "downOn":
 				player.pushDown = true;
@@ -11041,7 +11084,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			case "throwOff": player.target = null;
 		}
 	}
-	collectInputs(keyboard, mouse, _data) {
+	collectInputs(keyboard, mouse, mobile, _data) {
 		const data = _data;
 		const throwTarget = mouse.getCoords();
 		data.mouseX = throwTarget.x;
@@ -11105,40 +11148,40 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		};
 	}
 	drawMinimap(ctx, playerIdx) {
-		const mapWidth = WIDTH * 5;
-		const mapHeight = HEIGHT * 3;
-		const MINIMAP_WIDTH = WIDTH * MINIMAP_RATIO;
-		const MINIMAP_HEIGHT = HEIGHT * MINIMAP_RATIO;
+		const mapWidth = WIDTH$2 * 5;
+		const mapHeight = HEIGHT$2 * 3;
+		const MINIMAP_WIDTH = WIDTH$2 * MINIMAP_RATIO$1;
+		const MINIMAP_HEIGHT = HEIGHT$2 * MINIMAP_RATIO$1;
 		ctx.save();
-		ctx.translate(MINIMAP_X, MINIMAP_Y);
+		ctx.translate(MINIMAP_X$1, MINIMAP_Y$1);
 		ctx.scale(MINIMAP_WIDTH / mapWidth, MINIMAP_HEIGHT / mapHeight);
 		ctx.translate(mapWidth / 2, mapHeight / 2);
 		ctx.fillStyle = "rgba(50, 50, 50, 0.7)";
 		ctx.fillRect(-6e3, -2025, mapWidth, mapHeight);
 		const player = this.players[playerIdx];
 		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) {
-			const cellX = -6e3 + x * WIDTH;
-			const cellY = -2025 + y * HEIGHT;
-			const ballInside = this.ball.x >= cellX && this.ball.x < cellX + WIDTH && this.ball.y >= cellY && this.ball.y < cellY + HEIGHT;
-			const playerInside = player.x >= cellX && player.x < cellX + WIDTH && player.y >= cellY && player.y < cellY + HEIGHT;
-			const bucketInside = this.buckets.some((bucket) => bucket.team === null && bucket.x >= cellX && bucket.x < cellX + WIDTH && bucket.y >= cellY && bucket.y < cellY + HEIGHT);
+			const cellX = -6e3 + x * WIDTH$2;
+			const cellY = -2025 + y * HEIGHT$2;
+			const ballInside = this.ball.x >= cellX && this.ball.x < cellX + WIDTH$2 && this.ball.y >= cellY && this.ball.y < cellY + HEIGHT$2;
+			const playerInside = player.x >= cellX && player.x < cellX + WIDTH$2 && player.y >= cellY && player.y < cellY + HEIGHT$2;
+			const bucketInside = this.buckets.some((bucket) => bucket.team === null && bucket.x >= cellX && bucket.x < cellX + WIDTH$2 && bucket.y >= cellY && bucket.y < cellY + HEIGHT$2);
 			if (ballInside) ctx.fillStyle = "rgba(255, 165, 0, 0.35)";
 			else if (playerInside) ctx.fillStyle = "rgba(255, 255, 0, 0.35)";
 			else if (bucketInside) ctx.fillStyle = "rgba(0, 128, 0, 0.35)";
 			else continue;
-			ctx.fillRect(cellX, cellY, WIDTH, HEIGHT);
+			ctx.fillRect(cellX, cellY, WIDTH$2, HEIGHT$2);
 		}
 		ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
 		ctx.lineWidth = 1 / (MINIMAP_WIDTH / mapWidth);
 		for (let x = 1; x < 5; x++) {
-			const px = -6e3 + x * WIDTH;
+			const px = -6e3 + x * WIDTH$2;
 			ctx.beginPath();
 			ctx.moveTo(px, -2025);
 			ctx.lineTo(px, mapHeight / 2);
 			ctx.stroke();
 		}
 		for (let y = 1; y < 3; y++) {
-			const py = -2025 + y * HEIGHT;
+			const py = -2025 + y * HEIGHT$2;
 			ctx.beginPath();
 			ctx.moveTo(-6e3, py);
 			ctx.lineTo(mapWidth / 2, py);
@@ -11164,9 +11207,10 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		ctx.restore();
 		ctx.strokeStyle = "white";
 		ctx.lineWidth = 2;
-		ctx.strokeRect(MINIMAP_X, MINIMAP_Y, MINIMAP_WIDTH, MINIMAP_HEIGHT);
+		ctx.strokeRect(MINIMAP_X$1, MINIMAP_Y$1, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 	}
-	draw(ctx, playerIdx, _data, imageLoader) {
+	draw(ctx, playerIdx, _data, _imageLoader) {
+		const imageLoader = _imageLoader.getFolder("airbasket");
 		const data = _data;
 		if (data.firstFrame) {
 			data.firstFrame = false;
@@ -11184,41 +11228,41 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		}
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#333";
-		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+		ctx.fillRect(0, 0, WIDTH$2, HEIGHT$2);
 		const cameraCoords = data.camera.getCoords();
 		ctx.save();
-		ctx.translate(WIDTH / 2, HEIGHT / 2);
-		ctx.scale(Camera.SCALE, Camera.SCALE);
+		ctx.translate(WIDTH$2 / 2, HEIGHT$2 / 2);
+		ctx.scale(Camera$1.SCALE, Camera$1.SCALE);
 		ctx.translate(-cameraCoords.x, -cameraCoords.y);
-		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) ctx.drawImage(imageLoader.get("sky", y * 5 + x), (x - 2.5) * WIDTH, (y - 1.5) * HEIGHT, WIDTH, HEIGHT);
+		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) ctx.drawImage(imageLoader.get("sky", y * 5 + x), (x - 2.5) * WIDTH$2, (y - 1.5) * HEIGHT$2, WIDTH$2, HEIGHT$2);
 		for (const bucket of this.buckets) {
 			const b = "bucket-" + (bucket.team ?? "mid");
 			ctx.drawImage(imageLoader.get(b), bucket.x - Bucket.SIZE / 2, bucket.y - Bucket.SIZE / 2, Bucket.SIZE, Bucket.SIZE);
 		}
-		const playerTexture = imageLoader.get("skin-default");
-		const w = playerTexture.width / 6;
-		const h = playerTexture.height / 4;
-		const width = Player$1.WIDTH * 4 / 3;
 		for (const [idx, p] of this.players.entries()) {
 			if (idx === playerIdx) {
 				ctx.fillStyle = "#0f0";
 				const r = 1.3;
-				ctx.fillRect(p.x - r * Player$1.WIDTH / 2, p.y - r * Player$1.HEIGHT / 2, r * Player$1.WIDTH, r * Player$1.HEIGHT);
+				ctx.fillRect(p.x - r * Player$3.WIDTH / 2, p.y - r * Player$3.HEIGHT / 2, r * Player$3.WIDTH, r * Player$3.HEIGHT);
 			}
 			ctx.fillStyle = p.team;
 			let [tx, ty, dir] = data.getPlayerTextureCode(this.ball.grabber === idx, p, idx);
 			if (p.team === "red") tx += 3;
+			const playerTexture = imageLoader.get("skin-" + data.skins[idx]);
+			const w = playerTexture.width / 6;
+			const h = playerTexture.height / 4;
+			const width = Player$3.WIDTH * 4 / 3;
 			ctx.save();
 			if (dir) {
-				ctx.translate(p.x + width / 2, p.y - Player$1.HEIGHT / 2);
+				ctx.translate(p.x + width / 2, p.y - Player$3.HEIGHT / 2);
 				ctx.scale(-1, 1);
-				ctx.drawImage(playerTexture, tx * w, ty * h, w, h, 0, 0, width, Player$1.HEIGHT);
-			} else ctx.drawImage(playerTexture, tx * w, ty * h, w, h, p.x - width / 2, p.y - Player$1.HEIGHT / 2, width, Player$1.HEIGHT);
+				ctx.drawImage(playerTexture, tx * w, ty * h, w, h, 0, 0, width, Player$3.HEIGHT);
+			} else ctx.drawImage(playerTexture, tx * w, ty * h, w, h, p.x - width / 2, p.y - Player$3.HEIGHT / 2, width, Player$3.HEIGHT);
 			ctx.restore();
 		}
 		if (this.ball.grabber < 0) {
 			const drawBallCoords = this.getBallDrawCoords();
-			ctx.drawImage(imageLoader.get("ball"), drawBallCoords.x, drawBallCoords.y, Ball.RADIUS, Ball.RADIUS);
+			ctx.drawImage(imageLoader.get("ball"), drawBallCoords.x - Ball.RADIUS / 2, drawBallCoords.y - Ball.RADIUS / 2, Ball.RADIUS, Ball.RADIUS);
 		}
 		{
 			const player = this.players[playerIdx];
@@ -11234,7 +11278,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$1.get();
+		const { State } = protocols$3.get();
 		const object = {
 			players: this.players,
 			prevBallGrabber: this.ball.prevGrabber,
@@ -11252,7 +11296,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$1.get();
+		const { State } = protocols$3.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) this.players[idx].load(player);
 		for (const [idx, bucket] of obj.buckets.entries()) if (!bucket.taken) this.buckets[idx].team = null;
@@ -11265,23 +11309,26 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH,
-			height: HEIGHT
+			width: WIDTH$2,
+			height: HEIGHT$2
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _clientData) {
 		const clientData = _clientData;
 		const cameraCoords = clientData.camera.getCoords();
 		const ret = {
-			x: (x - WIDTH / 2) / Camera.SCALE + cameraCoords.x,
-			y: (y - HEIGHT / 2) / Camera.SCALE + cameraCoords.y
+			x: (x - WIDTH$2 / 2) / Camera$1.SCALE + cameraCoords.x,
+			y: (y - HEIGHT$2 / 2) / Camera$1.SCALE + cameraCoords.y
 		};
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;
 		return ret;
 	}
+	getMobileDesc() {
+		return null;
+	}
 	createTutorial() {
-		return new TutorialData(this);
+		return new TutorialData$2(this);
 	}
 	produceFinish() {
 		const redTeam = [];
@@ -11307,10 +11354,519 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	}
 };
 //#endregion
+//#region commons/gamemods/GMSuperTicTacToe.ts
+var protocols$2 = getProtocol("superTicTacToe", "multiplayer");
+var CELL_SIZE = 100;
+var SUBGRID_SIZE = 300;
+var BOARD_SIZE = SUBGRID_SIZE * 3;
+var BOARD_MARGIN = 60;
+var WIDTH$1 = 1020;
+var HEIGHT$1 = 1020;
+var WIN_LINES = [
+	[
+		0,
+		1,
+		2
+	],
+	[
+		3,
+		4,
+		5
+	],
+	[
+		6,
+		7,
+		8
+	],
+	[
+		0,
+		3,
+		6
+	],
+	[
+		1,
+		4,
+		7
+	],
+	[
+		2,
+		5,
+		8
+	],
+	[
+		0,
+		4,
+		8
+	],
+	[
+		2,
+		4,
+		6
+	]
+];
+function emptyCell() {
+	return {
+		taken: false,
+		isRed: false
+	};
+}
+/**
+* Scans 9 same-shaped values (either the 9 cells of a sub-grid, or the 9
+* sub-grid results of the meta-grid) for a completed line of 3 matching
+* marks of the same color.
+* Returns 'red' or 'blue' if such a line exists, otherwise null.
+*/
+function findLineWinner(values) {
+	for (const [a, b, c] of WIN_LINES) if (values[a].taken && values[b].taken && values[c].taken && values[a].isRed === values[b].isRed && values[b].isRed === values[c].isRed) return values[a].isRed ? "red" : "blue";
+	return null;
+}
+var Player$2 = class {
+	connected = true;
+	team = "red";
+};
+var ClientData$3 = class {
+	firstFrame = true;
+	mouseX = 0;
+	mouseY = 0;
+	html;
+	statusLine;
+	you;
+	opponent;
+	constructor(playerIdx) {
+		this.html = document.createElement("div");
+		this.html.classList.add("game-superTicTacToe-root");
+		this.statusLine = document.createElement("div");
+		this.statusLine.classList.add("game-superTicTacToe-status");
+		this.you = document.createElement("div");
+		this.you.classList.add("game-superTicTacToe-you", playerIdx === 0 ? "game-superTicTacToe-red" : "game-superTicTacToe-blue");
+		this.you.innerText = "Your turn";
+		this.opponent = document.createElement("div");
+		this.opponent.classList.add("game-superTicTacToe-opponent", playerIdx === 0 ? "game-superTicTacToe-blue" : "game-superTicTacToe-red");
+		this.opponent.innerText = "Opponent's turn";
+		this.statusLine.appendChild(this.you);
+		this.statusLine.appendChild(this.opponent);
+		this.html.appendChild(this.statusLine);
+	}
+	/**
+	* Refreshes the DOM status line.
+	*/
+	update(game, playerIdx) {
+		if (game.finished) {
+			this.you.classList.add("game-superTicTacToe-disabled");
+			this.opponent.classList.add("game-superTicTacToe-disabled");
+			return;
+		}
+		const playerColor = playerIdx === 0 ? "red" : "blue";
+		const isYourTurn = game.turn === playerColor;
+		this.you.classList.toggle("game-superTicTacToe-disabled", !isYourTurn);
+		this.opponent.classList.toggle("game-superTicTacToe-disabled", isYourTurn);
+	}
+};
+var TutorialData$1 = class {
+	game;
+	shown = false;
+	constructor(game) {
+		this.game = game;
+	}
+	/**
+	* Super Tic Tac Toe only needs a single, static piece of guidance: the
+	* rule that determines which sub-grid you are sent to next. It is shown
+	* once at the start and then cleared.
+	*/
+	frame(dt, clock) {
+		if (this.shown) return "";
+		if (clock > 6) {
+			this.shown = true;
+			return "";
+		}
+		return "Playing a cell sends your opponent to the matching sub-grid!";
+	}
+};
+function generateClientDom$3() {
+	return {
+		preferTeam: 0,
+		produce() {
+			const { StartData } = protocols$2.get();
+			return StartData.encode({ preferTeam: this.preferTeam }).finish();
+		}
+	};
+}
+var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
+	static types = { Player: Player$2 };
+	static DATA = {
+		WIDTH: WIDTH$1,
+		HEIGHT: HEIGHT$1,
+		CELL_SIZE,
+		SUBGRID_SIZE,
+		BOARD_SIZE,
+		BOARD_MARGIN
+	};
+	players;
+	cells;
+	subgridWinners;
+	subgridFull;
+	turn = "red";
+	forced = -1;
+	finished = false;
+	winner = null;
+	constructor(total) {
+		super();
+		this.players = Array.from({ length: total }, () => new Player$2());
+		this.cells = Array.from({ length: 81 }, emptyCell);
+		this.subgridWinners = Array.from({ length: 9 }, emptyCell);
+		this.subgridFull = Array.from({ length: 9 }, () => false);
+	}
+	static async createServ(players, total, hasSkin) {
+		const { StartData, StartDataClient } = protocols$2.get();
+		const game = new GMSuperTicTacToe(total);
+		function decodePreference(i) {
+			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data)).preferTeam ?? 0;
+			return 0;
+		}
+		const preferences = game.players.map((_, i) => decodePreference(i));
+		let redIndex = -1;
+		let blueIndex = -1;
+		for (let i = 0; i < preferences.length; i++) if (preferences[i] === 1 && redIndex < 0) redIndex = i;
+		else if (preferences[i] === -1 && blueIndex < 0) blueIndex = i;
+		for (let i = 0; i < preferences.length; i++) {
+			if (i === redIndex || i === blueIndex) continue;
+			if (redIndex < 0) redIndex = i;
+			else if (blueIndex < 0) blueIndex = i;
+		}
+		for (const [i, p] of game.players.entries()) p.team = i === redIndex ? "red" : "blue";
+		return {
+			game,
+			data: StartDataClient.encode({ players: game.players.map((p) => ({ isRed: p.team === "red" })) }).finish()
+		};
+	}
+	static createClient(data, total, playerIdx) {
+		const game = new GMSuperTicTacToe(total);
+		const { StartDataClient } = protocols$2.get();
+		const clientData = new ClientData$3(playerIdx);
+		if (data) {
+			const { players } = decodeFullMessage(StartDataClient.decode(data));
+			for (const [idx, p] of players.entries()) game.players[idx].team = p.isRed ? "red" : "blue";
+		} else {
+			game.players[0].team = "red";
+			if (game.players[1]) game.players[1].team = "blue";
+		}
+		return {
+			game,
+			data: clientData,
+			html: clientData.html,
+			skins: {}
+		};
+	}
+	static generateClientDom = generateClientDom$3;
+	static TEXTURES = {};
+	init() {}
+	getBotIds(count) {
+		return Array.from({ length: count }, () => 0);
+	}
+	run(dt, produceFinish) {
+		if (produceFinish && this.finished) return this.produceFinish();
+		return null;
+	}
+	runInput(playerIdx, input) {
+		if (this.finished) return;
+		if (this.players[playerIdx].team !== this.turn) return;
+		if (input.action !== "cell") return;
+		const cell = input.cell;
+		if (!Number.isInteger(cell) || cell < 0 || cell > 80) return;
+		const globalX = cell % 9;
+		const globalY = Math.floor(cell / 9);
+		const subgridX = Math.floor(globalX / 3);
+		const subgridIndex = Math.floor(globalY / 3) * 3 + subgridX;
+		const localX = globalX % 3;
+		const localIndex = globalY % 3 * 3 + localX;
+		if (this.subgridWinners[subgridIndex].taken) return;
+		if (this.subgridFull[subgridIndex]) return;
+		if (this.forced >= 0 && subgridIndex !== this.forced) return;
+		const cellValue = this.cells[cell];
+		if (cellValue.taken) return;
+		cellValue.taken = true;
+		cellValue.isRed = this.turn === "red";
+		this.settleSubgrid(subgridIndex);
+		this.checkMetaWin();
+		if (!this.finished) {
+			let nextForced = localIndex;
+			if (this.subgridWinners[nextForced].taken || this.subgridFull[nextForced]) nextForced = -1;
+			this.forced = nextForced;
+			this.turn = this.turn === "red" ? "blue" : "red";
+			this.checkAllSubgridsDecided();
+		}
+	}
+	/**
+	* Re-evaluates a single sub-grid after a cell was just played inside
+	* it: checks for a 3-in-a-row win among its 9 cells, and otherwise
+	* marks it full once every one of its cells has been played.
+	*/
+	settleSubgrid(subgridIndex) {
+		const subgridX = subgridIndex % 3;
+		const subgridY = Math.floor(subgridIndex / 3);
+		const subgridCells = [];
+		for (let ly = 0; ly < 3; ly++) for (let lx = 0; lx < 3; lx++) {
+			const gx = subgridX * 3 + lx;
+			const gy = subgridY * 3 + ly;
+			subgridCells.push(this.cells[gy * 9 + gx]);
+		}
+		const winner = findLineWinner(subgridCells);
+		if (winner !== null) {
+			this.subgridWinners[subgridIndex] = {
+				taken: true,
+				isRed: winner === "red"
+			};
+			return;
+		}
+		if (subgridCells.every((c) => c.taken)) this.subgridFull[subgridIndex] = true;
+	}
+	/**
+	* Checks the meta-grid (the 3x3 grid of sub-grid results) for a
+	* completed alignment of 3 sub-grids won by the same team. If found,
+	* the whole match ends immediately in that team's favor.
+	*/
+	checkMetaWin() {
+		const winner = findLineWinner(this.subgridWinners);
+		if (winner !== null) {
+			this.finished = true;
+			this.winner = winner;
+		}
+	}
+	/**
+	* Checks whether every sub-grid has now been resolved (either won by a
+	* team or filled up without a winner). If so, the match ends and the
+	* winner is whichever team captured strictly more sub-grids -- a tie
+	* in sub-grid count ends the match in a draw.
+	*/
+	checkAllSubgridsDecided() {
+		if (!this.subgridWinners.every((w, i) => w.taken || this.subgridFull[i])) return;
+		const redCount = this.subgridWinners.filter((w) => w.taken && w.isRed).length;
+		const blueCount = this.subgridWinners.filter((w) => w.taken && !w.isRed).length;
+		this.finished = true;
+		if (redCount === blueCount) this.winner = "draw";
+		else this.winner = redCount > blueCount ? "red" : "blue";
+	}
+	collectInputs(keyboard, mouse, mobile, _data) {
+		const data = _data;
+		const inputs = [];
+		const coords = mouse.getCoords();
+		data.mouseX = coords.x;
+		data.mouseY = coords.y;
+		if (mouse.first(0)) {
+			const cell = GMSuperTicTacToe.cellFromBoardCoords(coords.x, coords.y);
+			if (cell !== null) inputs.push({
+				action: "cell",
+				cell
+			});
+		} else if (mobile && mobile.first(0)) {
+			const { x, y } = mobile.getDigits()[0];
+			const cell = GMSuperTicTacToe.cellFromBoardCoords(x, y);
+			if (cell !== null) inputs.push({
+				action: "cell",
+				cell
+			});
+		}
+		return inputs;
+	}
+	/**
+	* Converts board-space pixel coordinates (already relative to the
+	* board's own coordinate system, see evalMouseCoords) into a flat cell
+	* index in [0..80], or null if the position falls outside the board.
+	*/
+	static cellFromBoardCoords(x, y) {
+		const bx = x - BOARD_MARGIN;
+		const by = y - BOARD_MARGIN;
+		if (bx < 0 || by < 0 || bx >= BOARD_SIZE || by >= BOARD_SIZE) return null;
+		const globalX = Math.floor(bx / CELL_SIZE);
+		return Math.floor(by / CELL_SIZE) * 9 + globalX;
+	}
+	drawMark(ctx, cx, cy, size, isRed) {
+		const half = size * .32;
+		ctx.lineWidth = size * .12;
+		ctx.lineCap = "round";
+		ctx.strokeStyle = isRed ? "#e63946" : "#3a86ff";
+		if (isRed) {
+			ctx.beginPath();
+			ctx.moveTo(cx - half, cy - half);
+			ctx.lineTo(cx + half, cy + half);
+			ctx.moveTo(cx + half, cy - half);
+			ctx.lineTo(cx - half, cy + half);
+			ctx.stroke();
+		} else {
+			ctx.beginPath();
+			ctx.arc(cx, cy, half, 0, Math.PI * 2);
+			ctx.stroke();
+		}
+	}
+	draw(ctx, playerIdx, _data, _imageLoader) {
+		ctx.imageSmoothingEnabled = true;
+		const data = _data;
+		if (data.firstFrame) data.firstFrame = false;
+		data.update(this, playerIdx);
+		ctx.fillStyle = "#1e1e24";
+		ctx.fillRect(0, 0, WIDTH$1, HEIGHT$1);
+		ctx.save();
+		ctx.translate(BOARD_MARGIN, BOARD_MARGIN);
+		ctx.fillStyle = "#f4f1ea";
+		ctx.fillRect(0, 0, BOARD_SIZE, BOARD_SIZE);
+		for (let s = 0; s < 9; s++) {
+			if (!(!this.subgridWinners[s].taken && !this.subgridFull[s] && (this.forced < 0 || this.forced === s))) continue;
+			const sx = s % 3 * SUBGRID_SIZE;
+			const sy = Math.floor(s / 3) * SUBGRID_SIZE;
+			ctx.fillStyle = this.turn === "red" ? "#ffbaba" : "#bdd2ff";
+			ctx.fillRect(sx, sy, SUBGRID_SIZE, SUBGRID_SIZE);
+		}
+		ctx.strokeStyle = "#c9c3b6";
+		ctx.lineWidth = 2;
+		for (let i = 1; i < 9; i++) {
+			ctx.beginPath();
+			ctx.moveTo(i * CELL_SIZE, 0);
+			ctx.lineTo(i * CELL_SIZE, BOARD_SIZE);
+			ctx.stroke();
+			ctx.beginPath();
+			ctx.moveTo(0, i * CELL_SIZE);
+			ctx.lineTo(BOARD_SIZE, i * CELL_SIZE);
+			ctx.stroke();
+		}
+		ctx.strokeStyle = "#3a3a3a";
+		ctx.lineWidth = 6;
+		for (let i = 1; i < 3; i++) {
+			ctx.beginPath();
+			ctx.moveTo(i * SUBGRID_SIZE, 0);
+			ctx.lineTo(i * SUBGRID_SIZE, BOARD_SIZE);
+			ctx.stroke();
+			ctx.beginPath();
+			ctx.moveTo(0, i * SUBGRID_SIZE);
+			ctx.lineTo(BOARD_SIZE, i * SUBGRID_SIZE);
+			ctx.stroke();
+		}
+		for (let i = 0; i < 81; i++) {
+			const cell = this.cells[i];
+			if (!cell.taken) continue;
+			const gx = i % 9;
+			const gy = Math.floor(i / 9);
+			const cx = gx * CELL_SIZE + CELL_SIZE / 2;
+			const cy = gy * CELL_SIZE + CELL_SIZE / 2;
+			this.drawMark(ctx, cx, cy, CELL_SIZE, cell.isRed);
+		}
+		for (let s = 0; s < 9; s++) {
+			const sx = s % 3 * SUBGRID_SIZE;
+			const sy = Math.floor(s / 3) * SUBGRID_SIZE;
+			if (this.subgridWinners[s].taken) {
+				ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+				ctx.fillRect(sx, sy, SUBGRID_SIZE, SUBGRID_SIZE);
+				this.drawMark(ctx, sx + SUBGRID_SIZE / 2, sy + SUBGRID_SIZE / 2, SUBGRID_SIZE, this.subgridWinners[s].isRed);
+			} else if (this.subgridFull[s]) {
+				ctx.fillStyle = "rgba(120, 120, 120, 0.35)";
+				ctx.fillRect(sx, sy, SUBGRID_SIZE, SUBGRID_SIZE);
+			}
+		}
+		const hovered = GMSuperTicTacToe.cellFromBoardCoords(data.mouseX, data.mouseY);
+		if (hovered !== null && !this.finished) {
+			const hgx = hovered % 9;
+			const hgy = Math.floor(hovered / 9);
+			ctx.strokeStyle = this.turn === "red" ? "#e63946" : "#3a86ff";
+			ctx.lineWidth = 3;
+			ctx.strokeRect(hgx * CELL_SIZE + 2, hgy * CELL_SIZE + 2, 96, 96);
+		}
+		ctx.restore();
+	}
+	onDisconnection(id) {
+		this.players[id].connected = false;
+	}
+	save() {
+		const { State } = protocols$2.get();
+		const object = {
+			cells: this.cells.map((c) => ({
+				taken: c.taken,
+				isRed: c.isRed
+			})),
+			subgridWinners: this.subgridWinners.map((w) => ({
+				taken: w.taken,
+				isRed: w.isRed
+			})),
+			subgridFull: this.subgridFull.slice(),
+			redTurn: this.turn === "red",
+			forced: this.forced,
+			finished: this.finished,
+			draw: this.winner === "draw",
+			redWon: this.winner === "red"
+		};
+		return State.encode(object).finish();
+	}
+	load(data) {
+		const { State } = protocols$2.get();
+		const obj = decodeFullMessage(State.decode(data));
+		this.cells = obj.cells.map((c) => ({
+			taken: c.taken,
+			isRed: c.isRed
+		}));
+		this.subgridWinners = obj.subgridWinners.map((w) => ({
+			taken: w.taken,
+			isRed: w.isRed
+		}));
+		this.subgridFull = [...obj.subgridFull];
+		this.turn = obj.redTurn ? "red" : "blue";
+		this.forced = obj.forced;
+		this.finished = obj.finished;
+		if (!obj.finished) this.winner = null;
+		else if (obj.draw) this.winner = "draw";
+		else this.winner = obj.redWon ? "red" : "blue";
+	}
+	getSize() {
+		return {
+			width: WIDTH$1,
+			height: HEIGHT$1
+		};
+	}
+	evalMouseCoords(x, y, playerIdx, _clientData) {
+		const clientData = _clientData;
+		clientData.mouseX = x;
+		clientData.mouseY = y;
+		return {
+			x,
+			y
+		};
+	}
+	getMobileDesc() {
+		return {
+			joysticks: {},
+			buttons: {}
+		};
+	}
+	createTutorial() {
+		return new TutorialData$1(this);
+	}
+	/**
+	* Builds the FinishGame payload once the match is over. Each team
+	* contains exactly one player (this is a strict 1v1 game mode), so
+	* `results` always holds two single-player teams and `playerEqualities`
+	* is always empty -- there can never be an intra-team tie with only one
+	* player per team.
+	*/
+	produceFinish() {
+		const redPlayerIdx = this.players.findIndex((p) => p.team === "red");
+		const bluePlayerIdx = this.players.findIndex((p) => p.team === "blue");
+		let results;
+		let teamEqualities = [];
+		if (this.winner === "red") results = [[redPlayerIdx], [bluePlayerIdx]];
+		else if (this.winner === "blue") results = [[bluePlayerIdx], [redPlayerIdx]];
+		else {
+			results = [[redPlayerIdx], [bluePlayerIdx]];
+			teamEqualities = [0];
+		}
+		return {
+			results,
+			teamEqualities,
+			playerEqualities: []
+		};
+	}
+};
+//#endregion
 //#region commons/gamemods/GMTest.ts
-var protocols = getProtocol("test");
+var protocols$1 = getProtocol("test", "multiplayer");
 var LOG_LEVEL = "info";
-var Player = class {
+var Player$1 = class {
 	x;
 	y;
 	team;
@@ -11327,12 +11883,12 @@ var Player = class {
 		this.move = obj.move;
 	}
 };
-var ClientData = class {};
-function generateClientDom() {
+var ClientData$2 = class {};
+function generateClientDom$2() {
 	return {
 		choosen: 0,
 		produce() {
-			const { StartData } = protocols.get();
+			const { StartData } = protocols$1.get();
 			return StartData.encode({ testNumber: this.choosen }).finish();
 		}
 	};
@@ -11343,15 +11899,15 @@ var Tutorial = class {
 	}
 };
 var GMTest = class GMTest extends GameMode {
-	static types = { Player };
+	static types = { Player: Player$1 };
 	players;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player(0, 0, "red"));
+		this.players = Array.from({ length: total }, () => new Player$1(0, 0, "red"));
 	}
-	static createServ(players, total) {
+	static async createServ(players, total) {
 		GMTest.getLogger("game-test", LOG_LEVEL).debug("Starting choices " + JSON.stringify(players.map((p) => {
-			const { StartData } = protocols.get();
+			const { StartData } = protocols$1.get();
 			return decodeFullMessage(StartData.decode(p.data)).testNumber;
 		})));
 		const game = new GMTest(total);
@@ -11376,11 +11932,12 @@ var GMTest = class GMTest extends GameMode {
 		}
 		return {
 			game,
-			data: new ClientData(),
-			html: null
+			data: new ClientData$2(),
+			html: null,
+			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom;
+	static generateClientDom = generateClientDom$2;
 	static TEXTURES = {};
 	init() {}
 	getBotIds(count) {
@@ -11409,11 +11966,12 @@ var GMTest = class GMTest extends GameMode {
 			logger.debug(`input ${input.move} ${playerIdx}`);
 		}
 	}
-	collectInputs(keyboard, mouse) {
+	collectInputs(keyboard, mouse, mobile, _data) {
 		const inputs = [];
 		if (keyboard.first("up")) inputs.push({ move: 300 });
 		if (keyboard.first("down")) inputs.push({ move: -300 });
 		if (keyboard.killed("up") || keyboard.killed("down")) inputs.push({ move: 1e-16 });
+		if (mobile) console.log(JSON.stringify(mobile.getDigits()), mobile.first("up"), mobile.press("up"), mobile.press("joy"), mobile.getJoystick("joy"));
 		return inputs;
 	}
 	draw(ctx, playerIdx, _data, imageLoader, dt) {
@@ -11426,11 +11984,11 @@ var GMTest = class GMTest extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols.get();
+		const { State } = protocols$1.get();
 		return State.encode(this).finish();
 	}
 	load(data) {
-		const { State } = protocols.get();
+		const { State } = protocols$1.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) this.players[idx].update(player);
 	}
@@ -11446,33 +12004,2553 @@ var GMTest = class GMTest extends GameMode {
 			y
 		};
 	}
+	getMobileDesc() {
+		return {
+			joysticks: { joy: {
+				x: 100,
+				xp: "left",
+				y: 120,
+				yp: "bottom",
+				size: 100,
+				color: "#00ff00"
+			} },
+			buttons: {
+				up: {
+					x: 50,
+					xp: "right",
+					y: 120,
+					yp: "bottom",
+					size: 50,
+					color: "#ff0000"
+				},
+				down: {
+					x: 50,
+					xp: "right",
+					y: 70,
+					yp: "bottom",
+					size: 50,
+					color: "#ff0000"
+				}
+			}
+		};
+	}
 	createTutorial() {
 		return new Tutorial();
 	}
 };
 //#endregion
+//#region commons/SoloGameMode.ts
+var SoloGameMode = class SoloGameMode {
+	static MAX_DT = .02;
+	quickEmulate(duration, clock) {
+		while (duration > SoloGameMode.MAX_DT) {
+			const f = this.run(SoloGameMode.MAX_DT, clock);
+			if (f) return f;
+			duration -= SoloGameMode.MAX_DT;
+			clock += SoloGameMode.MAX_DT;
+		}
+		return this.run(duration, clock);
+	}
+};
+//#endregion
+//#region commons/gamemods/GMTestSolo.ts
+function generateClientDom$1() {
+	return {
+		category: "default",
+		produce() {
+			return this.category;
+		}
+	};
+}
+var ClientData$1 = class {};
+var GMTestSolo = class GMTestSolo extends SoloGameMode {
+	static TEXTURES = {};
+	static CATEGORIES = ["default"];
+	static MIN_FIRST = true;
+	static generateClientDom = generateClientDom$1;
+	static create = () => new GMTestSolo();
+	player = 500;
+	move = 0;
+	init(category, rng, generateClientData) {
+		if (generateClientData) return new ClientData$1();
+	}
+	collectInputs(keyboard, mouse, mobile, data) {
+		const inputs = [];
+		if (keyboard.first("up")) inputs.push({ move: -300 });
+		if (keyboard.first("down")) inputs.push({ move: 300 });
+		if (keyboard.killed("up") || keyboard.killed("down")) inputs.push({ move: 1e-16 });
+		return inputs;
+	}
+	runInput(input) {
+		this.move = input.move;
+	}
+	run(dt, clock) {
+		this.player += this.move * dt;
+		if (this.player <= 0) return clock;
+		return null;
+	}
+	draw(ctx, data, imageLoader, dt) {
+		ctx.fillStyle = "red";
+		ctx.fillRect(0, this.player, 1600, 10);
+	}
+	getSize() {
+		return {
+			width: 1600,
+			height: 900
+		};
+	}
+	evalMouseCoords(x, y, playerIdx, clientData) {
+		return {
+			x,
+			y
+		};
+	}
+	getMobileDesc() {
+		return null;
+	}
+};
+//#endregion
+//#region commons/util/norm2.ts
+function norm2(dx, dy) {
+	return dx * dx + dy * dy;
+}
+//#endregion
+//#region commons/gamemods/GMTurrets.ts
+var protocols = getProtocol("turrets", "multiplayer");
+var GRAVITY = 1100;
+var WIDTH = 2400;
+var HEIGHT = 1350;
+var FULL_ROOM_SIZE = WIDTH * 2.5;
+var ROOM_SIZE = WIDTH * 1.5;
+var BRIDGE_SIZE = WIDTH * .3;
+var BULLET_DAMAGE = 15;
+var TURRET_RADIUS = WIDTH * .6;
+var TURRET_ACTIVATION = 2e3;
+var TURRET_COOLDOWN = 2;
+var TURRET_HP = 1200;
+var TURRET_START_COOLDOWN = 5;
+var TURRET_ITEM_DAMAGES = 500;
+var MINIMAP_X = WIDTH * .79;
+var MINIMAP_Y = HEIGHT * .01;
+var MINIMAP_RATIO = .2;
+var STAR_DURATION = 10;
+var ITEM_COUNT = 3;
+var TURRET_ITEM_COUNT = 2;
+var ITEMS_CYCLE = [
+	2,
+	5,
+	1,
+	3,
+	2,
+	0,
+	4,
+	5,
+	2,
+	1,
+	6,
+	7,
+	1,
+	0,
+	3,
+	4,
+	2,
+	1,
+	3,
+	0,
+	2,
+	0,
+	4,
+	2,
+	1,
+	5,
+	7,
+	2,
+	0,
+	4,
+	5,
+	2,
+	1,
+	3,
+	2,
+	0,
+	4,
+	2,
+	4,
+	1,
+	7,
+	3,
+	2,
+	0,
+	4,
+	2,
+	1,
+	5,
+	2,
+	0
+];
+var SPAWN_COLORS = [
+	[
+		"red",
+		"red",
+		"red",
+		"red",
+		"red"
+	],
+	[
+		"red",
+		null,
+		null,
+		null,
+		"red"
+	],
+	[
+		null,
+		null,
+		null,
+		null,
+		null
+	],
+	[
+		"blue",
+		null,
+		null,
+		null,
+		"blue"
+	],
+	[
+		"blue",
+		"blue",
+		"blue",
+		"blue",
+		"blue"
+	]
+];
+var Player = class Player {
+	x;
+	y;
+	static SPEED = 2e3;
+	static ACCELERATION = 12e3;
+	static MIN_DECELERATION = 1100;
+	static SOFT_DECELERATION = 12e3;
+	static QUICK_DECELERATION = 4e4;
+	static COOLDOWN = 2;
+	static RADIUS = 60;
+	static PUSH_DOWN = 1e3;
+	static THROW = 1200;
+	static BOUNCE_X = 1e3;
+	static BOUNCE_Y = 100;
+	static MAX_HP = 600;
+	static HP_INC = 100;
+	static HEAL_COOLDOWN = 3;
+	static ATTACK_FULL = 5;
+	static ATTACK_RELOAD = 3;
+	static ATTACK_SLOW_RELOAD = 1.8;
+	static ATTACK_COOLDOWN = 2;
+	static ATTACK_DELAY = .5;
+	static GRAB_GRAVITY = 900;
+	spawnX = null;
+	spawnY = null;
+	connected = true;
+	alive = -1;
+	vx = 0;
+	vy = 0;
+	dirX = 0;
+	dirY = 0;
+	hp = Player.MAX_HP;
+	maxHp = Player.MAX_HP;
+	healCooldown = Player.HEAL_COOLDOWN;
+	target = null;
+	team = "red";
+	items = Array(ITEM_COUNT).fill(-1);
+	selectedItem = -1;
+	starDuration = -1;
+	kills = 0;
+	attackMunitions = Player.ATTACK_FULL;
+	attackCooldown = 0;
+	attackTimer = Player.ATTACK_DELAY;
+	attackFullyReloading = false;
+	invincible = false;
+	speedMultiplier = 1;
+	constructor(x, y) {
+		this.x = x;
+		this.y = y;
+	}
+	initSpawn(x, y, team) {
+		this.spawnX = x;
+		this.spawnY = y;
+		this.x = x;
+		this.y = y;
+		this.team = team;
+	}
+	isAlive() {
+		return this.alive < 0;
+	}
+	/**
+	* Wipes every per-frame effect. Called once at the start of the frame,
+	* before entities run and possibly re-apply their effects.
+	*/
+	resetEffects() {
+		this.invincible = false;
+		this.speedMultiplier = 1;
+		this.starDuration = -1;
+	}
+	static applyMovement(dirX, dirY, vx, vy, dt, speedMultiplier) {
+		const dirLength2 = dirX * dirX + dirY * dirY;
+		if (dirLength2 >= 1) {
+			const inv = 1 / Math.sqrt(dirLength2);
+			dirX *= inv;
+			dirY *= inv;
+		}
+		if (dirX === 0 && dirY === 0) {
+			const speed = Math.hypot(vx, vy);
+			if (speed === 0) return [0, 0];
+			const deceleration = Player.SOFT_DECELERATION * dt;
+			if (speed <= deceleration) return [0, 0];
+			const factor = (speed - deceleration) / speed;
+			return [vx * factor, vy * factor];
+		}
+		const speed = Math.hypot(vx, vy);
+		const forwardSpeed = vx * dirX + vy * dirY;
+		if (forwardSpeed < 0) {
+			const deceleration = Player.QUICK_DECELERATION * dt;
+			if (speed <= deceleration) return [0, 0];
+			const factor = (speed - deceleration) / speed;
+			return [vx * factor, vy * factor];
+		}
+		const dirLength = Math.hypot(dirX, dirY);
+		const targetSpeed = Player.SPEED * speedMultiplier * dirLength;
+		if (forwardSpeed < targetSpeed) {
+			const acceleration = Player.ACCELERATION * dt;
+			const newSpeed = Math.min(forwardSpeed + acceleration, targetSpeed);
+			return [dirX / dirLength * newSpeed, dirY / dirLength * newSpeed];
+		}
+		if (speed > targetSpeed) {
+			const deceleration = Player.MIN_DECELERATION * dt;
+			const newSpeed = Math.max(speed - deceleration, targetSpeed);
+			return [vx / speed * newSpeed, vy / speed * newSpeed];
+		}
+		return [vx, vy];
+	}
+	move(dt) {
+		if (this.alive >= 0) {
+			this.alive -= dt;
+			if (this.alive >= 0) return;
+			if (this.spawnX !== null) this.x = this.spawnX;
+			if (this.spawnY !== null) this.y = this.spawnY;
+			this.hp = this.maxHp;
+			this.attackMunitions = Player.ATTACK_FULL;
+			this.attackFullyReloading = false;
+			this.attackCooldown = 0;
+			this.attackTimer = Player.ATTACK_DELAY;
+		}
+		[this.vx, this.vy] = Player.applyMovement(this.dirX, this.dirY, this.vx, this.vy, dt, this.speedMultiplier);
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+		if (this.healCooldown > 0) this.healCooldown -= dt;
+		if (this.healCooldown <= 0) this.hp = Math.min(this.hp + Player.HP_INC * dt, Player.MAX_HP);
+		this.avoidOOB();
+		if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+	}
+	avoidOutOfFloor(floors) {
+		if (!floors || floors.length === 0) return;
+		let isInsideAnyFloor = false;
+		for (const f of floors) if (this.x >= f.x0 && this.x <= f.x1 && this.y >= f.y0 && this.y <= f.y1) {
+			isInsideAnyFloor = true;
+			break;
+		}
+		if (isInsideAnyFloor) return;
+		let closestX = this.x;
+		let closestY = this.y;
+		let minDistanceSq = Infinity;
+		for (const f of floors) {
+			const clampedX = Math.max(f.x0, Math.min(this.x, f.x1));
+			const clampedY = Math.max(f.y0, Math.min(this.y, f.y1));
+			const dx = this.x - clampedX;
+			const dy = this.y - clampedY;
+			const distSq = dx * dx + dy * dy;
+			if (distSq < minDistanceSq) {
+				minDistanceSq = distSq;
+				closestX = clampedX;
+				closestY = clampedY;
+			}
+		}
+		this.x = closestX;
+		this.y = closestY;
+	}
+	load(obj) {
+		this.x = obj.x;
+		this.y = obj.y;
+		this.vx = obj.vx;
+		this.vy = obj.vy;
+		this.dirX = obj.dirX;
+		this.dirY = obj.dirY;
+		this.alive = obj.alive;
+		this.hp = obj.hp;
+		this.maxHp = obj.maxHp;
+		this.healCooldown = obj.healCooldown;
+		this.attackMunitions = obj.attackMunitions;
+		this.attackFullyReloading = obj.attackFullyReloading;
+		this.attackCooldown = obj.attackCooldown;
+		this.attackTimer = obj.attackTimer;
+		this.items = obj.items && obj.items.length === ITEM_COUNT ? [...obj.items] : Array(ITEM_COUNT).fill(-1);
+		this.selectedItem = obj.selectedItem;
+		this.invincible = obj.invincible;
+		this.speedMultiplier = obj.speedMultiplier;
+		this.starDuration = obj.starDuration;
+		this.kills = obj.kills;
+	}
+	avoidOOB() {
+		const LIMIT = FULL_ROOM_SIZE * 3;
+		const r = Player.RADIUS;
+		this.x = Math.max(-18e3 + r, Math.min(LIMIT - r, this.x));
+		this.y = Math.max(-18e3 + r, Math.min(LIMIT - r, this.y));
+	}
+	die() {
+		this.vx = 0;
+		this.vy = 0;
+		this.alive = Player.COOLDOWN;
+		this.hp = 0;
+		this.healCooldown = Player.HEAL_COOLDOWN;
+	}
+	attackLogic(dt, idx, game) {
+		if (this.attackFullyReloading) {
+			this.processReloading(dt);
+			return;
+		}
+		if (this.target !== null && this.isAlive()) {
+			if (this.selectedItem !== -1) this.executeItemAttack(game);
+			else this.executeStandardAttack(dt, idx, game);
+		} else this.processAttackCooldowns(dt);
+	}
+	/**
+	* Executes the logic of a selected item instead of firing a bullet.
+	*/
+	executeItemAttack(game) {
+		const itemId = this.items[this.selectedItem];
+		if (itemId === -1) {
+			this.selectedItem = -1;
+			return;
+		}
+		const itemDef = ITEMS[itemId];
+		if (!itemDef) {
+			this.selectedItem = -1;
+			return;
+		}
+		const [dx, dy] = this.resolveTargetVector(game);
+		const nextItemId = itemDef.run(game, this, dx, dy);
+		if (nextItemId === null) this.items[this.selectedItem] = -1;
+		else {
+			this.items[this.selectedItem] = nextItemId;
+			this.target = null;
+		}
+		this.attackCooldown = Player.ATTACK_COOLDOWN;
+	}
+	/**
+	* Converts the current targeting system into a raw direction vector (dx, dy).
+	*/
+	resolveTargetVector(game) {
+		if (this.target?.type === "fixed") return [this.target.x - this.x, this.target.y - this.y];
+		if (this.target?.type === "delta") return [this.target.dx, this.target.dy];
+		if (this.target?.type === "auto") {
+			let closestDist = Infinity;
+			let closestEnemy = null;
+			for (const other of game.players) if (other.team !== this.team && other.isAlive()) {
+				const dist = Math.hypot(other.x - this.x, other.y - this.y);
+				if (dist < closestDist) {
+					closestDist = dist;
+					closestEnemy = other;
+				}
+			}
+			if (closestEnemy) return [closestEnemy.x - this.x, closestEnemy.y - this.y];
+			return this.team === "red" ? [0, 1] : [0, -1];
+		}
+		return [0, 1];
+	}
+	/**
+	* Extracts the old bullet firing logic for readability.
+	*/
+	executeStandardAttack(dt, idx, game) {
+		if (this.attackMunitions <= 0) return;
+		this.attackMunitions = Math.max(0, this.attackMunitions - dt);
+		this.attackCooldown = Player.ATTACK_COOLDOWN;
+		this.attackTimer += dt;
+		if (this.attackMunitions <= 0) {
+			this.attackFullyReloading = true;
+			this.attackTimer = 0;
+			return;
+		}
+		if (this.attackTimer >= Player.ATTACK_DELAY) {
+			this.attackTimer -= Player.ATTACK_DELAY;
+			const [dx, dy] = this.resolveTargetVector(game);
+			const baseAngle = Math.atan2(dy, dx);
+			for (const pat of Bullet.PATTERNS) {
+				const startAngle = baseAngle - pat.angle / 2;
+				const step = pat.count > 1 ? pat.angle / (pat.count - 1) : 0;
+				for (let i = 0; i < pat.count; i++) {
+					const a = startAngle + i * step;
+					const bdx = Math.cos(a);
+					const bdy = Math.sin(a);
+					game.bullets.push(Bullet.create(this.x, this.y, bdx, bdy, this.vx, this.vy, this.team, pat.dist, pat.initSpeed, idx));
+				}
+			}
+		}
+	}
+	processReloading(dt) {
+		this.attackMunitions = Math.min(Player.ATTACK_FULL, this.attackMunitions + dt * Player.ATTACK_SLOW_RELOAD);
+		if (this.attackMunitions >= Player.ATTACK_FULL) {
+			this.attackMunitions = Player.ATTACK_FULL;
+			this.attackFullyReloading = false;
+			this.attackTimer = Player.ATTACK_DELAY;
+		}
+	}
+	processAttackCooldowns(dt) {
+		this.attackTimer = Math.min(this.attackTimer + dt, Player.ATTACK_DELAY);
+		if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+		if (this.attackCooldown <= 0) this.attackMunitions = Math.min(Player.ATTACK_FULL, this.attackMunitions + dt * Player.ATTACK_RELOAD);
+	}
+	hit(damages, attacker) {
+		if (this.invincible || this.hp <= 0) return;
+		this.healCooldown = Player.HEAL_COOLDOWN;
+		this.hp -= damages;
+		if (this.hp <= 0) {
+			this.die();
+			if (attacker) attacker.kills++;
+		}
+	}
+	draw(ctx, imageLoader, currentPlayer, lastAngle) {
+		if (!this.isAlive()) return lastAngle;
+		const r = 32 / 13;
+		let a;
+		if (this.dirX !== 0 || this.dirY !== 0) a = Math.atan2(this.dirY, this.dirX);
+		else if (this.vx !== 0 || this.vy !== 0) a = Math.atan2(this.vy, this.vx);
+		else a = lastAngle;
+		ctx.save();
+		ctx.translate(this.x, this.y);
+		ctx.rotate(a);
+		ctx.drawImage(imageLoader.get("player-" + this.team), -Player.RADIUS * r / 2, -Player.RADIUS * r / 2, Player.RADIUS * r, Player.RADIUS * r);
+		ctx.restore();
+		const BAR_W = 80;
+		const BAR_H = 10;
+		const hpRatio = Math.max(0, this.hp / this.maxHp);
+		ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+		ctx.fillRect(this.x - BAR_W / 2, this.y - Player.RADIUS - 15, BAR_W, BAR_H);
+		ctx.fillStyle = "#22cc22";
+		ctx.fillRect(this.x - BAR_W / 2, this.y - Player.RADIUS - 15, BAR_W * hpRatio, BAR_H);
+		if (currentPlayer) {
+			const ratio = this.attackMunitions / Player.ATTACK_FULL;
+			const y = this.y - Player.RADIUS - 30;
+			ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+			ctx.fillRect(this.x - BAR_W / 2, y, BAR_W, BAR_H);
+			if (this.attackFullyReloading) {
+				ctx.fillStyle = "gray";
+				ctx.fillRect(this.x - BAR_W / 2, y, BAR_W, BAR_H);
+			} else {
+				ctx.fillStyle = this.attackCooldown > 0 ? "orange" : "white";
+				ctx.fillRect(this.x - BAR_W / 2, y, BAR_W * ratio, BAR_H);
+			}
+		}
+		if (this.starDuration > 0) {
+			const ratio = Math.min(1, this.starDuration / 6);
+			ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+			ctx.fillRect(this.x - BAR_W / 2, this.y - Player.RADIUS - 40, BAR_W, BAR_H);
+			ctx.fillStyle = "yellow";
+			ctx.fillRect(this.x - BAR_W / 2, this.y - Player.RADIUS - 30, BAR_W * ratio, BAR_H);
+		}
+		return a;
+	}
+	/**
+	* Handles picking up an item on the map or selecting a slot in inventory.
+	*/
+	interactWithSlot(slot, game) {
+		if (slot === this.selectedItem) {
+			this.selectedItem = -1;
+			return;
+		}
+		const hoverItemIdx = game.itemsInMap.findIndex((item) => {
+			return Math.hypot(item.x - this.x, item.y - this.y) <= ItemInMap.RADIUS + Player.RADIUS;
+		});
+		if (hoverItemIdx !== -1) this.swapOrPickupItem(slot, hoverItemIdx, game);
+		else this.selectedItem = slot;
+	}
+	/**
+	* Swaps the current item in the slot with the one on the ground, or picks it up.
+	*/
+	swapOrPickupItem(slot, mapItemIdx, game) {
+		const mapItem = game.itemsInMap[mapItemIdx];
+		const currentSlotItemId = this.items[slot];
+		this.items[slot] = mapItem.id;
+		if (currentSlotItemId !== -1) mapItem.id = currentSlotItemId;
+		else game.itemsInMap.splice(mapItemIdx, 1);
+	}
+	getTeam() {
+		return this.team;
+	}
+	getRadius() {
+		return Player.RADIUS;
+	}
+};
+var Turret = class Turret {
+	x;
+	y;
+	team;
+	activation = 0;
+	hp = 0;
+	itemDamage = 0;
+	itemLoadingTimer = 0;
+	fullLoadingTimer = 0;
+	startCooldown = 0;
+	attackCooldown = 0;
+	itemsToSpawn = 0;
+	spawnIdx = 0;
+	prevCapture = false;
+	attackSpeedMultiplier = 1;
+	static SIZE = 100;
+	static constPerUnit(u) {
+		const m = .115 * u + .137;
+		return 1.2 * m * m;
+	}
+	constructor(x, y, team = null) {
+		this.x = x;
+		this.y = y;
+		this.team = team;
+	}
+	/**
+	* Wipes every per-frame effect. Called once at the start of the frame,
+	* before entities run and possibly re-apply their effects.
+	*/
+	resetEffects() {
+		this.attackSpeedMultiplier = 1;
+	}
+	/**
+	* Applies (or refreshes, for this frame) a fast-attack buff.
+	* Called every frame by an attached EBooster while its buff lasts.
+	*/
+	applyFastAttackEffect(adder) {
+		this.attackSpeedMultiplier += adder;
+	}
+	setItemLoading(game) {
+		const cost = Turret.constPerUnit(game.turrets.filter((i) => i.team === this.team).length);
+		this.itemLoadingTimer = cost;
+		this.fullLoadingTimer = cost;
+	}
+	/**
+	* Handles damage dealt to the turret by bullets.
+	*/
+	hit(damage, attackerTeam) {
+		if (this.team === null) {
+			if (attackerTeam === "red") this.activation += damage;
+			else this.activation -= damage;
+			if (this.activation >= TURRET_ACTIVATION) this.capture("red");
+			else if (this.activation <= -2e3) this.capture("blue");
+			return;
+		}
+		if (this.team === attackerTeam) {
+			if (this.hp < TURRET_HP) this.hp = Math.min(TURRET_HP, this.hp + damage);
+			else {
+				this.itemDamage += damage;
+				if (this.itemDamage >= TURRET_ITEM_DAMAGES) {
+					this.fullLoadingTimer = -1;
+					this.itemDamage = 0;
+					this.hp -= damage;
+				}
+			}
+		} else {
+			this.hp -= damage;
+			this.itemDamage = 0;
+			if (this.hp <= 0) this.capture(attackerTeam);
+		}
+	}
+	/**
+	* Private helper to reset state upon a team capture.
+	*/
+	capture(newTeam) {
+		this.prevCapture = this.team ?? true;
+		this.team = newTeam;
+		this.hp = TURRET_HP;
+		this.activation = 0;
+		this.itemDamage = 0;
+		this.itemLoadingTimer = 0;
+		this.startCooldown = TURRET_START_COOLDOWN;
+		this.attackCooldown = 0;
+		this.itemsToSpawn = 0;
+		this.spawnIdx = newTeam === "red" ? 2 : 6;
+	}
+	/**
+	* Runs every frame to handle cooldowns and bullet spawning.
+	*/
+	frame(dt, game) {
+		if (this.prevCapture === true) {
+			if (this.team === "red") game.redScore++;
+			else game.blueScore++;
+		} else if (this.prevCapture === "red") {
+			game.redScore--;
+			game.blueScore++;
+		} else if (this.prevCapture === "blue") {
+			game.redScore++;
+			game.blueScore--;
+		}
+		this.prevCapture = false;
+		this.spawnPendingItems(game);
+		if (this.fullLoadingTimer < 0) this.setItemLoading(game);
+		if (this.itemLoadingTimer > 0) {
+			this.itemLoadingTimer -= dt;
+			if (this.itemLoadingTimer <= 0) {
+				this.itemDamage = 0;
+				this.itemsToSpawn += TURRET_ITEM_COUNT;
+			}
+			return;
+		}
+		if (this.team === null) return;
+		if (this.startCooldown > 0) {
+			this.startCooldown -= dt;
+			return;
+		}
+		this.attackCooldown -= dt * this.attackSpeedMultiplier;
+		if (this.attackCooldown <= 0) {
+			let notFound = true;
+			for (const [entity, kind] of game.damageableEntities()) {
+				if (kind === "turret" || entity.getTeam() === this.team) continue;
+				if (entity.x < this.x - ROOM_SIZE / 2 || entity.x > this.x + ROOM_SIZE / 2 || entity.y < this.y - ROOM_SIZE / 2 || entity.y > this.y + ROOM_SIZE / 2) continue;
+				notFound = false;
+			}
+			if (notFound) return;
+			this.attackCooldown = TURRET_COOLDOWN;
+			const BULLETS_COUNT = 250;
+			const BULLET_SPEED = 5e3;
+			for (let i = 0; i < BULLETS_COUNT; i++) {
+				const angle = i * (Math.PI * 2 / BULLETS_COUNT);
+				const vx = Math.cos(angle) * BULLET_SPEED;
+				const vy = Math.sin(angle) * BULLET_SPEED;
+				game.bullets.push(Bullet.create(this.x, this.y, vx, vy, 0, 0, this.team, TURRET_RADIUS, BULLET_SPEED, -1));
+			}
+		}
+	}
+	/**
+	* Spawns items incrementally at specific angles around the turret's border.
+	*/
+	spawnPendingItems(game) {
+		while (this.itemsToSpawn > 0) {
+			const angle = this.spawnIdx * (Math.PI / 4);
+			const itemX = this.x + Math.cos(angle) * TURRET_RADIUS;
+			const itemY = this.y + Math.sin(angle) * TURRET_RADIUS;
+			const randomItemId = ITEMS_CYCLE[game.makeCycleStep()];
+			game.itemsInMap.push(new ItemInMap(itemX, itemY, randomItemId));
+			this.spawnIdx += 3;
+			this.itemsToSpawn--;
+		}
+	}
+	/**
+	* Draw range circle of the turret.
+	*/
+	drawBackground(ctx) {
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, TURRET_RADIUS, 0, Math.PI * 2);
+		if (this.team === "red") {
+			ctx.fillStyle = "rgba(255, 0, 0, 0.15)";
+			ctx.strokeStyle = "rgba(255, 0, 0, 0.5)";
+		} else if (this.team === "blue") {
+			ctx.fillStyle = "rgba(0, 0, 255, 0.15)";
+			ctx.strokeStyle = "rgba(0, 0, 255, 0.5)";
+		} else {
+			ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+			ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+		}
+		ctx.fill();
+		ctx.lineWidth = 8;
+		ctx.stroke();
+	}
+	/**
+	* Draws the turret, and all related status bars.
+	*/
+	draw(ctx, imageLoader) {
+		let colorId;
+		if (this.team === "blue") colorId = 1;
+		else if (this.team === "red") colorId = 0;
+		else colorId = void 0;
+		ctx.drawImage(imageLoader.get("turret", colorId), this.x - Turret.SIZE / 2, this.y - Turret.SIZE / 2, Turret.SIZE, Turret.SIZE);
+		const BAR_W = 80;
+		const BAR_H = 10;
+		let barY = this.y - Turret.SIZE / 2 - 20;
+		if (this.team === null) {
+			ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+			ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
+			const center = this.x;
+			const ratio = Math.abs(this.activation) / TURRET_ACTIVATION;
+			const fillW = BAR_W / 2 * ratio;
+			if (this.activation > 0) {
+				ctx.fillStyle = "red";
+				ctx.fillRect(center, barY, fillW, BAR_H);
+			} else if (this.activation < 0) {
+				ctx.fillStyle = "blue";
+				ctx.fillRect(center - fillW, barY, fillW, BAR_H);
+			}
+		} else {
+			ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+			ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
+			ctx.fillStyle = this.team;
+			const hpRatio = Math.max(0, this.hp / TURRET_HP);
+			ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W * hpRatio, BAR_H);
+			barY -= 14;
+			if (this.itemLoadingTimer > 0 && this.fullLoadingTimer > 0) {
+				ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
+				ctx.fillStyle = "gray";
+				const pauseRatio = this.itemLoadingTimer / this.fullLoadingTimer;
+				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W * pauseRatio, BAR_H);
+			} else if (this.hp === TURRET_HP && this.itemDamage > 0) {
+				ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W, BAR_H);
+				ctx.fillStyle = "#22cc22";
+				const itemRatio = this.itemDamage / TURRET_ITEM_DAMAGES;
+				ctx.fillRect(this.x - BAR_W / 2, barY, BAR_W * itemRatio, BAR_H);
+			}
+		}
+	}
+	load(obj) {
+		if (!obj.taken) this.team = null;
+		else this.team = obj.redTeam ? "red" : "blue";
+		this.activation = obj.activation;
+		this.hp = obj.hp;
+		this.itemDamage = obj.itemDamage;
+		this.itemLoadingTimer = obj.itemLoadingTimer;
+		this.startCooldown = obj.startCooldown;
+		this.attackCooldown = obj.attackCooldown;
+		this.itemsToSpawn = obj.itemsToSpawn;
+		this.spawnIdx = obj.spawnIdx;
+		this.fullLoadingTimer = obj.fullLoadingTimer;
+	}
+	getTeam() {
+		return this.team;
+	}
+	getRadius() {
+		return Turret.SIZE;
+	}
+};
+var Bullet = class Bullet {
+	x;
+	y;
+	vx;
+	vy;
+	a;
+	team;
+	owner;
+	static RADIUS = 10;
+	static PATTERNS = [
+		{
+			count: 5,
+			angle: Math.PI / 64,
+			dist: 1600,
+			initSpeed: 2e3
+		},
+		{
+			count: 5,
+			angle: Math.PI / 8,
+			dist: 600,
+			initSpeed: 1e3
+		},
+		{
+			count: 5,
+			angle: Math.PI / 4,
+			dist: 200,
+			initSpeed: 1e3
+		}
+	];
+	constructor(x, y, vx, vy, a, team, owner) {
+		this.x = x;
+		this.y = y;
+		this.vx = vx;
+		this.vy = vy;
+		this.a = a;
+		this.team = team;
+		this.owner = owner;
+	}
+	static create(x, y, vx0, vy0, sx, sy, team, dist, initSpeed, owner) {
+		const length = Math.hypot(vx0, vy0);
+		const dx = length > 0 ? vx0 / length : 0;
+		const dy = length > 0 ? vy0 / length : 0;
+		const vx = dx * initSpeed + sx;
+		const vy = dy * initSpeed + sy;
+		initSpeed = Math.hypot(vx, vy);
+		const a = initSpeed * initSpeed / (2 * dist);
+		return new Bullet(x, y, vx, vy, a, team, owner);
+	}
+	move(dt) {
+		const norm = Math.hypot(this.vx, this.vy);
+		const nextNorm = norm - this.a * dt;
+		if (nextNorm <= 0) return true;
+		const r = nextNorm / norm;
+		this.vx = this.vx * r;
+		this.vy = this.vy * r;
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+		return Math.abs(this.x) > FULL_ROOM_SIZE * 3 || Math.abs(this.y) > FULL_ROOM_SIZE * 3;
+	}
+	attack(game) {
+		if (game.isBlockedByWall(this.x, this.y)) return true;
+		const attacker = this.owner < 0 ? null : game.players[this.owner];
+		for (const [target, kind] of game.damageableEntities()) {
+			const team = target.getTeam();
+			if (kind === "turret") {
+				if (this.owner < 0) continue;
+			} else if (team === this.team) continue;
+			const radius = Bullet.RADIUS + target.getRadius();
+			const dx = target.x - this.x;
+			const dy = target.y - this.y;
+			if (dx * dx + dy * dy > radius * radius) continue;
+			if (kind !== "turret" && game.isInsideNoDamageZone(this.x, this.y, target.getRadius(), target.getTeam())) continue;
+			if (kind === "player") target.hit(BULLET_DAMAGE, attacker);
+			else target.hit(BULLET_DAMAGE, this.team);
+			return true;
+		}
+		return false;
+	}
+};
+var AbstractEntity = class {
+	x;
+	y;
+	constructor(x, y) {
+		this.x = x;
+		this.y = y;
+	}
+	drawInFront() {
+		return false;
+	}
+};
+/**
+* A circle that travels in a straight line until it leaves the map.
+* While a point sits inside it, NO player of ANY team can take damage there.
+*/
+var ELifeSlider = class ELifeSlider extends AbstractEntity {
+	vx;
+	vy;
+	radius;
+	static SPEED = 125;
+	static RADIUS = 500;
+	constructor(x, y, vx, vy, radius) {
+		super(x, y);
+		this.vx = vx;
+		this.vy = vy;
+		this.radius = radius;
+	}
+	/**
+	* In-game factory: turns the throw direction (dirX, dirY) into a
+	* velocity and returns a fresh slider. Used by ITEMS' `run()`.
+	*/
+	static create(x, y, dirX, dirY) {
+		const len = Math.hypot(dirX, dirY) || 1;
+		return new ELifeSlider(x, y, dirX / len * ELifeSlider.SPEED, dirY / len * ELifeSlider.SPEED, ELifeSlider.RADIUS);
+	}
+	getType() {
+		return "lifeSlider";
+	}
+	save() {
+		return {
+			vx: this.vx,
+			vy: this.vy,
+			radius: this.radius
+		};
+	}
+	protects(px, py, radius, _team) {
+		const sr = this.radius + radius;
+		return norm2(px - this.x, py - this.y) <= sr * sr;
+	}
+	draw(ctx) {
+		ctx.save();
+		ctx.fillStyle = "rgba(0, 255, 0, 0.15)";
+		ctx.strokeStyle = "rgba(0, 255, 0, 0.7)";
+		ctx.lineWidth = 4;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		ctx.restore();
+	}
+	run(dt, game) {
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+		return !game.isOOB(this.x, this.y, this.radius);
+	}
+	drawInFront() {
+		return true;
+	}
+	getTeam() {
+		return null;
+	}
+};
+/**
+* Like ELifeSlider, but only protects its own team, and travels faster.
+*/
+var EShieldSlider = class EShieldSlider extends AbstractEntity {
+	vx;
+	vy;
+	radius;
+	team;
+	static SPEED = 200;
+	static RADIUS = 200;
+	constructor(x, y, vx, vy, radius, team) {
+		super(x, y);
+		this.vx = vx;
+		this.vy = vy;
+		this.radius = radius;
+		this.team = team;
+	}
+	/**
+	* In-game factory: turns the throw direction (dirX, dirY) into a
+	* velocity and returns a fresh shield slider for `team`.
+	*/
+	static create(x, y, dirX, dirY, team) {
+		const len = Math.hypot(dirX, dirY) || 1;
+		return new EShieldSlider(x, y, dirX / len * EShieldSlider.SPEED, dirY / len * EShieldSlider.SPEED, EShieldSlider.RADIUS, team);
+	}
+	getType() {
+		return "shieldSlider";
+	}
+	save() {
+		return {
+			vx: this.vx,
+			vy: this.vy,
+			radius: this.radius,
+			redTeam: this.team === "red"
+		};
+	}
+	protects(px, py, radius, team) {
+		const sr = this.radius + radius;
+		return team === this.team && norm2(px - this.x, py - this.y) <= sr * sr;
+	}
+	draw(ctx) {
+		ctx.save();
+		ctx.fillStyle = this.team === "red" ? "rgba(255, 0, 0, 0.15)" : "rgba(0, 0, 255, 0.15)";
+		ctx.strokeStyle = this.team === "red" ? "rgba(255, 80, 80, 0.8)" : "rgba(80, 80, 255, 0.8)";
+		ctx.lineWidth = 4;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		ctx.restore();
+	}
+	run(dt, game) {
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+		return !game.isOOB(this.x, this.y, this.radius);
+	}
+	drawInFront() {
+		return true;
+	}
+	getTeam() {
+		return this.team;
+	}
+};
+/**
+* A square that blocks bullets (but not players) for 10 * Wall.DURATION.
+*/
+var EWall = class EWall extends AbstractEntity {
+	timer;
+	static DURATION = 3;
+	static TOTAL_DURATION = 10 * EWall.DURATION;
+	static SIZE = 180;
+	constructor(x, y, timer = EWall.TOTAL_DURATION) {
+		super(x, y);
+		this.timer = timer;
+	}
+	/** In-game factory: drops a fresh wall at (x, y), fully charged. */
+	static create(x, y) {
+		return new EWall(x, y);
+	}
+	getType() {
+		return "wall";
+	}
+	save() {
+		return { timer: this.timer };
+	}
+	blocksBullet(bx, by) {
+		const half = EWall.SIZE / 2;
+		return Math.abs(bx - this.x) <= half && Math.abs(by - this.y) <= half;
+	}
+	draw(ctx) {
+		const half = EWall.SIZE / 2;
+		ctx.save();
+		ctx.fillStyle = "rgba(150, 150, 150, 0.6)";
+		ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+		ctx.lineWidth = 4;
+		ctx.fillRect(this.x - half, this.y - half, EWall.SIZE, EWall.SIZE);
+		ctx.strokeRect(this.x - half, this.y - half, EWall.SIZE, EWall.SIZE);
+		ctx.fillStyle = "#ffffff";
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.font = "bold 32px sans-serif";
+		ctx.fillText((this.timer / EWall.DURATION).toFixed(1), this.x, this.y);
+		ctx.restore();
+	}
+	run(dt) {
+		this.timer -= dt;
+		return this.timer > 0;
+	}
+	drawInFront() {
+		return true;
+	}
+	getTeam() {
+		return null;
+	}
+};
+var EBallon = class EBallon extends AbstractEntity {
+	team;
+	radius;
+	growthSpeed;
+	exploded;
+	static GROWTH_ACCELERATION = 60;
+	static PADDING = 120;
+	static DAMAGE = 150;
+	constructor(x, y, team, radius = 0, growthSpeed = 0, exploded = false) {
+		super(x, y);
+		this.team = team;
+		this.radius = radius;
+		this.growthSpeed = growthSpeed;
+		this.exploded = exploded;
+	}
+	static create(x, y, team) {
+		return new EBallon(x, y, team);
+	}
+	getType() {
+		return "ballon";
+	}
+	save() {
+		return {
+			radius: this.radius,
+			redTeam: this.team === "red",
+			exploded: this.exploded,
+			growthSpeed: this.growthSpeed
+		};
+	}
+	detectsEnemy(game) {
+		const playerRange = this.radius + Player.RADIUS;
+		const playerRange2 = playerRange * playerRange;
+		for (const p of game.players) if (p.isAlive() && p.team !== this.team && norm2(p.x - this.x, p.y - this.y) <= playerRange2) return true;
+		const turretRange = this.radius + Turret.SIZE;
+		const turretRange2 = turretRange * turretRange;
+		for (const t of game.turrets) if (norm2(t.x - this.x, t.y - this.y) <= turretRange2) return true;
+		return false;
+	}
+	draw(ctx) {
+		ctx.save();
+		ctx.fillStyle = this.team === "red" ? "rgba(255, 60, 60, 0.5)" : "rgba(60, 60, 255, 0.5)";
+		ctx.strokeStyle = this.team === "red" ? "#ff3333" : "#3333ff";
+		ctx.lineWidth = 3;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		ctx.restore();
+	}
+	run(dt, game) {
+		if (this.exploded) return false;
+		this.growthSpeed += EBallon.GROWTH_ACCELERATION * dt;
+		this.radius += this.growthSpeed * dt;
+		if (this.detectsEnemy(game)) {
+			game.damageAllInRadius(this.x, this.y, this.radius + EBallon.PADDING, this.team, EBallon.DAMAGE, { spareTurrets: true });
+			this.exploded = true;
+		}
+		return true;
+	}
+	getTeam() {
+		return this.team;
+	}
+};
+/**
+* A high-HP troop that walks toward the nearest enemy turret and dies on
+* contact, dealing damage to it.
+*/
+var ETank = class ETank extends AbstractEntity {
+	team;
+	hp;
+	static MAX_HP = 400;
+	static SPEED = 250;
+	static RADIUS = 50;
+	static TURRET_DAMAGE = 25;
+	constructor(x, y, team, hp = ETank.MAX_HP) {
+		super(x, y);
+		this.team = team;
+		this.hp = hp;
+	}
+	/** In-game factory: spawns a fresh, full-HP tank for `team`. */
+	static create(x, y, team) {
+		return new ETank(x, y, team);
+	}
+	getType() {
+		return "tank";
+	}
+	save() {
+		return {
+			hp: this.hp,
+			redTeam: this.team === "red"
+		};
+	}
+	hit(amount) {
+		this.hp -= amount;
+	}
+	draw(ctx) {
+		const BAR_W = 80;
+		const BAR_H = 10;
+		ctx.save();
+		ctx.fillStyle = this.team;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, ETank.RADIUS, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.strokeStyle = "#000000";
+		ctx.lineWidth = 10;
+		ctx.stroke();
+		ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+		ctx.fillRect(this.x - BAR_W / 2, this.y - ETank.RADIUS - 15, BAR_W, BAR_H);
+		ctx.fillStyle = "#22cc22";
+		ctx.fillRect(this.x - BAR_W / 2, this.y - ETank.RADIUS - 15, BAR_W * (this.hp / ETank.MAX_HP), BAR_H);
+		ctx.restore();
+	}
+	run(dt, game) {
+		if (this.hp <= 0) return false;
+		const target = game.nearestEnemyTurret(this.x, this.y, this.team);
+		if (!target) return true;
+		const dx = target.x - this.x;
+		const dy = target.y - this.y;
+		const dist2 = norm2(dx, dy);
+		if (dist2 <= ETank.RADIUS * ETank.RADIUS) {
+			target.hit(ETank.TURRET_DAMAGE, this.team);
+			return false;
+		}
+		const dist = Math.sqrt(dist2);
+		this.x += dx / dist * ETank.SPEED * dt;
+		this.y += dy / dist * ETank.SPEED * dt;
+		return true;
+	}
+	getTeam() {
+		return this.team;
+	}
+	getRadius() {
+		return ETank.RADIUS;
+	}
+};
+/**
+* A low-HP troop that walks toward the nearest friendly turret and, on
+* contact, grants it a fast-attack buff for a limited duration.
+*/
+var EBooster = class EBooster extends AbstractEntity {
+	team;
+	hp;
+	static MAX_HP = 300;
+	static SPEED = 350;
+	static RADIUS = 30;
+	static BUFF_ADDER = .5;
+	static FRAME_DAMAGES = 30;
+	constructor(x, y, team, hp = EBooster.MAX_HP) {
+		super(x, y);
+		this.team = team;
+		this.hp = hp;
+	}
+	/** In-game factory: spawns a fresh, full-HP, unattached booster for `team`. */
+	static create(x, y, team) {
+		return new EBooster(x, y, team);
+	}
+	getType() {
+		return "booster";
+	}
+	save() {
+		return {
+			hp: this.hp,
+			redTeam: this.team === "red"
+		};
+	}
+	hit(amount) {
+		this.hp -= amount;
+	}
+	draw(ctx) {
+		ctx.save();
+		ctx.fillStyle = this.team;
+		ctx.strokeStyle = "#ffcc00";
+		ctx.lineWidth = 10;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, EBooster.RADIUS, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		ctx.restore();
+	}
+	nearestFriendlyTurret(game) {
+		let best = null;
+		let bestDist = Infinity;
+		for (const t of game.turrets) {
+			if (t.team !== this.team) continue;
+			const d = Math.hypot(t.x - this.x, t.y - this.y);
+			if (d < bestDist) {
+				bestDist = d;
+				best = t;
+			}
+		}
+		return best;
+	}
+	run(dt, game) {
+		if (this.hp <= 0) return false;
+		const target = this.nearestFriendlyTurret(game);
+		if (!target) return true;
+		const dx = target.x - this.x;
+		const dy = target.y - this.y;
+		const dist2 = norm2(dx, dy);
+		if (dist2 <= EBooster.RADIUS * EBooster.RADIUS) {
+			target.applyFastAttackEffect(EBooster.BUFF_ADDER);
+			this.hp -= dt * EBooster.FRAME_DAMAGES;
+			return this.hp > 0;
+		}
+		const dist = Math.sqrt(dist2);
+		this.x += dx / dist * EBooster.SPEED * dt;
+		this.y += dy / dist * EBooster.SPEED * dt;
+		return true;
+	}
+	getTeam() {
+		return this.team;
+	}
+	getRadius() {
+		return EBooster.RADIUS;
+	}
+};
+/**
+* Attached to the player who threw it. Grants invincibility and a speed
+* boost for Star.DURATION, re-applied every frame like a Booster buff.
+*/
+var EStar = class EStar extends AbstractEntity {
+	playerIdx;
+	timer;
+	static SPEED_MULTIPLIER = 1.6;
+	constructor(x, y, playerIdx, timer = STAR_DURATION) {
+		super(x, y);
+		this.playerIdx = playerIdx;
+		this.timer = timer;
+	}
+	/** In-game factory: attaches a fresh star buff to `playerIdx`. */
+	static create(x, y, playerIdx) {
+		return new EStar(x, y, playerIdx);
+	}
+	getType() {
+		return "star";
+	}
+	draw(ctx) {}
+	save() {
+		return {
+			playerIdx: this.playerIdx,
+			timer: this.timer
+		};
+	}
+	run(dt, game) {
+		const player = game.players[this.playerIdx];
+		if (!player || !player.isAlive() || this.timer <= 0) return false;
+		player.invincible = true;
+		player.speedMultiplier = Math.max(player.speedMultiplier, EStar.SPEED_MULTIPLIER);
+		this.x = player.x;
+		this.y = player.y;
+		this.timer -= dt;
+		player.starDuration = Math.max(player.starDuration, this.timer);
+		return this.timer > 0;
+	}
+	getTeam() {
+		return null;
+	}
+};
+/**
+* A visible trap zone. If touched by an enemy it explodes, damaging enemies
+* in a wider radius. There is only ever one kind of trap entity: TrapI,
+* TrapII and TrapIII are ITEMS that all spawn the exact same ETrap - they
+* only differ in which item is handed back to the player once used (see the
+* Trap item chain further down).
+*/
+var ETrap = class ETrap extends AbstractEntity {
+	team;
+	triggered;
+	static TRIGGER_RADIUS = 160;
+	static EXPLOSION_RADIUS = 260;
+	static DAMAGE = 250;
+	constructor(x, y, team, triggered = false) {
+		super(x, y);
+		this.team = team;
+		this.triggered = triggered;
+	}
+	/** In-game factory: drops a fresh, untriggered trap for `team`. */
+	static create(x, y, team) {
+		return new ETrap(x, y, team);
+	}
+	getType() {
+		return "trap";
+	}
+	save() {
+		return {
+			redTeam: this.team === "red",
+			triggered: this.triggered
+		};
+	}
+	touchedByEnemy(game) {
+		for (const p of game.players) if (p.isAlive() && p.team !== this.team && Math.hypot(p.x - this.x, p.y - this.y) <= ETrap.TRIGGER_RADIUS) return true;
+		return false;
+	}
+	draw(ctx) {
+		const color = this.team === "red" ? "#ff5555" : "#5555ff";
+		ctx.save();
+		ctx.strokeStyle = color;
+		ctx.globalAlpha = .35;
+		ctx.setLineDash([10, 10]);
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, ETrap.EXPLOSION_RADIUS, 0, Math.PI * 2);
+		ctx.stroke();
+		ctx.setLineDash([]);
+		ctx.globalAlpha = .6;
+		ctx.fillStyle = color;
+		ctx.beginPath();
+		ctx.arc(this.x, this.y, ETrap.TRIGGER_RADIUS, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.restore();
+	}
+	run(dt, game) {
+		if (this.triggered) return false;
+		if (this.touchedByEnemy(game)) {
+			game.damageAllInRadius(this.x, this.y, ETrap.EXPLOSION_RADIUS, this.team, ETrap.DAMAGE, { spareTurrets: false });
+			this.triggered = true;
+		}
+		return true;
+	}
+	getTeam() {
+		return this.team;
+	}
+};
+/**
+* Maps every EntityType to a factory that rebuilds the runtime entity
+* straight from its decoded, type-specific fields (the payload produced by
+* that same entity's save()). Used only when loading a snapshot from the
+* network - see deserializeEntity() and GMTurrets.load().
+*/
+var entityConstructors = {
+	lifeSlider: (x, y, obj) => new ELifeSlider(x, y, obj.vx, obj.vy, obj.radius),
+	shieldSlider: (x, y, obj) => new EShieldSlider(x, y, obj.vx, obj.vy, obj.radius, obj.redTeam ? "red" : "blue"),
+	wall: (x, y, obj) => new EWall(x, y, obj.timer),
+	ballon: (x, y, obj) => new EBallon(x, y, obj.redTeam ? "red" : "blue", obj.radius, obj.growthSpeed, obj.exploded),
+	tank: (x, y, obj) => new ETank(x, y, obj.redTeam ? "red" : "blue", obj.hp),
+	booster: (x, y, obj) => new EBooster(x, y, obj.redTeam ? "red" : "blue", obj.hp),
+	star: (x, y, obj) => new EStar(x, y, obj.playerIdx, obj.timer),
+	trap: (x, y, obj) => new ETrap(x, y, obj.redTeam ? "red" : "blue", obj.triggered)
+};
+/**
+* Converts a runtime entity into the wire shape described by the `Entity`
+* message: x/y plus the oneof `etype` field named after the entity's own
+* type, holding its type-specific payload. Since the protobuf field names
+* match EntityType exactly, this binds automatically - no switch needed.
+*/
+function serializeEntity(e) {
+	return {
+		x: e.x,
+		y: e.y,
+		[e.getType()]: e.save()
+	};
+}
+/**
+* Rebuilds a runtime entity from a decoded `Entity` protobuf message.
+* `msg.etype` is the virtual field protobufjs generates for a `oneof`: a
+* string naming whichever member is currently set (e.g. "lifeSlider",
+* "trap"...). That name is both the EntityType and the payload's key, so it
+* picks the right factory and the right payload in one go.
+*/
+function deserializeEntity(msg) {
+	const type = msg.etype;
+	const ctor = entityConstructors[type];
+	if (!ctor) throw new Error(`deserializeEntity: unrecognized etype "${type}"`);
+	return ctor(msg.x, msg.y, msg[type]);
+}
+var ItemInMap = class ItemInMap {
+	x;
+	y;
+	id;
+	static RADIUS = 40;
+	constructor(x, y, id) {
+		this.x = x;
+		this.y = y;
+		this.id = id;
+	}
+	/**
+	* Draws the item on the map using its icon or a fallback shape.
+	*/
+	draw(ctx, imageLoader) {
+		const itemDef = ITEMS[this.id];
+		if (!itemDef) return;
+		ctx.save();
+		ctx.translate(this.x, this.y);
+		ctx.fillStyle = "#ddd";
+		ctx.fillRect(-ItemInMap.RADIUS, -ItemInMap.RADIUS, ItemInMap.RADIUS * 2, ItemInMap.RADIUS * 2);
+		ctx.drawImage(imageLoader.get(itemDef.iconMap), -ItemInMap.RADIUS, -ItemInMap.RADIUS, ItemInMap.RADIUS * 2, ItemInMap.RADIUS * 2);
+		ctx.restore();
+	}
+};
+var ITEM_IDS = {
+	LifeSlider: 0,
+	ShieldSlider: 1,
+	Wall: 2,
+	Ballon: 3,
+	Tank: 4,
+	Booster: 5,
+	Star: 6,
+	TrapIII: 7,
+	TrapII: 8,
+	TrapI: 9
+};
+var ITEMS = [
+	{
+		iconMap: "lifeSlider",
+		iconHand: "lifeSlider",
+		name: "LifeSlider",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(ELifeSlider.create(owner.x, owner.y, dx, dy));
+			return null;
+		}
+	},
+	{
+		iconMap: "shieldSlider",
+		iconHand: "shieldSlider",
+		name: "ShieldSlider",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(EShieldSlider.create(owner.x, owner.y, dx, dy, owner.team));
+			return null;
+		}
+	},
+	{
+		iconMap: "wall",
+		iconHand: "wall",
+		name: "Wall",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(EWall.create(owner.x, owner.y));
+			return null;
+		}
+	},
+	{
+		iconMap: "ballon",
+		iconHand: "ballon",
+		name: "Ballon",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(EBallon.create(owner.x, owner.y, owner.team));
+			return null;
+		}
+	},
+	{
+		iconMap: "tank",
+		iconHand: "tank",
+		name: "Tank",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(ETank.create(owner.x, owner.y, owner.team));
+			return null;
+		}
+	},
+	{
+		iconMap: "booster",
+		iconHand: "booster",
+		name: "Booster",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(EBooster.create(owner.x, owner.y, owner.team));
+			return null;
+		}
+	},
+	{
+		iconMap: "none",
+		iconHand: "none",
+		name: "Star",
+		run: (game, owner, dx, dy) => {
+			const ownerIdx = game.players.indexOf(owner);
+			game.entities.push(EStar.create(owner.x, owner.y, ownerIdx));
+			return null;
+		}
+	},
+	{
+		iconMap: "trap",
+		iconHand: "trap",
+		name: "TrapIII",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(ETrap.create(owner.x, owner.y, owner.team));
+			return ITEM_IDS.TrapII;
+		}
+	},
+	{
+		iconMap: "trap",
+		iconHand: "trap",
+		name: "TrapII",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(ETrap.create(owner.x, owner.y, owner.team));
+			return ITEM_IDS.TrapI;
+		}
+	},
+	{
+		iconMap: "trap",
+		iconHand: "trap",
+		name: "TrapI",
+		run: (game, owner, dx, dy) => {
+			game.entities.push(ETrap.create(owner.x, owner.y, owner.team));
+			return null;
+		}
+	}
+];
+var Camera = class Camera {
+	x = 0;
+	y = 0;
+	static SCALE = .7;
+	static DURATION = .3;
+	startX = 0;
+	startY = 0;
+	targetX = 0;
+	targetY = 0;
+	isTransitioning = false;
+	t = 0;
+	/**
+	* Smooth easing function mapping [0, 1] to [0, 1].
+	*/
+	easing(t) {
+		const clampedT = Math.max(0, Math.min(1, t));
+		return clampedT * clampedT * (3 - 2 * clampedT);
+	}
+	/**
+	* Returns the center coordinates of the zone containing the given position.
+	*/
+	getZoneCenter(px, py) {
+		let zx = Math.round(px / FULL_ROOM_SIZE);
+		let zy = Math.round(py / FULL_ROOM_SIZE);
+		zx = Math.max(-2, Math.min(2, zx));
+		zy = Math.max(-2, Math.min(2, zy));
+		return {
+			cx: zx * FULL_ROOM_SIZE,
+			cy: zy * FULL_ROOM_SIZE
+		};
+	}
+	/**
+	* Clamps a value between a minimum and maximum value.
+	*/
+	clamp(value, min, max) {
+		return Math.max(min, Math.min(max, value));
+	}
+	update(px, py, dt) {
+		const { cx, cy } = this.getZoneCenter(px, py);
+		if (cx !== this.targetX || cy !== this.targetY) {
+			this.startX = this.x;
+			this.startY = this.y;
+			this.targetX = cx;
+			this.targetY = cy;
+			this.t = 0;
+			this.isTransitioning = true;
+		}
+		const viewHalfW = WIDTH / (2 * Camera.SCALE);
+		const viewHalfH = HEIGHT / (2 * Camera.SCALE);
+		const minX = this.targetX - FULL_ROOM_SIZE / 2 + viewHalfW;
+		const maxX = this.targetX + FULL_ROOM_SIZE / 2 - viewHalfW;
+		const minY = this.targetY - FULL_ROOM_SIZE / 2 + viewHalfH;
+		const maxY = this.targetY + FULL_ROOM_SIZE / 2 - viewHalfH;
+		const desiredX = this.clamp(px, minX, maxX);
+		const desiredY = this.clamp(py, minY, maxY);
+		if (this.isTransitioning) {
+			this.t += dt;
+			if (this.t >= Camera.DURATION) {
+				this.isTransitioning = false;
+				this.x = desiredX;
+				this.y = desiredY;
+			} else {
+				const progress = this.easing(this.t / Camera.DURATION);
+				this.x = this.startX + (desiredX - this.startX) * progress;
+				this.y = this.startY + (desiredY - this.startY) * progress;
+			}
+		} else {
+			this.x = desiredX;
+			this.y = desiredY;
+		}
+	}
+	teleport(px, py) {
+		const { cx, cy } = this.getZoneCenter(px, py);
+		this.targetX = cx;
+		this.targetY = cy;
+		const viewHalfW = WIDTH / (2 * Camera.SCALE);
+		const viewHalfH = HEIGHT / (2 * Camera.SCALE);
+		const minX = cx - FULL_ROOM_SIZE / 2 + viewHalfW;
+		const maxX = cx + FULL_ROOM_SIZE / 2 - viewHalfW;
+		const minY = cy - FULL_ROOM_SIZE / 2 + viewHalfH;
+		const maxY = cy + FULL_ROOM_SIZE / 2 - viewHalfH;
+		this.x = this.clamp(px, minX, maxX);
+		this.y = this.clamp(py, minY, maxY);
+		this.isTransitioning = false;
+		this.t = 0;
+	}
+	getCoords() {
+		return {
+			x: this.x,
+			y: this.y
+		};
+	}
+};
+var ClientData = class ClientData {
+	firstFrame = true;
+	mouseX = 0;
+	mouseY = 0;
+	html;
+	time;
+	camera = new Camera();
+	clientWasDead = true;
+	lastDirX = 0;
+	lastDirY = 0;
+	attackPressStart = null;
+	attackHasAimed = false;
+	playerAngles = {};
+	constructor() {
+		this.html = document.createElement("div");
+		this.html.classList.add("game-turrets-root");
+		this.time = document.createElement("div");
+		this.time.classList.add("game-turrets-time");
+		this.html.appendChild(this.time);
+	}
+	static showTime(time) {
+		return `${Math.floor(time / 60)}:${(time % 60).toFixed(1).padStart(4, "0")}`;
+	}
+	update(game, playerIdx) {
+		this.time.innerText = ClientData.showTime(game.time);
+		const player = game.players[playerIdx];
+		if (this.clientWasDead && player.alive < 0) this.camera.teleport(player.x, player.y);
+		this.clientWasDead = player.alive >= 0;
+		this.camera.update(player.x, player.y, 1 / 60);
+	}
+};
+var TutorialData = class {
+	game;
+	step = 0;
+	wakeUp = 0;
+	constructor(game) {
+		this.game = game;
+	}
+	frame(dt, clock) {
+		this.game.players[0];
+		this.game.players[1];
+		return "Placeholder";
+	}
+};
+function generateClientDom() {
+	return {
+		skin: 0,
+		preferTeam: 0,
+		produce() {
+			const { StartData } = protocols.get();
+			return StartData.encode({
+				skin: this.skin,
+				preferTeam: this.preferTeam
+			}).finish();
+		}
+	};
+}
+/**
+* Renders a single inventory slot card in the HUD.
+*
+* @param ctx - The 2D rendering context.
+* @param x - Top-left X coordinate of the slot card.
+* @param y - Top-left Y coordinate of the slot card.
+* @param size - Size (width and height) of the slot card.
+* @param itemId - The ID of the item inside this slot (-1 if empty).
+* @param slotIndex - Display number for keybinding (1, 2, 3).
+* @param isSelected - True if the player currently selected this slot.
+* @param imageLoader - Image assets container.
+*/
+function drawItemHand(ctx, x, y, size, itemId, slotIndex, isSelected, imageLoader) {
+	ctx.save();
+	ctx.fillStyle = isSelected ? "#ffcc00" : "rgba(30, 30, 30, 0.75)";
+	ctx.strokeStyle = isSelected ? "#ffffff" : "rgba(255, 255, 255, 0.4)";
+	ctx.lineWidth = isSelected ? 4 : 2;
+	ctx.fillRect(x, y, size, size);
+	ctx.strokeRect(x, y, size, size);
+	if (itemId !== -1 && ITEMS[itemId]) {
+		const itemDef = ITEMS[itemId];
+		const img = imageLoader.get(itemDef.iconHand);
+		const padding = size * .15;
+		const imgSize = size - padding * 2;
+		if (img) ctx.drawImage(img, x + padding, y + padding, imgSize, imgSize);
+		else {
+			ctx.fillStyle = isSelected ? "#000000" : "#ffffff";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.font = "bold 18px sans-serif";
+			ctx.fillText(itemDef.name.charAt(0), x + size / 2, y + size / 2);
+		}
+	}
+	ctx.fillStyle = isSelected ? "#000000" : "#ffffff";
+	ctx.textAlign = "left";
+	ctx.textBaseline = "top";
+	ctx.font = "bold 16px sans-serif";
+	ctx.fillText(`${slotIndex}`, x + 6, y + 4);
+	ctx.restore();
+}
+var GMTurrets = class GMTurrets extends GameMode {
+	static types = {
+		Player,
+		Turret
+	};
+	static DATA = {
+		GRAVITY,
+		WIDTH,
+		HEIGHT
+	};
+	players;
+	turrets = [];
+	floors = [];
+	bullets = [];
+	itemsInMap = [];
+	entities = [];
+	time = 600;
+	redScore = 0;
+	blueScore = 0;
+	finished = false;
+	internalFrameTick = 0;
+	cycleStep = 0;
+	constructor(total) {
+		super();
+		this.players = Array.from({ length: total }, () => new Player(0, 0));
+		for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
+			this.turrets.push(new Turret(x * FULL_ROOM_SIZE, y * FULL_ROOM_SIZE, SPAWN_COLORS[y + 2][x + 2]));
+			const floorX = x * FULL_ROOM_SIZE;
+			const floorY = y * FULL_ROOM_SIZE;
+			this.floors.push({
+				x0: floorX - ROOM_SIZE / 2,
+				y0: floorY - ROOM_SIZE / 2,
+				x1: floorX + ROOM_SIZE / 2,
+				y1: floorY + ROOM_SIZE / 2
+			});
+			if (x < 2) this.floors.push({
+				x0: floorX + ROOM_SIZE / 2,
+				y0: floorY - BRIDGE_SIZE / 2,
+				x1: floorX + FULL_ROOM_SIZE - ROOM_SIZE / 2,
+				y1: floorY + BRIDGE_SIZE / 2
+			});
+			if (y < 2) this.floors.push({
+				x0: floorX - BRIDGE_SIZE / 2,
+				y0: floorY + ROOM_SIZE / 2,
+				x1: floorX + BRIDGE_SIZE / 2,
+				y1: floorY + FULL_ROOM_SIZE - ROOM_SIZE / 2
+			});
+		}
+	}
+	static async createServ(players, total, hasSkin) {
+		const { StartData, StartDataClient } = protocols.get();
+		const game = new GMTurrets(total);
+		function decode(i) {
+			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
+			return generateClientDom();
+		}
+		const playerInfos = game.players.map((p, i) => ({
+			player: p,
+			index: i,
+			pref: decode(i).preferTeam ?? 0
+		}));
+		const totalPlayers = playerInfos.length;
+		const maxPerTeam = Math.ceil(totalPlayers / 2);
+		const assigned = new Array(totalPlayers);
+		let redCount = 0;
+		let blueCount = 0;
+		for (let i = 0; i < totalPlayers; i++) {
+			const info = playerInfos[i];
+			if (info.pref === 1 && redCount < maxPerTeam) {
+				assigned[info.index] = true;
+				redCount++;
+			} else if (info.pref === -1 && blueCount < maxPerTeam) {
+				assigned[info.index] = false;
+				blueCount++;
+			}
+		}
+		for (let i = 0; i < totalPlayers; i++) {
+			if (assigned[i] !== void 0) continue;
+			if ((redCount < blueCount || redCount === blueCount && i % 2 === 0) && redCount < maxPerTeam) {
+				assigned[i] = true;
+				redCount++;
+			} else {
+				assigned[i] = false;
+				blueCount++;
+			}
+		}
+		for (const [i, p] of game.players.entries()) {
+			const redTeam = assigned[i];
+			p.initSpawn(0, redTeam ? -12e3 : FULL_ROOM_SIZE * 2, redTeam ? "red" : "blue");
+		}
+		return {
+			game,
+			data: StartDataClient.encode({ players: game.players.map((p) => ({
+				x: p.spawnX,
+				y: p.spawnY,
+				isRed: p.team === "red"
+			})) }).finish()
+		};
+	}
+	static createClient(data, total) {
+		const game = new GMTurrets(total);
+		const { StartDataClient } = protocols.get();
+		if (data) {
+			const { players } = decodeFullMessage(StartDataClient.decode(data));
+			for (const [idx, p] of players.entries()) game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
+		} else {
+			game.players[0].initSpawn(0, -200, "red");
+			game.players[1].initSpawn(0, 200, "blue");
+		}
+		const clientData = new ClientData();
+		return {
+			game,
+			data: clientData,
+			html: clientData.html,
+			skins: {}
+		};
+	}
+	static generateClientDom = generateClientDom;
+	static TEXTURES = {
+		"player-blue": "/assets/games/turrets/player-blue.png",
+		"player-red": "/assets/games/turrets/player-red.png",
+		"turret": "/assets/games/turrets/turret.png",
+		"ballon": "/assets/games/turrets/items/ballon.png",
+		"booster": "/assets/games/turrets/items/booster.png",
+		"lifeSlider": "/assets/games/turrets/items/lifeSlider.png",
+		"shieldSlider": "/assets/games/turrets/items/shieldSlider.png",
+		"star": "/assets/games/turrets/items/star.png",
+		"tank": "/assets/games/turrets/items/tank.png",
+		"trap": "/assets/games/turrets/items/trap.png",
+		"wall": "/assets/games/turrets/items/wall.png"
+	};
+	init() {}
+	getBotIds(count) {
+		return Array.from({ length: count }, () => 0);
+	}
+	run(dt, produceFinish) {
+		this.time -= dt;
+		if (this.time <= 0 || this.redScore + this.blueScore >= this.turrets.length) this.finished = true;
+		this.resetEffects();
+		this.runEntities(dt);
+		for (const turret of this.turrets) turret.frame(dt, this);
+		for (const [idx, p] of this.players.entries()) {
+			p.move(dt);
+			p.avoidOutOfFloor(this.floors);
+			p.attackLogic(dt, idx, this);
+		}
+		for (let i = this.bullets.length - 1; i >= 0; i--) {
+			const b = this.bullets[i];
+			if (b.move(dt) || b.attack(this)) this.bullets.splice(i, 1);
+		}
+		if (produceFinish && this.finished) return this.produceFinish();
+		return null;
+	}
+	/**
+	* Wipes the per-frame effects of every player and turret. Must run
+	* before runEntities(), so that active entities can re-apply theirs.
+	*/
+	resetEffects() {
+		for (const p of this.players) p.resetEffects();
+		for (const t of this.turrets) t.resetEffects();
+	}
+	/**
+	* Advances every entity by dt, dropping the ones whose run() returns
+	* false (expired, exploded, consumed, died...).
+	*/
+	runEntities(dt) {
+		for (let i = this.entities.length - 1; i >= 0; i--) if (!this.entities[i].run(dt, this)) this.entities.splice(i, 1);
+	}
+	/**
+	* True once (x, y) - inflated by `margin` - has fully left the map.
+	* Used by the sliders to know when to disappear.
+	*/
+	isOOB(x, y, margin = 0) {
+		const limit = FULL_ROOM_SIZE * 3;
+		return x < -18e3 - margin || x > limit + margin || y < -18e3 - margin || y > limit + margin;
+	}
+	/**
+	* True if (x, y) currently sits inside an ELifeSlider (protects
+	* everyone) or an EShieldSlider of the given team (protects only its
+	* own team). Checked by Bullet.attack() before applying player damage.
+	*/
+	isInsideNoDamageZone(x, y, radius, team) {
+		for (const e of this.entities) {
+			if (e instanceof ELifeSlider && e.protects(x, y, radius, team)) return true;
+			if (e instanceof EShieldSlider && e.protects(x, y, radius, team)) return true;
+		}
+		return false;
+	}
+	/**
+	* True if (x, y) sits inside an EWall's square. Checked by
+	* Bullet.attack() to stop bullets outright.
+	*/
+	isBlockedByWall(x, y) {
+		for (const e of this.entities) if (e instanceof EWall && e.blocksBullet(x, y)) return true;
+		return false;
+	}
+	/**
+	* Closest captured turret NOT belonging to `team`, or null if none.
+	* Used by ETank to find where to charge.
+	*/
+	nearestEnemyTurret(x, y, team) {
+		let best = null;
+		let bestDist = Infinity;
+		for (const t of this.turrets) {
+			if (t.team === null || t.team === team) continue;
+			const d = Math.hypot(t.x - x, t.y - y);
+			if (d < bestDist) {
+				bestDist = d;
+				best = t;
+			}
+		}
+		return best;
+	}
+	/**
+	* Iterator over every player / turret / entity that can currently take
+	* damage - used by damageAllInRadius() for area-effect entities
+	* (EBallon, ETrap).
+	*/
+	*damageableEntities() {
+		for (const p of this.players) {
+			if (!p.isAlive()) continue;
+			yield [p, "player"];
+		}
+		for (const t of this.turrets) yield [t, "turret"];
+		for (const e of this.entities) if (e instanceof ETank || e instanceof EBooster) yield [e, "entity"];
+	}
+	/**
+	* Applies `damage` to every damageable thing of the opposite team to
+	* `sourceTeam` within `radius` of (x, y). Respects no-damage zones.
+	* Used by EBallon (spareTurrets: true) and ETrap (spareTurrets: false).
+	*/
+	damageAllInRadius(x, y, radius, sourceTeam, damage, options) {
+		for (const [target, kind] of this.damageableEntities()) {
+			const team = target.getTeam();
+			if (team === sourceTeam || team === null || options.spareTurrets && kind === "turret" || Math.hypot(target.x - x, target.y - y) > radius || this.isInsideNoDamageZone(target.x, target.y, target.getRadius(), team)) continue;
+			if (kind === "player") target.hit(damage, null);
+			else target.hit(damage, sourceTeam);
+		}
+	}
+	runInput(playerIdx, input) {
+		const player = this.players[playerIdx];
+		switch (input.action) {
+			case "dirX":
+				player.dirX = input.dirX;
+				break;
+			case "dirY":
+				player.dirY = input.dirY;
+				break;
+			case "throwTarget":
+				player.target = {
+					type: "fixed",
+					x: input.throwTarget.x,
+					y: input.throwTarget.y
+				};
+				break;
+			case "throwDir":
+				player.target = {
+					type: "delta",
+					dx: input.throwDir.x,
+					dy: input.throwDir.y
+				};
+				break;
+			case "throwAuto":
+				player.target = { type: "auto" };
+				break;
+			case "throwOff":
+				player.target = null;
+				break;
+			case "useItem": if (input.useItem && input.useItem.slot !== void 0) player.interactWithSlot(input.useItem.slot, this);
+		}
+	}
+	collectInputs(keyboard, mouse, mobile, _data) {
+		const data = _data;
+		const throwTarget = mouse.getCoords();
+		data.mouseX = throwTarget.x;
+		data.mouseY = throwTarget.y;
+		const inputs = [];
+		if (mobile) {
+			const move = mobile.getJoystick("move");
+			if (move.x !== data.lastDirX) {
+				inputs.push({
+					action: "dirX",
+					dirX: move.x
+				});
+				data.lastDirX = move.x;
+			}
+			if (move.y !== data.lastDirY) {
+				inputs.push({
+					action: "dirY",
+					dirY: move.y
+				});
+				data.lastDirY = move.y;
+			}
+			const attack = mobile.getJoystick("attack");
+			const QUICK_TAP_MS = 180;
+			if (mobile.press("attack")) {
+				if (data.attackPressStart === null) {
+					data.attackPressStart = performance.now();
+					data.attackHasAimed = false;
+				}
+				data.attackHasAimed = true;
+				inputs.push({
+					throwDir: {
+						x: attack.x,
+						y: attack.y
+					},
+					action: "throwDir"
+				});
+			} else if (data.attackPressStart !== null) {
+				const heldFor = performance.now() - data.attackPressStart;
+				if (!data.attackHasAimed && heldFor < QUICK_TAP_MS) inputs.push({
+					throwAuto: {},
+					action: "throwAuto"
+				});
+				else inputs.push({
+					throwOff: {},
+					action: "throwOff"
+				});
+				data.attackPressStart = null;
+				data.attackHasAimed = false;
+			}
+			for (let slot = 0; slot < ITEM_COUNT; slot++) if (mobile.first(String(slot + 1))) inputs.push({
+				useItem: { slot },
+				action: "useItem"
+			});
+		} else {
+			if (keyboard.press("right")) {
+				if (data.lastDirX !== 1) {
+					inputs.push({
+						action: "dirX",
+						dirX: 1
+					});
+					data.lastDirX = 1;
+				}
+			} else if (keyboard.press("left")) {
+				if (data.lastDirX !== -1) {
+					inputs.push({
+						action: "dirX",
+						dirX: -1
+					});
+					data.lastDirX = -1;
+				}
+			} else if (data.lastDirX !== 0) {
+				inputs.push({
+					action: "dirX",
+					dirX: 0
+				});
+				data.lastDirX = 0;
+			}
+			if (keyboard.press("down")) {
+				if (data.lastDirY !== 1) {
+					inputs.push({
+						action: "dirY",
+						dirY: 1
+					});
+					data.lastDirY = 1;
+				}
+			} else if (keyboard.press("up")) {
+				if (data.lastDirY !== -1) {
+					inputs.push({
+						action: "dirY",
+						dirY: -1
+					});
+					data.lastDirY = -1;
+				}
+			} else if (data.lastDirY !== 0) {
+				inputs.push({
+					action: "dirY",
+					dirY: 0
+				});
+				data.lastDirY = 0;
+			}
+			if (mouse.press(0)) inputs.push({
+				throwTarget,
+				action: "throwTarget"
+			});
+			else if (mouse.killed(0)) inputs.push({
+				throwOff: {},
+				action: "throwOff"
+			});
+			if (keyboard.first("shift")) inputs.push({
+				throwAuto: {},
+				action: "throwAuto"
+			});
+			for (let slot = 0; slot < ITEM_COUNT; slot++) if (keyboard.first(String(slot + 1))) inputs.push({
+				useItem: { slot },
+				action: "useItem"
+			});
+		}
+		return inputs;
+	}
+	drawMinimap(ctx, playerIdx) {
+		const mapWidth = FULL_ROOM_SIZE * 5;
+		const mapHeight = FULL_ROOM_SIZE * 5;
+		const MINIMAP_SIZE = WIDTH * MINIMAP_RATIO;
+		ctx.save();
+		ctx.translate(MINIMAP_X, MINIMAP_Y);
+		ctx.scale(MINIMAP_SIZE / mapWidth, MINIMAP_SIZE / mapHeight);
+		ctx.translate(mapWidth / 2, mapHeight / 2);
+		ctx.fillStyle = "rgba(50, 50, 50, 0.7)";
+		ctx.fillRect(-15e3, -15e3, mapWidth, mapHeight);
+		for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) {
+			const cellX = -15e3 + x * FULL_ROOM_SIZE;
+			const cellY = -15e3 + y * FULL_ROOM_SIZE;
+			const turret = this.turrets[y * 5 + x];
+			let r;
+			let g;
+			let b;
+			if (turret.team === "red") {
+				r = 255;
+				g = 0;
+				b = 0;
+			} else if (turret.team === "blue") {
+				r = 0;
+				g = 0;
+				b = 255;
+			} else continue;
+			ctx.fillStyle = `rgb(${r}, ${g}, ${b}, 0.35)`;
+			ctx.fillRect(cellX, cellY, FULL_ROOM_SIZE, FULL_ROOM_SIZE);
+			if (turret.itemLoadingTimer > 0 && turret.fullLoadingTimer > 0) {
+				const s = (turret.fullLoadingTimer - turret.itemLoadingTimer) * (FULL_ROOM_SIZE / turret.fullLoadingTimer);
+				ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 1)`;
+				ctx.fillRect(cellX + FULL_ROOM_SIZE / 2 - s / 2, cellY + FULL_ROOM_SIZE / 2 - s / 2, s, s);
+			}
+		}
+		ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+		ctx.lineWidth = 1 / (MINIMAP_SIZE / mapWidth);
+		for (let x = 1; x < 5; x++) {
+			const px = -15e3 + x * FULL_ROOM_SIZE;
+			ctx.beginPath();
+			ctx.moveTo(px, -15e3);
+			ctx.lineTo(px, mapHeight / 2);
+			ctx.stroke();
+		}
+		for (let y = 1; y < 5; y++) {
+			const py = -15e3 + y * FULL_ROOM_SIZE;
+			ctx.beginPath();
+			ctx.moveTo(-15e3, py);
+			ctx.lineTo(mapWidth / 2, py);
+			ctx.stroke();
+		}
+		ctx.fillStyle = "#f0f";
+		for (const item of this.itemsInMap) {
+			ctx.beginPath();
+			ctx.arc(item.x, item.y, 175, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		ctx.strokeStyle = "black";
+		ctx.lineWidth = 10;
+		for (const turret of this.turrets) {
+			ctx.fillStyle = turret.team ?? "green";
+			ctx.beginPath();
+			ctx.arc(turret.x, turret.y, 215, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.beginPath();
+			ctx.arc(turret.x, turret.y, TURRET_RADIUS, 0, Math.PI * 2);
+			ctx.stroke();
+		}
+		ctx.strokeStyle = "white";
+		ctx.lineWidth = 100;
+		for (const [idx, player] of this.players.entries()) {
+			ctx.fillStyle = idx === playerIdx ? "yellow" : player.team === "red" ? "red" : "blue";
+			ctx.beginPath();
+			ctx.arc(player.x, player.y, idx === playerIdx ? 400 : 300, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+		}
+		ctx.restore();
+		ctx.strokeStyle = "white";
+		ctx.lineWidth = 2;
+		ctx.strokeRect(MINIMAP_X, MINIMAP_Y, MINIMAP_SIZE, MINIMAP_SIZE);
+	}
+	/**
+	* Draws the inventory bar at the top-left corner of the screen.
+	*/
+	drawInventoryHUD(ctx, player, imageLoader) {
+		const startX = 30;
+		const startY = 30;
+		const slotSize = 70;
+		for (let i = 0; i < ITEM_COUNT; i++) {
+			const x = startX + i * 85;
+			const itemId = player.items[i] ?? -1;
+			const isSelected = player.selectedItem === i;
+			drawItemHand(ctx, x, startY, slotSize, itemId, i + 1, isSelected, imageLoader);
+		}
+	}
+	draw(ctx, playerIdx, _data, _imageLoader) {
+		const imageLoader = _imageLoader.getFolder("turrets");
+		ctx.imageSmoothingEnabled = false;
+		const data = _data;
+		if (data.firstFrame) {
+			data.firstFrame = false;
+			imageLoader.setColorRule("turret", 0, [{
+				prev: "#6abe30",
+				next: "#ff0044"
+			}]);
+			imageLoader.setColorRule("turret", 1, [{
+				prev: "#6abe30",
+				next: "#0044ff"
+			}]);
+		}
+		data.update(this, playerIdx);
+		ctx.fillStyle = "#333";
+		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+		const cameraCoords = data.camera.getCoords();
+		ctx.save();
+		ctx.translate(WIDTH / 2, HEIGHT / 2);
+		ctx.scale(Camera.SCALE, Camera.SCALE);
+		ctx.translate(-cameraCoords.x, -cameraCoords.y);
+		ctx.fillStyle = "#777";
+		for (const f of this.floors) ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
+		for (const turret of this.turrets) turret.drawBackground(ctx);
+		for (const item of this.itemsInMap) item.draw(ctx, imageLoader);
+		for (const entity of this.entities) if (!entity.drawInFront()) entity.draw(ctx, imageLoader);
+		for (const b of this.bullets) {
+			ctx.fillStyle = b.team === "red" ? "#ff6666" : "#6666ff";
+			ctx.beginPath();
+			ctx.arc(b.x, b.y, Bullet.RADIUS, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		for (const turret of this.turrets) turret.draw(ctx, imageLoader);
+		for (const [idx, p] of this.players.entries()) data.playerAngles[idx] = p.draw(ctx, imageLoader, idx === playerIdx, data.playerAngles[idx] ?? 0);
+		for (const entity of this.entities) if (entity.drawInFront()) entity.draw(ctx, imageLoader);
+		ctx.restore();
+		const localPlayer = this.players[playerIdx];
+		this.drawInventoryHUD(ctx, localPlayer, imageLoader);
+		if (!localPlayer.isAlive()) {
+			ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+			ctx.fillRect(0, 0, WIDTH, HEIGHT);
+			ctx.fillStyle = "white";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.font = "bold 80px sans-serif";
+			ctx.fillText("YOU DIED", WIDTH / 2, HEIGHT / 2 - 40);
+			ctx.font = "40px sans-serif";
+			ctx.fillText(`Respawn in ${localPlayer.alive.toFixed(1)}s`, WIDTH / 2, 715);
+		}
+		this.drawMinimap(ctx, playerIdx);
+	}
+	onDisconnection(id) {
+		this.players[id].connected = false;
+	}
+	save() {
+		const { State } = protocols.get();
+		const object = {
+			players: this.players,
+			turrets: this.turrets.map((t) => ({
+				taken: t.team !== null,
+				redTeam: t.team === "red",
+				activation: t.activation,
+				hp: t.hp,
+				itemDamage: t.itemDamage,
+				itemLoadingTimer: t.itemLoadingTimer,
+				fullLoadingTimer: t.fullLoadingTimer,
+				startCooldown: t.startCooldown,
+				attackCooldown: t.attackCooldown,
+				itemsToSpawn: t.itemsToSpawn,
+				spawnIdx: t.spawnIdx
+			})),
+			time: this.time,
+			bullets: this.bullets.map((b) => ({
+				x: b.x,
+				y: b.y,
+				vx: b.vx,
+				vy: b.vy,
+				a: b.a,
+				isRed: b.team === "red",
+				owner: b.owner
+			})),
+			items: this.itemsInMap,
+			entities: this.entities.map(serializeEntity),
+			cycleStep: this.cycleStep
+		};
+		return State.encode(object).finish();
+	}
+	load(data) {
+		const { State } = protocols.get();
+		const obj = State.decode(data);
+		for (const [idx, player] of obj.players.entries()) this.players[idx].load(player);
+		for (const [idx, turret] of obj.turrets.entries()) this.turrets[idx].load(turret);
+		this.bullets.length = 0;
+		if (obj.bullets) for (const b of obj.bullets) this.bullets.push(new Bullet(b.x, b.y, b.vx, b.vy, b.a, b.isRed ? "red" : "blue", b.owner));
+		this.itemsInMap.length = 0;
+		if (obj.items) for (const item of obj.items) this.itemsInMap.push(new ItemInMap(item.x, item.y, item.id));
+		this.entities.length = 0;
+		if (obj.entities) for (const e of obj.entities) this.entities.push(deserializeEntity(e));
+		this.time = obj.time;
+		this.cycleStep = obj.cycleStep;
+	}
+	getSize() {
+		return {
+			width: WIDTH,
+			height: HEIGHT
+		};
+	}
+	evalMouseCoords(x, y, playerIdx, _clientData) {
+		const clientData = _clientData;
+		const cameraCoords = clientData.camera.getCoords();
+		const ret = {
+			x: (x - WIDTH / 2) / Camera.SCALE + cameraCoords.x,
+			y: (y - HEIGHT / 2) / Camera.SCALE + cameraCoords.y
+		};
+		clientData.mouseX = ret.x;
+		clientData.mouseY = ret.y;
+		return ret;
+	}
+	getMobileDesc() {
+		return {
+			buttons: {
+				["1"]: {
+					x: 50,
+					xp: "right",
+					y: 180,
+					yp: "bottom",
+					size: 30,
+					color: "#00ff00"
+				},
+				["2"]: {
+					x: 50,
+					xp: "right",
+					y: 220,
+					yp: "bottom",
+					size: 30,
+					color: "#00ff00"
+				},
+				["3"]: {
+					x: 50,
+					xp: "right",
+					y: 260,
+					yp: "bottom",
+					size: 30,
+					color: "#00ff00"
+				}
+			},
+			joysticks: {
+				move: {
+					x: 100,
+					xp: "left",
+					y: 120,
+					yp: "bottom",
+					size: 80,
+					color: "#00ff00"
+				},
+				attack: {
+					x: 100,
+					xp: "right",
+					y: 120,
+					yp: "bottom",
+					size: 80,
+					color: "#00ff00"
+				}
+			}
+		};
+	}
+	createTutorial() {
+		return new TutorialData(this);
+	}
+	produceFinish() {
+		const redTeam = [];
+		const blueTeam = [];
+		const playerEqualities = [];
+		for (const [idx, player] of this.players.entries()) if (player.team === "red") redTeam.push(idx);
+		else blueTeam.push(idx);
+		for (const team of [redTeam, blueTeam]) {
+			team.sort((a, b) => this.players[b].kills - this.players[a].kills);
+			for (let i = 0; i < team.length - 2; i++) if (this.players[team[i]].kills === this.players[team[i + 1]].kills) playerEqualities.push(team[i]);
+		}
+		let teams;
+		const teamEqualities = [];
+		if (this.redScore > this.blueScore) teams = [redTeam, blueTeam];
+		else if (this.redScore < this.blueScore) teams = [blueTeam, redTeam];
+		else {
+			teams = [blueTeam, redTeam];
+			teamEqualities.push(0);
+		}
+		return {
+			results: teams,
+			teamEqualities,
+			playerEqualities
+		};
+	}
+	makeCycleStep() {
+		const s = this.cycleStep;
+		this.cycleStep++;
+		if (this.cycleStep >= ITEMS_CYCLE.length) this.cycleStep = 0;
+		return s;
+	}
+};
+//#endregion
 //#region commons/gamemods.ts
 var gamemods = {
+	separator_competitive: {
+		type: "ui-separator",
+		category: "Competitive games"
+	},
 	test: {
+		type: "multiplayer",
 		server: GMTest.createServ,
 		client: GMTest.createClient,
 		dom: GMTest.generateClientDom,
 		textures: GMTest.TEXTURES,
 		name: "Test",
-		tropheesPerPlayer: 20
+		computerOnly: false,
+		tropheesPerPlayer: 2,
+		skins: [],
+		defaultPlayerCount: 4
 	},
 	airbasket: {
+		type: "multiplayer",
 		server: GMAirBasket.createServ,
 		client: GMAirBasket.createClient,
 		dom: GMAirBasket.generateClientDom,
 		textures: GMAirBasket.TEXTURES,
 		name: "Air Basket",
-		tropheesPerPlayer: 20
+		tropheesPerPlayer: 20,
+		computerOnly: true,
+		skins: GMAirBasket.SKINS_IDS,
+		defaultPlayerCount: 4
+	},
+	turrets: {
+		type: "multiplayer",
+		server: GMTurrets.createServ,
+		client: GMTurrets.createClient,
+		dom: GMTurrets.generateClientDom,
+		textures: GMTurrets.TEXTURES,
+		name: "Turrets",
+		tropheesPerPlayer: 20,
+		computerOnly: false,
+		skins: [],
+		defaultPlayerCount: 4
+	},
+	separator_mobile: {
+		type: "ui-separator",
+		category: "Mobile games"
+	},
+	superTicTacToe: {
+		type: "multiplayer",
+		server: GMSuperTicTacToe.createServ,
+		client: GMSuperTicTacToe.createClient,
+		dom: GMSuperTicTacToe.generateClientDom,
+		textures: GMSuperTicTacToe.TEXTURES,
+		name: "Super tic tac toe",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		defaultPlayerCount: 2
+	},
+	separator_solo: {
+		type: "ui-separator",
+		category: "Solo games"
+	},
+	testSolo: {
+		type: "solo",
+		name: "Test Solo",
+		computerOnly: false,
+		dom: GMTestSolo.generateClientDom,
+		textures: GMTestSolo.TEXTURES,
+		categories: GMTestSolo.CATEGORIES,
+		minFirst: GMTestSolo.MIN_FIRST,
+		create: GMTestSolo.create
 	}
 };
+function getMultiGmFactory(gamemode) {
+	const factory = gamemods[gamemode];
+	if (!factory || factory.type !== "multiplayer") throw new Error(`Invalid gamemode '${gamemode}'`);
+	return factory;
+}
+function getSoloGmFactory(gamemode) {
+	const factory = gamemods[gamemode];
+	if (!factory || factory.type !== "solo") throw new Error(`Invalid gamemode '${gamemode}'`);
+	return factory;
+}
 function getGmFactory(gamemode) {
 	const factory = gamemods[gamemode];
-	if (!factory) throw new Error(`Invalid gamemode '${gamemode}'`);
+	if (!factory || factory.type !== "solo" && factory.type !== "multiplayer") throw new Error(`Invalid gamemode '${gamemode}'`);
 	return factory;
 }
 //#endregion
@@ -11485,48 +14563,37 @@ var loadedProtocols = /* @__PURE__ */ new Map();
 */
 function initProtocols(loader) {
 	protocolLoader = loader;
-	for (const name in gamemods) getProtocol(name).load();
+	for (const name in gamemods) {
+		const type = gamemods[name].type;
+		if (type !== "ui-separator") getProtocol(name, type).load();
+	}
 }
-/**
-* Returns a protocol manager for a specific game name.
-* @param name The name of the game/protocol
-*/
-function getProtocol(name) {
+function getProtocol(name, type) {
 	return {
-		/**
-		* Asynchronously loads the protocol and caches the resolved types.
-		* Should be called once during game initialization.
-		*/
 		async load() {
 			if (!protocolLoader) throw new Error("Protocol loader is not initialized. Call initProtocols first.");
 			if (loadedProtocols.has(name)) return;
-			try {
-				const root = await protocolLoader(name);
-				const namespace = `game_${name}`;
-				const resolvedTypes = {
-					ServerMessage: root.lookupType(`${namespace}.ServerMessage`),
-					ClientMessage: root.lookupType(`${namespace}.ClientMessage`),
-					StartData: root.lookupType(`${namespace}.StartData`),
-					StartDataClient: root.lookupType(`${namespace}.StartDataClient`),
-					State: root.lookupType(`${namespace}.State`),
-					Input: root.lookupType(`${namespace}.Input`)
-				};
-				loadedProtocols.set(name, resolvedTypes);
-			} catch (error) {
-				throw error;
-			}
+			const root = await protocolLoader(name);
+			const namespace = `game_${name}`;
+			let resolvedTypes;
+			if (type === "multiplayer") resolvedTypes = {
+				type: "multiplayer",
+				ServerMessage: root.lookupType(`${namespace}.ServerMessage`),
+				ClientMessage: root.lookupType(`${namespace}.ClientMessage`),
+				StartData: root.lookupType(`${namespace}.StartData`),
+				StartDataClient: root.lookupType(`${namespace}.StartDataClient`),
+				State: root.lookupType(`${namespace}.State`),
+				Input: root.lookupType(`${namespace}.Input`)
+			};
+			else resolvedTypes = {
+				type: "solo",
+				Input: root.lookupType(`${namespace}.Input`)
+			};
+			loadedProtocols.set(name, resolvedTypes);
 		},
-		/**
-		* Synchronously retrieves the cached protobuf message types.
-		* Super fast, safe to call frequently in a hot path (e.g., game loop).
-		* Throws an error if the protocol has not been loaded yet.
-		*/
 		get() {
 			const types = loadedProtocols.get(name);
-			if (!types) {
-				const errMsg = `Protocol '${name}' is not loaded. Make sure to await load() before calling get().`;
-				throw new Error(errMsg);
-			}
+			if (!types) throw new Error(`Protocol '${name}' is not loaded. Make sure to await load() before calling get().`);
 			return types;
 		}
 	};
@@ -14956,7 +18023,17 @@ var COMBINAISONS = {
 	KeyD: "right",
 	KeyW: "up",
 	KeyS: "down",
-	Space: "jump"
+	Space: "jump",
+	Digit0: "0",
+	Digit1: "1",
+	Digit2: "2",
+	Digit3: "3",
+	Digit4: "4",
+	Digit5: "5",
+	Digit6: "6",
+	Digit7: "7",
+	Digit8: "8",
+	Digit9: "9"
 };
 var KeyboardController = class {
 	firstKeys = /* @__PURE__ */ new Set();
@@ -15150,28 +18227,33 @@ var ImageLoader = class {
 	/**
 	* Internal helper to generate and cache a colored version of an image.
 	*/
-	generateColoredVersion(name, id) {
-		const img = this.baseImages[name];
-		const rules = this.colorRules[name][id];
+	generateColoredVersion(name, id, folderKey) {
+		const img = this.baseImages[folderKey]?.[name];
+		const rules = this.colorRules[folderKey]?.[name]?.[id];
 		if (!img || !rules) return;
 		const canvas = this.recolorImage(img, rules);
-		if (!this.coloredImages[name]) this.coloredImages[name] = {};
-		this.coloredImages[name][id] = canvas;
+		if (!this.coloredImages[folderKey]) this.coloredImages[folderKey] = {};
+		if (!this.coloredImages[folderKey][name]) this.coloredImages[folderKey][name] = {};
+		this.coloredImages[folderKey][name][id] = canvas;
 	}
 	/**
-	* Registers a coloring rule for a specific texture. 
+	* Registers a coloring rule for a specific texture within a folder. 
 	* Applies immediately to already loaded textures, and queues for future ones.
 	*/
-	setColorRule(name, id, rules) {
-		if (!this.colorRules[name]) this.colorRules[name] = {};
-		this.colorRules[name][id] = rules;
-		if (this.baseImages[name]) this.generateColoredVersion(name, id);
+	setColorRule(name, id, rules, folder = null) {
+		const folderKey = folder ?? "root";
+		if (!this.colorRules[folderKey]) this.colorRules[folderKey] = {};
+		if (!this.colorRules[folderKey][name]) this.colorRules[folderKey][name] = {};
+		this.colorRules[folderKey][name][id] = rules;
+		if (this.baseImages[folderKey]?.[name]) this.generateColoredVersion(name, id, folderKey);
 	}
 	/**
-	* Loads base images asynchronously and applies any pending color rules.
+	* Loads base images asynchronously into a specific folder and applies any pending color rules.
 	*/
-	async load(list) {
+	async load(list, folder = null) {
+		const folderKey = folder ?? "root";
 		this.totalCount += Object.keys(list).length;
+		if (!this.baseImages[folderKey]) this.baseImages[folderKey] = {};
 		const promises = [];
 		for (const [name, path] of Object.entries(list)) {
 			const p = (async () => {
@@ -15185,10 +18267,10 @@ var ImageLoader = class {
 						i.onerror = (e) => reject(e);
 						i.src = URL.createObjectURL(blob);
 					});
-					this.baseImages[name] = img;
-					if (this.colorRules[name]) for (const idStr of Object.keys(this.colorRules[name])) {
+					this.baseImages[folderKey][name] = img;
+					if (this.colorRules[folderKey]?.[name]) for (const idStr of Object.keys(this.colorRules[folderKey][name])) {
 						const id = parseInt(idStr, 10);
-						this.generateColoredVersion(name, id);
+						this.generateColoredVersion(name, id, folderKey);
 					}
 					this.loadedCount++;
 				} catch (err) {
@@ -15205,18 +18287,35 @@ var ImageLoader = class {
 		return this.loadedCount === this.totalCount && this.totalCount > 0;
 	}
 	/**
-	* Retrieves an image or canvas texture.
+	* Retrieves an image or canvas texture from a specific folder.
 	* @param name - The asset key identifier.
 	* @param colorId - The numeric ID of the color rule to apply.
+	* @param folder - The folder name to look inside (defaults to 'root').
 	*/
-	get(name, colorId) {
+	get(name, colorId, folder) {
 		if (name === null) return this.placeholder;
+		const folderKey = folder ?? "root";
 		if (colorId !== void 0) {
-			if (this.coloredImages[name] && this.coloredImages[name][colorId]) return this.coloredImages[name][colorId];
+			if (this.coloredImages[folderKey]?.[name]?.[colorId]) return this.coloredImages[folderKey][name][colorId];
 			return this.placeholder;
 		}
-		if (this.baseImages[name]) return this.baseImages[name];
+		if (this.baseImages[folderKey]?.[name]) return this.baseImages[folderKey][name];
 		return this.placeholder;
+	}
+	/**
+	* Returns a scoped object containing a `get` method bound to a specific folder.
+	* It acts like an ImageLoader instance but without requiring the folder argument.
+	* @param folder - The folder to bind to.
+	*/
+	getFolder(folder) {
+		return {
+			get: (name, colorId) => {
+				return this.get(name, colorId, folder);
+			},
+			setColorRule: (name, id, rules) => {
+				return this.setColorRule(name, id, rules, folder);
+			}
+		};
 	}
 	/**
 	* Formats the cached data into a folder structure for external use if needed.
@@ -15232,15 +18331,319 @@ var ImageLoader = class {
 //#region client/src/handlers/imageLoader.ts
 var imageLoader = new ImageLoader(window.IMG_ROOT_PATH);
 //#endregion
+//#region client/src/controllers/MobileController.ts
+var MobileController = class {
+	adapter = null;
+	playerIdx = 0;
+	clientData = null;
+	touches = /* @__PURE__ */ new Map();
+	presses = /* @__PURE__ */ new Set();
+	firsts = /* @__PURE__ */ new Set();
+	kills = /* @__PURE__ */ new Set();
+	joystickValues = /* @__PURE__ */ new Map();
+	hiddenButtons = /* @__PURE__ */ new Set();
+	init() {
+		window.addEventListener("touchstart", this.handleTouchStart, { passive: false });
+		window.addEventListener("touchmove", this.handleTouchMove, { passive: false });
+		window.addEventListener("touchend", this.handleTouchEnd, { passive: false });
+		window.addEventListener("touchcancel", this.handleTouchEnd, { passive: false });
+	}
+	setScreenCoordsAdapter(adapter, playerIdx, clientData) {
+		this.adapter = adapter;
+		this.playerIdx = playerIdx;
+		this.clientData = clientData;
+	}
+	resolveJoyPosition(el, screenWidth, screenHeight) {
+		let centerX = 0;
+		if (el.xp === "right") centerX = screenWidth - el.x;
+		else if (el.xp === "ratio") centerX = el.x * screenWidth;
+		else centerX = el.x;
+		let centerY = 0;
+		if (el.yp === "bottom") centerY = screenHeight - el.y;
+		else if (el.yp === "ratio") centerY = el.y * screenHeight;
+		else centerY = el.y;
+		return {
+			centerX,
+			centerY,
+			radius: el.size / 2
+		};
+	}
+	resolveBtnPosition(el, screenWidth, screenHeight) {
+		let centerX = 0;
+		if (el.xp === "right") centerX = screenWidth - el.x;
+		else if (el.xp === "ratio") centerX = el.x * screenWidth;
+		else centerX = el.x;
+		let centerY = 0;
+		if (el.yp === "bottom") centerY = screenHeight - el.y;
+		else if (el.yp === "ratio") centerY = el.y * screenHeight;
+		else centerY = el.y;
+		return {
+			centerX,
+			centerY,
+			size: el.size
+		};
+	}
+	getGameCoords(screenX, screenY) {
+		if (!this.adapter) return {
+			x: screenX,
+			y: screenY
+		};
+		const { width: gameWidth, height: gameHeight } = this.adapter.getSize();
+		const screenWidth = window.innerWidth;
+		const screenHeight = window.innerHeight;
+		const scaleX = screenWidth / gameWidth;
+		const scaleY = screenHeight / gameHeight;
+		const scale = Math.min(scaleX, scaleY);
+		const offsetX = (screenWidth - gameWidth * scale) / 2;
+		const offsetY = (screenHeight - gameHeight * scale) / 2;
+		const gameX = (screenX - offsetX) / scale;
+		const gameY = (screenY - offsetY) / scale;
+		return this.adapter.evalMouseCoords(gameX, gameY, this.playerIdx, this.clientData);
+	}
+	identifyTouchTarget(touchId, screenX, screenY) {
+		if (!this.adapter) return touchId;
+		const mobileData = this.adapter.getMobileDesc();
+		const screenWidth = window.innerWidth;
+		const screenHeight = window.innerHeight;
+		if (mobileData && mobileData.buttons) for (const [key, btn] of Object.entries(mobileData.buttons)) {
+			if (this.hiddenButtons.has(key)) continue;
+			const { centerX, centerY, size } = this.resolveBtnPosition(btn, screenWidth, screenHeight);
+			const halfSize = size / 2;
+			if (screenX >= centerX - halfSize && screenX <= centerX + halfSize && screenY >= centerY - halfSize && screenY <= centerY + halfSize) return key;
+		}
+		if (mobileData && mobileData.joysticks) for (const [key, joy] of Object.entries(mobileData.joysticks)) {
+			if (this.hiddenButtons.has(key)) continue;
+			const { centerX, centerY, radius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
+			const dx = screenX - centerX;
+			const dy = screenY - centerY;
+			if (dx * dx + dy * dy <= radius * radius) return key;
+		}
+		return touchId;
+	}
+	updateJoystickValues() {
+		if (!this.adapter) return;
+		const mobileData = this.adapter.getMobileDesc();
+		if (!mobileData || !mobileData.joysticks) return;
+		const screenWidth = window.innerWidth;
+		const screenHeight = window.innerHeight;
+		for (const key of Object.keys(mobileData.joysticks)) this.joystickValues.set(key, {
+			x: 0,
+			y: 0
+		});
+		for (const touch of this.touches.values()) if (typeof touch.target === "string" && mobileData.joysticks[touch.target]) {
+			const joyKey = touch.target;
+			const joy = mobileData.joysticks[joyKey];
+			const { centerX, centerY, radius: maxRadius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
+			const dx = touch.screenX - centerX;
+			const dy = touch.screenY - centerY;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			if (distance === 0) this.joystickValues.set(joyKey, {
+				x: 0,
+				y: 0
+			});
+			else {
+				const clampDist = Math.min(distance, maxRadius);
+				const normX = dx / distance * (clampDist / maxRadius);
+				const normY = dy / distance * (clampDist / maxRadius);
+				this.joystickValues.set(joyKey, {
+					x: normX,
+					y: normY
+				});
+			}
+		}
+	}
+	getJoystick(name) {
+		return this.joystickValues.get(name) || {
+			x: 0,
+			y: 0
+		};
+	}
+	draw(ctx) {
+		if (!this.adapter) return;
+		const mobileData = this.adapter.getMobileDesc();
+		if (!mobileData) return;
+		const screenWidth = window.innerWidth;
+		const screenHeight = window.innerHeight;
+		ctx.save();
+		if (mobileData.joysticks) for (const [key, joy] of Object.entries(mobileData.joysticks)) {
+			if (this.hiddenButtons.has(key)) continue;
+			const { centerX, centerY, radius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
+			const values = this.getJoystick(key);
+			ctx.beginPath();
+			ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+			ctx.fillStyle = joy.color + "33";
+			ctx.fill();
+			ctx.lineWidth = 3;
+			ctx.strokeStyle = joy.color;
+			ctx.stroke();
+			const knobX = centerX + values.x * radius;
+			const knobY = centerY + values.y * radius;
+			const knobRadius = radius * .4;
+			ctx.beginPath();
+			ctx.arc(knobX, knobY, knobRadius, 0, Math.PI * 2);
+			ctx.fillStyle = joy.color;
+			ctx.fill();
+		}
+		if (mobileData.buttons) for (const [key, btn] of Object.entries(mobileData.buttons)) {
+			if (this.hiddenButtons.has(key)) continue;
+			const { centerX, centerY, size } = this.resolveBtnPosition(btn, screenWidth, screenHeight);
+			const isPressed = this.press(key);
+			const halfSize = size / 2;
+			const radius = size * .2;
+			ctx.beginPath();
+			ctx.roundRect(centerX - halfSize, centerY - halfSize, size, size, radius);
+			ctx.fillStyle = isPressed ? btn.color : btn.color + "66";
+			ctx.fill();
+			ctx.lineWidth = 2;
+			ctx.strokeStyle = "#FFFFFF";
+			ctx.stroke();
+			ctx.fillStyle = "#FFFFFF";
+			ctx.font = `bold ${Math.round(size * .3)}px sans-serif`;
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.fillText(key.toUpperCase(), centerX, centerY);
+		}
+		ctx.restore();
+	}
+	getDigits() {
+		return Array.from(this.touches.values()).filter((touch) => typeof touch.target === "number").map((touch) => ({
+			x: touch.gameX,
+			y: touch.gameY,
+			id: touch.target
+		}));
+	}
+	first(button) {
+		return this.firsts.has(button);
+	}
+	press(button) {
+		return this.presses.has(button);
+	}
+	killed(button) {
+		return this.kills.has(button);
+	}
+	showButton(button) {
+		this.hiddenButtons.delete(button);
+	}
+	hideButton(button) {
+		this.hiddenButtons.add(button);
+	}
+	frame() {
+		this.firsts.clear();
+		this.kills.clear();
+	}
+	destroy() {
+		window.removeEventListener("touchstart", this.handleTouchStart);
+		window.removeEventListener("touchmove", this.handleTouchMove);
+		window.removeEventListener("touchend", this.handleTouchEnd);
+		window.removeEventListener("touchcancel", this.handleTouchEnd);
+	}
+	handleTouchStart = (e) => {
+		e.preventDefault();
+		for (let i = 0; i < e.changedTouches.length; i++) {
+			const touch = e.changedTouches[i];
+			const screenX = touch.clientX;
+			const screenY = touch.clientY;
+			const coords = this.getGameCoords(screenX, screenY);
+			const target = this.identifyTouchTarget(touch.identifier, screenX, screenY);
+			this.touches.set(touch.identifier, {
+				screenX,
+				screenY,
+				gameX: coords.x,
+				gameY: coords.y,
+				target
+			});
+			if (!this.presses.has(target)) this.firsts.add(target);
+			this.presses.add(target);
+		}
+		this.updateJoystickValues();
+	};
+	handleTouchMove = (e) => {
+		e.preventDefault();
+		for (let i = 0; i < e.changedTouches.length; i++) {
+			const touch = e.changedTouches[i];
+			const existing = this.touches.get(touch.identifier);
+			if (existing) {
+				const screenX = touch.clientX;
+				const screenY = touch.clientY;
+				const coords = this.getGameCoords(screenX, screenY);
+				existing.screenX = screenX;
+				existing.screenY = screenY;
+				existing.gameX = coords.x;
+				existing.gameY = coords.y;
+			}
+		}
+		this.updateJoystickValues();
+	};
+	handleTouchEnd = (e) => {
+		e.preventDefault();
+		for (let i = 0; i < e.changedTouches.length; i++) {
+			const touch = e.changedTouches[i];
+			const existing = this.touches.get(touch.identifier);
+			if (existing) {
+				const target = existing.target;
+				this.presses.delete(target);
+				this.kills.add(target);
+				this.touches.delete(touch.identifier);
+			}
+		}
+		this.updateJoystickValues();
+	};
+};
+var mobileController = new MobileController();
+mobileController.init();
+//#endregion
+//#region client/src/dom/clientNavigatorType.ts
+function hasNavigatorMobile() {
+	return navigator.maxTouchPoints > 0;
+}
+function hasNavigatorMouse() {
+	return window.matchMedia("(any-pointer: fine)").matches;
+}
+//#endregion
+//#region client/src/handlers/FullScreenHandler.ts
+var FullScreenHandler = class {
+	ownsFullscreen = false;
+	constructor() {
+		document.addEventListener("fullscreenchange", () => {
+			if (!document.fullscreenElement) this.ownsFullscreen = false;
+		});
+	}
+	async openFull() {
+		if (document.fullscreenElement) {
+			this.ownsFullscreen = false;
+			return;
+		}
+		await document.documentElement.requestFullscreen();
+		this.ownsFullscreen = true;
+	}
+	async closeFull() {
+		if (!this.ownsFullscreen) return;
+		if (!document.fullscreenElement) {
+			this.ownsFullscreen = false;
+			return;
+		}
+		await document.exitFullscreen();
+		this.ownsFullscreen = false;
+	}
+};
+var fullScreenHandler = new FullScreenHandler();
+console.log(fullScreenHandler);
+//#endregion
 //#region client/src/handlers/GameHandler.ts
-var canvas$1 = document.getElementById("play-canvas");
-var ctx$1 = canvas$1.getContext("2d");
-canvas$1.oncontextmenu = (e) => {
+var canvas = document.getElementById("play-canvas");
+var ctx$2 = canvas.getContext("2d");
+canvas.oncontextmenu = (e) => {
 	e.preventDefault();
 };
 function resizeCanvas() {
-	canvas$1.width = window.innerWidth;
-	canvas$1.height = window.innerHeight;
+	const dpr = window.devicePixelRatio || 1;
+	const width = window.innerWidth;
+	const height = window.innerHeight;
+	canvas.style.width = `${width}px`;
+	canvas.style.height = `${height}px`;
+	canvas.width = Math.round(width * dpr);
+	canvas.height = Math.round(height * dpr);
+	canvas.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
@@ -15258,6 +18661,7 @@ var GameHandler = class {
 	gameWidth;
 	gameHeight;
 	prevDraw = null;
+	allowsMobile;
 	constructor(gamemodeId, gamemode, playerIdx, protocols, clientData) {
 		this.gamemodeId = gamemodeId;
 		this.gamemode = gamemode;
@@ -15268,6 +18672,10 @@ var GameHandler = class {
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
 		mouseController.setScreenCoordsAdapter(this.gamemode, playerIdx, clientData);
+		if (this.gamemode.getMobileDesc() && hasNavigatorMobile()) {
+			this.allowsMobile = true;
+			mobileController.setScreenCoordsAdapter(gamemode, playerIdx, clientData);
+		} else this.allowsMobile = false;
 	}
 	receive(gdata) {
 		const msg = decodeFullMessage(this.protocols.ServerMessage.decode(gdata));
@@ -15290,36 +18698,38 @@ var GameHandler = class {
 		return output;
 	}
 	draw(dt) {
-		const scaleX = canvas$1.width / this.gameWidth;
-		const scaleY = canvas$1.height / this.gameHeight;
+		const scaleX = innerWidth / this.gameWidth;
+		const scaleY = innerHeight / this.gameHeight;
 		const scale = Math.min(scaleX, scaleY);
-		const offsetX = (canvas$1.width - this.gameWidth * scale) / 2;
-		const offsetY = (canvas$1.height - this.gameHeight * scale) / 2;
-		ctx$1.save();
-		ctx$1.clearRect(0, 0, canvas$1.width, canvas$1.height);
-		ctx$1.translate(offsetX, offsetY);
-		ctx$1.scale(scale, scale);
-		this.gamemode.draw(ctx$1, this.playerIdx, this.clientData, imageLoader, dt);
-		ctx$1.restore();
-		ctx$1.fillStyle = "black";
+		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
+		const offsetY = (innerHeight - this.gameHeight * scale) / 2;
+		ctx$2.save();
+		ctx$2.clearRect(0, 0, innerWidth, innerHeight);
+		ctx$2.translate(offsetX, offsetY);
+		ctx$2.scale(scale, scale);
+		this.gamemode.draw(ctx$2, this.playerIdx, this.clientData, imageLoader, dt);
+		ctx$2.restore();
+		ctx$2.fillStyle = "black";
 		if (offsetX > 0) {
-			ctx$1.fillRect(0, 0, offsetX, canvas$1.height);
-			ctx$1.fillRect(canvas$1.width - offsetX, 0, offsetX, canvas$1.height);
+			ctx$2.fillRect(0, 0, offsetX, innerHeight);
+			ctx$2.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight);
 		}
 		if (offsetY > 0) {
-			ctx$1.fillRect(0, 0, canvas$1.width, offsetY);
-			ctx$1.fillRect(0, canvas$1.height - offsetY, canvas$1.width, offsetY);
+			ctx$2.fillRect(0, 0, innerWidth, offsetY);
+			ctx$2.fillRect(0, innerHeight - offsetY, innerWidth, offsetY);
 		}
+		if (this.allowsMobile) mobileController.draw(ctx$2);
 	}
 	frame() {
 		const now = getNow();
-		const newInputs = this.gamemode.collectInputs(keyboardController, mouseController, this.clientData).map((data) => ({
+		const newInputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData).map((data) => ({
 			...data,
 			timestamp: now
 		}));
 		this.userInputs.push(...newInputs);
 		keyboardController.frame();
 		mouseController.frame();
+		mobileController.frame();
 		this.gamemode.emulate(this.lastEmulation, now, newInputs.map((i) => ({
 			...i,
 			player: this.playerIdx
@@ -15335,19 +18745,22 @@ function getGameHandler() {
 	return _gameHandler;
 }
 async function setGameHandler(gamemode, playerIdx, startData, total) {
-	const factory = getGmFactory(gamemode);
-	const protocols = getProtocol(gamemode);
+	const factory = getMultiGmFactory(gamemode);
+	const protocols = getProtocol(gamemode, "multiplayer");
 	await protocols.load();
-	const { game, data, html } = factory.client(startData, total);
+	const { game, data, html, skins } = factory.client(startData, total, playerIdx);
+	await imageLoader.load(skins, gamemode);
 	const gameHtml = document.getElementById("game-html");
 	gameHtml.innerHTML = "";
 	if (html) gameHtml.appendChild(html);
+	await fullScreenHandler.openFull();
 	_gameHandler = new GameHandler(gamemode, game, playerIdx, protocols.get(), data);
 	_gameHandler.frame();
 	dom.openPlay();
 	return _gameHandler;
 }
 function deleteGameHandler() {
+	fullScreenHandler.closeFull();
 	_gameHandler = null;
 }
 //#endregion
@@ -15420,7 +18833,7 @@ function getWaitingPlayHandler() {
 	return waitingPlayHandler;
 }
 function setWaitingPlayHandler(total, gamemode, userIdentifier, users) {
-	getGmFactory(gamemode);
+	getMultiGmFactory(gamemode);
 	const updateDom = function(users, event) {
 		const waitPlayPanel = dom.getWaitPlayPanel();
 		switch (event.type) {
@@ -15516,8 +18929,28 @@ var runners = {
 			const panel = dom.getLeaderboardPanel();
 			panel.entries = d.entries || [];
 		}
+	},
+	soloRecords(d) {
+		if (dom.uses("solo-leaderboard")) {
+			const panel = dom.getSoloLeaderboardPanel();
+			console.log(d);
+			panel.setSoloRecords(d);
+		}
+	},
+	skinsResponse(d) {
+		console.log(d);
+		if (skinsResponseResolve) {
+			skinsResponseResolve(d.skins);
+			skinsResponseResolve = null;
+		}
 	}
 };
+var skinsResponseResolve = null;
+function waitSkinsResponsePromise() {
+	return new Promise((resolve) => {
+		skinsResponseResolve = resolve;
+	});
+}
 function recvMessage(msg) {
 	runners[msg.message](msg[msg.message]);
 }
@@ -15597,8 +19030,7 @@ function escapeHTML(str) {
 }
 //#endregion
 //#region client/src/handlers/LocalGameHandler.ts
-var canvas = document.getElementById("play-canvas");
-var ctx = canvas.getContext("2d");
+var ctx$1 = document.getElementById("play-canvas").getContext("2d");
 var LocalGameHandler = class {
 	clock = 0;
 	lastTime = 0;
@@ -15608,8 +19040,10 @@ var LocalGameHandler = class {
 	clientData;
 	gameWidth;
 	gameHeight;
+	allowsMobile;
+	imageLoaderPromise;
 	constructor(gamemodeId) {
-		const { game, data, html } = getGmFactory(gamemodeId).client(null, 2);
+		const { game, data, html, skins } = getMultiGmFactory(gamemodeId).client(null, 2, 0);
 		const gameHtml = document.getElementById("game-html");
 		gameHtml.innerHTML = "";
 		if (html) gameHtml.appendChild(html);
@@ -15620,33 +19054,41 @@ var LocalGameHandler = class {
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
 		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
+		if (this.gamemode.getMobileDesc() && hasNavigatorMobile()) {
+			this.allowsMobile = true;
+			mobileController.setScreenCoordsAdapter(this.gamemode, 0, data);
+		} else this.allowsMobile = false;
+		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
 	}
-	start() {
+	async start() {
+		await fullScreenHandler.openFull();
+		await this.imageLoaderPromise;
 		this.clock = 0;
 		this.lastTime = performance.now();
 		requestAnimationFrame(() => this.frame());
 	}
 	draw(dt) {
-		const scaleX = canvas.width / this.gameWidth;
-		const scaleY = canvas.height / this.gameHeight;
+		const scaleX = innerWidth / this.gameWidth;
+		const scaleY = innerHeight / this.gameHeight;
 		const scale = Math.min(scaleX, scaleY);
-		const offsetX = (canvas.width - this.gameWidth * scale) / 2;
-		const offsetY = (canvas.height - this.gameHeight * scale) / 2;
-		ctx.save();
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.translate(offsetX, offsetY);
-		ctx.scale(scale, scale);
-		this.gamemode.draw(ctx, 0, this.clientData, imageLoader, dt);
-		ctx.restore();
-		ctx.fillStyle = "black";
+		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
+		const offsetY = (innerHeight - this.gameHeight * scale) / 2;
+		ctx$1.save();
+		ctx$1.clearRect(0, 0, innerWidth, innerHeight);
+		ctx$1.translate(offsetX, offsetY);
+		ctx$1.scale(scale, scale);
+		this.gamemode.draw(ctx$1, 0, this.clientData, imageLoader, dt);
+		ctx$1.restore();
+		ctx$1.fillStyle = "black";
 		if (offsetX > 0) {
-			ctx.fillRect(0, 0, offsetX, canvas.height);
-			ctx.fillRect(canvas.width - offsetX, 0, offsetX, canvas.height);
+			ctx$1.fillRect(0, 0, offsetX, innerHeight);
+			ctx$1.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight);
 		}
 		if (offsetY > 0) {
-			ctx.fillRect(0, 0, canvas.width, offsetY);
-			ctx.fillRect(0, canvas.height - offsetY, canvas.width, offsetY);
+			ctx$1.fillRect(0, 0, innerWidth, offsetY);
+			ctx$1.fillRect(0, innerHeight - offsetY, innerWidth, offsetY);
 		}
+		if (this.allowsMobile) mobileController.draw(ctx$1);
 	}
 	frame() {
 		if (this.interrupted) return;
@@ -15654,9 +19096,10 @@ var LocalGameHandler = class {
 		const dt = (now - this.lastTime) / 1e3;
 		this.lastTime = now;
 		this.clock += dt;
-		const inputs = this.gamemode.collectInputs(keyboardController, mouseController, this.clientData);
+		const inputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData);
 		keyboardController.frame();
 		mouseController.frame();
+		mobileController.frame();
 		for (const input of inputs) this.gamemode.runInput(0, input);
 		const tutorialResult = this.tutorial.frame(dt, this.clock);
 		if (tutorialResult === null) {
@@ -15666,6 +19109,7 @@ var LocalGameHandler = class {
 		} else dom.getTutorialInplayComponent().setText(tutorialResult);
 		if (this.gamemode.quickEmulate(dt, true)) {
 			this.interrupted = true;
+			deleteGameHandler();
 			dom.openHome();
 			return;
 		}
@@ -15673,6 +19117,284 @@ var LocalGameHandler = class {
 		requestAnimationFrame(() => this.frame());
 	}
 };
+//#endregion
+//#region node_modules/prando/dist/Prando.es.js
+var Prando = function() {
+	/**
+	* Generate a new Prando pseudo-random number generator.
+	*
+	* @param seed - A number or string seed that determines which pseudo-random number sequence will be created. Defaults to a random seed based on `Math.random()`.
+	*/
+	function Prando(seed) {
+		this._value = NaN;
+		if (typeof seed === "string") this._seed = this.hashCode(seed);
+		else if (typeof seed === "number") this._seed = this.getSafeSeed(seed);
+		else this._seed = this.getSafeSeed(Prando.MIN + Math.floor((Prando.MAX - Prando.MIN) * Math.random()));
+		this.reset();
+	}
+	/**
+	* Generates a pseudo-random number between a lower (inclusive) and a higher (exclusive) bounds.
+	*
+	* @param min - The minimum number that can be randomly generated.
+	* @param pseudoMax - The maximum number that can be randomly generated (exclusive).
+	* @return The generated pseudo-random number.
+	*/
+	Prando.prototype.next = function(min, pseudoMax) {
+		if (min === void 0) min = 0;
+		if (pseudoMax === void 0) pseudoMax = 1;
+		this.recalculate();
+		return this.map(this._value, Prando.MIN, Prando.MAX, min, pseudoMax);
+	};
+	/**
+	* Generates a pseudo-random integer number in a range (inclusive).
+	*
+	* @param min - The minimum number that can be randomly generated.
+	* @param max - The maximum number that can be randomly generated.
+	* @return The generated pseudo-random number.
+	*/
+	Prando.prototype.nextInt = function(min, max) {
+		if (min === void 0) min = 10;
+		if (max === void 0) max = 100;
+		this.recalculate();
+		return Math.floor(this.map(this._value, Prando.MIN, Prando.MAX, min, max + 1));
+	};
+	/**
+	* Generates a pseudo-random string sequence of a particular length from a specific character range.
+	*
+	* Note: keep in mind that creating a random string sequence does not guarantee uniqueness; there is always a
+	* 1 in (char_length^string_length) chance of collision. For real unique string ids, always check for
+	* pre-existing ids, or employ a robust GUID/UUID generator.
+	*
+	* @param length - Length of the string to be generated.
+	* @param chars - Characters that are used when creating the random string. Defaults to all alphanumeric chars (A-Z, a-z, 0-9).
+	* @return The generated string sequence.
+	*/
+	Prando.prototype.nextString = function(length, chars) {
+		if (length === void 0) length = 16;
+		if (chars === void 0) chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+		var str = "";
+		while (str.length < length) str += this.nextChar(chars);
+		return str;
+	};
+	/**
+	* Generates a pseudo-random string of 1 character specific character range.
+	*
+	* @param chars - Characters that are used when creating the random string. Defaults to all alphanumeric chars (A-Z, a-z, 0-9).
+	* @return The generated character.
+	*/
+	Prando.prototype.nextChar = function(chars) {
+		if (chars === void 0) chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+		return chars.substr(this.nextInt(0, chars.length - 1), 1);
+	};
+	/**
+	* Picks a pseudo-random item from an array. The array is left unmodified.
+	*
+	* Note: keep in mind that while the returned item will be random enough, picking one item from the array at a time
+	* does not guarantee nor imply that a sequence of random non-repeating items will be picked. If you want to
+	* *pick items in a random order* from an array, instead of *pick one random item from an array*, it's best to
+	* apply a *shuffle* transformation to the array instead, then read it linearly.
+	*
+	* @param array - Array of any type containing one or more candidates for random picking.
+	* @return An item from the array.
+	*/
+	Prando.prototype.nextArrayItem = function(array) {
+		return array[this.nextInt(0, array.length - 1)];
+	};
+	/**
+	* Generates a pseudo-random boolean.
+	*
+	* @return A value of true or false.
+	*/
+	Prando.prototype.nextBoolean = function() {
+		this.recalculate();
+		return this._value > .5;
+	};
+	/**
+	* Skips ahead in the sequence of numbers that are being generated. This is equivalent to
+	* calling next() a specified number of times, but faster since it doesn't need to map the
+	* new random numbers to a range and return it.
+	*
+	* @param iterations - The number of items to skip ahead.
+	*/
+	Prando.prototype.skip = function(iterations) {
+		if (iterations === void 0) iterations = 1;
+		while (iterations-- > 0) this.recalculate();
+	};
+	/**
+	* Reset the pseudo-random number sequence back to its starting seed. Further calls to next()
+	* will then produce the same sequence of numbers it had produced before. This is equivalent to
+	* creating a new Prando instance with the same seed as another Prando instance.
+	*
+	* Example:
+	* let rng = new Prando(12345678);
+	* console.log(rng.next()); // 0.6177754114889017
+	* console.log(rng.next()); // 0.5784605181725837
+	* rng.reset();
+	* console.log(rng.next()); // 0.6177754114889017 again
+	* console.log(rng.next()); // 0.5784605181725837 again
+	*/
+	Prando.prototype.reset = function() {
+		this._value = this._seed;
+	};
+	Prando.prototype.recalculate = function() {
+		this._value = this.xorshift(this._value);
+	};
+	Prando.prototype.xorshift = function(value) {
+		value ^= value << 13;
+		value ^= value >> 17;
+		value ^= value << 5;
+		return value;
+	};
+	Prando.prototype.map = function(val, minFrom, maxFrom, minTo, maxTo) {
+		return (val - minFrom) / (maxFrom - minFrom) * (maxTo - minTo) + minTo;
+	};
+	Prando.prototype.hashCode = function(str) {
+		var hash = 0;
+		if (str) {
+			var l = str.length;
+			for (var i = 0; i < l; i++) {
+				hash = (hash << 5) - hash + str.charCodeAt(i);
+				hash |= 0;
+				hash = this.xorshift(hash);
+			}
+		}
+		return this.getSafeSeed(hash);
+	};
+	Prando.prototype.getSafeSeed = function(seed) {
+		if (seed === 0) return 1;
+		return seed;
+	};
+	Prando.MIN = -2147483648;
+	Prando.MAX = 2147483647;
+	return Prando;
+}();
+//#endregion
+//#region client/src/handlers/SoloGameHandler.ts
+var ctx = document.getElementById("play-canvas").getContext("2d");
+var SoloGameHandler = class {
+	gamemodeId;
+	gamemode;
+	category;
+	clock = 0;
+	lastTime = 0;
+	interrupted = false;
+	gameWidth;
+	gameHeight;
+	allowsMobile;
+	inputs = [];
+	Input;
+	clientData;
+	seed;
+	constructor(gamemodeId, gamemode, category) {
+		this.gamemodeId = gamemodeId;
+		this.gamemode = gamemode;
+		this.category = category;
+		const gsize = this.gamemode.getSize();
+		this.gameWidth = gsize.width;
+		this.gameHeight = gsize.height;
+		this.seed = Math.floor(Math.random() * 2e9);
+		this.clientData = this.gamemode.init(category, new Prando(this.seed), true);
+		mouseController.setScreenCoordsAdapter(this.gamemode, 0, this.clientData);
+		if (this.gamemode.getMobileDesc() && hasNavigatorMobile()) {
+			this.allowsMobile = true;
+			mobileController.setScreenCoordsAdapter(this.gamemode, 0, this.clientData);
+		} else this.allowsMobile = false;
+	}
+	async start() {
+		await fullScreenHandler.openFull();
+		this.clock = 0;
+		this.lastTime = performance.now();
+		const protocols = getProtocol(this.gamemodeId, "solo");
+		await protocols.load();
+		this.Input = protocols.get().Input;
+		requestAnimationFrame(() => this.frame());
+	}
+	draw(dt) {
+		const scaleX = innerWidth / this.gameWidth;
+		const scaleY = innerHeight / this.gameHeight;
+		const scale = Math.min(scaleX, scaleY);
+		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
+		const offsetY = (innerHeight - this.gameHeight * scale) / 2;
+		ctx.save();
+		ctx.clearRect(0, 0, innerWidth, innerHeight);
+		ctx.translate(offsetX, offsetY);
+		ctx.scale(scale, scale);
+		this.gamemode.draw(ctx, this.clientData, imageLoader, dt);
+		ctx.restore();
+		ctx.fillStyle = "black";
+		if (offsetX > 0) {
+			ctx.fillRect(0, 0, offsetX, innerHeight);
+			ctx.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight);
+		}
+		if (offsetY > 0) {
+			ctx.fillRect(0, 0, innerWidth, offsetY);
+			ctx.fillRect(0, innerHeight - offsetY, innerWidth, offsetY);
+		}
+		if (this.allowsMobile) mobileController.draw(ctx);
+	}
+	frame() {
+		if (this.interrupted) return;
+		const now = performance.now();
+		const dt = (now - this.lastTime) / 1e3;
+		this.lastTime = now;
+		const inputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData);
+		keyboardController.frame();
+		mouseController.frame();
+		mobileController.frame();
+		for (const input of inputs) {
+			this.gamemode.runInput(input);
+			this.inputs.push(this.Input.encode({
+				...input,
+				timestamp: this.clock
+			}).finish());
+		}
+		const result = this.gamemode.quickEmulate(dt, this.clock);
+		if (result !== null) {
+			sendMessage({ soloRunInputs: {
+				gamemode: this.gamemodeId,
+				category: this.category,
+				seed: this.seed,
+				inputs: this.inputs
+			} });
+			dom.openSoloComponent(result);
+			this.interrupted = true;
+			return;
+		}
+		this.draw(dt);
+		this.clock += dt;
+		requestAnimationFrame(() => this.frame());
+	}
+};
+//#endregion
+//#region client/src/handlers/DynamicCssHandler.ts
+function getFile(name) {
+	return `${window.IMG_ROOT_PATH}/css-games/${name}.css`;
+}
+var DynamicCssHandler = class {
+	loaded = /* @__PURE__ */ new Set();
+	async load(name) {
+		if (this.loaded.has(name)) return;
+		const href = getFile(name);
+		if (document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) {
+			this.loaded.add(name);
+			return;
+		}
+		await new Promise((resolve, reject) => {
+			const link = document.createElement("link");
+			link.rel = "stylesheet";
+			link.href = href;
+			link.onload = () => {
+				this.loaded.add(name);
+				resolve();
+			};
+			link.onerror = () => {
+				reject(/* @__PURE__ */ new Error(`Failed to load CSS: ${href}`));
+			};
+			document.head.appendChild(link);
+		});
+	}
+};
+var dynamicCssHandler = new DynamicCssHandler();
 //#endregion
 //#region client/src/dom/dom.ts
 var STORAGE_KEY_CONNECTION = "ayke_connectionKey";
@@ -15733,10 +19455,25 @@ var MainComponent = class {
 	}
 	async openGamePanel(gamemode) {
 		this.currentPage = "loading";
-		const data = getGmFactory(gamemode).dom();
+		const factory = getGmFactory(gamemode);
+		let unlockedSkins;
+		if (factory.type === "multiplayer") {
+			if (factory.skins.length === 0) unlockedSkins = 0;
+			else if (this.pseudo === null) unlockedSkins = [factory.skins[0]];
+			else {
+				sendMessage({ askSkins: gamemode });
+				unlockedSkins = await waitSkinsResponsePromise();
+			}
+		}
 		const html = await this.templateLoader.load(gamemode);
-		this.panel = new GamePanelComponent(gamemode, data, html);
 		this.currentPage = "game-panel";
+		if (factory.type === "multiplayer") {
+			const data = factory.dom(unlockedSkins);
+			this.panel = new GamePanelComponent(gamemode, data, html);
+		} else {
+			const category = factory.dom();
+			this.panel = new SoloGamePanelComponent(gamemode, category, html);
+		}
 	}
 	async openWaitPlayPanel(gamemode) {
 		this.panel = new WaitPlayPanelComponent(gamemode);
@@ -15758,8 +19495,16 @@ var MainComponent = class {
 		this.currentPage = "play-results";
 		deleteGameHandler();
 	}
+	openSoloComponent(result) {
+		this.panel = new SoloPlayResultComponent(result);
+		this.currentPage = "play-solo-results";
+	}
 	openTutorialInPlay(gamemode) {
+		this.currentPage = "play";
 		this.panel = new TutorialInplayComponent(new LocalGameHandler(gamemode));
+	}
+	openSoloPlayComponent(gamemodeId, game, category) {
+		this.panel = new SoloPlayComponent(gamemodeId, game, category);
 		this.currentPage = "play";
 	}
 	openLeaderboard() {
@@ -15767,6 +19512,12 @@ var MainComponent = class {
 		this.panel = panel;
 		this.currentPage = "leaderboard";
 		panel.fetchLeaderboard();
+	}
+	openSoloLeaderboard() {
+		const panel = new SoloLeaderboardComponent();
+		this.panel = panel;
+		this.currentPage = "solo-leaderboard";
+		panel.fetchRecords();
 	}
 	getPanel(type) {
 		if (this.panel instanceof type) return this.panel;
@@ -15787,6 +19538,9 @@ var MainComponent = class {
 	getLeaderboardPanel() {
 		return this.getPanel(LeaderboardComponent);
 	}
+	getSoloLeaderboardPanel() {
+		return this.getPanel(SoloLeaderboardComponent);
+	}
 };
 var GamePanelComponent = class {
 	gamemode;
@@ -15801,9 +19555,10 @@ var GamePanelComponent = class {
 		return this.gamemode === gamemode;
 	}
 	async play() {
-		const factory = getGmFactory(this.gamemode);
+		const factory = getMultiGmFactory(this.gamemode);
 		dom.startLoading();
-		await imageLoader.load(factory.textures);
+		await imageLoader.load(factory.textures, this.gamemode);
+		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 		dom.openWaitPlayPanel(this.gamemode);
 		sendMessage({ startGame: {
@@ -15812,11 +19567,33 @@ var GamePanelComponent = class {
 		} });
 	}
 	async tutorial() {
-		const factory = getGmFactory(this.gamemode);
+		const factory = getMultiGmFactory(this.gamemode);
 		dom.startLoading();
-		await imageLoader.load(factory.textures);
+		await imageLoader.load(factory.textures, this.gamemode);
+		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 		dom.openTutorialInPlay(this.gamemode);
+	}
+};
+var SoloGamePanelComponent = class {
+	gamemode;
+	data;
+	htmlContent;
+	constructor(gamemode, data, htmlContent) {
+		this.gamemode = gamemode;
+		this.data = data;
+		this.htmlContent = htmlContent;
+	}
+	uses(gamemode) {
+		return this.gamemode === gamemode;
+	}
+	async play() {
+		const factory = getSoloGmFactory(this.gamemode);
+		dom.startLoading();
+		await imageLoader.load(factory.textures);
+		await dynamicCssHandler.load(this.gamemode);
+		dom.stopLoading();
+		dom.openSoloPlayComponent(this.gamemode, factory.create(), this.data.produce());
 	}
 };
 var WaitPlayPanelComponent = class {
@@ -15894,6 +19671,14 @@ var PlayComponent = class {
 		return new PlayResultsComponent(results, this.pseudos, this.me);
 	}
 };
+var SoloPlayComponent = class {
+	game;
+	text = "";
+	constructor(gamemodeId, game, category) {
+		this.game = new SoloGameHandler(gamemodeId, game, category);
+		this.game.start();
+	}
+};
 var PlayResultsComponent = class {
 	results;
 	pseudos;
@@ -15909,6 +19694,15 @@ var PlayResultsComponent = class {
 	showPseudo(pseudo) {
 		if (pseudo) return escapeHTML(pseudo);
 		return "<i>(anonymous)</i>";
+	}
+	returnHome() {
+		dom.openHome();
+	}
+};
+var SoloPlayResultComponent = class {
+	result;
+	constructor(result) {
+		this.result = result;
 	}
 	returnHome() {
 		dom.openHome();
@@ -15940,13 +19734,37 @@ var SigninComponent = class {
 };
 var HomeComponent = class {
 	games;
+	hasMobile = hasNavigatorMobile();
+	hasMouse = hasNavigatorMouse();
 	constructor() {
-		this.games = Object.entries(gamemods).map(([key, gamemode]) => ({
-			key,
-			name: gamemode.name
-		}));
+		this.games = [];
+		for (const [key, gamemode] of Object.entries(gamemods)) {
+			if ((key === "test" || key === "testSolo") && !window.DEBUG) continue;
+			if (gamemode.type === "ui-separator") {
+				this.games.push({
+					category: gamemode.category,
+					list: []
+				});
+				continue;
+			}
+			if (this.games.length === 0) continue;
+			this.games[this.games.length - 1].list.push({
+				key,
+				computerOnly: gamemode.computerOnly,
+				name: gamemode.name
+			});
+		}
+	}
+	isDisabled(gamemode) {
+		const gm = gamemods[gamemode];
+		if (!gm || gm.type === "ui-separator") return false;
+		return gm.computerOnly && !this.hasMouse;
 	}
 	playGame(gamemode) {
+		if (this.isDisabled(gamemode)) {
+			alert("This game is reserved to PC players");
+			return;
+		}
 		dom.openGamePanel(gamemode);
 	}
 };
@@ -15956,7 +19774,8 @@ var TutorialInplayComponent = class {
 	text = "";
 	constructor(game) {
 		this.game = game;
-		game.start();
+		dom.startLoading();
+		game.start().finally(() => dom.stopLoading());
 	}
 	setText(text) {
 		this.text = text;
@@ -16000,6 +19819,80 @@ var LeaderboardComponent = class {
 		return this.page * 64 + index + 1;
 	}
 };
+var SoloLeaderboardComponent = class {
+	entries = [];
+	gamemode;
+	category;
+	constructor() {
+		this.gamemode = "";
+		this.category = "";
+		for (let key in gamemods) if (gamemods[key].type === "solo") {
+			this.gamemode = key;
+			this.category = gamemods[key].categories[0];
+		}
+	}
+	page = 0;
+	gamemods = Object.fromEntries(Object.entries(gamemods).filter(([_, factory]) => factory.type === "solo"));
+	getCategories() {
+		return getSoloGmFactory(this.gamemode).categories;
+	}
+	/**
+	* Request the current solo leaderboard page from the server.
+	*/
+	fetchRecords() {
+		sendMessage({ askSoloRecords: {
+			gamemode: this.gamemode,
+			category: this.category,
+			page: this.page
+		} });
+	}
+	/**
+	* Update the selected game mode and reset the page.
+	*/
+	setGamemode(mode) {
+		this.gamemode = mode;
+		this.page = 0;
+		this.fetchRecords();
+	}
+	/**
+	* Update the selected category and reset the page.
+	*/
+	setCategory(category) {
+		this.category = category;
+		this.page = 0;
+		this.fetchRecords();
+	}
+	/**
+	* Go to the next leaderboard page.
+	*/
+	nextPage() {
+		this.page++;
+		this.fetchRecords();
+	}
+	/**
+	* Go to the previous leaderboard page.
+	*/
+	prevPage() {
+		if (this.page > 0) {
+			this.page--;
+			this.fetchRecords();
+		}
+	}
+	/**
+	* Calculate the rank of an entry, taking ties into account.
+	*/
+	rank(index) {
+		if (index === 0) return this.page * 64 + 1;
+		if (this.entries[index].score === this.entries[index - 1].score) return this.rank(index - 1);
+		return this.page * 64 + index + 1;
+	}
+	/**
+	* Replace the current leaderboard entries with the server response.
+	*/
+	setSoloRecords(d) {
+		this.entries = d.entries;
+	}
+};
 var dom = module_default.reactive(new MainComponent());
 function initDom() {
 	document.addEventListener("alpine:init", () => {
@@ -16010,6 +19903,73 @@ function initDom() {
 	module_default.start();
 }
 //#endregion
+//#region \0vite/preload-helper.js
+var scriptRel = "modulepreload";
+var assetsURL = function(dep) {
+	return "/" + dep;
+};
+var seen = {};
+var __vitePreload = function preload(baseModule, deps, importerUrl) {
+	let promise = Promise.resolve();
+	if (deps && deps.length > 0) {
+		const links = document.getElementsByTagName("link");
+		const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
+		const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
+		function allSettled(promises) {
+			return Promise.all(promises.map((p) => Promise.resolve(p).then((value) => ({
+				status: "fulfilled",
+				value
+			}), (reason) => ({
+				status: "rejected",
+				reason
+			}))));
+		}
+		function importMetaResolve(specifier) {
+			if (import.meta.resolve) return import.meta.resolve(specifier);
+			return new URL(
+				specifier,
+				/** #__KEEP__ */
+				import.meta.url
+			).href;
+		}
+		promise = allSettled(deps.map((dep) => {
+			dep = assetsURL(dep, importerUrl);
+			dep = importMetaResolve(dep);
+			if (dep in seen) return;
+			seen[dep] = true;
+			const isCss = dep.endsWith(".css");
+			for (let i = links.length - 1; i >= 0; i--) {
+				const link = links[i];
+				if (link.href === dep && (!isCss || link.rel === "stylesheet")) return;
+			}
+			const link = document.createElement("link");
+			link.rel = isCss ? "stylesheet" : scriptRel;
+			if (!isCss) link.as = "script";
+			link.crossOrigin = "";
+			link.href = dep;
+			if (cspNonce) link.setAttribute("nonce", cspNonce);
+			document.head.appendChild(link);
+			if (isCss) return new Promise((res, rej) => {
+				link.addEventListener("load", res);
+				link.addEventListener("error", () => rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`)));
+			});
+		}));
+	}
+	function handlePreloadError(err) {
+		const e = new Event("vite:preloadError", { cancelable: true });
+		e.payload = err;
+		window.dispatchEvent(e);
+		if (!e.defaultPrevented) throw err;
+	}
+	return promise.then((res) => {
+		for (const item of res || []) {
+			if (item.status !== "rejected") continue;
+			handlePreloadError(item.reason);
+		}
+		return baseModule().catch(handlePreloadError);
+	});
+};
+//#endregion
 //#region client/src/index.ts
 function init() {
 	initProtocols(async (name) => {
@@ -16018,6 +19978,7 @@ function init() {
 	});
 	initDom();
 	dom.tryLoginWithKey();
+	if (window.Capacitor) __vitePreload(() => import("./assets/mobile-Dif-D43J.js").then((m) => m.initMobile()), []);
 }
 //#endregion
 export { init };

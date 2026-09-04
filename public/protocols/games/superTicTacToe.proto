@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package game_superTicTacToe;
+
+message Empty {}
+
+
+// A single cell on the 9x9 super-grid.
+// Memory-saving trick: when "taken" is false, "isRed" carries no meaning at
+// all and must be ignored by the reader (the cell is simply empty).
+message Value {
+    bool taken = 1; // true once a player has placed their mark here
+    bool isRed = 2; // ignored when taken == false; true = red (cross), false = blue (circle)
+}
+
+
+message State {
+    // The 81 cells of the whole 9x9 super-grid, stored row-major:
+    // index = globalY * 9 + globalX, for globalX/globalY in [0..8].
+    repeated Value cells = 1;
+
+    // The result of each of the 9 sub-grids, stored row-major:
+    // index = subgridY * 3 + subgridX, for subgridX/subgridY in [0..2].
+    // taken == true means that sub-grid has been WON by a team (see isRed).
+    // taken == false means the sub-grid has not been won yet -- it may
+    // still be open, or it may be full with no winner (see subgridFull
+    // below), in which case it is a draw and unplayable but not "taken".
+    repeated Value subgridWinners = 2;
+
+    // Parallel array to subgridWinners (also 9 entries, same indexing).
+    // true once every cell of that sub-grid has been played, regardless of
+    // whether it produced a winner. A sub-grid that is full but was never
+    // won is a local draw: it becomes permanently unplayable.
+    repeated bool subgridFull = 3;
+
+    // Whose turn it currently is.
+    bool redTurn = 4;
+
+    // Index (0-8) of the sub-grid the player about to move MUST play in.
+    // -1 means the player is free to choose any still-open sub-grid.
+    int32 forced = 5;
+
+    // True once the match has been decided (either by a meta-grid
+    // alignment, or because every sub-grid has been resolved).
+    bool finished = 6;
+
+    // Only meaningful when finished == true. True if the match ended in a
+    // tie (equal number of sub-grids captured by each side, and no meta
+    // alignment was ever achieved).
+    bool draw = 7;
+
+    // Only meaningful when finished == true && draw == false.
+    // True if red is the winner, false if blue is the winner.
+    bool redWon = 8;
+}
+
+
+message QInput {
+    double timestamp = 1;
+    oneof action {
+        // The single action a player can take: attempt to place their mark
+        // on cell "cell", where cell = globalY * 9 + globalX, in [0..80].
+        // The client (collectInputs) is responsible for computing this
+        // index from the pixel position that was clicked/tapped; the
+        // server independently re-derives sub-grid/local indices from it
+        // and validates the move before applying it.
+        int32 cell = 2;
+    }
+}
+
+message Input {
+    QInput data = 1;
+    float player = 2;
+}
+
+message ServerMessage {
+    double timestamp = 1;
+    bytes state = 2;
+    repeated Input inputs = 3;
+}
+
+message ClientMessage {
+    double timestamp = 1;
+    repeated QInput inputs = 2;
+}
+
+
+// Sent by each client before the match starts, so the server knows which
+// side they would like to play.
+message StartData {
+    int32 preferTeam = 1; // 1 = prefers red, -1 = prefers blue, 0 = no preference
+}
+
+
+// One entry per connected player, broadcast back to every client once the
+// server has resolved team assignments.
+message StartPlayerInfo {
+    bool isRed = 1;
+}
+
+message StartDataClient {
+    repeated StartPlayerInfo players = 1;
+}

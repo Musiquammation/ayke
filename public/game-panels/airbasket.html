@@ -1,25 +1,73 @@
 <div x-data="data">
+
+	<style>
+		
+	</style>
+
+
 	<div>
-		<span>Skin id:</span>
-		<input type="number" x-model.number="skin">
+		<span>Skin:</span>
+
+		<div
+			class="skin-select"
+			x-data="{ open: false }"
+			@click.outside="open = false"
+		>
+			<button
+				type="button"
+				class="skin-select-button"
+				@click="open = !open"
+			>
+				<div class="skin-select-current">
+					<img
+						:src="getIconPath(skin)"
+						:alt="SKINS[skin]"
+					>
+					<span x-text="SKINS[skin]"></span>
+				</div>
+
+				<span class="skin-select-arrow" x-text="open ? '▲' : '▼'"></span>
+			</button>
+
+			<div
+				class="skin-select-options"
+				x-show="open"
+				x-transition
+			>
+				<template x-for="(name, id) in SKINS" :key="id">
+					<div
+						class="skin-select-option"
+						:class="{ selected: skin === id, disabled: !hasSkin(id) }"
+						@click="skin = id; open = false"
+					>
+						<img
+							:src="getIconPath(id)"
+							:alt="name"
+						>
+
+						<span x-text="name"></span>
+					</div>
+				</template>
+			</div>
+		</div>
 	</div>
 
 	<div>
 		<span>Preferred team:</span>
 		<button type="button"
-				@click="preferTeam = 0"
+				@pointerup="preferTeam = 0"
 				:class="{ selected: preferTeam === 0 }">
 			None
 		</button>
 
 		<button type="button"
-				@click="preferTeam = 1"
+				@pointerup="preferTeam = 1"
 				:class="{ selected: preferTeam === 1 }">
 			Red
 		</button>
 
 		<button type="button"
-				@click="preferTeam = -1"
+				@pointerup="preferTeam = -1"
 				:class="{ selected: preferTeam === -1 }">
 			Blue
 		</button>

@@ -14,7 +14,7 @@
 				<div id="home-page" class="page" x-data="panel">
 					<h1>Ayke</h1>
 
-					<section>
+					<section class="home-account">
 						<h2>Account</h2>
 
 						<template x-if="isAuthenticated">
@@ -23,32 +23,48 @@
 									<span>Connected as</span>
 									<i x-text="pseudo"></i>
 								</div>
-								<button @click="disconnect()">Disconnect</button>
+								<button @pointerup="disconnect()">Disconnect</button>
 							</div>
 
 						</template>
 
 						<template x-if="!isAuthenticated">
 							<div>
-								<button @click="openLogin()">Login</button>
-								<button @click="openSignin()">Create account</button>
+								<button @pointerup="openLogin()">Login</button>
+								<button @pointerup="openSignin()">Create account</button>
 							</div>
 						</template>
 					</section>
 
-					<section>
+					<section class="home-play">
 						<h2>Play</h2>
-						<template x-for="game in games">
+
+						<template x-for="category in games" :key="category.category">
 							<div>
-								<span x-text="game.name"></span>
-								<button @click="playGame(game.key)">Play</button>
+								<h3 x-text="category.category"></h3>
+
+								<div>
+									<template x-for="game in category.list" :key="game.key">
+										<div>
+											<span x-text="game.name"></span>
+	
+											<button
+												@pointerup="playGame(game.key)"
+												:class="{ 'play-disabled': isDisabled(game.key) }"
+											>
+												Play
+											</button>
+										</div>
+									</template>
+								</div>
 							</div>
 						</template>
 					</section>
 
-					<section>
+					<section class="home-community">
 						<h2>Community</h2>
-						<button @click="openLeaderboard()">View Leaderboard</button>
+						<button @pointerup="openLeaderboard()">View Leaderboard</button>
+						<button @pointerup="openSoloLeaderboard()">View Solo Leaderboard</button>
 					</section>
 
 				</div>
@@ -64,8 +80,10 @@
 				<div id="test-page" class="page" x-data="panel">
 					<h1 x-text="gamemode"></h1>
 					<div x-ref="gamePanel" x-html="htmlContent"></div>
-					<button x-on:click="play()">Play</button>
-					<button x-on:click="tutorial()">Tutorial</button>
+					<button @pointerup="play()">Play</button>
+					<template x-if="typeof tutorial === 'function'">
+						<button @pointerup="tutorial()">Tutorial</button>
+					</template>
 				</div>
 			</template>
 
@@ -130,7 +148,17 @@
 						</template>
 					</div>
 					
-					<button x-on:click="returnHome()">Return Menu</button>
+					<button @pointerup="returnHome()">Return Menu</button>
+				</div>
+			</template>
+
+			<template x-if="uses('play-solo-results')">
+				<div x-data="panel">
+					<div>
+						<span>Score: </span>
+						<span x-text="result"></span>
+					</div>
+					<button @pointerup="returnHome()">Return home</button>
 				</div>
 			</template>
 
@@ -162,8 +190,8 @@
 						</template>
 						<div>
 							<button type="submit">Log In</button>
-							<button type="button" @click="openSignin()">Create an account</button>
-							<button type="button" @click="openHome()">Go home</button>
+							<button type="button" @pointerup="openSignin()">Create an account</button>
+							<button type="button" @pointerup="openHome()">Go home</button>
 						</div>
 					</form>
 				</div>
@@ -197,8 +225,8 @@
 						</template>
 						<div>
 							<button type="submit">Sign Up</button>
-							<button type="button" @click="openLogin()">Already have an account?</button>
-							<button type="button" @click="openHome()">Go home</button>
+							<button type="button" @pointerup="openLogin()">Already have an account?</button>
+							<button type="button" @pointerup="openHome()">Go home</button>
 						</div>
 					</form>
 				</div>
@@ -217,9 +245,9 @@
 							</template>
 						</select>
 						
-						<button @click="prevPage()" :disabled="page === 0">Previous</button>
+						<button @pointerup="prevPage()" :disabled="page === 0">Previous</button>
 						<span x-text="'Page ' + (page + 1)"></span>
-						<button @click="nextPage()" :disabled="entries.length < 64">Next</button>
+						<button @pointerup="nextPage()" :disabled="entries.length < 64">Next</button>
 					</div>
 
 					<div class="leaderboard-list">
@@ -236,7 +264,52 @@
 						</template>
 					</div>
 					
-					<button @click="openHome()">Go Home</button>
+					<button @pointerup="openHome()">Go Home</button>
+				</div>
+			</template>
+
+			<template x-if="uses('solo-leaderboard')">
+				<div id="solo-leaderboard-page" class="page" x-data="panel">
+					<h2>Solo Leaderboard</h2>
+
+					<div class="leaderboard-controls">
+						<select x-model="gamemode" @change="setGamemode(gamemode)">
+							<template x-for="key in Object.keys(gamemods)" :key="key">
+								<option :value="key" x-text="gamemods[key].name"></option>
+							</template>
+						</select>
+
+						<select x-model="category" @change="setCategory(category)">
+							<template x-for="category in getCategories()" :key="category">
+								<option :value="category" x-text="category"></option>
+							</template>
+						</select>
+
+						<button @pointerup="prevPage()" :disabled="page === 0">
+							Previous
+						</button>
+
+						<span x-text="'Page ' + (page + 1)"></span>
+
+						<button @pointerup="nextPage()" :disabled="entries.length < 64">
+							Next
+						</button>
+					</div>
+
+					<div class="leaderboard-list">
+						<template x-for="(entry, index) in entries" :key="index">
+							<div
+								class="leaderboard-entry"
+								:class="{ 'leaderboard-me': isAuthenticated && entry.pseudo === pseudo }"
+							>
+								<span class="rank" x-text="rank(index)"></span>
+								<span class="pseudo" x-text="entry.pseudo ?? 'Anonymous'"></span>
+								<span class="score" x-text="entry.score"></span>
+							</div>
+						</template>
+					</div>
+
+					<button @pointerup="openHome()">Go Home</button>
 				</div>
 			</template>
 
@@ -262,7 +335,7 @@
 			window.PROTOCOLS_FOLDER = "/ayke/public/protocols/games/";
 			window.INDEX_TS = "/src/index.ts";
 
-			console.log("v1.0.1");
+			console.log("v1.1.0");
 
 			document.addEventListener("DOMContentLoaded", () => {
 				import("/ayke/public/bundle.js").then(m => m.init());

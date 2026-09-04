@@ -16,6 +16,9 @@ message ClientMessage {
 		Empty askTimeDelta = 8;
 		string deleteConnectionKey = 9;
 		AskLeaderboard askLeaderboard = 10;
+		SoloRunInputs soloRunInputs = 11;
+		AskSoloRecords askSoloRecords = 12;
+		string askSkins = 13;
 	}
 }
 
@@ -48,6 +51,18 @@ message AskLeaderboard {
 	int32 page = 2;
 }
 
+message AskSoloRecords {
+	string gamemode = 1;
+	string category = 2;
+	int32 page = 3;
+}
+
+message SoloRunInputs {
+	string gamemode = 1;
+	string category = 2;
+	int32 seed = 3;
+	repeated bytes inputs = 4;
+}
 
 
 
@@ -74,6 +89,8 @@ message ServerMessage {
 		WaitingAllowBots waitingAllowBots = 10;
 		FinishGame finishGame = 11;
 		LeaderboardResult leaderboardResult = 12;
+		SoloRecords soloRecords = 13;
+		SkinsResponse skinsResponse = 14;
 	}
 }
 
@@ -146,4 +163,18 @@ message LeaderboardEntry {
 
 message LeaderboardResult {
 	repeated LeaderboardEntry entries = 1;
+}
+
+message SoloRecordEntry {
+	float score = 1;
+	optional string pseudo = 2;
+}
+
+message SoloRecords {
+	repeated SoloRecordEntry entries = 1;
+}
+
+
+message SkinsResponse {
+	repeated string skins = 1;
 }
