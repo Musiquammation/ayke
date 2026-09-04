@@ -5,6 +5,7 @@ Tu dois produire (dans l'ordre):
 - GMExample.ts
 - example.proto
 - example.html
+- example.css
 - liste fichiers des assets à produire
 
 Toutes les données du jeu doivent être partagées (save, load), car le jeu peut se prendre des load, et donc perdre les données non partagées, engendrant des comportements bizarres.
@@ -299,6 +300,33 @@ x-data=data est produit par generateClientDom.
 </div>
 ```
 
+# example.css
+Toutes les classes doivent être préfixées `.-game-example-`.
+Utilise des vw, vh.
+Il s'agit du css utilisé par `ClientData.html` (et pas de example.html, qui peut ajouter sa propre balise `<style>`).
+
+Commente avec ça.
+
+```css
+.game-superTicTacToe-root {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	justify-content: center;
+
+	width: 96vw;
+
+	font-family: sans-serif;
+	font-size: 2vh;
+
+	pointer-events: none;
+}
+```
+
+
 
 # Modèle pour example.ts
 ```ts
@@ -465,7 +493,7 @@ class ClientData {
 
 	constructor() {
 		this.html = document.createElement("div");
-		this.html.classList.add("game-example-client-data");
+		this.html.classList.add("game-example-root");
 
 		this.time = document.createElement("div");
 		this.time.classList.add("game-example-time");

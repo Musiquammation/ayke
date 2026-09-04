@@ -11,6 +11,7 @@ import { hasNavigatorMobile, hasNavigatorMouse } from "./clientNavigatorType";
 import { SoloGameMode } from "../../../commons/SoloGameMode";
 import { SoloGameHandler } from "../handlers/SoloGameHandler";
 import { waitSkinsResponsePromise } from "../messages/recvMessage";
+import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 
 declare global {
 	interface Window {
@@ -279,6 +280,7 @@ class GamePanelComponent {
 		const factory = getMultiGmFactory(this.gamemode);
 		dom.startLoading();
 		await imageLoader.load(factory.textures, this.gamemode);
+		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 
 		dom.openWaitPlayPanel(this.gamemode);
@@ -296,6 +298,7 @@ class GamePanelComponent {
 
 		dom.startLoading();
 		await imageLoader.load(factory.textures, this.gamemode);
+		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 
 		dom.openTutorialInPlay(this.gamemode);
@@ -317,6 +320,7 @@ class SoloGamePanelComponent {
 		const factory = getSoloGmFactory(this.gamemode);
 		dom.startLoading();
 		await imageLoader.load(factory.textures);
+		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 		dom.openSoloPlayComponent(
 			this.gamemode,

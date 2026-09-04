@@ -2302,7 +2302,7 @@ class ClientData {
 
 	constructor() {
 		this.html = document.createElement("div");
-		this.html.classList.add("game-turrets-client-data");
+		this.html.classList.add("game-turrets-root");
 
 		this.time = document.createElement("div");
 		this.time.classList.add("game-turrets-time");

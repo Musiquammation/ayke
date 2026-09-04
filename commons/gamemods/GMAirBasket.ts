@@ -454,7 +454,7 @@ class ClientData {
 
 	constructor() {
 		this.html = document.createElement("div");
-		this.html.classList.add("game-airbasket-client-data");
+		this.html.classList.add("game-airbasket-root");
 
 		this.time = document.createElement("div");
 		this.time.classList.add("game-airbasket-time");

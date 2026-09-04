@@ -104,7 +104,7 @@ class ClientData {
 
 	constructor(playerIdx: number) {
 		this.html = document.createElement("div");
-		this.html.classList.add("game-superTicTacToe-client-data");
+		this.html.classList.add("game-superTicTacToe-root");
 
 		this.statusLine = document.createElement("div");
 		this.statusLine.classList.add("game-superTicTacToe-status");
