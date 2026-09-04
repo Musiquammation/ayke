@@ -1787,7 +1787,7 @@ export class GMAirBasket extends GameMode {
 			ctx.drawImage(
 				imageLoader.get('ball'),
 				drawBallCoords.x - Ball.RADIUS/2,
-				drawBallCoords.y - Ball.RADIUS,
+				drawBallCoords.y - Ball.RADIUS/2,
 				Ball.RADIUS,
 				Ball.RADIUS
 			)
