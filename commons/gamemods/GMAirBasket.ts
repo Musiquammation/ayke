@@ -1786,8 +1786,8 @@ export class GMAirBasket extends GameMode {
 			const drawBallCoords = this.getBallDrawCoords();
 			ctx.drawImage(
 				imageLoader.get('ball'),
-				drawBallCoords.x,
-				drawBallCoords.y,
+				drawBallCoords.x - Ball.RADIUS/2,
+				drawBallCoords.y - Ball.RADIUS,
 				Ball.RADIUS,
 				Ball.RADIUS
 			)
