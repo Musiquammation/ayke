@@ -7,6 +7,7 @@ import { hasNavigatorMobile, hasNavigatorMouse } from "./dom/clientNavigatorType
 declare global {
 	interface Window {
 		PROTOCOLS_FOLDER: string;
+		Capacitor: any;
 	}
 }
 
@@ -21,4 +22,9 @@ export function init() {
 	initDom();
 
 	dom.tryLoginWithKey();
+
+	if (window.Capacitor) {
+		import("../mobile/mobile").then(m => m.initMobile());
+	}
+
 }
