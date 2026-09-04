@@ -35,7 +35,9 @@ export function initProtocols(loader: ProtocolLoaderFn): void {
 
 	for (const name in gamemods) {
 		const type = gamemods[name].type;
-		getProtocol(name, type).load();
+		if (type !== 'ui-separator') {
+			getProtocol(name, type).load();
+		}
 	}
 }
 

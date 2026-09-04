@@ -16,6 +16,7 @@ declare global {
 	interface Window {
 		Alpine: any;
 		dom: MainComponent;
+		DEBUG: boolean;
 	}
 }
 
@@ -497,20 +498,46 @@ class SigninComponent {
 }
 
 class HomeComponent {
-	private games;
+	private games: { category: string; list: any[]; }[];
 	private readonly hasMobile = hasNavigatorMobile();
 	private readonly hasMouse = hasNavigatorMouse();
 
 	constructor() {
-		this.games = Object.entries(gamemods).map(([key, gamemode]) => ({
-			key,
-			computerOnly: gamemode.computerOnly,
-			name: gamemode.name
-		}));
+		this.games = [];
+
+		for (const [key, gamemode] of Object.entries(gamemods)) {
+			if ((key === 'test' || key === 'testSolo') && !window.DEBUG) {
+				continue;
+			}
+
+
+			if (gamemode.type === 'ui-separator') {
+				this.games.push({
+					category: gamemode.category,
+					list: []
+				});
+
+				continue;
+			}
+
+			if (this.games.length === 0) {
+				continue;
+			}
+
+			this.games[this.games.length - 1].list.push({
+				key,
+				computerOnly: gamemode.computerOnly,
+				name: gamemode.name
+			});
+		}
 	}
 
 	isDisabled(gamemode: string) {
-		return this.games.find(g => g.key === gamemode)?.computerOnly && !this.hasMouse;
+		const gm = gamemods[gamemode];
+		if (!gm || gm.type === 'ui-separator')
+			return false;
+
+		return gm.computerOnly && !this.hasMouse;
 	}
 
 	playGame(gamemode: string) {

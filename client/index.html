@@ -14,7 +14,7 @@
 				<div id="home-page" class="page" x-data="panel">
 					<h1>Ayke</h1>
 
-					<section>
+					<section class="home-account">
 						<h2>Account</h2>
 
 						<template x-if="isAuthenticated">
@@ -36,20 +36,32 @@
 						</template>
 					</section>
 
-					<section>
+					<section class="home-play">
 						<h2>Play</h2>
-						<template x-for="game in games">
+
+						<template x-for="category in games" :key="category.category">
 							<div>
-								<span x-text="game.name"></span>
-								<button 
-									@pointerup="playGame(game.key)"
-									:class="{ 'play-disabled': isDisabled(game.key) }"
-								>Play</button>
+								<h3 x-text="category.category"></h3>
+
+								<div>
+									<template x-for="game in category.list" :key="game.key">
+										<div>
+											<span x-text="game.name"></span>
+	
+											<button
+												@pointerup="playGame(game.key)"
+												:class="{ 'play-disabled': isDisabled(game.key) }"
+											>
+												Play
+											</button>
+										</div>
+									</template>
+								</div>
 							</div>
 						</template>
 					</section>
 
-					<section>
+					<section class="home-community">
 						<h2>Community</h2>
 						<button @pointerup="openLeaderboard()">View Leaderboard</button>
 						<button @pointerup="openSoloLeaderboard()">View Solo Leaderboard</button>
@@ -316,7 +328,7 @@
 
 		<script>
 			window.IMG_ROOT_PATH = "";
-			window.DEBUG = true;
+			window.DEBUG = false;
 			window.SLOW_FPS = false;
 			window.SERVER_ADDRESS = "ws://localhost:8020";
 			window.PROTOCOL_FILE = "/protocols/game.proto";

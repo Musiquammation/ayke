@@ -48,7 +48,20 @@ interface SoloFactory {
     create: ()=>SoloGameMode
 }
 
-export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
+interface UiSeparator {
+    type: 'ui-separator',
+    category: string
+}
+
+export const gamemods: Record<
+    string,
+    MultiplayerFactory | SoloFactory | UiSeparator
+> = {
+    separator_competitive: {
+        type: 'ui-separator',
+        category: "Competitive games"
+    },
+
     test: {
         type: 'multiplayer',
         server: GMTest.createServ,
@@ -75,6 +88,24 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         defaultPlayerCount: 4
     },
 
+    turrets: {
+        type: 'multiplayer',
+        server: GMTurrets.createServ,
+        client: GMTurrets.createClient,
+        dom: GMTurrets.generateClientDom,
+        textures: GMTurrets.TEXTURES,
+        name: "Turrets",
+        tropheesPerPlayer: 20,
+        computerOnly: false,
+        skins: [],
+        defaultPlayerCount: 4
+    },
+
+    separator_mobile: {
+        type: 'ui-separator',
+        category: "Mobile games"
+    },
+
     superTicTacToe: {
         type: 'multiplayer',
         server: GMSuperTicTacToe.createServ,
@@ -88,17 +119,9 @@ export const gamemods: Record<string, MultiplayerFactory | SoloFactory> = {
         defaultPlayerCount: 2
     },
 
-    turrets: {
-        type: 'multiplayer',
-        server: GMTurrets.createServ,
-        client: GMTurrets.createClient,
-        dom: GMTurrets.generateClientDom,
-        textures: GMTurrets.TEXTURES,
-        name: "Turrets",
-        tropheesPerPlayer: 20,
-        computerOnly: false,
-        skins: [],
-        defaultPlayerCount: 4
+    separator_solo: {
+        type: 'ui-separator',
+        category: "Solo games"
     },
 
 	testSolo: {
@@ -136,7 +159,7 @@ export function getSoloGmFactory(gamemode: string) {
 
 export function getGmFactory(gamemode: string) {
     const factory = gamemods[gamemode];
-    if (!factory) {
+    if (!factory || (factory.type !== 'solo' && factory.type !== 'multiplayer')) {
         throw new Error(`Invalid gamemode '${gamemode}'`);
     }
 
