@@ -9,6 +9,7 @@ import { getProtocol } from "../../../commons/protocolLoader";
 import Prando from "prando";
 import { sendMessage } from "../messages/sendMessage";
 import { hasNavigatorMouse } from "../dom/clientNavigatorType";
+import { fullScreenHandler } from "./FullScreenHandler";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -61,6 +62,7 @@ export class SoloGameHandler {
 	}
 
 	async start() {
+		await fullScreenHandler.openFull();
 		this.clock = 0;
 		this.lastTime = performance.now();
 

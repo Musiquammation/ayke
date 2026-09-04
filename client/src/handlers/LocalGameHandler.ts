@@ -6,6 +6,8 @@ import { mobileController } from "../controllers/MobileController";
 import { dom } from "../dom/dom";
 import { imageLoader } from "./imageLoader";
 import { hasNavigatorMouse } from "../dom/clientNavigatorType";
+import { deleteGameHandler } from "./GameHandler";
+import { fullScreenHandler } from "./FullScreenHandler";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -26,7 +28,7 @@ export class LocalGameHandler {
 	constructor(gamemodeId: string) {
 		const factory = getMultiGmFactory(gamemodeId);
 
-		const {game, data, html, skins} = factory.client(null, 2);
+		const {game, data, html, skins} = factory.client(null, 2, 0);
 		const gameHtml = document.getElementById("game-html")!;
 		gameHtml.innerHTML = "";
 		if (html) { gameHtml.appendChild(html); }
@@ -56,6 +58,7 @@ export class LocalGameHandler {
 	}
 
 	async start() {
+		await fullScreenHandler.openFull();
 		await this.imageLoaderPromise;
 		this.clock = 0;
 		this.lastTime = performance.now();
@@ -146,6 +149,7 @@ export class LocalGameHandler {
 		if (this.gamemode.quickEmulate(dt, true)) {
 			// Finish
 			this.interrupted = true;
+			deleteGameHandler();
 			dom.openHome();
 			return;
 		}

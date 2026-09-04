@@ -11,6 +11,7 @@ import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { imageLoader } from "./imageLoader";
 import { mobileController } from "../controllers/MobileController";
 import { hasNavigatorMouse } from "../dom/clientNavigatorType";
+import { fullScreenHandler } from "./FullScreenHandler";
 
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
@@ -197,6 +198,7 @@ export async function setGameHandler(
 	startData: Uint8Array,
 	total: number
 ) {
+
 	const factory = getMultiGmFactory(gamemode);
 
 	const protocols = getProtocol(gamemode, 'multiplayer');
@@ -211,6 +213,8 @@ export async function setGameHandler(
 	if (html) {
 		gameHtml.appendChild(html);
 	}
+
+	await fullScreenHandler.openFull();
 
 	_gameHandler = new GameHandler(
 		gamemode,
@@ -227,5 +231,6 @@ export async function setGameHandler(
 }
 
 export function deleteGameHandler() {
+	fullScreenHandler.closeFull();
 	_gameHandler = null;
 }

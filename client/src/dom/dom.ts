@@ -12,6 +12,7 @@ import { SoloGameMode } from "../../../commons/SoloGameMode";
 import { SoloGameHandler } from "../handlers/SoloGameHandler";
 import { waitSkinsResponsePromise } from "../messages/recvMessage";
 import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
+import { fullScreenHandler } from "../handlers/FullScreenHandler";
 
 declare global {
 	interface Window {
