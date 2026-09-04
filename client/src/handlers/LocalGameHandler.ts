@@ -67,20 +67,20 @@ export class LocalGameHandler {
 
 	private draw(dt: number) {
 		// Compute the scale needed to fit the game viewport inside the canvas.
-		const scaleX = canvas.width / this.gameWidth;
-		const scaleY = canvas.height / this.gameHeight;
+		const scaleX = innerWidth / this.gameWidth;
+		const scaleY = innerHeight / this.gameHeight;
 
 		// Preserve the game's aspect ratio by using the smallest scale.
 		const scale = Math.min(scaleX, scaleY);
 
 		// Center the scaled game viewport inside the canvas.
-		const offsetX = (canvas.width - this.gameWidth * scale) / 2;
-		const offsetY = (canvas.height - this.gameHeight * scale) / 2;
+		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
+		const offsetY = (innerHeight - this.gameHeight * scale) / 2;
 
 		ctx.save();
 
 		// Clear the entire canvas before drawing the new frame.
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		ctx.clearRect(0, 0, innerWidth, innerHeight);
 
 		// Move to the centered position and apply the calculated scale.
 		ctx.translate(offsetX, offsetY);
@@ -97,14 +97,14 @@ export class LocalGameHandler {
 
 		// Draw left and right bars when the canvas is wider than the game viewport.
 		if (offsetX > 0) {
-			ctx.fillRect(0, 0, offsetX, canvas.height); // Left bar
-			ctx.fillRect(canvas.width - offsetX, 0, offsetX, canvas.height); // Right bar
+			ctx.fillRect(0, 0, offsetX, innerHeight); // Left bar
+			ctx.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight); // Right bar
 		}
 
 		// Draw top and bottom bars when the canvas is taller than the game viewport.
 		if (offsetY > 0) {
-			ctx.fillRect(0, 0, canvas.width, offsetY); // Top bar
-			ctx.fillRect(0, canvas.height - offsetY, canvas.width, offsetY); // Bottom bar
+			ctx.fillRect(0, 0, innerWidth, offsetY); // Top bar
+			ctx.fillRect(0, innerHeight - offsetY, innerWidth, offsetY); // Bottom bar
 		}
 
 		if (this.allowsMobile) {
