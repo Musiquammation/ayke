@@ -8,7 +8,7 @@ import { Fields } from "../../../commons/Fields";
 import { getProtocol } from "../../../commons/protocolLoader";
 import Prando from "prando";
 import { sendMessage } from "../messages/sendMessage";
-import { hasNavigatorMouse } from "../dom/clientNavigatorType";
+import { hasNavigatorMobile, hasNavigatorMouse } from "../dom/clientNavigatorType";
 import { fullScreenHandler } from "./FullScreenHandler";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
@@ -48,7 +48,7 @@ export class SoloGameHandler {
 
 		const mobileDesc = this.gamemode.getMobileDesc();
 
-		if (mobileDesc) {
+		if (mobileDesc && hasNavigatorMobile()) {
 			this.allowsMobile = true;
 
 			mobileController.setScreenCoordsAdapter(

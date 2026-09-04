@@ -10,7 +10,7 @@ import { getProtocol, ProtocolTypes } from "../../../commons/protocolLoader";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { imageLoader } from "./imageLoader";
 import { mobileController } from "../controllers/MobileController";
-import { hasNavigatorMouse } from "../dom/clientNavigatorType";
+import { hasNavigatorMobile, hasNavigatorMouse } from "../dom/clientNavigatorType";
 import { fullScreenHandler } from "./FullScreenHandler";
 
 
@@ -79,7 +79,7 @@ class GameHandler {
 		mouseController.setScreenCoordsAdapter(this.gamemode, playerIdx, clientData);
 
 		const mobileDesc = this.gamemode.getMobileDesc();
-		if (mobileDesc) {
+		if (mobileDesc && hasNavigatorMobile()) {
 			this.allowsMobile = true;
 			mobileController.setScreenCoordsAdapter(gamemode, playerIdx, clientData);
 		} else {

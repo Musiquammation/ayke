@@ -5,7 +5,7 @@ import { mouseController } from "../controllers/MouseController";
 import { mobileController } from "../controllers/MobileController";
 import { dom } from "../dom/dom";
 import { imageLoader } from "./imageLoader";
-import { hasNavigatorMouse } from "../dom/clientNavigatorType";
+import { hasNavigatorMobile, hasNavigatorMouse } from "../dom/clientNavigatorType";
 import { deleteGameHandler } from "./GameHandler";
 import { fullScreenHandler } from "./FullScreenHandler";
 
@@ -43,7 +43,7 @@ export class LocalGameHandler {
 		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
 
 		const mobileDesc = this.gamemode.getMobileDesc();
-		if (mobileDesc) {
+		if (mobileDesc && hasNavigatorMobile()) {
 			this.allowsMobile = true;
 			mobileController.setScreenCoordsAdapter(
 				this.gamemode,
