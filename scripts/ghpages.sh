@@ -1,5 +1,4 @@
 git switch master &&
-npm run build &&
 cp -r client/public client/dist &&
 npm run build-bundle &&
 cp client/index.html dist/ &&
