@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Ayke</title>
+		<link rel="stylesheet" href="/ayke/public/style.css">
+		<link rel="icon" href="data:,">
+	</head>
+	<body>
+
+		<div id="main" x-data="main">
+			<template x-if="uses('home')">
+				<div id="home-page" class="page" x-data="panel">
+					<h1>Ayke</h1>
+
+					<section class="home-account">
+						<h2>Account</h2>
+
+						<template x-if="isAuthenticated">
+							<div>
+								<div>
+									<span>Connected as</span>
+									<i x-text="pseudo"></i>
+								</div>
+								<button @pointerup="disconnect()">Disconnect</button>
+							</div>
+
+						</template>
+
+						<template x-if="!isAuthenticated">
+							<div>
+								<button @pointerup="openLogin()">Login</button>
+								<button @pointerup="openSignin()">Create account</button>
+							</div>
+						</template>
+					</section>
+
+					<section class="home-play">
+						<h2>Play</h2>
+
+						<template x-for="category in games" :key="category.category">
+							<div>
+								<h3 x-text="category.category"></h3>
+
+								<div>
+									<template x-for="game in category.list" :key="game.key">
+										<div>
+											<span x-text="game.name"></span>
+	
+											<button
+												@pointerup="playGame(game.key)"
+												:class="{ 'play-disabled': isDisabled(game.key) }"
+											>
+												Play
+											</button>
+										</div>
+									</template>
+								</div>
+							</div>
+						</template>
+					</section>
+
+					<section class="home-community">
+						<h2>Community</h2>
+						<button @pointerup="openLeaderboard()">View Leaderboard</button>
+						<button @pointerup="openSoloLeaderboard()">View Solo Leaderboard</button>
+					</section>
+
+				</div>
+			</template>
+
+			<template x-if="uses('loading')">
+				<div id="loading-page" class="page">
+					<!-- Loading panel -->
+					<div>Loading...</div>
+				</div>
+			</template>
+
+			<template x-if="uses('game-panel')">
+				<div id="test-page" class="page" x-data="panel">
+					<h1 x-text="gamemode"></h1>
+					<div x-ref="gamePanel" x-html="htmlContent"></div>
+					<button @pointerup="play()">Play</button>
+					<template x-if="typeof tutorial === 'function'">
+						<button @pointerup="tutorial()">Tutorial</button>
+					</template>
+				</div>
+			</template>
+
+			<template x-if="uses('wait-play')">
+				<div id="wait-play-page" class="page" x-data="panel">
+					<h1>Waiting for players</h1>
+					<div>
+						<span>
+							Allow bots?
+						</span>
+						<input
+							type="checkbox"
+							x-model="allowBots"
+							@change="onAllowBotsChange()"
+						>
+					</div>
+
+					<div>
+						<template x-for="user in listUsers()">
+							<div>
+								<h2 x-html="showPseudo(user.pseudo)"></h2>
+								<div>
+									<span>Allow bots</span>
+									<input type="checkbox" x-model="user.allowBots" disabled>
+								</div>
+								<template x-if="user.isBot">
+									<span>
+										(bot)
+									</span>
+								</template>
+							</div>
+						</template>
+					</div>
+
+					<div>
+						<template x-for="log in logs">
+							<div x-html="log"></div>
+						</template>
+					</div>
+				</div>
+			</template>
+
+			<template x-if="uses('play-results')">
+				<div id="play-results-page" class="page" x-data="panel">
+					<div class="results-container">
+						<!-- Iterate over each player score entry in the results -->
+						<template x-for="score in panel.results.scores" :key="score.identifier">
+							<div class="result-row">
+								<!-- Display player pseudo or fallback to anonymous if null -->
+								<span 
+									class="player-pseudo" 
+									:class="{ 'noTrophees': panel.pseudos[score.identifier] === null }" 
+									x-html="panel.showPseudo(panel.pseudos[score.identifier])">
+								</span>
+
+								<!-- Display trophies score -->
+								<span class="player-score" x-text="score.result"></span>
+
+								<!-- Display score variation (delta) -->
+								<span class="player-delta" x-text="(score.delta > 0 ? '+' : '') + score.delta"></span>
+							</div>
+						</template>
+					</div>
+					
+					<button @pointerup="returnHome()">Return Menu</button>
+				</div>
+			</template>
+
+			<template x-if="uses('play-solo-results')">
+				<div x-data="panel">
+					<div>
+						<span>Score: </span>
+						<span x-text="result"></span>
+					</div>
+					<button @pointerup="returnHome()">Return home</button>
+				</div>
+			</template>
+
+			<!-- Login Page Template -->
+			<template x-if="uses('login')">
+				<div id="login-page" class="page">
+					<h2>Login</h2>
+					<form @submit.prevent="panel.submitLogin()">
+						<div class="form-group">
+							<label for="login-pseudo">Username</label>
+							<input 
+								type="text" 
+								id="login-pseudo" 
+								x-model="panel.pseudo" 
+								required 
+							/>
+						</div>
+						<div class="form-group">
+							<label for="login-password">Password</label>
+							<input 
+								type="password" 
+								id="login-password" 
+								x-model="panel.password" 
+								required 
+							/>
+						</div>
+						<template x-if="panel.errorMessage">
+							<p class="error-message" x-text="panel.errorMessage"></p>
+						</template>
+						<div>
+							<button type="submit">Log In</button>
+							<button type="button" @pointerup="openSignin()">Create an account</button>
+							<button type="button" @pointerup="openHome()">Go home</button>
+						</div>
+					</form>
+				</div>
+			</template>
+
+			<!-- Signin / Create Account Page Template -->
+			<template x-if="uses('signin')">
+				<div id="signin-page" class="page">
+					<h2>Create Account</h2>
+					<form @submit.prevent="panel.submitSignin()">
+						<div class="form-group">
+							<label for="signin-pseudo">Username</label>
+							<input 
+								type="text" 
+								id="signin-pseudo" 
+								x-model="panel.pseudo" 
+								required 
+							/>
+						</div>
+						<div class="form-group">
+							<label for="signin-password">Password</label>
+							<input 
+								type="password" 
+								id="signin-password" 
+								x-model="panel.password" 
+								required 
+							/>
+						</div>
+						<template x-if="panel.errorMessage">
+							<p class="error-message" x-text="panel.errorMessage"></p>
+						</template>
+						<div>
+							<button type="submit">Sign Up</button>
+							<button type="button" @pointerup="openLogin()">Already have an account?</button>
+							<button type="button" @pointerup="openHome()">Go home</button>
+						</div>
+					</form>
+				</div>
+			</template>
+
+			<template x-if="uses('leaderboard')">
+				<div id="leaderboard-page" class="page" x-data="panel">
+					<h2>Leaderboard</h2>
+					
+					<div class="leaderboard-controls">
+						<select x-model="gamemode" @change="setGamemode(gamemode === '' ? null : gamemode)">
+							<option value="">Total Trophies</option>
+							<!-- Map dynamically over available gamemodes -->
+							<template x-for="key in Object.keys(gamemods)" :key="key">
+								<option :value="key" x-text="gamemods[key].name"></option>
+							</template>
+						</select>
+						
+						<button @pointerup="prevPage()" :disabled="page === 0">Previous</button>
+						<span x-text="'Page ' + (page + 1)"></span>
+						<button @pointerup="nextPage()" :disabled="entries.length < 64">Next</button>
+					</div>
+
+					<div class="leaderboard-list">
+						<!-- Apply .leaderboard-me class if logged in and the name matches the root pseudo -->
+						<template x-for="(entry, index) in entries" :key="index">
+							<div 
+								class="leaderboard-entry"
+								:class="{ 'leaderboard-me': isAuthenticated && entry.pseudo === pseudo }"
+							>
+								<span class="rank" x-text="rank(index)"></span>
+								<span class="pseudo" x-text="entry.pseudo"></span>
+								<span class="trophees" x-text="entry.trophees"></span>
+							</div>
+						</template>
+					</div>
+					
+					<button @pointerup="openHome()">Go Home</button>
+				</div>
+			</template>
+
+			<template x-if="uses('solo-leaderboard')">
+				<div id="solo-leaderboard-page" class="page" x-data="panel">
+					<h2>Solo Leaderboard</h2>
+
+					<div class="leaderboard-controls">
+						<select x-model="gamemode" @change="setGamemode(gamemode)">
+							<template x-for="key in Object.keys(gamemods)" :key="key">
+								<option :value="key" x-text="gamemods[key].name"></option>
+							</template>
+						</select>
+
+						<select x-model="category" @change="setCategory(category)">
+							<template x-for="category in getCategories()" :key="category">
+								<option :value="category" x-text="category"></option>
+							</template>
+						</select>
+
+						<button @pointerup="prevPage()" :disabled="page === 0">
+							Previous
+						</button>
+
+						<span x-text="'Page ' + (page + 1)"></span>
+
+						<button @pointerup="nextPage()" :disabled="entries.length < 64">
+							Next
+						</button>
+					</div>
+
+					<div class="leaderboard-list">
+						<template x-for="(entry, index) in entries" :key="index">
+							<div
+								class="leaderboard-entry"
+								:class="{ 'leaderboard-me': isAuthenticated && entry.pseudo === pseudo }"
+							>
+								<span class="rank" x-text="rank(index)"></span>
+								<span class="pseudo" x-text="entry.pseudo ?? 'Anonymous'"></span>
+								<span class="score" x-text="entry.score"></span>
+							</div>
+						</template>
+					</div>
+
+					<button @pointerup="openHome()">Go Home</button>
+				</div>
+			</template>
+
+			<div x-show="uses('play')">
+				<canvas id="play-canvas"></canvas>
+				<template x-if="panel && panel.TUTORIAL_MARKER">
+					<div
+						class="tutorialText" 
+						x-text="panel.text"
+						x-show="panel.text && panel.text.length !== 0"
+					></div>
+				</template>
+				<div id="game-html"></div>
+			</div>
+		</div>
+
+		<script>
+			window.IMG_ROOT_PATH = "/ayke/public";
+			window.DEBUG = true;
+			window.SLOW_FPS = false;
+			window.SERVER_ADDRESS = "wss://5.51.5.55.sslip.io:7843";
+			window.PROTOCOL_FILE = "/ayke/public/protocols/game.proto";
+			window.PROTOCOLS_FOLDER = "/ayke/public/protocols/games/";
+			window.INDEX_TS = "/src/index.ts";
+
+			console.log("v1.1.0");
+
+			document.addEventListener("DOMContentLoaded", () => {
+				import("/ayke/public/bundle.js").then(m => m.init());
+			});
+		</script>
+	</body>
+</html>
