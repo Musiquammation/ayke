@@ -1,6 +1,6 @@
 git switch master &&
 npm run build &&
-find client/dist -type f -name '*.js' -delete &&
+cp client/public client/dist &&
 npm run build-bundle &&
 cp client/index.html dist/ &&
 cp scripts/copyIndexHtml.py dist/copyIndexHtml.py &&
