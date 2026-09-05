@@ -10158,6 +10158,11 @@ function isMessage(value) {
 	return typeof value === "object" && value !== null && "$type" in value && value.$type instanceof import_protobufjs.Type;
 }
 //#endregion
+//#region commons/gamemods/getImageRootPath.ts
+function getImageRootPath() {
+	return window.IMG_ROOT_PATH;
+}
+//#endregion
 //#region commons/gamemods/GMAirBasket.ts
 var protocols$3 = getProtocol("airbasket", "multiplayer");
 var GRAVITY$1 = 1100;
@@ -10799,10 +10804,10 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 	drawCurve();
 }
 function getTexturePath(id) {
-	return `/assets/games/airbasket/skins/${id}/grid.png`;
+	return `${getImageRootPath()}/assets/games/airbasket/skins/${id}/grid.png`;
 }
 function getIconPath(id) {
-	return `/assets/games/airbasket/skins/${id}/icon.png`;
+	return `${getImageRootPath()}/assets/games/airbasket/skins/${id}/icon.png`;
 }
 var GMAirBasket = class GMAirBasket extends GameMode {
 	static types = {
@@ -14557,17 +14562,6 @@ function getGmFactory(gamemode) {
 //#region commons/protocolLoader.ts
 var protocolLoader = null;
 var loadedProtocols = /* @__PURE__ */ new Map();
-/**
-* Initializes the protocol loader mechanism.
-* @param loader A function that asynchronously fetches and returns a protobuf.Root
-*/
-function initProtocols(loader) {
-	protocolLoader = loader;
-	for (const name in gamemods) {
-		const type = gamemods[name].type;
-		if (type !== "ui-separator") getProtocol(name, type).load();
-	}
-}
 function getProtocol(name, type) {
 	return {
 		async load() {
@@ -19894,91 +19888,4 @@ var SoloLeaderboardComponent = class {
 	}
 };
 var dom = module_default.reactive(new MainComponent());
-function initDom() {
-	document.addEventListener("alpine:init", () => {
-		module_default.data("main", () => dom);
-	});
-	window.Alpine = module_default;
-	window.dom = dom;
-	module_default.start();
-}
 //#endregion
-//#region \0vite/preload-helper.js
-var scriptRel = "modulepreload";
-var assetsURL = function(dep) {
-	return "/" + dep;
-};
-var seen = {};
-var __vitePreload = function preload(baseModule, deps, importerUrl) {
-	let promise = Promise.resolve();
-	if (deps && deps.length > 0) {
-		const links = document.getElementsByTagName("link");
-		const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
-		const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
-		function allSettled(promises) {
-			return Promise.all(promises.map((p) => Promise.resolve(p).then((value) => ({
-				status: "fulfilled",
-				value
-			}), (reason) => ({
-				status: "rejected",
-				reason
-			}))));
-		}
-		function importMetaResolve(specifier) {
-			if (import.meta.resolve) return import.meta.resolve(specifier);
-			return new URL(
-				specifier,
-				/** #__KEEP__ */
-				import.meta.url
-			).href;
-		}
-		promise = allSettled(deps.map((dep) => {
-			dep = assetsURL(dep, importerUrl);
-			dep = importMetaResolve(dep);
-			if (dep in seen) return;
-			seen[dep] = true;
-			const isCss = dep.endsWith(".css");
-			for (let i = links.length - 1; i >= 0; i--) {
-				const link = links[i];
-				if (link.href === dep && (!isCss || link.rel === "stylesheet")) return;
-			}
-			const link = document.createElement("link");
-			link.rel = isCss ? "stylesheet" : scriptRel;
-			if (!isCss) link.as = "script";
-			link.crossOrigin = "";
-			link.href = dep;
-			if (cspNonce) link.setAttribute("nonce", cspNonce);
-			document.head.appendChild(link);
-			if (isCss) return new Promise((res, rej) => {
-				link.addEventListener("load", res);
-				link.addEventListener("error", () => rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`)));
-			});
-		}));
-	}
-	function handlePreloadError(err) {
-		const e = new Event("vite:preloadError", { cancelable: true });
-		e.payload = err;
-		window.dispatchEvent(e);
-		if (!e.defaultPrevented) throw err;
-	}
-	return promise.then((res) => {
-		for (const item of res || []) {
-			if (item.status !== "rejected") continue;
-			handlePreloadError(item.reason);
-		}
-		return baseModule().catch(handlePreloadError);
-	});
-};
-//#endregion
-//#region client/src/index.ts
-function init() {
-	initProtocols(async (name) => {
-		const protoText = await (await fetch(window.PROTOCOLS_FOLDER + name + ".proto")).text();
-		return import_protobufjs.parse(protoText).root;
-	});
-	initDom();
-	dom.tryLoginWithKey();
-	if (window.Capacitor) __vitePreload(() => import("./assets/mobile-Dif-D43J.js").then((m) => m.initMobile()), []);
-}
-//#endregion
-export { init };
