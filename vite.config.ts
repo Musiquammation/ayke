@@ -18,7 +18,9 @@ export default defineConfig(({ command, mode }) => {
 
 				rollupOptions: {
 					input: "src/index.ts",
-					preserveEntrySignatures: "strict",
+					external: [
+						/^.*\/mobile\/.*/
+					],
 
 					output: {
 						entryFileNames: "bundle.js",
