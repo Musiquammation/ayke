@@ -5,6 +5,7 @@ import { collisions } from "../util/collisions";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
+import { getImageRootPath } from "./getImageRootPath";
 
 const protocols = getProtocol('airbasket', 'multiplayer');
 
@@ -934,11 +935,11 @@ function drawPlayerToTarget(
 }
 
 function getTexturePath(id: string) {
-	return `/assets/games/airbasket/skins/${id}/grid.png`
+	return `${getImageRootPath()}/assets/games/airbasket/skins/${id}/grid.png`
 }
 
 function getIconPath(id: string) {
-	return `/assets/games/airbasket/skins/${id}/icon.png`
+	return `${getImageRootPath()}/assets/games/airbasket/skins/${id}/icon.png`
 }
 
 

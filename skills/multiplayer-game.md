@@ -595,11 +595,11 @@ function generateClientDom(unlockedSkins: string[]) {
 
 
 function getSkinTexturePath(id: string) {
-	return `/assets/games/test/skins/${id}/grid.png`
+	return `${getImageRootPath()}/assets/games/test/skins/${id}/grid.png`
 }
 
 function getSkinIconPath(id: string) {
-	return `/assets/games/test/skins/${id}/icon.png`
+	return `${getImageRootPath()}/assets/games/test/skins/${id}/icon.png`
 }
 
 
