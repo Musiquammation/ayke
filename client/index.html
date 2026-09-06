@@ -337,11 +337,10 @@
 			window.PROTOCOL_FILE = "/protocols/game.proto";
 			window.PROTOCOLS_FOLDER = "/protocols/games/";
 
-			import { init } from "/src/index.ts";
-			document.addEventListener("DOMContentLoaded", () => {
+			document.addEventListener("DOMContentLoaded", async () => {
+				const { init } = await import("/src/index.ts");
 				window.dom = init();
 			});
-		</script>
 		</script>
 	</body>
 </html>
