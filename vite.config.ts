@@ -9,18 +9,14 @@ export default defineConfig(({ command, mode }) => {
 
 	if (mode === "bundle") {
 		return {
-			root: "client",
-
 			build: {
-				outDir: "dist",
+				outDir: "client/dist",
 				emptyOutDir: true,
 				minify: false,
 
 				rollupOptions: {
-					input: "src/index.ts",
-					external: [
-						/^.*\/mobile\/.*/
-					],
+					input: "client/src/index.ts",
+					preserveEntrySignatures: "strict",
 
 					output: {
 						entryFileNames: "bundle.js",
@@ -30,6 +26,7 @@ export default defineConfig(({ command, mode }) => {
 				}
 			}
 		};
+
 	}
 
 	return {
@@ -38,7 +35,10 @@ export default defineConfig(({ command, mode }) => {
 		build: {
 			outDir: "dist",
 			emptyOutDir: true,
-			minify: false
+
+			rollupOptions: {
+				input: "index.html"
+			}
 		}
 	};
 });

@@ -329,22 +329,19 @@
 		</div>
 
 
-		<div id="css-container"></div>
-
-		<script>
+		<script type="module">
 			window.IMG_ROOT_PATH = "";
 			window.DEBUG = true;
 			window.SLOW_FPS = false;
 			window.SERVER_ADDRESS = "ws://localhost:8020";
 			window.PROTOCOL_FILE = "/protocols/game.proto";
 			window.PROTOCOLS_FOLDER = "/protocols/games/";
-			window.INDEX_TS = "/src/index.ts";
 
+			import { init } from "/src/index.ts";
 			document.addEventListener("DOMContentLoaded", () => {
-				import(window.INDEX_TS).then(m => {
-					window.dom = m.init();
-				});
-			})
+				window.dom = init();
+			});
+		</script>
 		</script>
 	</body>
 </html>
