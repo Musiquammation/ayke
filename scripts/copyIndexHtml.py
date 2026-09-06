@@ -68,7 +68,7 @@ def copy_main_div(source_file, dest_file):
     print(f"Successfully copied <div id='main'> while preserving all original tabs and formatting!")
 
 if __name__ == "__main__":
-    SOURCE = "dist/index.html"
+    SOURCE = "client/dist/index.html"
     DEST = "index.html"
     
     copy_main_div(SOURCE, DEST)

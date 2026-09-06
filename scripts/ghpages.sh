@@ -6,6 +6,6 @@ cp -r client/public client/dist &&
 cp client/index.html client/dist/index.html &&
 cp scripts/copyIndexHtml.py client/dist/copyIndexHtml.py &&
 git switch gh-pages &&
-rm -rf public/
+rm -rf public/ &&
 cp -r client/dist/public/. public/ &&
 python3 client/dist/copyIndexHtml.py
