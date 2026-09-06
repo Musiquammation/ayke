@@ -41,8 +41,12 @@ export function evalWonTrophees(data: FinishGame) {
 	// Personal trophees
 	const personalRatio = teamCount === 1 ? 1 : (1 - TEAM_RATIO);
 	for (const team of data.results) {
-		if (team.length <= 1)
-			continue; // no extra points if player was lonely
+		// Player is lonely, so we complete its
+		// trophees up to the complete unit
+		if (team.length <= 1) {
+			trophees[team[0]] *= 1/TEAM_RATIO;
+			continue;
+		}
 
 		const base = personalRatio;
 		const unit = 2*base / (team.length-1);

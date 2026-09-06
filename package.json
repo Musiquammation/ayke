@@ -3,7 +3,7 @@
   "scripts": {
     "sync": "cp -r commons/protocols client/public",
     "client": "vite",
-    "build-bundle": "vite build --mode bundle",
+    "bundle": "vite build --mode bundle",
     "build": "vite build",
     "server": "tsx watch server/server.ts",
     "test": "tsx draft/test.ts"
