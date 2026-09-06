@@ -17,8 +17,13 @@ class FullScreenHandler {
 			return;
 		}
 
-		await document.documentElement.requestFullscreen();
-		this.ownsFullscreen = true;
+		try {
+			await document.documentElement.requestFullscreen();
+			this.ownsFullscreen = true;
+		} catch (error) {
+			console.error("Failed to enter fullscreen:", error);
+			this.ownsFullscreen = false;
+		}
 	}
 
 	async closeFull(): Promise<void> {
@@ -33,8 +38,12 @@ class FullScreenHandler {
 			return;
 		}
 
-		await document.exitFullscreen();
-		this.ownsFullscreen = false;
+		try {
+			await document.exitFullscreen();
+			this.ownsFullscreen = false;
+		} catch (error) {
+			console.error("Failed to exit fullscreen:", error);
+		}
 	}
 }
 
