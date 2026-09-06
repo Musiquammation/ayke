@@ -10158,11 +10158,6 @@ function isMessage(value) {
 	return typeof value === "object" && value !== null && "$type" in value && value.$type instanceof import_protobufjs.Type;
 }
 //#endregion
-//#region commons/gamemods/getImageRootPath.ts
-function getImageRootPath() {
-	return window.IMG_ROOT_PATH;
-}
-//#endregion
 //#region commons/gamemods/GMAirBasket.ts
 var protocols$3 = getProtocol("airbasket", "multiplayer");
 var GRAVITY$1 = 1100;
@@ -10804,10 +10799,10 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 	drawCurve();
 }
 function getTexturePath(id) {
-	return `${getImageRootPath()}/assets/games/airbasket/skins/${id}/grid.png`;
+	return `/assets/games/airbasket/skins/${id}/grid.png`;
 }
 function getIconPath(id) {
-	return `${getImageRootPath()}/assets/games/airbasket/skins/${id}/icon.png`;
+	return `/assets/games/airbasket/skins/${id}/icon.png`;
 }
 var GMAirBasket = class GMAirBasket extends GameMode {
 	static types = {
