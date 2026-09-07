@@ -174,8 +174,38 @@ function generateClientDom(unlockedSkins: string[]) {
 }
 
 class TutorialData {
-	frame(dt: number, clock: number) {
-		return "Hello";
+	constructor(private readonly game: GMRoarsOnGlass) {}
+
+	private step = 0;
+	private wakeUp = 0;
+
+	frame(dt: number, clock: number): string | null {
+		this.game.players[1].dirY = -1;
+		const player = this.game.players[0];
+		if (player.alive < 0) {
+			this.step = 0;
+			return "You died";
+		}
+
+		if (this.step === 0) {
+			this.wakeUp = clock + 1.5;
+			this.step = 1;
+			return "Don't fall on glass";
+		}
+
+		if (this.step === 1) {
+			if (clock >= this.wakeUp) {
+				this.step = 2;
+			}
+			return "Don't fall on glass";
+		}
+
+		if (this.step === 2) {
+			return "Use ROAR (or press SPACE) to propulse your opponents out of bounds";
+		}
+
+		return null;
+
 	}
 }
 
@@ -903,7 +933,7 @@ export class GMRoarsOnGlass extends GameMode {
 			}
 		};
 	}
-	override createTutorial() { return new TutorialData(); }
+	override createTutorial() { return new TutorialData(this); }
 	
 	private produceFinish(): FinishGame {
 		// Team 0 = Red, Team 1 = Blue
