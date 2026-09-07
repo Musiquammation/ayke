@@ -1,65 +1,887 @@
-body, html {
+/* ============================================================
+   Theme variables
+   ============================================================ */
+
+:root {
+	/* Light theme */
+	--color-bg: #f4f5f7;
+	--color-surface: #ffffff;
+	--color-surface-hover: #f0f1f3;
+
+	--color-text: #1b1d21;
+	--color-text-muted: #6b7078;
+
+	--color-border: #b8bcc3;
+	--color-border-strong: #8e939b;
+
+	--color-primary: #4f7cff;
+	--color-primary-hover: #3f6ee8;
+	--color-primary-text: #ffffff;
+
+	--color-success: #61c554;
+	--color-danger: #e05252;
+	--color-warning: #d99a32;
+
+	--color-disabled: #aeb2b8;
+
+	--color-shadow: rgba(0, 0, 0, 0.08);
+
+	--radius-small: 6px;
+	--radius-medium: 10px;
+	--radius-large: 14px;
+
+	--transition-fast: 120ms ease;
+	--transition-normal: 200ms ease;
+
+	--page-padding: clamp(16px, 4vw, 60px);
+	--content-width: 1200px;
+}
+
+
+.play-btn {
+	background-color: var(--color-success);
+}
+
+/* Dark theme */
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--color-bg: #101114;
+		--color-surface: #181a1f;
+		--color-surface-hover: #20232a;
+
+		--color-text: #f2f3f5;
+		--color-text-muted: #999fa8;
+
+		--color-border: #464b54;
+		--color-border-strong: #656b75;
+
+		--color-primary: #668cff;
+		--color-primary-hover: #789aff;
+		--color-primary-text: #ffffff;
+
+		--color-success: #65c95a;
+		--color-danger: #e46161;
+		--color-warning: #e0a13d;
+
+		--color-disabled: #555a63;
+
+		--color-shadow: rgba(0, 0, 0, 0.35);
+	}
+}
+
+
+/* ============================================================
+   Global styles
+   ============================================================ */
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	width: 100%;
+	height: 100%;
+
 	overflow: hidden;
+
+	background: var(--color-bg);
+	color: var(--color-text);
+
+	font-family:
+		system-ui,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		sans-serif;
 }
 
-canvas {
-	position: absolute;
-	left: 0;
-	top: 0;
-	width: 100vw;
-	height: 100vh;
-	display: block;
-	background: black;
+body {
+	overflow-y: auto;
 }
 
 
-button.selected {
-	background: greenyellow;
+img.pixel-image {
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
 }
 
-.tutorialText {
-	position: absolute;
-	top: 7vh;
-	left: 50%;
-	transform: translateX(-50%);
-
-	background: black;
-	color: white;
-	text-align: center;
-
-	font-family: 'Courier New', Courier, monospace;
-	max-width: 50vw;
-
-	padding: 10px 20px;
-}
-
-#game-html {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 0;
-	height: 0;
-	color: white;
+button,
+input,
+select {
+	font: inherit;
 }
 
 button {
 	cursor: pointer;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	padding: 8px 14px;
+
+	background: var(--color-surface);
+	color: var(--color-text);
+
+	transition:
+		background var(--transition-fast),
+		border-color var(--transition-fast),
+		transform var(--transition-fast),
+		opacity var(--transition-fast);
 }
 
-button.play-disabled {
+button:hover:not(:disabled) {
+	background: var(--color-surface-hover);
+	border-color: var(--color-border-strong);
+}
+
+button:active:not(:disabled) {
+	transform: translateY(1px);
+}
+
+button:disabled {
 	opacity: 0.45;
 	cursor: not-allowed;
+}
+
+button.selected {
+	background: var(--color-success);
+	color: #111;
+	border-color: var(--color-success);
+}
+
+
+/* ============================================================
+   Generic pages
+   ============================================================ */
+
+.page {
+	width: min(
+		calc(100% - 2 * var(--page-padding)),
+		var(--content-width)
+	);
+
+	margin: 0 auto;
+	padding: 30px 0 60px;
+}
+
+.page > h1,
+.page > h2 {
+	margin-top: 0;
+}
+
+.page h1 {
+	font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.page h2 {
+	font-size: clamp(1.25rem, 3vw, 1.7rem);
+}
+
+.page h3 {
+	font-size: 1.05rem;
+}
+
+
+/* ============================================================
+   Home page
+   ============================================================ */
+
+#home-page {
+	display: flex;
+	flex-direction: column;
+	gap: 34px;
+
+	padding-top: clamp(24px, 5vh, 60px);
+}
+
+#home-page > h1 {
+	margin: 0 0 5px;
+
+	text-align: center;
+
+	font-size: clamp(2.5rem, 7vw, 4.5rem);
+	font-weight: 800;
+	letter-spacing: -0.04em;
+}
+
+
+/* ============================================================
+   Home sections
+   ============================================================ */
+
+#home-page section {
+	position: relative;
+
+	width: 100%;
+
+	padding: 30px 24px 24px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-medium);
+
+	background: var(--color-surface);
+	box-shadow: 0 5px 20px var(--color-shadow);
+}
+
+
+/*
+ * Section titles overlap the border.
+ * The background behind the title hides the border.
+ */
+
+#home-page section > h2 {
+	position: absolute;
+
+	top: 0;
+	left: 22px;
+
+	margin: 0;
+	padding: 10px 10px;
+
+	transform: translateY(-50%);
+
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-medium);
+
+	color: var(--color-text);
+
+	font-size: 1.1rem;
+	font-weight: 700;
+
+	line-height: 1.2;
+}
+
+
+/* ============================================================
+   Account section
+   ============================================================ */
+
+.home-account > template > div,
+.home-account > div {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+}
+
+.home-account > div > div {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+
+	min-width: 0;
+}
+
+.home-account i {
+	color: var(--color-primary);
+
+	font-style: normal;
+	font-weight: 600;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+
+/* Buttons inside account */
+
+.home-account button {
+	min-height: 40px;
+}
+
+
+/* ============================================================
+   Play section
+   ============================================================ */
+
+.home-play {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+
+/*
+ * Each game category is a separate block.
+ */
+
+.home-play > div {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.home-play > div > h3 {
+	margin: 0;
+
+	color: var(--color-text-muted);
+
+	font-size: 0.95rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+
+/*
+ * Game list:
+ * 2 columns by default.
+ * More columns are enabled with media queries below.
+ */
+
+.home-play > div > div {
+	display: grid;
+
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+
+	gap: 14px;
+}
+
+
+/* ============================================================
+   Individual game cards
+   ============================================================ */
+
+.home-play > div > div > div {
+	display: flex;
+	flex-direction: column;
+
+	min-width: 0;
+	min-height: 130px;
+
+	padding: 18px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	background: var(--color-bg);
+
+	transition:
+		border-color var(--transition-normal),
+		background var(--transition-normal),
+		transform var(--transition-normal),
+		box-shadow var(--transition-normal);
+}
+
+.home-play > div > div > div:hover {
+	border-color: var(--color-border-strong);
+	background: var(--color-surface-hover);
+
+	transform: translateY(-2px);
+
+	box-shadow: 0 5px 15px var(--color-shadow);
+}
+
+
+/*
+ * Game name.
+ * The card has enough room below for a future description.
+ */
+
+.home-play > div > div > div > span {
+	display: block;
+
+	margin-bottom: auto;
+
+	font-size: 1.05rem;
+	font-weight: 650;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+
+/*
+ * Play button.
+ * Kept at the bottom of the card so a description can be
+ * inserted above it later without changing the layout.
+ */
+
+.home-play > div > div > div > button {
+	width: 100%;
+	margin-top: 18px;
+
+	background: var(--color-primary);
+	color: var(--color-primary-text);
+
+	border-color: var(--color-primary);
+}
+
+.home-play > div > div > div > button:hover:not(:disabled) {
+	background: var(--color-primary-hover);
+	border-color: var(--color-primary-hover);
+}
+
+
+/* Disabled game */
+
+.home-play > div > div > div > button.play-disabled {
+	opacity: 0.45;
+
+	cursor: not-allowed;
+
 	filter: grayscale(1);
 }
 
 
+/* ============================================================
+   Community section
+   ============================================================ */
+
+.home-community {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.home-community > h2 {
+	width: auto;
+}
+
+.home-community > button {
+	flex: 1 1 220px;
+	min-height: 42px;
+}
+
+
+/* ============================================================
+   Loading page
+   ============================================================ */
+
+#loading-page {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	min-height: 100vh;
+
+	font-size: 1.2rem;
+}
+
+
+/* ============================================================
+   Game configuration menu
+   ============================================================ */
+
+#test-page [x-data="data"] {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+
+	gap: 16px;
+
+	width: 100%;
+}
+
+
+/* Each configuration row */
+
+#test-page [x-data="data"] > div {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+
+	gap: 10px;
+
+	width: 100%;
+}
+
+
+/* Labels */
+
+#test-page [x-data="data"] > div > span {
+	flex: 0 0 auto;
+
+	white-space: nowrap;
+
+	font-weight: 600;
+}
+
+
+/* Skin selector */
+
+#test-page .skin-select {
+	flex: 0 0 220px;
+}
+
+
+/* Preferred team buttons */
+
+#test-page [x-data="data"] > div > button {
+	flex: 0 0 auto;
+}
+
+
+#test-page .footer {
+	margin: 1em;
+}
+
+/* ============================================================
+   Waiting for players
+   ============================================================ */
+
+#wait-play-page {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+#wait-play-page > div {
+	width: 100%;
+}
+
+#wait-play-page > div:first-of-type {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+
+	padding: 14px 16px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	background: var(--color-surface);
+}
+
+#wait-play-page > div:first-of-type > div {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+#wait-play-page > div:nth-of-type(2) {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+#wait-play-page > div:nth-of-type(2) > div {
+	padding: 14px 16px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	background: var(--color-surface);
+}
+
+#wait-play-page h2 {
+	margin: 0 0 8px;
+	font-size: 1rem;
+}
+
+#wait-play-page input[type="checkbox"] {
+	width: 18px;
+	height: 18px;
+
+	accent-color: var(--color-primary);
+}
+
+#wait-play-page > div:last-child {
+	max-height: 250px;
+
+	overflow-y: auto;
+
+	padding: 12px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	background: var(--color-surface);
+
+	font-family: "Courier New", monospace;
+	font-size: 0.85rem;
+}
+
+
+/* ============================================================
+   Results page
+   ============================================================ */
+
+#play-results-page {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+
+	gap: 24px;
+}
+
+.results-container {
+	width: min(100%, 700px);
+
+	display: flex;
+	flex-direction: column;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-medium);
+
+	overflow: hidden;
+
+	background: var(--color-surface);
+}
+
+.result-row {
+	display: grid;
+
+	grid-template-columns: minmax(0, 1fr) auto auto;
+
+	gap: 20px;
+
+	align-items: center;
+
+	padding: 14px 18px;
+
+	border-bottom: 1px solid var(--color-border);
+}
+
+.result-row:last-child {
+	border-bottom: none;
+}
+
+.player-pseudo {
+	min-width: 0;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+
+	font-weight: 600;
+}
+
+.player-score {
+	font-weight: 700;
+}
+
+.player-delta {
+	min-width: 55px;
+
+	text-align: right;
+
+	font-family: "Courier New", monospace;
+}
+
+.player-delta:empty {
+	display: none;
+}
+
+.noTrophees {
+	opacity: 0.5;
+}
+
+
+/* ============================================================
+   Login / Signin
+   ============================================================ */
+
+#login-page,
+#signin-page {
+	display: flex;
+	flex-direction: column;
+
+	align-items: center;
+}
+
+#login-page h2,
+#signin-page h2 {
+	width: min(100%, 500px);
+
+	margin-bottom: 24px;
+}
+
+#login-page form,
+#signin-page form {
+	width: min(100%, 500px);
+
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+
+	padding: 24px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-medium);
+
+	background: var(--color-surface);
+	box-shadow: 0 5px 20px var(--color-shadow);
+}
+
+.form-group {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+
+.form-group label {
+	font-size: 0.9rem;
+	font-weight: 600;
+	color: var(--color-text-muted);
+}
+
+.form-group input {
+	width: 100%;
+	height: 42px;
+
+	padding: 8px 11px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	background: var(--color-bg);
+	color: var(--color-text);
+
+	outline: none;
+
+	transition: border-color var(--transition-fast);
+}
+
+.form-group input:focus {
+	border-color: var(--color-primary);
+}
+
+.error-message {
+	margin: 0;
+
+	color: var(--color-danger);
+
+	font-size: 0.9rem;
+}
+
+#login-page form > div:last-child,
+#signin-page form > div:last-child {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+#login-page form button,
+#signin-page form button {
+	flex: 1 1 140px;
+	min-height: 42px;
+}
+
+
+/* ============================================================
+   Leaderboards
+   ============================================================ */
+
+#leaderboard-page,
+#solo-leaderboard-page {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+#leaderboard-page h2,
+#solo-leaderboard-page h2 {
+	margin-bottom: 0;
+}
+
+.leaderboard-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+}
+
+.leaderboard-controls select {
+	min-height: 40px;
+
+	padding: 7px 10px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	background: var(--color-surface);
+	color: var(--color-text);
+
+	cursor: pointer;
+}
+
+.leaderboard-list {
+	width: 100%;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-medium);
+
+	overflow: hidden;
+
+	background: var(--color-surface);
+}
+
+.leaderboard-entry {
+	display: grid;
+
+	grid-template-columns: 60px minmax(0, 1fr) auto;
+
+	align-items: center;
+
+	gap: 16px;
+
+	padding: 12px 16px;
+
+	border-bottom: 1px solid var(--color-border);
+}
+
+.leaderboard-entry:last-child {
+	border-bottom: none;
+}
+
+.leaderboard-entry:hover {
+	background: var(--color-surface-hover);
+}
+
+.leaderboard-entry.leaderboard-me {
+	background: color-mix(
+		in srgb,
+		var(--color-primary) 15%,
+		var(--color-surface)
+	);
+}
+
+.rank {
+	color: var(--color-text-muted);
+
+	font-family: "Courier New", monospace;
+
+	text-align: right;
+}
+
+.pseudo {
+	min-width: 0;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+
+	font-weight: 600;
+}
+
+.trophees,
+.score {
+	font-family: "Courier New", monospace;
+	font-weight: 700;
+
+	text-align: right;
+}
+
+
+/* ============================================================
+   Skin selector
+   ============================================================ */
+
 .skin-select {
 	position: relative;
+
 	width: 220px;
 }
 
 .skin-select-button {
 	box-sizing: border-box;
+
 	width: 100%;
 	height: 48px;
 
@@ -69,22 +891,23 @@ button.play-disabled {
 
 	padding: 6px 10px;
 
-	border: 1px solid #555;
-	border-radius: 6px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
 
-	background: #222;
-	color: white;
+	background: var(--color-surface);
+	color: var(--color-text);
 
 	cursor: pointer;
 }
 
 .skin-select-button:hover {
-	background: #2d2d2d;
+	background: var(--color-surface-hover);
 }
 
 .skin-select-current {
 	display: flex;
 	align-items: center;
+
 	gap: 10px;
 
 	min-width: 0;
@@ -92,6 +915,7 @@ button.play-disabled {
 
 .skin-select-current span {
 	overflow: hidden;
+
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -107,7 +931,9 @@ button.play-disabled {
 
 .skin-select-arrow {
 	margin-left: 8px;
+
 	font-size: 11px;
+
 	opacity: 0.7;
 }
 
@@ -121,15 +947,17 @@ button.play-disabled {
 	box-sizing: border-box;
 
 	max-height: 240px;
+
 	overflow-y: auto;
 
 	padding: 4px;
 
-	border: 1px solid #555;
-	border-radius: 6px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
 
-	background: #222;
-	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+	background: var(--color-surface);
+
+	box-shadow: 0 6px 20px var(--color-shadow);
 }
 
 .skin-select-option {
@@ -137,6 +965,7 @@ button.play-disabled {
 
 	display: flex;
 	align-items: center;
+
 	gap: 10px;
 
 	width: 100%;
@@ -146,26 +975,29 @@ button.play-disabled {
 
 	border-radius: 4px;
 
-	color: white;
+	color: var(--color-text);
+
 	cursor: pointer;
 }
 
 .skin-select-option:hover {
-	background: #333;
+	background: var(--color-surface-hover);
 }
 
 .skin-select-option.selected {
-	background: #444;
+	background: var(--color-surface-hover);
 }
 
 .skin-select-option span {
 	overflow: hidden;
+
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 .skin-select-option.disabled {
 	opacity: 0.4;
+
 	cursor: not-allowed;
 	pointer-events: none;
 }
@@ -179,21 +1011,236 @@ button.play-disabled {
 }
 
 .skin-select-options::-webkit-scrollbar-thumb {
-	background: #555;
+	background: var(--color-border-strong);
 	border-radius: 3px;
 }
 
 
+/* ============================================================
+   Game canvas
+   ============================================================ */
+
+canvas {
+	position: absolute;
+
+	left: 0;
+	top: 0;
+
+	width: 100vw;
+	height: 100vh;
+
+	display: block;
+
+	background: black;
+}
+
+#game-html {
+	position: absolute;
+
+	top: 0;
+	left: 0;
+
+	width: 0;
+	height: 0;
+
+	color: white;
+}
+
+.tutorialText {
+	position: absolute;
+
+	top: 7vh;
+	left: 50%;
+
+	transform: translateX(-50%);
+
+	max-width: min(700px, 80vw);
+
+	padding: 10px 20px;
+
+	background: black;
+	color: white;
+
+	text-align: center;
+
+	font-family: "Courier New", Courier, monospace;
+}
 
 
+/* ============================================================
+   Responsive: large screens
+   ============================================================ */
+
+@media (min-width: 1100px) {
+	.home-play > div > div {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
 
 
+/* ============================================================
+   Responsive: medium screens
+   ============================================================ */
+
+@media (min-width: 700px) and (max-width: 1099px) {
+	.home-play > div > div {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
 
 
+/* ============================================================
+   Responsive: tablets / small screens
+   ============================================================ */
+
+@media (max-width: 699px) {
+	:root {
+		--page-padding: 14px;
+	}
+
+	.page {
+		padding-top: 24px;
+	}
+
+	#home-page {
+		gap: 26px;
+	}
+
+	#home-page section {
+		padding: 28px 16px 18px;
+	}
+
+	#home-page section > h2 {
+		left: 14px;
+	}
+
+	.home-play > div > div {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 10px;
+	}
+
+	.home-play > div > div > div {
+		min-height: 120px;
+		padding: 14px;
+	}
+
+	.home-account > div {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.home-account > div > div {
+		width: 100%;
+	}
+
+	.home-account button {
+		width: 100%;
+	}
+
+	.home-community {
+		flex-direction: column;
+	}
+
+	.home-community > button {
+		width: 100%;
+		flex-basis: auto;
+	}
+
+	.leaderboard-controls {
+		align-items: stretch;
+	}
+
+	.leaderboard-controls select,
+	.leaderboard-controls button {
+		flex: 1 1 150px;
+	}
+
+	.result-row {
+		grid-template-columns: minmax(0, 1fr) auto auto;
+
+		gap: 10px;
+
+		padding: 12px;
+	}
+}
 
 
+/* ============================================================
+   Responsive: phones
+   ============================================================ */
+
+@media (max-width: 480px) {
+	#home-page {
+		padding-top: 20px;
+	}
+
+	#home-page > h1 {
+		font-size: 2.4rem;
+	}
+
+	#home-page section {
+		padding-left: 12px;
+		padding-right: 12px;
+	}
+
+	.home-play > div > div {
+		grid-template-columns: 1fr;
+	}
+
+	.home-play > div > div > div {
+		min-height: 110px;
+	}
+
+	.leaderboard-entry {
+		grid-template-columns: 42px minmax(0, 1fr) auto;
+
+		gap: 10px;
+
+		padding: 10px 12px;
+	}
+
+	.rank {
+		text-align: left;
+	}
+
+	#login-page form,
+	#signin-page form {
+		padding: 18px;
+	}
+
+	#login-page form > div:last-child,
+	#signin-page form > div:last-child {
+		flex-direction: column;
+	}
+
+	#login-page form button,
+	#signin-page form button {
+		width: 100%;
+	}
+
+	.tutorialText {
+		max-width: 90vw;
+
+		padding: 8px 12px;
+
+		font-size: 0.85rem;
+	}
+}
 
 
+/* ============================================================
+   Game settings
+   ============================================================ */
 
+/* Keep the label and the skin selector on the same line */
+.skin-setting {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
 
-
+/* Keep the selector at a reasonable width */
+.skin-setting .skin-select {
+	width: 220px;
+	flex-shrink: 0;
+}

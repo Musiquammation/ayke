@@ -47,6 +47,8 @@
 									<template x-for="game in category.list" :key="game.key">
 										<div>
 											<span x-text="game.name"></span>
+
+											<!-- <img class="pixel-image" :src="getImageSrc(game.key)"> -->
 	
 											<button
 												@pointerup="playGame(game.key)"
@@ -82,10 +84,12 @@
 				<div id="test-page" class="page" x-data="panel">
 					<h1 x-text="gamemode"></h1>
 					<div x-ref="gamePanel" x-html="htmlContent"></div>
-					<button @pointerup="play()">Play</button>
-					<template x-if="typeof tutorial === 'function'">
-						<button @pointerup="tutorial()">Tutorial</button>
-					</template>
+					<div class="footer">
+						<button class="play-btn" @pointerup="play()">Play</button>
+						<template x-if="typeof tutorial === 'function'">
+							<button @pointerup="tutorial()">Tutorial</button>
+						</template>
+					</div>
 				</div>
 			</template>
 

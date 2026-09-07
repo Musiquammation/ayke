@@ -537,6 +537,11 @@ class HomeComponent {
 		}
 	}
 
+	getImageSrc(gamemode: string) {
+		return `${window.IMG_ROOT_PATH}/assets/games/${gamemode}/icon.png`;
+	}
+
+
 	isDisabled(gamemode: string) {
 		const gm = gamemods[gamemode];
 		if (!gm || gm.type === 'ui-separator')
