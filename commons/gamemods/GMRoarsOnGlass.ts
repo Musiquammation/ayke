@@ -34,8 +34,7 @@ const MIN_DECELERATION = 500;
 // Ability Constants
 const ROAR_COOLDOWN = 3.0; // Seconds between roars
 const ROAR_CAST_TIME = 1.0; // Immobilized duration
-const ROAR_RADIUS = 500;
-const ROAR_ARC = Math.PI / 2; // 90 degrees
+const ROAR_RADIUS = 100;
 const PUSH_SPEED = 800; // Initial push velocity
 const SPEED_REDUCOR = 800; // Speed reduction per second during push
 
@@ -541,33 +540,15 @@ export class GMRoarsOnGlass extends GameMode {
 				p.roarTimer = ROAR_CAST_TIME;
 				p.roarCooldown = ROAR_COOLDOWN;
 				
-				// Find nearest enemy
-				let nearestDist = Infinity;
-				let nearestEnemy = null;
+				// Push enemies in range
 				for (let e of this.players) {
 					if (e !== p && e.team !== p.team && e.isAlive()) {
-						let d = norm2(e.x - p.x, e.y - p.y);
-						if (d < nearestDist) { nearestDist = d; nearestEnemy = e; }
-					}
-				}
-				
-				if (nearestEnemy) {
-					let roarAngle = Math.atan2(nearestEnemy.y - p.y, nearestEnemy.x - p.x);
-					// Push enemies in cone
-					for (let e of this.players) {
-						if (e !== p && e.team !== p.team && e.isAlive()) {
-							let dist = Math.sqrt(norm2(e.x - p.x, e.y - p.y));
-							if (dist <= ROAR_RADIUS) {
-								let angle = Math.atan2(e.y - p.y, e.x - p.x);
-								let angleDiff = Math.abs(angle - roarAngle);
-								if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
-								
-								if (angleDiff <= ROAR_ARC / 2) {
-									e.pushTimer = 1.0;
-									e.vx = Math.cos(angle) * PUSH_SPEED;
-									e.vy = Math.sin(angle) * PUSH_SPEED;
-								}
-							}
+						let dist2 = norm2(e.x - p.x, e.y - p.y);
+						if (dist2 <= ROAR_RADIUS*ROAR_RADIUS) {
+							let angle = Math.atan2(e.y - p.y, e.x - p.x);
+							e.pushTimer = 1.0;
+							e.vx = Math.cos(angle) * PUSH_SPEED;
+							e.vy = Math.sin(angle) * PUSH_SPEED;
 						}
 					}
 				}
@@ -828,7 +809,7 @@ export class GMRoarsOnGlass extends GameMode {
 				ctx.arc(
 					p.x,
 					p.y,
-					PLAYER_SIZE,
+					ROAR_RADIUS,
 					0,
 					2 * Math.PI
 				);

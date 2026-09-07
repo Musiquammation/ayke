@@ -11,16 +11,6 @@ const {all, first, loop, runner} = botActionNodeHelper<GMTurrets, Data>();
 
 const TYPES = GMTurrets.types;
 
-const INPUTS = {
-    jump: {jump: {}, action: 'jump'},
-    downOn: {downOn: {}, action: 'downOn'},
-    downOff: {downOff: {}, action: 'downOff'},
-    left: {left: {}, action: 'left'},
-    right: {right: {}, action: 'right'},
-    stop: {stop: {}, action: 'stop'},
-};
-
-
 class Data {	
 
 }
