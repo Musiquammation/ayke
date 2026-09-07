@@ -330,12 +330,12 @@
 
 
 		<script type="module">
-			window.IMG_ROOT_PATH = "";
-			window.DEBUG = true;
+			window.IMG_ROOT_PATH = "/ayke/public";
+			window.DEBUG = false;
 			window.SLOW_FPS = false;
-			window.SERVER_ADDRESS = "ws://localhost:8020";
-			window.PROTOCOL_FILE = "/protocols/game.proto";
-			window.PROTOCOLS_FOLDER = "/protocols/games/";
+			window.SERVER_ADDRESS = "wss://5.51.5.55.sslip.io:7843";
+			window.PROTOCOL_FILE = "/ayke/public/protocols/game.proto";
+			window.PROTOCOLS_FOLDER = "/ayke/public/protocols/games/";
 
 			document.addEventListener("DOMContentLoaded", async () => {
 				const { init } = await import("/src/index.ts");
