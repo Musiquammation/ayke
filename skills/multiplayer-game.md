@@ -677,7 +677,7 @@ export class GMExample extends GameMode {
 		const totalPlayers = playerInfos.length;
 		const maxPerTeam = Math.ceil(totalPlayers / 2);
 
-		const assigned = new Array(totalPlayers);
+		const assigned = new Array<boolean>(totalPlayers);
 		let redCount = 0;
 		let blueCount = 0;
 

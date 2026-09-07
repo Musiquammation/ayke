@@ -39,11 +39,12 @@ namespace collisions {
 }
 const norm2 = (dx: number, dy: number) => dx*dx + dy*dy;
 
-const WIDTH = 2400;
-const HEIGHT = 1350;
+const WIDTH = 1350;
+const HEIGHT = 2400;
 const TILE_SIZE = 150;
-const GRID_W = Math.floor(WIDTH / TILE_SIZE);
-const GRID_H = Math.floor(HEIGHT / TILE_SIZE);
+const GRID_PADDING = 1.5;
+const GRID_W = Math.floor(WIDTH / TILE_SIZE) - GRID_PADDING*2;
+const GRID_H = Math.floor(HEIGHT / TILE_SIZE) - GRID_PADDING*2;
 const PLAYER_SIZE = 60; 
 
 // Physics Constants
@@ -128,24 +129,6 @@ class Player {
 	}
 }
 
-class Camera {
-	x = WIDTH/2;
-	y = HEIGHT/2;
-	static readonly SCALE = 0.8;
-	update(px: number, py: number, dt: number) {
-		// Simple lerp to player position
-		this.x += (px - this.x) * 5 * dt;
-		this.y += (py - this.y) * 5 * dt;
-	}
-	teleport(px: number, py: number) {
-		this.x = px;
-		this.y = py;
-	}
-	getCoords() {
-		return { x: this.x, y: this.y };
-	}
-}
-
 class ClientData {
 	firstFrame = true;
 	mouseX = 0;
@@ -157,8 +140,6 @@ class ClientData {
 	readonly time: HTMLDivElement;
 	readonly redScore: HTMLDivElement;
 	readonly blueScore: HTMLDivElement;
-	readonly camera = new Camera();
-	private clientWasDead = true;
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -185,17 +166,12 @@ class ClientData {
 		return `${minutes}:${seconds.padStart(4, "0")}`;
 	}
 	update(game: GMRoarsOnGlass, playerIdx: number) {
-		this.time.innerText = ClientData.showTime(game.time);
+		if (game.time < 60) {
+			this.time.innerText = ClientData.showTime(game.time);
+		}
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
 		const player = game.players[playerIdx];
-		if (this.clientWasDead && player.alive > 0) {
-			this.camera.teleport(player.x, player.y);
-		}
-		this.clientWasDead = (player.alive <= 0);
-		if (player.alive > 0) {
-			this.camera.update(player.x, player.y, 1/60);
-		}
 	}
 }
 
@@ -220,7 +196,7 @@ function generateClientDom(unlockedSkins: string[]) {
 }
 
 class TutorialData {
-    frame(dt: number, clock: number) {
+	frame(dt: number, clock: number) {
 		return "Hello";
 	}
 }
@@ -251,7 +227,7 @@ export class GMRoarsOnGlass extends GameMode {
 		for (let y = 0; y < GRID_H; y++) {
 			let row = [];
 			for (let x = 0; x < GRID_W; x++) {
-				row.push(3.0); // 3 = unbroken glass
+				row.push(300.0); // 3 = unbroken glass
 			}
 			this.grid.push(row);
 		}
@@ -270,24 +246,104 @@ export class GMRoarsOnGlass extends GameMode {
 
 	static async createServ(players: PlayerInput[], total: number, hasSkin: any) {
 		const {StartData, StartDataClient} = protocols.get();
+
 		const game = new GMRoarsOnGlass(total);
-		
-		for (let i = 0; i < total; i++) {
-			const team = (i % 2 === 0) ? 'red' : 'blue';
-			const spawnX = (team === 'red') ? TILE_SIZE * 2 : WIDTH - TILE_SIZE * 2;
-			const spawnY = HEIGHT / 2;
-			game.players[i].initSpawn(spawnX, spawnY, team);
+
+
+		function decode(i: number) {
+			if (i < players.length)
+				return decodeFullMessage(StartData.decode(players[i].data));
+
+			return generateClientDom([]);
 		}
-		
+
+
+		// Pre-decode all player messages once for performance
+		const playerInfos = await Promise.all(
+			game.players.map(async (p, i) => {
+				const d = decode(i);
+				let skin: string;
+				const pseudo = i < players.length ? players[i].pseudo : null;
+				if (pseudo !== null && GMRoarsOnGlass.SKINS_IDS.includes(d.skin)) {
+					if (await hasSkin('example', d.skin, pseudo)) {
+						skin = d.skin as string;
+					} else {
+						skin = GMRoarsOnGlass.SKINS_IDS[0];
+					}
+				} else {
+					skin = GMRoarsOnGlass.SKINS_IDS[0];
+				}
+
+				return {
+					player: p,
+					index: i,
+					skin: skin,
+					pref: d.preferTeam ?? 0
+				}
+			})
+		);
+
+		const totalPlayers = playerInfos.length;
+		const maxPerTeam = Math.ceil(totalPlayers / 2);
+
+		const assigned = new Array<boolean>(totalPlayers);
+		let redCount = 0;
+		let blueCount = 0;
+
+		// Phase 1: Assign players with explicit valid preferences if team capacity allows
+		for (let i = 0; i < totalPlayers; i++) {
+			const info = playerInfos[i];
+			if (info.pref === 1 && redCount < maxPerTeam) {
+				assigned[info.index] = true; // Red
+				redCount++;
+			} else if (info.pref === -1 && blueCount < maxPerTeam) {
+				assigned[info.index] = false; // Blue
+				blueCount++;
+			}
+		}
+
+		// Phase 2: Fill remaining slots by alternating to maintain balanced team sizes
+		for (let i = 0; i < totalPlayers; i++) {
+			if (assigned[i] !== undefined) continue;
+
+			// Assign to the team that currently has fewer players
+			const isRed = redCount < blueCount || (redCount === blueCount && i % 2 === 0);
+			if (isRed && redCount < maxPerTeam) {
+				assigned[i] = true;
+				redCount++;
+			} else {
+				assigned[i] = false;
+				blueCount++;
+			}
+		}
+
+		// Phase 3: Initialize spawn points based on final team assignments
+		for (const [i, p] of game.players.entries()) {
+			const redTeam = assigned[i];
+			const spawnX = WIDTH/2;
+			const spawnY = (
+				redTeam ?
+				(GRID_PADDING+1) * TILE_SIZE : 
+				(GRID_H+GRID_PADDING-1) * TILE_SIZE
+			);
+			p.initSpawn(spawnX, spawnY, redTeam ? 'red' : 'blue');
+		}
+
+
+
 		const data = StartDataClient.encode({
-			players: game.players.map((p) => ({
+			players: game.players.map((p, idx) => ({
 				x: p.spawnX,
 				y: p.spawnY,
-				skin: 'default',
+				skin: playerInfos[idx].skin,
 				isRed: p.team === 'red'
 			}))
 		}).finish();
-		return { game, data };
+
+		return {
+			game,
+			data
+		};
 	}
 	
 	static createClient(data: Uint8Array | null, total: number) {
@@ -301,6 +357,17 @@ export class GMRoarsOnGlass extends GameMode {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
 				clientData.skins.push(p.skin);
 			}
+		} else {
+			for (const [i, p] of game.players.entries()) {
+			const redTeam = (i % 2) === 0;
+			const spawnX = WIDTH/2;
+			const spawnY = (
+				redTeam ?
+				(GRID_PADDING+1) * TILE_SIZE : 
+				(GRID_H+GRID_PADDING-1) * TILE_SIZE
+			);
+			p.initSpawn(spawnX, spawnY, redTeam ? 'red' : 'blue');
+		}
 		}
 		return { game, data: clientData, html: clientData.html, skins: {} };
 	}
@@ -371,8 +438,13 @@ export class GMRoarsOnGlass extends GameMode {
 				if (cell <= 0) continue; // Already broken
 				
 				let touched = false;
-				const tileRect = { x: x*TILE_SIZE + TILE_SIZE/2, y: y*TILE_SIZE + TILE_SIZE/2, w: TILE_SIZE, h: TILE_SIZE };
-				
+				const tileRect = {
+					x: (x + GRID_PADDING + .5) * TILE_SIZE,
+					y: (y + GRID_PADDING + .5) * TILE_SIZE,
+					w: TILE_SIZE,
+					h: TILE_SIZE
+				};
+
 				for (let p of this.players) {
 					if (p.isAlive() && collisions.RectCircle(tileRect, {x: p.x, y: p.y, r: PLAYER_SIZE/2})) {
 						touched = true;
@@ -461,7 +533,13 @@ export class GMRoarsOnGlass extends GameMode {
 			for (let y = 0; y < GRID_H; y++) {
 				for (let x = 0; x < GRID_W; x++) {
 					if (this.grid[y][x] > 0) {
-						const tileRect = { x: x*TILE_SIZE + TILE_SIZE/2, y: y*TILE_SIZE + TILE_SIZE/2, w: TILE_SIZE, h: TILE_SIZE };
+						const tileRect = {
+							x: (x + GRID_PADDING + .5) * TILE_SIZE,
+							y: (y + GRID_PADDING + .5) * TILE_SIZE,
+							w: TILE_SIZE,
+							h: TILE_SIZE
+						};
+
 						if (collisions.RectCircle(tileRect, {x: p.x, y: p.y, r: PLAYER_SIZE/2})) {
 							touchesAnyGlass = true;
 							break;
@@ -589,11 +667,7 @@ export class GMRoarsOnGlass extends GameMode {
 		ctx.fillStyle = "#111";
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 		
-		const cameraCoords = data.camera.getCoords();
 		ctx.save();
-		ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2);
-		ctx.scale(Camera.SCALE, Camera.SCALE);
-		ctx.translate(-cameraCoords.x, -cameraCoords.y);
 		
 		// Draw Grid
 		for (let y = 0; y < GRID_H; y++) {
@@ -609,8 +683,15 @@ export class GMRoarsOnGlass extends GameMode {
 				} else {
 					ctx.fillStyle = `rgba(150, 200, 255, ${alpha})`;
 				}
+
+				const SPACING = 2;
 				
-				ctx.fillRect(x * TILE_SIZE + 2, y * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+				ctx.fillRect(
+					(x + GRID_PADDING) * TILE_SIZE + SPACING,
+					(y + GRID_PADDING) * TILE_SIZE + SPACING,
+					TILE_SIZE - SPACING*2,
+					TILE_SIZE - SPACING*2
+				);
 			}
 		}
 		
