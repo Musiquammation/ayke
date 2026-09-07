@@ -5,6 +5,7 @@ import { getProtocol } from "../protocolLoader";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
+import { norm2 } from "../util/norm2";
 
 const protocols = getProtocol('roarsOnGlass', 'multiplayer');
 
@@ -37,7 +38,6 @@ namespace collisions {
 			   (Math.abs(a.y - b.y) * 2 < (a.h + b.h));
 	}
 }
-const norm2 = (dx: number, dy: number) => dx*dx + dy*dy;
 
 const WIDTH = 1350;
 const HEIGHT = 2400;
@@ -136,6 +136,7 @@ class ClientData {
 	skins: string[] = [];
 	prevX = 0;
 	prevY = 0;
+	prevRoar = false;
 	readonly html: HTMLDivElement;
 	readonly time: HTMLDivElement;
 	readonly redScore: HTMLDivElement;
@@ -629,20 +630,35 @@ export class GMRoarsOnGlass extends GameMode {
 	) {
 		const data = _data as ClientData;
 		const inputs: Fields[] = [];
-		let dx = 0; let dy = 0;
+		let dx = 0; let dy = 0; let roar = false;
 		if (keyboard.press('right') || keyboard.press('d')) dx += 1;
 		if (keyboard.press('left') || keyboard.press('q') || keyboard.press('a')) dx -= 1;
 		if (keyboard.press('down') || keyboard.press('s')) dy += 1;
 		if (keyboard.press('up') || keyboard.press('z') || keyboard.press('w')) dy -= 1;
+		
+		if (mobile) {
+			if (mobile.press('roar')) {roar = true;}
+
+			const joy = mobile.getJoystick('move');
+			if (joy.x !== 0 && joy.y !== 0) {
+				dx = joy.x;
+				dy = joy.y;
+			}
+		}
+
+		if (keyboard.press('space')) {
+			roar = true;	
+		}
 		
 		if (dx !== data.prevX || dy !== data.prevY) {
 			inputs.push({ action: 'move', move: {dx, dy} });
 			data.prevX = dx;
 			data.prevY = dy;
 		}
-		
-		if (keyboard.first('space')) {
-			inputs.push({ action: 'roar' });
+
+		if (roar !== data.prevRoar) {
+			inputs.push({ action: 'roar', roar });
+			data.prevRoar = roar;
 		}
 		
 		return inputs;
@@ -757,7 +773,32 @@ export class GMRoarsOnGlass extends GameMode {
 	
 	override getSize() { return {width: WIDTH, height: HEIGHT}; }
 	override evalMouseCoords(x: number, y: number, playerIdx: number, _data: any) { return {x, y}; }
-	override getMobileDesc(): MobileDescriptor { return { joysticks: {}, buttons: {} }; }
+	
+	override getMobileDesc(): MobileDescriptor {
+		return {
+			joysticks: {
+				move: {
+					x: 100,
+					xp: 'left',
+					y: 100,
+					yp: 'bottom',
+					size: 100,
+					color: "#007700"
+				}
+			},
+
+			buttons: {
+				roar: {
+					x: 100,
+					xp: 'right',
+					y: 100,
+					yp: 'bottom',
+					size: 100,
+					color: "#ff00ff"
+				}
+			}
+		};
+	}
 	override createTutorial() { return new TutorialData(); }
 	
 	private produceFinish(): FinishGame {
