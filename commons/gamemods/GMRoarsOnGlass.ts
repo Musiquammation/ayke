@@ -2,6 +2,7 @@ import { MobileDescriptor } from "../../client/src/controllers/MobileController"
 import { Fields } from "../Fields";
 import { FinishGame, GameMode } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
+import { collisions } from "../util/collisions";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
@@ -14,38 +15,14 @@ interface PlayerInput {
 	pseudo: string | null;
 }
 
-namespace collisions {
-	export interface Circle { x: number; y: number; r: number; }
-	export interface Rect { x: number; y: number; w: number; h: number; }
-	
-	export function RectCircle(rect: Rect, circle: Circle) {
-		const distX = Math.abs(circle.x - rect.x);
-		const distY = Math.abs(circle.y - rect.y);
-		if (distX > (rect.w/2 + circle.r)) { return false; }
-		if (distY > (rect.h/2 + circle.r)) { return false; }
-		if (distX <= (rect.w/2)) { return true; } 
-		if (distY <= (rect.h/2)) { return true; }
-		const dx = distX - rect.w/2;
-		const dy = distY - rect.h/2;
-		return (dx*dx + dy*dy <= (circle.r*circle.r));
-	}
-	export function CircleCircle(a: Circle, b: Circle) {
-		const dx = a.x - b.x; const dy = a.y - b.y;
-		return (dx*dx + dy*dy <= (a.r + b.r)*(a.r + b.r));
-	}
-	export function RectRect(a: Rect, b: Rect) {
-		return (Math.abs(a.x - b.x) * 2 < (a.w + b.w)) &&
-			   (Math.abs(a.y - b.y) * 2 < (a.h + b.h));
-	}
-}
-
 const WIDTH = 1350;
 const HEIGHT = 2400;
 const TILE_SIZE = 150;
 const GRID_PADDING = 1.5;
 const GRID_W = Math.floor(WIDTH / TILE_SIZE) - GRID_PADDING*2;
 const GRID_H = Math.floor(HEIGHT / TILE_SIZE) - GRID_PADDING*2;
-const PLAYER_SIZE = 60; 
+const PLAYER_SIZE = 100; 
+const PLAYER_ROUND = 20; 
 
 // Physics Constants
 const SPEED = 400;
@@ -228,7 +205,7 @@ export class GMRoarsOnGlass extends GameMode {
 		for (let y = 0; y < GRID_H; y++) {
 			let row = [];
 			for (let x = 0; x < GRID_W; x++) {
-				row.push(300.0); // 3 = unbroken glass
+				row.push(3.0); // 3 = unbroken glass
 			}
 			this.grid.push(row);
 		}
@@ -418,6 +395,76 @@ export class GMRoarsOnGlass extends GameMode {
 		}
 		return v;
 	}
+
+	private handlePlayerCollisions(): void {
+		const halfSize = PLAYER_SIZE / 2;
+		const round = PLAYER_ROUND;
+
+		for (let i = 0; i < this.players.length; i++) {
+			const a = this.players[i];
+			if (!a.isAlive()) continue;
+
+			for (let j = i + 1; j < this.players.length; j++) {
+				const b = this.players[j];
+				if (!b.isAlive()) continue;
+
+				const dx = b.x - a.x;
+				const dy = b.y - a.y;
+
+				// Les deux carrés arrondis sont séparés
+				const maxDistance = PLAYER_SIZE;
+
+				if (Math.abs(dx) >= maxDistance || Math.abs(dy) >= maxDistance)
+					continue;
+
+				// Centre de la hitbox de A vers B
+				const ax = Math.abs(dx);
+				const ay = Math.abs(dy);
+
+				// Distance entre les parties "droites" des deux hitbox
+				const px = Math.max(0, ax - (PLAYER_SIZE - round * 2));
+				const py = Math.max(0, ay - (PLAYER_SIZE - round * 2));
+
+				const dist2 = px * px + py * py;
+				const radius = round * 2;
+
+				if (dist2 >= radius * radius)
+					continue;
+
+				let nx: number;
+				let ny: number;
+				let penetration: number;
+
+				if (dist2 === 0) {
+					// Collision dans les parties rectangulaires
+					if (ax > ay) {
+						nx = Math.sign(dx) || 1;
+						ny = 0;
+						penetration = PLAYER_SIZE - ax;
+					} else {
+						nx = 0;
+						ny = Math.sign(dy) || 1;
+						penetration = PLAYER_SIZE - ay;
+					}
+				} else {
+					const dist = Math.sqrt(dist2);
+
+					nx = dx / dist;
+					ny = dy / dist;
+
+					penetration = radius - dist;
+				}
+
+				const correction = penetration / 2;
+
+				a.x -= nx * correction;
+				a.y -= ny * correction;
+
+				b.x += nx * correction;
+				b.y += ny * correction;
+			}
+		}
+	}
 	
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
 		this.time -= dt;
@@ -447,7 +494,16 @@ export class GMRoarsOnGlass extends GameMode {
 				};
 
 				for (let p of this.players) {
-					if (p.isAlive() && collisions.RectCircle(tileRect, {x: p.x, y: p.y, r: PLAYER_SIZE/2})) {
+					if (p.isAlive() && collisions.RoundedRectRect(
+						{
+							x: p.x,
+							y: p.y,
+							w: PLAYER_SIZE,
+							h: PLAYER_SIZE,
+							radius: PLAYER_ROUND
+						},
+						tileRect
+					)) {
 						touched = true;
 						break;
 					}
@@ -541,7 +597,16 @@ export class GMRoarsOnGlass extends GameMode {
 							h: TILE_SIZE
 						};
 
-						if (collisions.RectCircle(tileRect, {x: p.x, y: p.y, r: PLAYER_SIZE/2})) {
+						if (collisions.RoundedRectRect(
+							{
+								x: p.x,
+								y: p.y,
+								w: PLAYER_SIZE,
+								h: PLAYER_SIZE,
+								radius: PLAYER_ROUND
+							},
+							tileRect
+						)) {
 							touchesAnyGlass = true;
 							break;
 						}
@@ -582,6 +647,8 @@ export class GMRoarsOnGlass extends GameMode {
 			// Apply positions
 			p.x += p.vx * dt;
 			p.y += p.vy * dt;
+
+			this.handlePlayerCollisions();
 			
 			// Boundaries
 			if (p.x < 0) p.x = 0;
@@ -664,6 +731,32 @@ export class GMRoarsOnGlass extends GameMode {
 		return inputs;
 	}
 	
+	private drawRoundedRect(
+		ctx: CanvasRenderingContext2D,
+		x: number,
+		y: number,
+		size: number,
+		radius: number
+	): void {
+		const half = size / 2;
+		const left = x - half;
+		const top = y - half;
+		const right = x + half;
+		const bottom = y + half;
+
+		ctx.beginPath();
+		ctx.moveTo(left + radius, top);
+		ctx.lineTo(right - radius, top);
+		ctx.arcTo(right, top, right, top + radius, radius);
+		ctx.lineTo(right, bottom - radius);
+		ctx.arcTo(right, bottom, right - radius, bottom, radius);
+		ctx.lineTo(left + radius, bottom);
+		ctx.arcTo(left, bottom, left, bottom - radius, radius);
+		ctx.lineTo(left, top + radius);
+		ctx.arcTo(left, top, left + radius, top, radius);
+		ctx.closePath();
+	}
+
 	override draw(
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
@@ -716,18 +809,32 @@ export class GMRoarsOnGlass extends GameMode {
 			if (!p.isAlive()) continue;
 			
 			ctx.fillStyle = p.team === 'red' ? '#ff4444' : '#4444ff';
-			ctx.beginPath();
-			ctx.arc(p.x, p.y, PLAYER_SIZE/2, 0, 2 * Math.PI);
-			ctx.fill();
 			
+			this.drawRoundedRect(
+				ctx,
+				p.x,
+				p.y,
+				PLAYER_SIZE,
+				PLAYER_ROUND
+			);
+
+			ctx.fill();
+
 			// Visual indicator for roar
 			if (p.roarTimer > 0) {
 				ctx.strokeStyle = "rgba(255, 255, 0, 0.5)";
 				ctx.lineWidth = 10;
 				ctx.beginPath();
-				ctx.arc(p.x, p.y, PLAYER_SIZE, 0, 2 * Math.PI);
+				ctx.arc(
+					p.x,
+					p.y,
+					PLAYER_SIZE,
+					0,
+					2 * Math.PI
+				);
 				ctx.stroke();
 			}
+
 		}
 		
 		ctx.restore();
