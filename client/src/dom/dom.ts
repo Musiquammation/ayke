@@ -538,7 +538,8 @@ class HomeComponent {
 	}
 
 	getImageSrc(gamemode: string) {
-		return `${window.IMG_ROOT_PATH}/assets/games/${gamemode}/icon.png`;
+		const ext = getGmFactory(gamemode).iconExtension;
+		return `${window.IMG_ROOT_PATH}/assets/games/${gamemode}/icon.${ext}`;
 	}
 
 

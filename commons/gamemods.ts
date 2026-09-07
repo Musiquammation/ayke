@@ -35,6 +35,7 @@ interface MultiplayerFactory {
     tropheesPerPlayer: number,
     skins: string[],
     computerOnly: boolean,
+    iconExtension: string,
     defaultPlayerCount: number
 }
 
@@ -45,6 +46,7 @@ interface SoloFactory {
     textures: { [key: string]: string },
     categories: string[],
     minFirst: boolean,
+    iconExtension: string,
     dom(): {produce: ()=>string},
     create: ()=>SoloGameMode
 }
@@ -73,6 +75,7 @@ export const gamemods: Record<
         computerOnly: false,
         tropheesPerPlayer: 2,
         skins: [],
+        iconExtension: 'png',
         defaultPlayerCount: 4
     },
 
@@ -86,6 +89,7 @@ export const gamemods: Record<
         tropheesPerPlayer: 20,
         computerOnly: true,
         skins: GMAirBasket.SKINS_IDS,
+        iconExtension: 'png',
         defaultPlayerCount: 4
     },
 
@@ -99,6 +103,7 @@ export const gamemods: Record<
         tropheesPerPlayer: 20,
         computerOnly: false,
         skins: [],
+        iconExtension: 'svg',
         defaultPlayerCount: 4
     },
 
@@ -117,6 +122,7 @@ export const gamemods: Record<
         tropheesPerPlayer: 3,
         computerOnly: false,
         skins: [],
+        iconExtension: 'png',
         defaultPlayerCount: 2
     },
 
@@ -130,6 +136,7 @@ export const gamemods: Record<
         tropheesPerPlayer: 3,
         computerOnly: false,
         skins: [],
+        iconExtension: 'png',
         defaultPlayerCount: 4
     },
 
@@ -146,6 +153,7 @@ export const gamemods: Record<
         textures: GMTestSolo.TEXTURES,
         categories: GMTestSolo.CATEGORIES,
         minFirst: GMTestSolo.MIN_FIRST,
+        iconExtension: 'png',
         create: GMTestSolo.create
 	}
 };

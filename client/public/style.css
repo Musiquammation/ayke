@@ -37,6 +37,9 @@
 	--content-width: 1200px;
 }
 
+*.hidden {
+	display: none !important;
+}
 
 .play-btn {
 	background-color: var(--color-success);
