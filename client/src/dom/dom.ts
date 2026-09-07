@@ -145,7 +145,7 @@ class MainComponent {
 		let unlockedSkins;
 		if (factory.type === 'multiplayer') {
 			if (factory.skins.length === 0) {
-				unlockedSkins = 0;
+				unlockedSkins = [];
 			} else if (this.pseudo === null) {
 				unlockedSkins = [factory.skins[0]];
 			} else {
@@ -536,6 +536,11 @@ class HomeComponent {
 			});
 		}
 	}
+
+	getImageSrc(gamemode: string) {
+		return `${window.IMG_ROOT_PATH}/assets/games/${gamemode}/icon.png`;
+	}
+
 
 	isDisabled(gamemode: string) {
 		const gm = gamemods[gamemode];

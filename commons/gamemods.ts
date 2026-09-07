@@ -1,5 +1,6 @@
 import { GameMode } from "./GameMode";
 import { GMAirBasket } from "./gamemods/GMAirBasket";
+import { GMRoarsOnGlass } from "./gamemods/GMRoarsOnGlass";
 import { GMSuperTicTacToe } from "./gamemods/GMSuperTicTacToe";
 import { GMTest } from "./gamemods/GMTest";
 import { GMTestSolo } from "./gamemods/GMTestSolo";
@@ -117,6 +118,19 @@ export const gamemods: Record<
         computerOnly: false,
         skins: [],
         defaultPlayerCount: 2
+    },
+
+    roarsOnGlass: {
+        type: 'multiplayer',
+        server: GMRoarsOnGlass.createServ,
+        client: GMRoarsOnGlass.createClient,
+        dom: GMRoarsOnGlass.generateClientDom,
+        textures: GMRoarsOnGlass.TEXTURES,
+        name: "Roars on glass",
+        tropheesPerPlayer: 3,
+        computerOnly: false,
+        skins: [],
+        defaultPlayerCount: 4
     },
 
     separator_solo: {
