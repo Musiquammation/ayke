@@ -136,7 +136,7 @@ export const gamemods: Record<
         tropheesPerPlayer: 3,
         computerOnly: false,
         skins: [],
-        iconExtension: 'png',
+        iconExtension: 'svg',
         defaultPlayerCount: 4
     },
 

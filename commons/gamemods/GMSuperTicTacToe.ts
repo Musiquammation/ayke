@@ -588,7 +588,7 @@ export class GMSuperTicTacToe extends GameMode {
 		// Highlight every sub-grid the player-to-move is currently allowed
 		// to play in, so both spectators and the acting player can see the
 		// legal targets at a glance.
-		for (let s = 0; s < 9; s++) {
+		for (let s = 0; s < 0; s++) {
 			const playable = (
 				!this.subgridWinners[s].taken && !this.subgridFull[s] &&
 				(this.forced < 0 || this.forced === s)
