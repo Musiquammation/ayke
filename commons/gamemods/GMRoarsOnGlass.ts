@@ -15,8 +15,8 @@ interface PlayerInput {
 	pseudo: string | null;
 }
 
-const WIDTH = 1350;
-const HEIGHT = 2400;
+const WIDTH = 1600;
+const HEIGHT = 2800;
 const TILE_SIZE = 150;
 const GRID_PADDING = 1.5;
 const GRID_W = Math.floor(WIDTH / TILE_SIZE) - GRID_PADDING*2;
@@ -34,7 +34,7 @@ const MIN_DECELERATION = 500;
 // Ability Constants
 const ROAR_COOLDOWN = 3.0; // Seconds between roars
 const ROAR_CAST_TIME = 1.0; // Immobilized duration
-const ROAR_RADIUS = 100;
+const ROAR_RADIUS = 200;
 const PUSH_SPEED = 800; // Initial push velocity
 const SPEED_REDUCOR = 800; // Speed reduction per second during push
 
@@ -543,12 +543,28 @@ export class GMRoarsOnGlass extends GameMode {
 				// Push enemies in range
 				for (let e of this.players) {
 					if (e !== p && e.team !== p.team && e.isAlive()) {
-						let dist2 = norm2(e.x - p.x, e.y - p.y);
-						if (dist2 <= ROAR_RADIUS*ROAR_RADIUS) {
-							let angle = Math.atan2(e.y - p.y, e.x - p.x);
+						if (collisions.RoundedRectCircle(
+							{
+								x: e.x,
+								y: e.y,
+								w: PLAYER_SIZE,
+								h: PLAYER_SIZE,
+								radius: PLAYER_ROUND
+							},
+							{
+								x: p.x,
+								y: p.y,
+								r: ROAR_RADIUS
+							}
+						)) {
+							console.log("coll", p.team);
+							const dx = e.x - p.x;
+							const dy = e.y - p.y;
+							const invNorm = PUSH_SPEED / Math.sqrt(dx * dx + dy * dy);
+							
+							e.vx = dx * invNorm;
+							e.vy = dy * invNorm;
 							e.pushTimer = 1.0;
-							e.vx = Math.cos(angle) * PUSH_SPEED;
-							e.vy = Math.sin(angle) * PUSH_SPEED;
 						}
 					}
 				}
