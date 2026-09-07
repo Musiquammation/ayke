@@ -70,6 +70,7 @@ class Player {
 		this.vx = 0;
 		this.vy = 0;
 		this.roarTimer = 0;
+		this.roarCooldown = 0;
 		this.pushTimer = 0;
 	}
 	
@@ -677,7 +678,6 @@ export class GMRoarsOnGlass extends GameMode {
 	
 	override runInput(playerIdx: number, input: Fields): void {
 		const p = this.players[playerIdx];
-		if (!p.isAlive()) return;
 		
 		if (input.action === 'move') {
 			p.dirX = input.move.dx || 0;
@@ -713,7 +713,7 @@ export class GMRoarsOnGlass extends GameMode {
 			}
 		}
 
-		if (keyboard.press('space')) {
+		if (keyboard.press('jump')) {
 			roar = true;	
 		}
 		
@@ -809,7 +809,7 @@ export class GMRoarsOnGlass extends GameMode {
 			if (!p.isAlive()) continue;
 			
 			ctx.fillStyle = p.team === 'red' ? '#ff4444' : '#4444ff';
-			
+
 			this.drawRoundedRect(
 				ctx,
 				p.x,
