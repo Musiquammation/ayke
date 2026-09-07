@@ -1,0 +1,36 @@
+<div x-data="data">
+	<style>
+		.skin-select { position: relative; display: inline-block; }
+		.skin-select-options { position: absolute; top: 100%; left: 0; background: white; border: 1px solid #ccc; z-index: 10; }
+		.skin-select-option { padding: 5px 10px; cursor: pointer; display: flex; align-items: center; }
+		.skin-select-option:hover { background: #eee; }
+		.skin-select-option img { width: 24px; height: 24px; margin-right: 8px; }
+		.selected { font-weight: bold; }
+	</style>
+	<div>
+		<span>Skin:</span>
+		<div class="skin-select" x-data="{ open: false }" @click.outside="open = false">
+			<button type="button" class="skin-select-button" @click="open = !open">
+				<div class="skin-select-current">
+					<img :src="getSkinIconPath(skin)" :alt="SKINS[skin]">
+					<span x-text="SKINS[skin]"></span>
+				</div>
+				<span class="skin-select-arrow" x-text="open ? '▲' : '▼'"></span>
+			</button>
+			<div class="skin-select-options" x-show="open" x-transition>
+				<template x-for="(name, id) in SKINS" :key="id">
+					<div class="skin-select-option" :class="{ selected: skin === id, disabled: !hasSkin(id) }" @click="skin = id; open = false">
+						<img :src="getSkinIconPath(id)" :alt="name">
+						<span x-text="name"></span>
+					</div>
+				</template>
+			</div>
+		</div>
+	</div>
+	<div>
+		<span>Preferred team:</span>
+		<button type="button" @pointerup="preferTeam = 0" :class="{ selected: preferTeam === 0 }">None</button>
+		<button type="button" @pointerup="preferTeam = 1" :class="{ selected: preferTeam === 1 }">Red</button>
+		<button type="button" @pointerup="preferTeam = -1" :class="{ selected: preferTeam === -1 }">Blue</button>
+	</div>
+</div>

@@ -1,0 +1,72 @@
+syntax = "proto3";
+package game_roarsOnGlass;
+
+message Empty {}
+
+message PlayerState {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+	float alive = 5;
+	bool connected = 6;
+	float roarTimer = 7;
+	float roarCooldown = 8;
+	float pushTimer = 9;
+	bool isRed = 10;
+}
+
+message State {
+	repeated PlayerState players = 1;
+	repeated float grid = 2;
+	int32 redScore = 3;
+	int32 blueScore = 4;
+	float time = 5;
+	float roundTimer = 6;
+	bool isRoundEnding = 7;
+}
+
+message MoveData {
+	float dx = 1;
+	float dy = 2;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		MoveData move = 2;
+		bool roar = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	string skin = 1;
+	int32 preferTeam = 2;
+}
+
+message StartPlayerInfo {
+	float x = 1;
+	float y = 2;
+	string skin = 3;
+	bool isRed = 4;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}

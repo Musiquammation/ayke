@@ -145,7 +145,7 @@ class MainComponent {
 		let unlockedSkins;
 		if (factory.type === 'multiplayer') {
 			if (factory.skins.length === 0) {
-				unlockedSkins = 0;
+				unlockedSkins = [];
 			} else if (this.pseudo === null) {
 				unlockedSkins = [factory.skins[0]];
 			} else {
