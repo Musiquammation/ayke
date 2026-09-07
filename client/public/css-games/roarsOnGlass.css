@@ -1,0 +1,30 @@
+.game-roarsOnGlass-root {
+	position: fixed;
+	top: 2vh;
+	left: 2vw;
+	display: flex;
+	justify-content: space-between;
+	width: 96vw;
+	font-family: sans-serif;
+	font-size: 4vh;
+	pointer-events: none;
+	color: white;
+	text-shadow: 2px 2px 0 #000;
+}
+
+.game-roarsOnGlass-scores {
+	display: flex;
+	gap: 1vw;
+}
+
+.game-roarsOnGlass-red-score {
+	color: #ff4444;
+}
+
+.game-roarsOnGlass-blue-score {
+	color: #4444ff;
+}
+
+.game-roarsOnGlass-time {
+	font-weight: bold;
+}
