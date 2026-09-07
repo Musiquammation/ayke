@@ -45,17 +45,13 @@
 
 								<div>
 									<template x-for="game in category.list" :key="game.key">
-										<div>
+										<div
+											:class="{ 'play-disabled': isDisabled(game.key) }"
+											@pointerup="playGame(game.key)"
+											>
 											<span x-text="game.name"></span>
 
 											<img class="pixel-image" :src="getImageSrc(game.key)">
-	
-											<button
-												@pointerup="playGame(game.key)"
-												:class="{ 'play-disabled': isDisabled(game.key) }"
-											>
-												Play
-											</button>
 										</div>
 									</template>
 								</div>
