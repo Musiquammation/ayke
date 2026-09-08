@@ -9,4 +9,5 @@ rm -rf public/ &&
 mkdir -p public/ &&
 cp client/dist/bundle.js public/ &&
 cp -r client/dist/public/. public/ &&
+cp -r client/dist/assets/. public/assets/ &&
 python3 client/dist/copyIndexHtml.py
