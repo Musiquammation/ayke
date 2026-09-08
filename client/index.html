@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Ayke</title>
 		<link rel="stylesheet" href="style.css">
-		<link rel="icon" href="data:,">
+		<link rel="icon" href="favicon.ico">
 	</head>
 	<body>
 
@@ -45,17 +45,13 @@
 
 								<div>
 									<template x-for="game in category.list" :key="game.key">
-										<div>
+										<div
+											:class="{ 'play-disabled': isDisabled(game.key) }"
+											@pointerup="playGame(game.key)"
+											>
 											<span x-text="game.name"></span>
 
-											<!-- <img class="pixel-image" :src="getImageSrc(game.key)"> -->
-	
-											<button
-												@pointerup="playGame(game.key)"
-												:class="{ 'play-disabled': isDisabled(game.key) }"
-											>
-												Play
-											</button>
+											<img class="pixel-image" :src="getImageSrc(game.key)">
 										</div>
 									</template>
 								</div>

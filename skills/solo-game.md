@@ -98,6 +98,7 @@ Par exemple, si un jeu a plusieurs niveau, CATEGORIES vaudra "lvl0", "lvl1", etc
 Le temps est float en secondes.
 Mets les constantes en haut du fichier.
 Commente en anglais toutes les fonctions et utilise des petites méthodes.
+Sois verbeux dans les commentaires.
 
 ```ts
 namespace collisions {

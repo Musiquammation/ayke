@@ -228,7 +228,10 @@ export class GMRoarsOnGlass extends GameMode {
 		this.initGrid();
 	}
 
-	static readonly TEXTURES = {};
+	static readonly TEXTURES = {
+		'broken': "/assets/games/roarsOnGlass/broken-glass.svg",
+		'glass':  "/assets/games/roarsOnGlass/glass.svg",
+	};
 	
 	initGrid() {
 		this.grid = [];
@@ -790,43 +793,68 @@ export class GMRoarsOnGlass extends GameMode {
 		_data: any,
 		_imageLoader: ImageLoader
 	) {
+		const imageLoader = _imageLoader.getFolder('roarsOnGlass');
+
 		ctx.imageSmoothingEnabled = false;
 		const data = _data as ClientData;
 		if (data.firstFrame) {
-			_imageLoader.setColorRule('player', 0, [{prev: "#ff00ff", next: "#ff4444"}]); // Red
-			_imageLoader.setColorRule('player', 1, [{prev: "#ff00ff", next: "#4444ff"}]); // Blue
 			data.firstFrame = false;
 		}
 		data.update(this, playerIdx);
 		
 		// Fill background (void)
-		ctx.fillStyle = "#111";
+		ctx.fillStyle = "#039";
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 		
 		ctx.save();
 		
 		// Draw Grid
+		const brokenTexture = imageLoader.get('broken');
+		const glassTexture = imageLoader.get('glass');
 		for (let y = 0; y < GRID_H; y++) {
 			for (let x = 0; x < GRID_W; x++) {
 				const cell = this.grid[y][x];
 				if (cell <= 0) continue;
-				
+
+				const SPACING = 2;
+
+				let dx = 0;
+				let dy = 0;
+				let alpha = 1;
+
+				// Shake broken cells
+				if (cell < 2) {
+					// Generate deterministic pseudo-random offsets from the cell position
+					const seedX = Math.sin(cell * 0.1 + x) * 43758.5453;
+					const seedY = Math.sin(cell * 0.1 + y) * 43758.5453;
+
+					const randomX = seedX - Math.floor(seedX);
+					const randomY = seedY - Math.floor(seedY);
+
+					const SHAKE = 5;
+
+					dx = (randomX * 2 - 1) * SHAKE;
+					dy = (randomY * 2 - 1) * SHAKE;
+
+					// Only calculate opacity for cells that are almost destroyed
+					if (cell < 0.5) {
+						alpha = cell / 0.5;
+					}
+				}
+
 				// Calculate color based on state
-				let alpha = cell / 3.0; // 1.0 down to 0
-				if (cell <= 2) {
-					// Cracking / breaking color indication
+				if (cell < 3) {
 					ctx.fillStyle = `rgba(255, 100, 100, ${alpha})`;
 				} else {
 					ctx.fillStyle = `rgba(150, 200, 255, ${alpha})`;
 				}
 
-				const SPACING = 2;
-				
-				ctx.fillRect(
-					(x + GRID_PADDING) * TILE_SIZE + SPACING,
-					(y + GRID_PADDING) * TILE_SIZE + SPACING,
-					TILE_SIZE - SPACING*2,
-					TILE_SIZE - SPACING*2
+				ctx.drawImage(
+					cell < 3 ? brokenTexture : glassTexture,
+					(x + GRID_PADDING) * TILE_SIZE + SPACING + dx,
+					(y + GRID_PADDING) * TILE_SIZE + SPACING + dy,
+					TILE_SIZE - SPACING * 2,
+					TILE_SIZE - SPACING * 2
 				);
 			}
 		}
@@ -835,7 +863,7 @@ export class GMRoarsOnGlass extends GameMode {
 		for (let p of this.players) {
 			if (!p.isAlive()) continue;
 			
-			ctx.fillStyle = p.team === 'red' ? '#ff4444' : '#4444ff';
+			ctx.fillStyle = p.team === 'red' ? '#ff4444' : '#44ff44';
 
 			this.drawRoundedRect(
 				ctx,
