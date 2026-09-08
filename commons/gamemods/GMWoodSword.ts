@@ -173,6 +173,8 @@ class Player {
 	 */
 	swordsLeft = 0;
 
+	throwing = false;
+
 	constructor() { }
 
 	/*
@@ -193,6 +195,8 @@ class Player {
  * visual effects and HTML elements.
  */
 class ClientData {
+	prevThrowing = false;
+
 	/*
 	 * Used to initialize first-frame-specific rendering logic.
 	 */
@@ -617,6 +621,38 @@ export class GMWoodSword extends GameMode {
 	): FinishGame | null {
 		/*
 		 * ================================================================
+		 * PLAYER THROWS
+		 * ================================================================
+		 */
+
+		for (const player of this.players) {
+			if (!player.throwing) {continue;}
+			
+			player.throwing = false;
+			if (player.swordsLeft <= 0) {continue;}
+
+			/*
+			 * Consume one sword from the player's inventory.
+			 */
+			player.swordsLeft--;
+
+			/*
+			 * Create a new moving sword at the appropriate side
+			 * of the arena.
+			 */
+			this.movingSwords.push({
+				x:
+					player.team === "red"
+						? -SWORD_SPAWN
+						: SWORD_SPAWN,
+				team: player.team,
+				id: this.produceSwordId()
+			});
+
+		}
+		
+		/*
+		 * ================================================================
 		 * TRUNK PHYSICS
 		 * ================================================================
 		 */
@@ -923,27 +959,8 @@ export class GMWoodSword extends GameMode {
 		 *
 		 * A player cannot throw if they have no swords remaining.
 		 */
-		if (
-			input.action === "throw" &&
-			player.swordsLeft > 0
-		) {
-			/*
-			 * Consume one sword from the player's inventory.
-			 */
-			player.swordsLeft--;
-
-			/*
-			 * Create a new moving sword at the appropriate side
-			 * of the arena.
-			 */
-			this.movingSwords.push({
-				x:
-					player.team === "red"
-						? -SWORD_SPAWN
-						: SWORD_SPAWN,
-				team: player.team,
-				id: this.produceSwordId()
-			});
+		if (input.action === "throw") {
+			player.throwing = input.action;
 		}
 	}
 
@@ -956,6 +973,8 @@ export class GMWoodSword extends GameMode {
 		mobile: IMobileController | null,
 		_data: any
 	) {
+		const data = _data as ClientData;
+
 		/*
 		 * A throw can be triggered by:
 		 *
@@ -965,8 +984,8 @@ export class GMWoodSword extends GameMode {
 		 *   - the mobile "throw" button.
 		 */
 		const wantsThrow =
-			keyboard.first('jump') ||
-			mouse.first(0) ||
+			keyboard.press('jump') ||
+			mouse.press(0) ||
 			(mobile && mobile.getDigits().length > 0);
 
 		const inputs: Fields[] = [];
@@ -975,7 +994,11 @@ export class GMWoodSword extends GameMode {
 		 * Convert the controller event into the protocol-level
 		 * "throw" action.
 		 */
-		if (wantsThrow) {
+		if (!wantsThrow) {
+			data.prevThrowing = false;
+			
+		} else if (!data.prevThrowing) {
+			data.prevThrowing = true;
 			inputs.push({
 				action: "throw",
 				throw: true
