@@ -1,7 +1,6 @@
 git switch master &&
 rm -rf client/dist &&
 npm run bundle &&
-rm -r client/dist/assets &&
 cp -r client/public client/dist &&
 cp client/index.html client/dist/index.html &&
 cp scripts/copyIndexHtml.py client/dist/copyIndexHtml.py &&
