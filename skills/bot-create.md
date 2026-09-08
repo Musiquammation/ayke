@@ -2,8 +2,9 @@ Fill in Data and method.
 
 Use helper methods (do not write one large function), and add verbose comments in English.
 
-Replace GMExample by the actual GM object (and example by the game-id).
+Replace GMExample by the actual GMFoo (and example by 'foo').
 
+You already have foo.ts. send inputs (put everytime `{action: 'name', name{data}}`)
 
 ```ts
 import { Fields } from "../../commons/Fields";
