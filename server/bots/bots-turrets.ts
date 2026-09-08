@@ -14,11 +14,12 @@ const TYPES = GMTurrets.types;
 
 // ---------------------------------------------------------------------------
 // Type aliases pulled structurally off GMTurrets, so we don't need the
-// (unexported) Player/Turret/ItemInMap classes to be imported directly.
+// (unexported) Player/Turret/Floor/ItemInMap classes to be imported directly.
 // ---------------------------------------------------------------------------
 type PlayerT = GMTurrets['players'][number];
 type TurretT = GMTurrets['turrets'][number];
 type ItemT = GMTurrets['itemsInMap'][number];
+type FloorT = GMTurrets['floors'][number];
 
 // ---------------------------------------------------------------------------
 // Constants mirrored from the server implementation (turrets.ts / turrets.md).
@@ -31,8 +32,13 @@ const ITEM_PICKUP_RADIUS = 100;    // ItemInMap.RADIUS(40) + Player.RADIUS(60).
 const RETREAT_HP_FRACTION = 0.35;  // Below this HP fraction, prefer to disengage.
 const DANGER_RANGE = 1400;         // Distance under which a low-HP bot feels threatened.
 const ENGAGE_RANGE = 1700;         // Distance under which an enemy player is worth fighting.
-const PREFERRED_COMBAT_RANGE = 900;// Distance the bot tries to keep from its target.
-const MIN_COMBAT_RANGE = 500;      // Distance under which the bot backs off from an enemy.
+
+// Bullet volleys deal more real damage at close range: short-range patterns
+// B (travel 600) and C (travel 200, 45° spread) only connect at all when the
+// target is within their travel distance, and all 3 patterns land in a
+// tighter, more overlapping cluster the closer the target is. So instead of
+// keeping a "safe" stand-off distance, we deliberately hug targets.
+const APPROACH_BUFFER = 30;        // Small gap kept beyond a target's physical hit-circle.
 
 
 /**
@@ -41,6 +47,13 @@ const MIN_COMBAT_RANGE = 500;      // Distance under which the bot backs off fro
 class Data {
 	/** Index into game.turrets of the turret currently being pushed, or null. */
 	lockedTurretIdx: number | null = null;
+
+	/**
+	 * Adjacency list between entries of game.floors (rooms + bridges),
+	 * built once on first use and cached here since the floor layout never
+	 * changes over the course of a match.
+	 */
+	floorGraph: number[][] | null = null;
 }
 
 function dataConstructor(): Data {
@@ -98,6 +111,118 @@ function stopAttackInput(): Fields {
 /** Picks up the item under the player into the given inventory slot (or selects that slot). */
 function useItemInput(slot: number): Fields {
 	return {action: 'useItem', useItem: {slot}};
+}
+
+
+// ---------------------------------------------------------------------------
+// Mini pathfinding over game.floors (rooms + bridges).
+// Players can only physically stand inside these rectangles (avoidOutOfFloor
+// clamps them back in otherwise), so a target in a non-adjacent room must be
+// approached room-by-room/bridge-by-bridge rather than in a straight line.
+// ---------------------------------------------------------------------------
+
+/** Whether two floor rectangles touch or overlap (adjacent rooms/bridges share an edge exactly). */
+function floorsAreAdjacent(a: FloorT, b: FloorT): boolean {
+	const EPS = 1; // tolerance so exactly-touching edges still count as connected
+	return a.x0 <= b.x1 + EPS && a.x1 >= b.x0 - EPS
+		&& a.y0 <= b.y1 + EPS && a.y1 >= b.y0 - EPS;
+}
+
+/** Builds the adjacency list between every entry of game.floors. */
+function buildFloorGraph(game: GMTurrets): number[][] {
+	const floors = game.floors;
+	const adjacency: number[][] = floors.map(() => []);
+
+	for (let i = 0; i < floors.length; i++) {
+		for (let j = i + 1; j < floors.length; j++) {
+			if (floorsAreAdjacent(floors[i], floors[j])) {
+				adjacency[i].push(j);
+				adjacency[j].push(i);
+			}
+		}
+	}
+
+	return adjacency;
+}
+
+/** Returns the index of the floor rectangle containing (x, y), or -1 if none does. */
+function findFloorIndex(floors: FloorT[], x: number, y: number): number {
+	return floors.findIndex(f => x >= f.x0 && x <= f.x1 && y >= f.y0 && y <= f.y1);
+}
+
+/** Center point of a floor rectangle. */
+function floorCenter(f: FloorT): {x: number, y: number} {
+	return {x: (f.x0 + f.x1) / 2, y: (f.y0 + f.y1) / 2};
+}
+
+/** Shortest path (list of floor indices) between two floors, via breadth-first search. */
+function bfsFloorPath(adjacency: number[][], startIdx: number, endIdx: number): number[] {
+	if (startIdx === -1 || endIdx === -1) return [];
+	if (startIdx === endIdx) return [startIdx];
+
+	const visited = new Array<boolean>(adjacency.length).fill(false);
+	const prev = new Array<number>(adjacency.length).fill(-1);
+	const queue: number[] = [startIdx];
+	visited[startIdx] = true;
+
+	while (queue.length > 0) {
+		const current = queue.shift() as number;
+		if (current === endIdx) break;
+
+		for (const next of adjacency[current]) {
+			if (!visited[next]) {
+				visited[next] = true;
+				prev[next] = current;
+				queue.push(next);
+			}
+		}
+	}
+
+	if (!visited[endIdx]) return []; // unreachable - shouldn't happen on this map
+
+	const path: number[] = [];
+	for (let cur = endIdx; cur !== -1; cur = prev[cur]) {
+		path.push(cur);
+	}
+	path.reverse();
+	return path;
+}
+
+/**
+ * Returns the next point to walk toward in order to eventually reach
+ * (targetX, targetY): the real destination if we're already in the same
+ * room/bridge, otherwise the center of the next room/bridge along the
+ * shortest floor-to-floor path.
+ */
+function getMoveWaypoint(
+	game: GMTurrets,
+	data: Data,
+	self: PlayerT,
+	targetX: number,
+	targetY: number
+): {x: number, y: number} {
+	if (!data.floorGraph) {
+		data.floorGraph = buildFloorGraph(game);
+	}
+
+	const startIdx = findFloorIndex(game.floors, self.x, self.y);
+	const endIdx = findFloorIndex(game.floors, targetX, targetY);
+
+	// Can't resolve a floor, or already sharing one with the destination:
+	// a straight line is safe.
+	if (startIdx === -1 || endIdx === -1 || startIdx === endIdx) {
+		return {x: targetX, y: targetY};
+	}
+
+	const path = bfsFloorPath(data.floorGraph, startIdx, endIdx);
+
+	if (path.length < 2) {
+		return {x: targetX, y: targetY};
+	}
+
+	// path[0] is our current floor, path[1] is the next one to cross into -
+	// aiming at its center naturally routes us through the right bridges.
+	return floorCenter(game.floors[path[1]]);
 }
 
 
@@ -263,26 +388,20 @@ const method = runner((game, data, playerIdx) => {
 
 	// --- 4. Fight a nearby enemy player --------------------------------------
 	if (nearestEnemy && nearestEnemy.dist < ENGAGE_RANGE) {
-		let moveDirX = 0;
-		let moveDirY = 0;
+		// Hug the enemy rather than kiting at range: closer means tighter,
+		// more overlapping bullet clusters and short-range patterns B/C
+		// actually reaching, so more of our 15 bullets per volley connect.
+		const huggingDistance = TYPES.Player.RADIUS * 2 + APPROACH_BUFFER;
 
-		if (nearestEnemy.dist > PREFERRED_COMBAT_RANGE) {
-			// Too far: close the gap.
-			[moveDirX, moveDirY] = normalize(
-				nearestEnemy.player.x - self.x,
-				nearestEnemy.player.y - self.y
-			);
-		} else if (nearestEnemy.dist < MIN_COMBAT_RANGE) {
-			// Too close: back off to a safer firing distance.
-			[moveDirX, moveDirY] = normalize(
-				self.x - nearestEnemy.player.x,
-				self.y - nearestEnemy.player.y
-			);
+		if (nearestEnemy.dist > huggingDistance) {
+			const waypoint = getMoveWaypoint(game, data, self, nearestEnemy.player.x, nearestEnemy.player.y);
+			const [moveDirX, moveDirY] = normalize(waypoint.x - self.x, waypoint.y - self.y);
+			inputs.push(moveXInput(moveDirX));
+			inputs.push(moveYInput(moveDirY));
+		} else {
+			inputs.push(moveXInput(0));
+			inputs.push(moveYInput(0));
 		}
-		// Otherwise hold position (moveDirX/Y stay at 0).
-
-		inputs.push(moveXInput(moveDirX));
-		inputs.push(moveYInput(moveDirY));
 
 		// 'auto' targeting always tracks the nearest living enemy player -
 		// exactly what we want here (it never targets turrets, see §7).
@@ -304,13 +423,13 @@ const method = runner((game, data, playerIdx) => {
 
 	const dist = distance(self.x, self.y, targetTurret.turret.x, targetTurret.turret.y);
 
-	// Approach until we're comfortably within our own engagement range,
-	// then hold rather than walking deep into the turret's kill zone.
-	if (dist > PREFERRED_COMBAT_RANGE) {
-		const [dirX, dirY] = normalize(
-			targetTurret.turret.x - self.x,
-			targetTurret.turret.y - self.y
-		);
+	// Same close-range-for-damage reasoning as above: walk right up against
+	// the turret's own physical hit-circle instead of sniping from afar.
+	const turretHugDistance = TYPES.Turret.SIZE + TYPES.Player.RADIUS + APPROACH_BUFFER;
+
+	if (dist > turretHugDistance) {
+		const waypoint = getMoveWaypoint(game, data, self, targetTurret.turret.x, targetTurret.turret.y);
+		const [dirX, dirY] = normalize(waypoint.x - self.x, waypoint.y - self.y);
 		inputs.push(moveXInput(dirX));
 		inputs.push(moveYInput(dirY));
 	} else {
@@ -318,9 +437,9 @@ const method = runner((game, data, playerIdx) => {
 		inputs.push(moveYInput(0));
 	}
 
-	// Only bother shooting once inside (a margin around) the turret's own
-	// bullet range - a 'fixed' target aimed straight at its center, since
-	// 'auto' targeting never picks turrets.
+	// Start shooting once inside (a margin around) the turret's own bullet
+	// range - a 'fixed' target aimed straight at its center, since 'auto'
+	// targeting never picks turrets.
 	if (dist <= TURRET_RADIUS * 1.5) {
 		inputs.push(attackAtInput(targetTurret.turret.x, targetTurret.turret.y));
 	}
