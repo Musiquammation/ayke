@@ -1,0 +1,66 @@
+/* Layout et overlay au dessus du canvas */
+.game-woodSword-root {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+	pointer-events: none;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+}
+
+/* En-tête pour le timer et les scores */
+.game-woodSword-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	width: 100%;
+	padding: 2vh 4vw;
+	box-sizing: border-box;
+}
+
+/* Timer global au centre */
+.game-woodSword-time {
+	font-size: 5vh;
+	font-weight: bold;
+	color: white;
+	text-shadow: 0 0.5vh 1vh rgba(0,0,0,0.5);
+	background: rgba(0,0,0,0.3);
+	padding: 1vh 3vw;
+	border-radius: 2vh;
+}
+
+/* Affichage des scores */
+.game-woodSword-red, .game-woodSword-blue {
+	font-size: 4vh;
+	font-weight: bold;
+	text-shadow: 0 0.5vh 1vh rgba(0,0,0,0.5);
+}
+
+.game-woodSword-red { color: #ff4d4d; }
+.game-woodSword-blue { color: #4da6ff; }
+
+/* Panel bas pour les épées restantes */
+.game-woodSword-swords-panel {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-end;
+	width: 100%;
+	padding: 2vh 4vw;
+	box-sizing: border-box;
+}
+
+.game-woodSword-swords {
+	font-size: 3.5vh;
+	font-weight: bold;
+	text-shadow: 0 0.2vh 0.5vh rgba(0,0,0,0.5);
+	background: rgba(0,0,0,0.4);
+	padding: 1vh 2vw;
+	border-radius: 1vh;
+}
+
+.game-woodSword-swords.red { color: #ffb3b3; }
+.game-woodSword-swords.blue { color: #b3d9ff; }

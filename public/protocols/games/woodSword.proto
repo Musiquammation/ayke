@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package game_woodSword;
+
+message Empty {}
+
+message CliningSword {
+	float angle = 1;
+	bool isRed = 2;
+	int32 id = 3;
+}
+
+message MovingSword {
+	float x = 1;
+	bool isRed = 2;
+	int32 id = 3;
+}
+
+message PlayerState {
+	int32 swordsLeft = 1;
+	bool connected = 2;
+	bool isRed = 3;
+	bool throwing = 4;
+}
+
+message State {
+	float trunkAngle = 1;
+	float trunkSpeed = 2;
+	float trunkStreamTime = 3;
+	float roundTimer = 4;
+	int32 redScore = 5;
+	int32 blueScore = 6;
+	int32 nextSwordId = 7;
+	repeated CliningSword clingingSwords = 8;
+	repeated MovingSword movingSwords = 9;
+	repeated PlayerState players = 10;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		bool throw = 2;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	string skin = 1;
+	int32 preferTeam = 2;
+}
+
+message StartPlayerInfo {
+	float x = 1;
+	bool isRed = 2;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}

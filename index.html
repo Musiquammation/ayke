@@ -45,15 +45,13 @@
 
 								<div>
 									<template x-for="game in category.list" :key="game.key">
-										<div>
-											<span x-text="game.name"></span>
-	
-											<button
-												@pointerup="playGame(game.key)"
-												:class="{ 'play-disabled': isDisabled(game.key) }"
+										<div
+											:class="{ 'play-disabled': isDisabled(game.key) }"
+											@pointerup="playGame(game.key)"
 											>
-												Play
-											</button>
+											<span x-text="game.name"></span>
+
+											<img class="pixel-image" :src="getImageSrc(game.key)">
 										</div>
 									</template>
 								</div>
@@ -82,10 +80,15 @@
 				<div id="test-page" class="page" x-data="panel">
 					<h1 x-text="gamemode"></h1>
 					<div x-ref="gamePanel" x-html="htmlContent"></div>
-					<button @pointerup="play()">Play</button>
-					<template x-if="typeof tutorial === 'function'">
-						<button @pointerup="tutorial()">Tutorial</button>
-					</template>
+					<div class="footer">
+						<button class="play-btn" @pointerup="play()">Play</button>
+						<template x-if="typeof tutorial === 'function'">
+							<button @pointerup="tutorial()">Tutorial</button>
+						</template>
+						<template x-if="typeof againstBots === 'function'">
+							<button @pointerup="againstBots()">vs. Bots</button>
+						</template>
+					</div>
 				</div>
 			</template>
 
@@ -337,7 +340,7 @@
 			window.PROTOCOLS_FOLDER = "/ayke/public/protocols/games/";
 			window.INDEX_TS = "/src/index.ts";
 
-			console.log("v1.1.0");
+			console.log("v1.2.0");
 
 			document.addEventListener("DOMContentLoaded", () => {
 				import("/ayke/public/bundle.js").then(m => m.init());
