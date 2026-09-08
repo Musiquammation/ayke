@@ -51,11 +51,9 @@ const root = (function() {
 	return all([method]);
 })();
 
-appendBots('example', [
-	{root, data: dataConstructor}
-]);
-
-logger.info("Bot loaded!");
+export default export default describeBot(
+	[{root, data: dataConstructor}]
+);
 
 
 ```

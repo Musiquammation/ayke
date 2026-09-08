@@ -1,5 +1,4 @@
 import * as protobuf from 'protobufjs';
-import { getLogger } from '../server/Logger';
 import { gamemods } from './gamemods';
 
 // Type alias for the loader function

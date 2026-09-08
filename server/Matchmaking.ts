@@ -1,8 +1,7 @@
-import { Fields } from "../commons/Fields";
 import { getMultiGmFactory } from "../commons/gamemods";
+import { getLogger } from "../commons/ILogger";
 import { Connection } from "./Connection";
 import { database } from "./Database";
-import { getLogger, setLoggerLevel } from "./Logger";
 import { roomHandler } from "./RoomHandler";
 
 const logger = getLogger("matchmaking");

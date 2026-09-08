@@ -1,9 +1,9 @@
-import { Fields } from "../../commons/Fields";
-import { GMAirBasket } from "../../commons/gamemods/GMAirBasket";
-import { getBestInArray } from "../../commons/util/getBestInArray";
-import { norm2 } from "../../commons/util/norm2";
-import { appendBots, botActionNodeHelper } from "../Bot";
-import { getLogger } from "../Logger";
+import { Fields } from "../Fields";
+import { GMAirBasket } from "../gamemods/GMAirBasket";
+import { getBestInArray } from "../util/getBestInArray";
+import { norm2 } from "../util/norm2";
+import { botActionNodeHelper, describeBot } from "../Bot";
+import { getLogger } from "../ILogger";
 
 const logger = getLogger('bots-airbasket');
 // logger.setLevel('debug');
@@ -341,8 +341,9 @@ const method = runner((game, data, playerIdx) => {
 
 const root = all([method]);
 
-appendBots('airbasket', [
-	{ root, data: dataConstructor }
-]);
 
-logger.info("Bot loaded!");
+export default describeBot(
+	[{root, data: dataConstructor}]
+);
+
+

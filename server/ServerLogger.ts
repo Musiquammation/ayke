@@ -1,9 +1,7 @@
 import "dotenv/config";
 import fs from "fs";
 import path from "path";
-import { ILogger } from "../commons/GameMode";
-
-export type LoggerLevel = "debug" | "info" | "waring" | "error";
+import { ILogger, LoggerLevel } from "../commons/ILogger";
 
 const LEVELS: Record<LoggerLevel, number> = {
 	debug: 0,
@@ -12,12 +10,13 @@ const LEVELS: Record<LoggerLevel, number> = {
 	error: 3,
 };
 
+
 const logPath = process.env.LOGS_PATH ?? "dist/logs.log";
 
 const logDir = path.dirname(logPath);
 fs.mkdirSync(logDir, { recursive: true });
 
-class Logger implements ILogger {
+export class ServerLogger implements ILogger {
 	constructor(
 		private readonly name: string,
 		private level: LoggerLevel = "info",
@@ -70,24 +69,4 @@ class Logger implements ILogger {
 	error(text: string): void {
 		this.write("error", text);
 	}
-}
-
-const loggers = new Map<string, Logger>();
-
-export function getLogger(name: string): Logger {
-	let logger = loggers.get(name);
-
-	if (!logger) {
-		logger = new Logger(name);
-		loggers.set(name, logger);
-	}
-
-	return logger;
-}
-
-export function setLoggerLevel(
-	name: string,
-	level: LoggerLevel,
-): void {
-	getLogger(name).setLevel(level);
 }
