@@ -5,6 +5,7 @@ import { GMSuperTicTacToe } from "./gamemods/GMSuperTicTacToe";
 import { GMTest } from "./gamemods/GMTest";
 import { GMTestSolo } from "./gamemods/GMTestSolo";
 import { GMTurrets } from "./gamemods/GMTurrets";
+import { GMWoodSword } from "./gamemods/GMWoodSword";
 import { SoloGameMode } from "./SoloGameMode";
 
 interface Player {
@@ -138,6 +139,20 @@ export const gamemods: Record<
 		skins: [],
 		iconExtension: 'png',
 		defaultPlayerCount: 4
+	},
+
+	woodSword: {
+		type: 'multiplayer',
+		server: GMWoodSword.createServ,
+		client: GMWoodSword.createClient,
+		dom: GMWoodSword.generateClientDom,
+		textures: GMWoodSword.TEXTURES,
+		name: "Wood Sword",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		iconExtension: 'png',
+		defaultPlayerCount: 2
 	},
 
 	separator_solo: {
