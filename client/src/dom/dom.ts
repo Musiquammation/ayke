@@ -204,6 +204,13 @@ class MainComponent {
 		);
 	}
 
+	openVsBotsInPlay(gamemode: string) {
+		this.currentPage = "play";
+		this.panel = new TutorialInplayComponent(
+			new LocalGameHandler(gamemode, true)
+		);
+	}
+
 	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, category: string) {
 		this.panel = new SoloPlayComponent(gamemodeId, game, category);
 		this.currentPage = "play";
@@ -303,6 +310,17 @@ class GamePanelComponent {
 		dom.stopLoading();
 
 		dom.openTutorialInPlay(this.gamemode);
+	}
+
+	async againstBots() {
+		const factory = getMultiGmFactory(this.gamemode);
+
+		dom.startLoading();
+		await imageLoader.load(factory.textures, this.gamemode);
+		await dynamicCssHandler.load(this.gamemode);
+		dom.stopLoading();
+
+		dom.openVsBotsInPlay(this.gamemode);
 	}
 }
 

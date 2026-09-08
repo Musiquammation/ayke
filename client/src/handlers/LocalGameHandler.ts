@@ -42,7 +42,12 @@ export class LocalGameHandler {
 		gameHtml.innerHTML = "";
 		if (html) { gameHtml.appendChild(html); }
 		this.gamemode = game;
-		this.tutorial = this.gamemode.createTutorial();
+		if (addBots) {
+			this.tutorial = null;
+		} else {
+			this.tutorial = this.gamemode.createTutorial();
+		}
+
 		this.clientData = data;
 
 		// Create the bots only when they are requested.
@@ -179,14 +184,16 @@ export class LocalGameHandler {
 			}
 		}
 
-		const tutorialResult = this.tutorial.frame(dt, this.clock);
-		if (tutorialResult === null) {
-			// Exit tutorial
-			this.interrupted = true;
-			dom.openHome();
-			return;
-		} else {
-			dom.getTutorialInplayComponent().setText(tutorialResult);
+		if (this.tutorial) {
+			const tutorialResult = this.tutorial.frame(dt, this.clock);
+			if (tutorialResult === null) {
+				// Exit tutorial
+				this.interrupted = true;
+				dom.openHome();
+				return;
+			} else {
+				dom.getTutorialInplayComponent().setText(tutorialResult);
+			}
 		}
 
 		if (this.gamemode.quickEmulate(dt, true)) {
