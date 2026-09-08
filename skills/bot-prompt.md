@@ -252,21 +252,17 @@ Identify actions or decisions that are mechanically possible but strategically i
 
 ### AI decision framework
 
-Provide a high-level framework that an AI could follow when deciding what to do next.
+Provide a high-level framework that an AI could follow when deciding what to do next. This section must be **VERY detailed**. Take a lot of time to carefully think through the game's strategies before answering. Explore different possible strategies, their trade-offs, interactions, and potential consequences.**
+, structured in the following order:
 
-For example:
+1. **List of possible decisions** — List all decisions the AI can make, using words only, without explanations.
 
-```text
-1. Evaluate the current game state.
-2. Identify the current primary objective.
-3. Check immediate threats and opportunities.
-4. Evaluate available actions.
-5. Eliminate actions that violate current constraints.
-6. Compare remaining actions according to their expected outcome.
-7. Consider timing and future consequences.
-8. Select and execute the highest-value action.
-9. Re-evaluate the game state after the action.
-```
+2. **Decision descriptions** — For each decision, explain its underlying idea, costs, benefits, and objective.
+
+3. **How to apply a decision** — Explain how the AI should execute each decision in practice, including the conditions and considerations involved.
+
+4. **How to choose and change the current decision** — Explain how the AI should select its current decision, evaluate whether it is still appropriate, and decide when and how to switch to another decision.
+
 
 Adapt this framework to the actual game rather than blindly following the example.
 
