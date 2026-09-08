@@ -6,6 +6,10 @@ Replace GMExample by the actual GMFoo (and example by 'foo').
 
 You already have foo.ts. send inputs (put everytime `{action: 'name', name{data}}`)
 
+
+Use foo.md do read strategy and understand how the game works.
+
+
 ```ts
 import { Fields } from "../../commons/Fields";
 import { GMExample } from "../../commons/gamemods/GMExample";
