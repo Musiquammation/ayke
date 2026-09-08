@@ -76,6 +76,8 @@ const SWORD_THICKNESS = 30;
  */
 const SWORD_HITBOX_ANGLE = Math.PI / 12;
 
+const CLINING_IN_TRUNK = 30;
+
 /*
  * Number of points required by a team to win the whole game.
  */
@@ -84,7 +86,7 @@ const MAX_SCORE = 5;
 /*
  * Maximum duration of a round, expressed in seconds.
  */
-const ROUND_TIME = 20;
+const ROUND_TIME = 30;
 
 /*
  * Maximum angular acceleration of the trunk.
@@ -1035,7 +1037,7 @@ export class GMWoodSword extends GameMode {
 		/*
 		 * Clear the entire game background.
 		 */
-		ctx.fillStyle = "#1a1a2e";
+		ctx.fillStyle = "#362010";
 		ctx.fillRect(
 			0,
 			0,
@@ -1067,14 +1069,14 @@ export class GMWoodSword extends GameMode {
 
 			if (tex) {
 				// Orient the sword towards the trunk.
-				ctx.rotate(player.team === "red" ? 0 : Math.PI);
+				ctx.rotate(player.team === "red" ? Math.PI : 0);
 
 				ctx.drawImage(
 					tex,
 					-SWORD_LENGTH,
-					-SWORD_THICKNESS / 2,
+					-SWORD_THICKNESS,
 					SWORD_LENGTH,
-					SWORD_THICKNESS
+					SWORD_THICKNESS*2
 				);
 			}
 
@@ -1105,7 +1107,7 @@ export class GMWoodSword extends GameMode {
 			 * Move to the outer edge of the trunk.
 			 */
 			ctx.translate(
-				TRUNK_RADIUS,
+				TRUNK_RADIUS - CLINING_IN_TRUNK,
 				0
 			);
 
@@ -1123,9 +1125,9 @@ export class GMWoodSword extends GameMode {
 				ctx.drawImage(
 					tex,
 					0,
-					-SWORD_THICKNESS / 2,
+					-SWORD_THICKNESS,
 					SWORD_LENGTH,
-					SWORD_THICKNESS
+					SWORD_THICKNESS*2
 				);
 			}
 
@@ -1158,21 +1160,6 @@ export class GMWoodSword extends GameMode {
 				TRUNK_RADIUS * 2,
 				TRUNK_RADIUS * 2
 			);
-		} else {
-			/*
-			 * Fallback rendering when the texture is unavailable.
-			 */
-			ctx.beginPath();
-			ctx.arc(
-				0,
-				0,
-				TRUNK_RADIUS,
-				0,
-				2 * Math.PI
-			);
-
-			ctx.fillStyle = "#8B4513";
-			ctx.fill();
 		}
 
 		ctx.restore();
@@ -1214,9 +1201,9 @@ export class GMWoodSword extends GameMode {
 				ctx.drawImage(
 					tex,
 					0,
-					-SWORD_THICKNESS / 2,
+					-SWORD_THICKNESS,
 					SWORD_LENGTH,
-					SWORD_THICKNESS
+					SWORD_THICKNESS*2
 				);
 			}
 
@@ -1256,9 +1243,9 @@ export class GMWoodSword extends GameMode {
 				ctx.drawImage(
 					tex,
 					0,
-					-SWORD_THICKNESS / 2,
+					-SWORD_THICKNESS,
 					SWORD_LENGTH,
-					SWORD_THICKNESS
+					SWORD_THICKNESS*2
 				);
 			}
 
