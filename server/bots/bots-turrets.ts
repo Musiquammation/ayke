@@ -22,6 +22,22 @@ type ItemT = GMTurrets['itemsInMap'][number];
 type FloorT = GMTurrets['floors'][number];
 
 // ---------------------------------------------------------------------------
+// Item ids, matching the ITEMS array index order (0-9).
+// ---------------------------------------------------------------------------
+const ITEM = {
+	LIFE_SLIDER: 0,
+	SHIELD_SLIDER: 1,
+	WALL: 2,
+	BALLOON: 3,
+	TANK: 4,
+	BOOSTER: 5,
+	STAR: 6,
+	TRAP_III: 7,
+	TRAP_II: 8,
+	TRAP_I: 9,
+} as const;
+
+// ---------------------------------------------------------------------------
 // Constants mirrored from the server implementation (turrets.ts / turrets.md).
 // They aren't exposed through GMTurrets.types, so we keep local copies here.
 // ---------------------------------------------------------------------------
@@ -98,7 +114,7 @@ function attackAtInput(x: number, y: number): Fields {
 	return {action: 'throwTarget', throwTarget: {x, y}};
 }
 
-/** Aims/fires standard attacks automatically at the nearest enemy player. */
+/** Aims/fires standard attacks (or a selected item) automatically toward the nearest enemy player. */
 function attackAutoInput(): Fields {
 	return {action: 'throwAuto', throwAuto: {}};
 }
@@ -108,7 +124,7 @@ function stopAttackInput(): Fields {
 	return {action: 'throwOff', throwOff: {}};
 }
 
-/** Picks up the item under the player into the given inventory slot (or selects that slot). */
+/** Picks up the item under the player into the given inventory slot, or (s)elects that slot. */
 function useItemInput(slot: number): Fields {
 	return {action: 'useItem', useItem: {slot}};
 }
@@ -223,6 +239,37 @@ function getMoveWaypoint(
 	// path[0] is our current floor, path[1] is the next one to cross into -
 	// aiming at its center naturally routes us through the right bridges.
 	return floorCenter(game.floors[path[1]]);
+}
+
+
+// ---------------------------------------------------------------------------
+// Inventory helpers.
+// ---------------------------------------------------------------------------
+
+/** Returns the index of the first inventory slot holding the given item id, or -1. */
+function findItemSlot(self: PlayerT, itemId: number): number {
+	return self.items.indexOf(itemId);
+}
+
+/** Returns the slot of any held trap (strongest chain link first), or -1 if none held. */
+function findAnyTrapSlot(self: PlayerT): number {
+	for (const id of [ITEM.TRAP_III, ITEM.TRAP_II, ITEM.TRAP_I]) {
+		const slot = findItemSlot(self, id);
+		if (slot !== -1) return slot;
+	}
+	return -1;
+}
+
+/**
+ * Arms the given inventory slot (if not already armed - re-sending useItem
+ * on an already-selected slot would toggle it OFF instead) and appends the
+ * aim/trigger input that actually throws it this frame.
+ */
+function armAndThrowItem(inputs: Fields[], self: PlayerT, slot: number, aim: Fields) {
+	if (self.selectedItem !== slot) {
+		inputs.push(useItemInput(slot));
+	}
+	inputs.push(aim);
 }
 
 
@@ -370,10 +417,30 @@ const method = runner((game, data, playerIdx) => {
 		&& nearestEnemy.dist < DANGER_RANGE;
 
 	// --- 3. Retreat / disengage ---------------------------------------------
-	// Low HP with a nearby threat: stop shooting (frees up the faster idle
-	// regen path per turrets.md §14.8) and run straight away from it.
+	// Low HP with a nearby threat: try to survive the retreat with a
+	// defensive item before just running, and move straight away from it.
 	if (inDanger && nearestEnemy) {
-		inputs.push(stopAttackInput());
+		const starSlot = findItemSlot(self, ITEM.STAR);
+		const wallSlot = findItemSlot(self, ITEM.WALL);
+		const shieldSlot = findItemSlot(self, ITEM.SHIELD_SLIDER);
+
+		if (starSlot !== -1) {
+			// Invincibility + speed turns a desperate flee into a free escape.
+			armAndThrowItem(inputs, self, starSlot, attackAutoInput());
+		} else if (wallSlot !== -1) {
+			// Drop a wall right at our feet - it blocks any bullet path,
+			// including the pursuer's, buying time to put distance in.
+			armAndThrowItem(inputs, self, wallSlot, attackAutoInput());
+		} else if (shieldSlot !== -1) {
+			// Throw a shield toward the pursuer so it trails behind us as
+			// a moving no-damage screen.
+			armAndThrowItem(inputs, self, shieldSlot, attackAutoInput());
+		} else {
+			// Nothing defensive to use: just stop shooting so ammo/aim
+			// isn't wasted while fleeing (also frees the faster idle
+			// regen path per turrets.md §14.8).
+			inputs.push(stopAttackInput());
+		}
 
 		const [awayX, awayY] = normalize(
 			self.x - nearestEnemy.player.x,
@@ -403,9 +470,20 @@ const method = runner((game, data, playerIdx) => {
 			inputs.push(moveYInput(0));
 		}
 
-		// 'auto' targeting always tracks the nearest living enemy player -
-		// exactly what we want here (it never targets turrets, see §7).
-		inputs.push(attackAutoInput());
+		const balloonSlot = findItemSlot(self, ITEM.BALLOON);
+		const shieldSlot = findItemSlot(self, ITEM.SHIELD_SLIDER);
+
+		if (balloonSlot !== -1) {
+			// An enemy is right here to detect it - safe, effective drop.
+			armAndThrowItem(inputs, self, balloonSlot, attackAutoInput());
+		} else if (shieldSlot !== -1 && hpFraction < 0.6) {
+			// Under moderate pressure mid-fight: screen incoming fire.
+			armAndThrowItem(inputs, self, shieldSlot, attackAutoInput());
+		} else {
+			// 'auto' targeting always tracks the nearest living enemy
+			// player - exactly what we want here (never targets turrets).
+			inputs.push(attackAutoInput());
+		}
 
 		return [inputs, 'success'];
 	}
@@ -437,10 +515,27 @@ const method = runner((game, data, playerIdx) => {
 		inputs.push(moveYInput(0));
 	}
 
-	// Start shooting once inside (a margin around) the turret's own bullet
-	// range - a 'fixed' target aimed straight at its center, since 'auto'
-	// targeting never picks turrets.
-	if (dist <= TURRET_RADIUS * 1.5) {
+	const tankSlot = findItemSlot(self, ITEM.TANK);
+	const boosterSlot = findItemSlot(self, ITEM.BOOSTER);
+	const trapSlot = findAnyTrapSlot(self);
+	const weOwnATurret = game.turrets.some(t => t.team === self.team);
+
+	if (tankSlot !== -1) {
+		// Tank auto-paths into the nearest enemy turret and deals siege
+		// damage on contact - always worth sending in while we're pushing.
+		armAndThrowItem(inputs, self, tankSlot, attackAutoInput());
+	} else if (boosterSlot !== -1 && weOwnATurret) {
+		// Booster auto-paths to our nearest friendly turret; only useful
+		// if we actually have one to reinforce.
+		armAndThrowItem(inputs, self, boosterSlot, attackAutoInput());
+	} else if (trapSlot !== -1 && dist <= turretHugDistance * 3) {
+		// Drop a trap once we're close to the contested turret, seeding
+		// area denial at what's effectively the room's chokepoint.
+		armAndThrowItem(inputs, self, trapSlot, attackAutoInput());
+	} else if (dist <= TURRET_RADIUS * 1.5) {
+		// Start shooting once inside (a margin around) the turret's own
+		// bullet range - a 'fixed' target aimed straight at its center,
+		// since 'auto' targeting never picks turrets.
 		inputs.push(attackAtInput(targetTurret.turret.x, targetTurret.turret.y));
 	}
 
