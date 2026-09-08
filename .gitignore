@@ -3,3 +3,5 @@ node_modules/
 .env
 dist/
 client/dist/
+android/app/upload-keystore.jks
+android/app/keystore.properties
