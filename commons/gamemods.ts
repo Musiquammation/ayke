@@ -8,153 +8,153 @@ import { GMTurrets } from "./gamemods/GMTurrets";
 import { SoloGameMode } from "./SoloGameMode";
 
 interface Player {
-    trophees: number;
-    data: Uint8Array;
-    pseudo: string | null;
+	trophees: number;
+	data: Uint8Array;
+	pseudo: string | null;
 }
 
 interface MultiplayerFactory {
-    type: 'multiplayer';
-    server(
-        players: Player[],
-        total: number,
-        hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
-    ): Promise<{
-        game: GameMode,
-        data: Uint8Array
-    }>,
-    client(entry: Uint8Array | null, total: number, playerIdx: number): {
-        game: GameMode,
-        data: any,
-        html: HTMLDivElement | null,
-        skins: { [key: string]: string },
-    },
-    dom(unlockedSkins: string[]): {produce: ()=>Uint8Array},
-    textures: { [key: string]: string },
-    name: string,
-    tropheesPerPlayer: number,
-    skins: string[],
-    computerOnly: boolean,
-    iconExtension: string,
-    defaultPlayerCount: number
+	type: 'multiplayer';
+	server(
+		players: Player[],
+		total: number,
+		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
+	): Promise<{
+		game: GameMode,
+		data: Uint8Array
+	}>,
+	client(entry: Uint8Array | null, total: number, playerIdx: number): {
+		game: GameMode,
+		data: any,
+		html: HTMLDivElement | null,
+		skins: { [key: string]: string },
+	},
+	dom(unlockedSkins: string[]): {produce: ()=>Uint8Array},
+	textures: { [key: string]: string },
+	name: string,
+	tropheesPerPlayer: number,
+	skins: string[],
+	computerOnly: boolean,
+	iconExtension: string,
+	defaultPlayerCount: number
 }
 
 interface SoloFactory {
-    type: 'solo';
-    name: string;
-    computerOnly: boolean;
-    textures: { [key: string]: string },
-    categories: string[],
-    minFirst: boolean,
-    iconExtension: string,
-    dom(): {produce: ()=>string},
-    create: ()=>SoloGameMode
+	type: 'solo';
+	name: string;
+	computerOnly: boolean;
+	textures: { [key: string]: string },
+	categories: string[],
+	minFirst: boolean,
+	iconExtension: string,
+	dom(): {produce: ()=>string},
+	create: ()=>SoloGameMode
 }
 
 interface UiSeparator {
-    type: 'ui-separator',
-    category: string
+	type: 'ui-separator',
+	category: string
 }
 
 export const gamemods: Record<
-    string,
-    MultiplayerFactory | SoloFactory | UiSeparator
+	string,
+	MultiplayerFactory | SoloFactory | UiSeparator
 > = {
-    separator_competitive: {
-        type: 'ui-separator',
-        category: "Competitive games"
-    },
+	separator_competitive: {
+		type: 'ui-separator',
+		category: "Competitive games"
+	},
 
-    test: {
-        type: 'multiplayer',
-        server: GMTest.createServ,
-        client: GMTest.createClient,
-        dom: GMTest.generateClientDom,
-        textures: GMTest.TEXTURES,
-        name: "Test",
-        computerOnly: false,
-        tropheesPerPlayer: 2,
-        skins: [],
-        iconExtension: 'png',
-        defaultPlayerCount: 4
-    },
+	test: {
+		type: 'multiplayer',
+		server: GMTest.createServ,
+		client: GMTest.createClient,
+		dom: GMTest.generateClientDom,
+		textures: GMTest.TEXTURES,
+		name: "Test",
+		computerOnly: false,
+		tropheesPerPlayer: 2,
+		skins: [],
+		iconExtension: 'png',
+		defaultPlayerCount: 4
+	},
 
-    airbasket: {
-        type: 'multiplayer',
-        server: GMAirBasket.createServ,
-        client: GMAirBasket.createClient,
-        dom: GMAirBasket.generateClientDom,
-        textures: GMAirBasket.TEXTURES,
-        name: "Air Basket",
-        tropheesPerPlayer: 20,
-        computerOnly: true,
-        skins: GMAirBasket.SKINS_IDS,
-        iconExtension: 'png',
-        defaultPlayerCount: 4
-    },
+	airbasket: {
+		type: 'multiplayer',
+		server: GMAirBasket.createServ,
+		client: GMAirBasket.createClient,
+		dom: GMAirBasket.generateClientDom,
+		textures: GMAirBasket.TEXTURES,
+		name: "Air Basket",
+		tropheesPerPlayer: 20,
+		computerOnly: true,
+		skins: GMAirBasket.SKINS_IDS,
+		iconExtension: 'png',
+		defaultPlayerCount: 4
+	},
 
-    turrets: {
-        type: 'multiplayer',
-        server: GMTurrets.createServ,
-        client: GMTurrets.createClient,
-        dom: GMTurrets.generateClientDom,
-        textures: GMTurrets.TEXTURES,
-        name: "Turrets",
-        tropheesPerPlayer: 20,
-        computerOnly: false,
-        skins: [],
-        iconExtension: 'svg',
-        defaultPlayerCount: 4
-    },
+	turrets: {
+		type: 'multiplayer',
+		server: GMTurrets.createServ,
+		client: GMTurrets.createClient,
+		dom: GMTurrets.generateClientDom,
+		textures: GMTurrets.TEXTURES,
+		name: "Turrets",
+		tropheesPerPlayer: 20,
+		computerOnly: false,
+		skins: [],
+		iconExtension: 'svg',
+		defaultPlayerCount: 4
+	},
 
-    separator_mobile: {
-        type: 'ui-separator',
-        category: "Mobile games"
-    },
+	separator_mobile: {
+		type: 'ui-separator',
+		category: "Mobile games"
+	},
 
-    superTicTacToe: {
-        type: 'multiplayer',
-        server: GMSuperTicTacToe.createServ,
-        client: GMSuperTicTacToe.createClient,
-        dom: GMSuperTicTacToe.generateClientDom,
-        textures: GMSuperTicTacToe.TEXTURES,
-        name: "Super tic tac toe",
-        tropheesPerPlayer: 3,
-        computerOnly: false,
-        skins: [],
-        iconExtension: 'png',
-        defaultPlayerCount: 2
-    },
+	superTicTacToe: {
+		type: 'multiplayer',
+		server: GMSuperTicTacToe.createServ,
+		client: GMSuperTicTacToe.createClient,
+		dom: GMSuperTicTacToe.generateClientDom,
+		textures: GMSuperTicTacToe.TEXTURES,
+		name: "Super tic tac toe",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		iconExtension: 'png',
+		defaultPlayerCount: 2
+	},
 
-    roarsOnGlass: {
-        type: 'multiplayer',
-        server: GMRoarsOnGlass.createServ,
-        client: GMRoarsOnGlass.createClient,
-        dom: GMRoarsOnGlass.generateClientDom,
-        textures: GMRoarsOnGlass.TEXTURES,
-        name: "Roars on glass",
-        tropheesPerPlayer: 3,
-        computerOnly: false,
-        skins: [],
-        iconExtension: 'png',
-        defaultPlayerCount: 4
-    },
+	roarsOnGlass: {
+		type: 'multiplayer',
+		server: GMRoarsOnGlass.createServ,
+		client: GMRoarsOnGlass.createClient,
+		dom: GMRoarsOnGlass.generateClientDom,
+		textures: GMRoarsOnGlass.TEXTURES,
+		name: "Roars on glass",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		iconExtension: 'png',
+		defaultPlayerCount: 4
+	},
 
-    separator_solo: {
-        type: 'ui-separator',
-        category: "Solo games"
-    },
+	separator_solo: {
+		type: 'ui-separator',
+		category: "Solo games"
+	},
 
 	testSolo: {
 		type: 'solo',
 		name: "Test Solo",
 		computerOnly: false,
 		dom: GMTestSolo.generateClientDom,
-        textures: GMTestSolo.TEXTURES,
-        categories: GMTestSolo.CATEGORIES,
-        minFirst: GMTestSolo.MIN_FIRST,
-        iconExtension: 'png',
-        create: GMTestSolo.create
+		textures: GMTestSolo.TEXTURES,
+		categories: GMTestSolo.CATEGORIES,
+		minFirst: GMTestSolo.MIN_FIRST,
+		iconExtension: 'png',
+		create: GMTestSolo.create
 	}
 };
 
@@ -162,28 +162,28 @@ export const gamemods: Record<
 
 
 export function getMultiGmFactory(gamemode: string) {
-    const factory = gamemods[gamemode];
-    if (!factory || factory.type !== 'multiplayer') {
-        throw new Error(`Invalid gamemode '${gamemode}'`);
-    }
+	const factory = gamemods[gamemode];
+	if (!factory || factory.type !== 'multiplayer') {
+		throw new Error(`Invalid gamemode '${gamemode}'`);
+	}
 
-    return factory;
+	return factory;
 }
 
 export function getSoloGmFactory(gamemode: string) {
-    const factory = gamemods[gamemode];
-    if (!factory || factory.type !== 'solo') {
-        throw new Error(`Invalid gamemode '${gamemode}'`);
-    }
+	const factory = gamemods[gamemode];
+	if (!factory || factory.type !== 'solo') {
+		throw new Error(`Invalid gamemode '${gamemode}'`);
+	}
 
-    return factory;
+	return factory;
 }
 
 export function getGmFactory(gamemode: string) {
-    const factory = gamemods[gamemode];
-    if (!factory || (factory.type !== 'solo' && factory.type !== 'multiplayer')) {
-        throw new Error(`Invalid gamemode '${gamemode}'`);
-    }
+	const factory = gamemods[gamemode];
+	if (!factory || (factory.type !== 'solo' && factory.type !== 'multiplayer')) {
+		throw new Error(`Invalid gamemode '${gamemode}'`);
+	}
 
-    return factory;
+	return factory;
 }
