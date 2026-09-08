@@ -200,7 +200,7 @@ class MainComponent {
 	openTutorialInPlay(gamemode: string) {
 		this.currentPage = "play";
 		this.panel = new TutorialInplayComponent(
-			new LocalGameHandler(gamemode)
+			new LocalGameHandler(gamemode, false)
 		);
 	}
 

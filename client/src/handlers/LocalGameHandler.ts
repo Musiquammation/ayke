@@ -1,5 +1,6 @@
 import { GameMode } from "../../../commons/GameMode";
 import { getMultiGmFactory } from "../../../commons/gamemods";
+import { Fields } from "../../../commons/Fields";
 import { keyboardController } from "../controllers/KeyboardController";
 import { mouseController } from "../controllers/MouseController";
 import { mobileController } from "../controllers/MobileController";
@@ -8,6 +9,7 @@ import { imageLoader } from "./imageLoader";
 import { hasNavigatorMobile, hasNavigatorMouse } from "../dom/clientNavigatorType";
 import { deleteGameHandler } from "./GameHandler";
 import { fullScreenHandler } from "./FullScreenHandler";
+import { Bot, generateBot } from "../../../commons/Bot";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -25,16 +27,41 @@ export class LocalGameHandler {
 
 	private readonly imageLoaderPromise;
 
-	constructor(gamemodeId: string) {
+	// Bots controlled by the local game handler.
+	private readonly bots: Bot<GameMode, any>[];
+
+	constructor(gamemodeId: string, addBots: boolean) {
 		const factory = getMultiGmFactory(gamemodeId);
 
-		const {game, data, html, skins} = factory.client(null, 2, 0);
+		const {game, data, html, skins} = factory.client(
+			null,
+			addBots ? factory.defaultPlayerCount : 2,
+			0
+		);
 		const gameHtml = document.getElementById("game-html")!;
 		gameHtml.innerHTML = "";
 		if (html) { gameHtml.appendChild(html); }
 		this.gamemode = game;
 		this.tutorial = this.gamemode.createTutorial();
 		this.clientData = data;
+
+		// Create the bots only when they are requested.
+		//
+		// The first player (index 0) is the local player, so bots start
+		// at player index 1.
+		if (addBots) {
+			this.bots = this.gamemode
+				.getBotIds(factory.defaultPlayerCount - 1)
+				.map((i, index) =>
+					generateBot(
+						factory.nodes,
+						i,
+						1 + index
+					)
+				);
+		} else {
+			this.bots = [];
+		}
 
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
@@ -53,7 +80,7 @@ export class LocalGameHandler {
 		} else {
 			this.allowsMobile = false;
 		}
-		
+
 		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
 	}
 
@@ -89,7 +116,6 @@ export class LocalGameHandler {
 		// Everything drawn here is affected by the translation and scale.
 		this.gamemode.draw(ctx, 0, this.clientData, imageLoader, dt);
 
-		// Restore the context to the original canvas coordinates.
 		ctx.restore();
 
 		// Draw black bars over the unused areas outside the game viewport.
@@ -97,14 +123,14 @@ export class LocalGameHandler {
 
 		// Draw left and right bars when the canvas is wider than the game viewport.
 		if (offsetX > 0) {
-			ctx.fillRect(0, 0, offsetX, innerHeight); // Left bar
-			ctx.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight); // Right bar
+			ctx.fillRect(0, 0, offsetX, innerHeight);
+			ctx.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight);
 		}
 
 		// Draw top and bottom bars when the canvas is taller than the game viewport.
 		if (offsetY > 0) {
-			ctx.fillRect(0, 0, innerWidth, offsetY); // Top bar
-			ctx.fillRect(0, innerHeight - offsetY, innerWidth, offsetY); // Bottom bar
+			ctx.fillRect(0, 0, innerWidth, offsetY);
+			ctx.fillRect(0, innerHeight - offsetY, innerWidth, offsetY);
 		}
 
 		if (this.allowsMobile) {
@@ -132,8 +158,25 @@ export class LocalGameHandler {
 		mouseController.frame();
 		mobileController.frame();
 
+		// Apply the local player's inputs.
 		for (const input of inputs) {
 			this.gamemode.runInput(0, input);
+		}
+
+		// Collect and apply all bot inputs for this frame.
+		//
+		// Inputs are collected first and applied afterwards so that every bot
+		// makes its decision from the same game state.
+		const collected: Record<number, Fields[]> = {};
+
+		for (const bot of this.bots) {
+			collected[bot.playerIdx] = bot.play(this.gamemode);
+		}
+
+		for (const [playerIdx, inputs] of Object.entries(collected)) {
+			for (const input of inputs) {
+				this.gamemode.runInput(Number(playerIdx), input);
+			}
 		}
 
 		const tutorialResult = this.tutorial.frame(dt, this.clock);
