@@ -37,6 +37,9 @@
 	--content-width: 1200px;
 }
 
+*.hidden {
+	display: none !important;
+}
 
 .play-btn {
 	background-color: var(--color-success);
@@ -329,9 +332,8 @@ button.selected {
 
 
 /*
- * Game list:
- * 2 columns by default.
- * More columns are enabled with media queries below.
+ * Game list.
+ * Two columns by default.
  */
 
 .home-play > div > div {
@@ -347,86 +349,139 @@ button.selected {
    Individual game cards
    ============================================================ */
 
+/*
+ * The card acts as a container for the image and overlay text.
+ */
+
 .home-play > div > div > div {
-	display: flex;
-	flex-direction: column;
+	position: relative;
+
+	overflow: hidden;
 
 	min-width: 0;
 	min-height: 130px;
-
-	padding: 18px;
 
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius-small);
 
 	background: var(--color-bg);
 
+	cursor: pointer;
+
 	transition:
 		border-color var(--transition-normal),
-		background var(--transition-normal),
 		transform var(--transition-normal),
 		box-shadow var(--transition-normal);
 }
 
-.home-play > div > div > div:hover {
-	border-color: var(--color-border-strong);
-	background: var(--color-surface-hover);
 
-	transform: translateY(-2px);
+/*
+ * Game image.
+ * The image completely fills the card.
+ */
 
-	box-shadow: 0 5px 15px var(--color-shadow);
+.home-play > div > div > div > img {
+	display: block;
+
+	width: 100%;
+	height: 100%;
+
+	object-fit: cover;
+	image-rendering: pixelated;
+
+	transition:
+		filter var(--transition-normal),
+		transform var(--transition-normal);
 }
 
 
 /*
  * Game name.
- * The card has enough room below for a future description.
+ * Positioned over the image in the bottom-right corner.
  */
 
 .home-play > div > div > div > span {
-	display: block;
+	position: absolute;
 
-	margin-bottom: auto;
+	right: 12px;
+	bottom: 10px;
+
+	margin: 0;
+
+	color: white;
 
 	font-size: 1.05rem;
-	font-weight: 650;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
 
-	overflow: hidden;
-	text-overflow: ellipsis;
+	text-align: right;
+
+	text-shadow:
+		1px 1px 0 #000,
+		2px 2px 0 #000;
+
+	pointer-events: none;
 }
 
+.home-play > div > div > div > span::after {
+	content: "";
+
+	position: absolute;
+	left: 0;
+	bottom: -1px;
+
+	width: 100%;
+	height: 2px;
+
+	background: white;
+
+	transform: scaleX(0);
+	transform-origin: left;
+
+	transition: transform 0.25s ease;
+}
+
+.home-play > div > div > div:hover > span::after {
+	transform: scaleX(1);
+}
 
 /*
- * Play button.
- * Kept at the bottom of the card so a description can be
- * inserted above it later without changing the layout.
+ * Hover effect.
+ * The image becomes brighter/whiter while the card slightly rises.
  */
 
-.home-play > div > div > div > button {
-	width: 100%;
-	margin-top: 18px;
-
-	background: var(--color-primary);
-	color: var(--color-primary-text);
-
-	border-color: var(--color-primary);
-}
-
-.home-play > div > div > div > button:hover:not(:disabled) {
-	background: var(--color-primary-hover);
-	border-color: var(--color-primary-hover);
+.home-play > div > div > div:hover {
+	border-color: var(--color-border-strong);
+	transform: translateY(-2px);
+	box-shadow: 0 5px 15px var(--color-shadow);
 }
 
 
-/* Disabled game */
+/* ============================================================
+   Disabled games
+   ============================================================ */
 
-.home-play > div > div > div > button.play-disabled {
+/*
+ * Disabled games remain visible but cannot be played.
+ */
+
+.home-play > div > div > div.play-disabled {
 	opacity: 0.45;
 
 	cursor: not-allowed;
+}
 
+.home-play > div > div > div.play-disabled:hover {
+	transform: none;
+
+	box-shadow: none;
+}
+
+.home-play > div > div > div.play-disabled:hover > img {
 	filter: grayscale(1);
 }
+
 
 
 /* ============================================================

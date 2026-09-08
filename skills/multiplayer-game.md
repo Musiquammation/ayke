@@ -129,6 +129,7 @@ Charge les données du protobuf et les met dans le jeu (Player, GMExample)
 Le temps est float en secondes.
 Mets les constantes en haut du fichier.
 Commente en anglais toutes les fonctions et utilise des petites méthodes.
+Sois verbeux dans les commentaires.
 
 ```ts
 namespace collisions {
