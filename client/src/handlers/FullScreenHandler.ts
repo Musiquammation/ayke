@@ -1,3 +1,5 @@
+import { getMobile } from "../getMobile"
+
 class FullScreenHandler {
 	private ownsFullscreen = false;
 
@@ -10,7 +12,14 @@ class FullScreenHandler {
 		});
 	}
 
-	async openFull(): Promise<void> {
+	async openFull(orientation: 'landscape' | 'portrait' | null): Promise<void> {
+		if (orientation !== null) {
+			const imobile = await getMobile();
+			if (imobile) {
+				await imobile.setScreenOrientation(orientation);
+			}
+		}
+
 		// Fullscreen is already active, so it was not opened by this handler.
 		if (document.fullscreenElement) {
 			this.ownsFullscreen = false;
@@ -27,6 +36,11 @@ class FullScreenHandler {
 	}
 
 	async closeFull(): Promise<void> {
+		const imobile = await getMobile();
+		if (imobile) {
+			await imobile.setScreenOrientation('portrait');
+		}
+		
 		// Do nothing if this handler does not own the fullscreen state.
 		if (!this.ownsFullscreen) {
 			return;

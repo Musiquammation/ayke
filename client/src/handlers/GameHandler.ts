@@ -228,7 +228,7 @@ export async function setGameHandler(
 		gameHtml.appendChild(html);
 	}
 
-	await fullScreenHandler.openFull();
+	await fullScreenHandler.openFull(game.getMobileOrientation());
 
 	_gameHandler = new GameHandler(
 		gamemode,

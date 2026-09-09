@@ -1,18 +1,18 @@
 import "dotenv/config";
 import { FinishGame, GameMode } from "../commons/GameMode";
 import { Connection } from "./Connection";
-import { getLogger } from "./Logger";
 import { Fields } from "../commons/Fields";
-import { gamemods, getMultiGmFactory } from "../commons/gamemods";
+import { gamemods, getGmFactory, getMultiGmFactory } from "../commons/gamemods";
 import { getProtocol } from "../commons/protocolLoader";
 import { pushSortedArrays } from "../commons/util/mergeSortedArrays";
 import { minBy } from "../commons/util/minBy";
 import { sleepTime } from "../commons/util/sleepTime";
-import { Bot, generateBot } from "./Bot";
 import { decodeFullMessage } from "../commons/util/decodeFullMessage";
 import { flattenArrays } from "../commons/util/flattenArrays";
 import { evalWonTrophees } from "./evalWonTrophees";
 import { database } from "./Database";
+import { getLogger } from "../commons/ILogger";
+import { Bot, generateBot } from "../commons/Bot";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -77,8 +77,9 @@ export class Room {
 		bots: number,
 		private onfinish: ()=>void
 	) {
+		const factory = getMultiGmFactory(gamemodeId);
 		this.bots = gamemode.getBotIds(bots).map(
-			(i, index) => generateBot(gamemodeId, i, players.length + index)
+			(i, index) => generateBot(factory.nodes, i, players.length + index)
 		);
 		this.players = players.map(p => new Player(
 			p.connection,

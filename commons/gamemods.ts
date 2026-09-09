@@ -1,3 +1,4 @@
+import { ActionNode } from "./Bot";
 import { GameMode } from "./GameMode";
 import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMRoarsOnGlass } from "./gamemods/GMRoarsOnGlass";
@@ -7,6 +8,14 @@ import { GMTestSolo } from "./gamemods/GMTestSolo";
 import { GMTurrets } from "./gamemods/GMTurrets";
 import { GMWoodSword } from "./gamemods/GMWoodSword";
 import { SoloGameMode } from "./SoloGameMode";
+
+import bots_test from "./bots/bots-test";
+import bots_airbasket from "./bots/bots-airbasket";
+import bots_turrets from "./bots/bots-turrets";
+import bots_superTicTacToe from "./bots/bots-superTicTacToe";
+import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
+import bots_woodSword from "./bots/bots-woodSword";
+
 
 interface Player {
 	trophees: number;
@@ -37,7 +46,11 @@ interface MultiplayerFactory {
 	skins: string[],
 	computerOnly: boolean,
 	iconExtension: string,
-	defaultPlayerCount: number
+	defaultPlayerCount: number,
+	nodes: {
+		root: ActionNode<GameMode, any>,
+		data: (()=>any)
+	}[]
 }
 
 interface SoloFactory {
@@ -77,7 +90,8 @@ export const gamemods: Record<
 		tropheesPerPlayer: 2,
 		skins: [],
 		iconExtension: 'png',
-		defaultPlayerCount: 4
+		defaultPlayerCount: 4,
+		nodes: bots_test
 	},
 
 	airbasket: {
@@ -91,7 +105,8 @@ export const gamemods: Record<
 		computerOnly: true,
 		skins: GMAirBasket.SKINS_IDS,
 		iconExtension: 'png',
-		defaultPlayerCount: 4
+		defaultPlayerCount: 4,
+		nodes: bots_airbasket
 	},
 
 	turrets: {
@@ -105,7 +120,8 @@ export const gamemods: Record<
 		computerOnly: false,
 		skins: [],
 		iconExtension: 'svg',
-		defaultPlayerCount: 4
+		defaultPlayerCount: 4,
+		nodes: bots_turrets
 	},
 
 	separator_mobile: {
@@ -124,7 +140,9 @@ export const gamemods: Record<
 		computerOnly: false,
 		skins: [],
 		iconExtension: 'png',
-		defaultPlayerCount: 2
+		defaultPlayerCount: 2,
+		nodes: bots_superTicTacToe
+
 	},
 
 	roarsOnGlass: {
@@ -138,7 +156,8 @@ export const gamemods: Record<
 		computerOnly: false,
 		skins: [],
 		iconExtension: 'png',
-		defaultPlayerCount: 4
+		defaultPlayerCount: 4,
+		nodes: bots_roarsOnGlass
 	},
 
 	woodSword: {
@@ -152,7 +171,8 @@ export const gamemods: Record<
 		computerOnly: false,
 		skins: [],
 		iconExtension: 'png',
-		defaultPlayerCount: 2
+		defaultPlayerCount: 2,
+		nodes: bots_woodSword
 	},
 
 	separator_solo: {

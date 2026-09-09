@@ -1,7 +1,7 @@
-import { Fields } from "../../commons/Fields";
-import { GMTurrets } from "../../commons/gamemods/GMTurrets";
-import { appendBots, botActionNodeHelper } from "../Bot";
-import { getLogger } from "../Logger";
+import { Fields } from "../Fields";
+import { GMTurrets } from "../gamemods/GMTurrets";
+import { botActionNodeHelper, describeBot } from "../Bot";
+import { getLogger } from "../ILogger";
 
 const logger = getLogger('bots-turrets');
 // logger.setLevel('debug');
@@ -547,8 +547,9 @@ const root = (function() {
 	return all([method]);
 })();
 
-appendBots('turrets', [
-	{root, data: dataConstructor}
-]);
+export default describeBot(
+	[{root, data: dataConstructor}]
+);
 
-logger.info("Bot loaded!");
+
+

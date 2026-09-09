@@ -1,6 +1,5 @@
 import { norm2 } from "../../commons/util/norm2";
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
-import { getLogger } from "../../server/Logger";
 import { Fields } from "../Fields";
 import { FinishGame, GameMode } from "../GameMode";
 import { getProtocol } from "../protocolLoader";

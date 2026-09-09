@@ -1,7 +1,7 @@
 import { Fields } from "../../commons/Fields";
 import { GMTest } from "../../commons/gamemods/GMTest";
-import { appendBots, botActionNodeHelper } from "../Bot";
-import { getLogger } from "../Logger";
+import { botActionNodeHelper, describeBot } from "../Bot";
+import { getLogger } from "../ILogger";
 
 const logger = getLogger('bots-test');
 // logger.setLevel('debug');
@@ -76,13 +76,13 @@ const followNearestOpponent = runner((game, data, playerIdx) => {
 });
 
 
-const testBot = (function() {
+const root = (function() {
 	return all([getFollowOpponent, followNearestOpponent]);
 })();
 
-appendBots('test', [
-	{root: testBot, data: dataConstructor}
-]);
+
+export default describeBot(
+	[{root, data: dataConstructor}]
+);
 
 
-logger.info("Bot loaded!");

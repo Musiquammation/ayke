@@ -85,6 +85,9 @@
 						<template x-if="typeof tutorial === 'function'">
 							<button @pointerup="tutorial()">Tutorial</button>
 						</template>
+						<template x-if="typeof againstBots === 'function'">
+							<button @pointerup="againstBots()">vs. Bots</button>
+						</template>
 					</div>
 				</div>
 			</template>

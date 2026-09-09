@@ -1,8 +1,8 @@
-import { Fields } from "../../commons/Fields";
-import { GMRoarsOnGlass } from "../../commons/gamemods/GMRoarsOnGlass";
-import { getBestInArray } from "../../commons/util/getBestInArray";
-import { appendBots, botActionNodeHelper } from "../Bot";
-import { getLogger } from "../Logger";
+import { Fields } from "../Fields";
+import { GMRoarsOnGlass } from "../gamemods/GMRoarsOnGlass";
+import { getBestInArray } from "../util/getBestInArray";
+import { botActionNodeHelper, describeBot } from "../Bot";
+import { getLogger } from "../ILogger";
 
 const logger = getLogger('bots-roarsOnGlass');
 // logger.setLevel('debug');
@@ -175,8 +175,8 @@ const root = (function() {
 	return all([method]);
 })();
 
-appendBots('roarsOnGlass', [
-	{ root, data: dataConstructor }
-]);
+export default describeBot(
+	[{root, data: dataConstructor}]
+);
 
-logger.info("Bot loaded successfully!");
+
