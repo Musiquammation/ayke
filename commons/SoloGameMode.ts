@@ -52,4 +52,9 @@ export abstract class SoloGameMode {
 	): {x: number, y: number};
 
 	abstract getMobileDesc(): MobileDescriptor | null;
+
+	getMobileOrientation() {
+		const {width, height} = this.getSize();
+		return width <= height ? 'portrait' : 'landscape';
+	}
 }

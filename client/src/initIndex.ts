@@ -3,6 +3,7 @@ import { initProtocols } from "../../commons/protocolLoader";
 import { dom, initDom } from "./dom/dom";
 import { sendMessage } from "./messages/sendMessage";
 import { hasNavigatorMobile, hasNavigatorMouse } from "./dom/clientNavigatorType";
+import { resolveMobileInterface } from "./getMobile";
 
 
 declare global {
@@ -24,7 +25,12 @@ export default function() {
 
     dom.tryLoginWithKey();
 
+
     if (window.Capacitor) {
-        import("../mobile/mobile").then(m => m.initMobile());
+        import("../mobile/mobile").then(async m => {
+            resolveMobileInterface(await m.initMobile());
+        });
+    } else {
+        resolveMobileInterface(null);
     }
 }

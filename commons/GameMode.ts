@@ -146,6 +146,11 @@ export abstract class GameMode {
 
 		return finish;
 	}
+
+	getMobileOrientation() {
+		const {width, height} = this.getSize();
+		return width <= height ? 'portrait' : 'landscape';
+	}
 }
 
 export { IKeyboardController, IMobileController };

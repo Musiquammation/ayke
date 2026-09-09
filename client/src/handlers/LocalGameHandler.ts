@@ -90,7 +90,7 @@ export class LocalGameHandler {
 	}
 
 	async start() {
-		await fullScreenHandler.openFull();
+		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
 		await this.imageLoaderPromise;
 		this.clock = 0;
 		this.lastTime = performance.now();
