@@ -16,6 +16,11 @@ interface Input {
 
 type LoggerLevel = "debug" | "info" | "waring" | "error";
 
+declare global {
+	interface Window {
+		IMG_ROOT_PATH: string;
+	}
+}
 
 
 export interface FinishGame {
