@@ -10825,7 +10825,7 @@ function getTexturePath(id) {
 	return `/assets/games/airbasket/skins/${id}/grid.png`;
 }
 function getIconPath(id) {
-	return `/assets/games/airbasket/skins/${id}/icon.png`;
+	return window.IMG_ROOT_PATH + `/assets/games/airbasket/skins/${id}/icon.png`;
 }
 var GMAirBasket = class GMAirBasket extends GameMode {
 	static types = {
@@ -11522,7 +11522,7 @@ function generateClientDom$5(unlockedSkins) {
 		hasSkin(skin) {
 			return this.unlockedSkins.includes(skin);
 		},
-		getSkinIconPath: (id) => `/assets/games/test/skins/${id}/icon.png`
+		getSkinIconPath: (id) => window.IMG_ROOT_PATH + `/assets/games/test/skins/${id}/icon.png`
 	};
 }
 var TutorialData$3 = class {
@@ -16475,6 +16475,7 @@ var bots_turrets_default = describeBot([{
 //#region commons/bots/bots-superTicTacToe.ts
 var logger = getLogger("bots-superTicTacToe");
 logger.setLevel("debug");
+var COOLDOWN = .6;
 /**
 * Factory constructing the initial clean state container for a new match.
 */
@@ -16482,7 +16483,8 @@ function dataConstructor$2() {
 	return {
 		lastProcessedTurn: null,
 		hasPlayedThisTurn: false,
-		moveCount: 0
+		moveCount: 0,
+		nextDate: -1
 	};
 }
 /** The 8 winning 3-in-a-row alignments on any standard 3x3 board */
@@ -16705,6 +16707,12 @@ var frame = runner$2((game, data, playerIdx) => {
 		return [inputs, "success"];
 	}
 	if (data.hasPlayedThisTurn && data.lastProcessedTurn === myTeam) return [inputs, "success"];
+	if (data.nextDate < 0) {
+		data.nextDate = performance.now() + COOLDOWN * 1e3;
+		return [inputs, "success"];
+	}
+	if (performance.now() < data.nextDate) return [inputs, "success"];
+	data.nextDate = -1;
 	logger.debug(`=== Bot Turn Started (${myTeam.toUpperCase()}) | Forced Sub-grid: ${game.forced} ===`);
 	const legalCells = [];
 	for (let i = 0; i < 81; i++) {

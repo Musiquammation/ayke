@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/initIndex-DNut8Zc2.js","assets/ILogger-DdhWV8XP.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/initIndex-NITE9GwL.js","assets/ILogger-DdhWV8XP.js"])))=>i.map(i=>d[i]);
 import { r as setLoggerConstructor, t as ConsoleLogger } from "./assets/ILogger-DdhWV8XP.js";
 //#region \0vite/preload-helper.js
 var scriptRel = "modulepreload";
@@ -70,7 +70,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 //#region client/src/index.ts
 setLoggerConstructor((name) => new ConsoleLogger(name));
 function init() {
-	__vitePreload(() => import("./assets/initIndex-DNut8Zc2.js").then((m) => m.default()), __vite__mapDeps([0,1]));
+	__vitePreload(() => import("./assets/initIndex-NITE9GwL.js").then((m) => m.default()), __vite__mapDeps([0,1]));
 }
 //#endregion
 export { init };
