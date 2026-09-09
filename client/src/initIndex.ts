@@ -7,30 +7,23 @@ import { resolveMobileInterface } from "./getMobile";
 
 
 declare global {
-    interface Window {
-        PROTOCOLS_FOLDER: string;
-        Capacitor: any;
-    }
+	interface Window {
+		PROTOCOLS_FOLDER: string;
+		Capacitor: any;
+	}
 }
 
 export default function() {
-    initProtocols(async name => {
-        const response = await fetch(window.PROTOCOLS_FOLDER + name + ".proto");
-        const protoText = await response.text();
-        return protobuf.parse(protoText).root;
-    });
-    
+	initProtocols(async name => {
+		const response = await fetch(window.PROTOCOLS_FOLDER + name + ".proto");
+		const protoText = await response.text();
+		return protobuf.parse(protoText).root;
+	});
+	
 
-    initDom();
+	initDom();
 
-    dom.tryLoginWithKey();
-
-
-    if (window.Capacitor) {
-        import("../mobile/mobile").then(async m => {
-            resolveMobileInterface(await m.initMobile());
-        });
-    } else {
-        resolveMobileInterface(null);
-    }
+	dom.tryLoginWithKey();
+	
+	resolveMobileInterface(null);
 }
