@@ -1,8 +1,14 @@
 import { StatusBar } from '@capacitor/status-bar';
+import { ScreenOrientation } from '@capacitor/screen-orientation';
+
 
 class IMobile {
-	async setScreenOrientation(o: 'landscape' | 'portrait') {
-		console.log("Orientation: " + o);
+	setScreenOrientation(o: 'landscape' | 'portrait') {
+		return ScreenOrientation.lock({
+			orientation: o === 'landscape'
+				? 'landscape'
+				: 'portrait'
+		});
 	}
 }
 
