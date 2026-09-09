@@ -1,4 +1,4 @@
-import { r as getLogger, t as __vitePreload } from "./preload-helper-CADJiwsn.js";
+import { n as getLogger } from "./ILogger-DdhWV8XP.js";
 //#region \0rolldown/runtime.js
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -10100,6 +10100,10 @@ var GameMode = class GameMode {
 		if (f && finishGame) finishGame(f);
 		return finish;
 	}
+	getMobileOrientation() {
+		const { width, height } = this.getSize();
+		return width <= height ? "portrait" : "landscape";
+	}
 };
 //#endregion
 //#region commons/util/collisions.ts
@@ -12588,7 +12592,6 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 //#endregion
 //#region commons/gamemods/GMTest.ts
 var protocols$2 = getProtocol("test", "multiplayer");
-var LOG_LEVEL = "info";
 var Player$2 = class {
 	x;
 	y;
@@ -12629,10 +12632,6 @@ var GMTest = class GMTest extends GameMode {
 		this.players = Array.from({ length: total }, () => new Player$2(0, 0, "red"));
 	}
 	static async createServ(players, total) {
-		GMTest.getLogger("game-test", LOG_LEVEL).debug("Starting choices " + JSON.stringify(players.map((p) => {
-			const { StartData } = protocols$2.get();
-			return decodeFullMessage(StartData.decode(p.data)).testNumber;
-		})));
 		const game = new GMTest(total);
 		for (let i = 0; i < game.players.length; i++) {
 			const p = game.players[i];
@@ -12675,19 +12674,14 @@ var GMTest = class GMTest extends GameMode {
 	}
 	run(dt, produceFinish) {
 		for (const p of this.players) p.y += p.move * dt;
-		GMTest.getLogger("game-test", LOG_LEVEL).debug(`y0=${this.players[0].y.toFixed(2)} dt=${dt}`);
 		if (produceFinish) {
 			for (const [idx, p] of this.players.entries()) if (p.y < 0) return this.produceFinish();
 		}
 		return null;
 	}
 	runInput(playerIdx, input) {
-		const logger = GMTest.getLogger("game-test", LOG_LEVEL);
 		const player = this.players[playerIdx];
-		if (input.move !== void 0) {
-			player.move = input.move;
-			logger.debug(`input ${input.move} ${playerIdx}`);
-		}
+		if (input.move !== void 0) player.move = input.move;
 	}
 	collectInputs(keyboard, mouse, mobile, _data) {
 		const inputs = [];
@@ -12773,6 +12767,10 @@ var SoloGameMode = class SoloGameMode {
 			clock += SoloGameMode.MAX_DT;
 		}
 		return this.run(duration, clock);
+	}
+	getMobileOrientation() {
+		const { width, height } = this.getSize();
+		return width <= height ? "portrait" : "landscape";
 	}
 };
 //#endregion
@@ -20989,7 +20987,6 @@ var MobileController = class {
 		window.removeEventListener("touchcancel", this.handleTouchEnd);
 	}
 	handleTouchStart = (e) => {
-		e.preventDefault();
 		for (let i = 0; i < e.changedTouches.length; i++) {
 			const touch = e.changedTouches[i];
 			const screenX = touch.clientX;
@@ -21009,7 +21006,6 @@ var MobileController = class {
 		this.updateJoystickValues();
 	};
 	handleTouchMove = (e) => {
-		e.preventDefault();
 		for (let i = 0; i < e.changedTouches.length; i++) {
 			const touch = e.changedTouches[i];
 			const existing = this.touches.get(touch.identifier);
@@ -21026,7 +21022,6 @@ var MobileController = class {
 		this.updateJoystickValues();
 	};
 	handleTouchEnd = (e) => {
-		e.preventDefault();
 		for (let i = 0; i < e.changedTouches.length; i++) {
 			const touch = e.changedTouches[i];
 			const existing = this.touches.get(touch.identifier);
@@ -21051,6 +21046,22 @@ function hasNavigatorMouse() {
 	return window.matchMedia("(any-pointer: fine)").matches;
 }
 //#endregion
+//#region client/src/getMobile.ts
+var mobile = null;
+var resolveMobile;
+var mobilePromise = new Promise((resolve) => {
+	resolveMobile = resolve;
+});
+function getMobile() {
+	if (mobile !== null) return Promise.resolve(mobile);
+	return mobilePromise;
+}
+function resolveMobileInterface(_mobile) {
+	if (mobile !== null) return;
+	mobile = _mobile;
+	resolveMobile(_mobile);
+}
+//#endregion
 //#region client/src/handlers/FullScreenHandler.ts
 var FullScreenHandler = class {
 	ownsFullscreen = false;
@@ -21059,7 +21070,11 @@ var FullScreenHandler = class {
 			if (!document.fullscreenElement) this.ownsFullscreen = false;
 		});
 	}
-	async openFull() {
+	async openFull(orientation) {
+		if (orientation !== null) {
+			const imobile = await getMobile();
+			if (imobile) await imobile.setScreenOrientation(orientation);
+		}
 		if (document.fullscreenElement) {
 			this.ownsFullscreen = false;
 			return;
@@ -21073,6 +21088,8 @@ var FullScreenHandler = class {
 		}
 	}
 	async closeFull() {
+		const imobile = await getMobile();
+		if (imobile) await imobile.setScreenOrientation("portrait");
 		if (!this.ownsFullscreen) return;
 		if (!document.fullscreenElement) {
 			this.ownsFullscreen = false;
@@ -21213,7 +21230,7 @@ async function setGameHandler(gamemode, playerIdx, startData, total) {
 	const gameHtml = document.getElementById("game-html");
 	gameHtml.innerHTML = "";
 	if (html) gameHtml.appendChild(html);
-	await fullScreenHandler.openFull();
+	await fullScreenHandler.openFull(game.getMobileOrientation());
 	_gameHandler = new GameHandler(gamemode, game, playerIdx, protocols.get(), data);
 	_gameHandler.frame();
 	dom.openPlay();
@@ -21526,7 +21543,7 @@ var LocalGameHandler = class {
 		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
 	}
 	async start() {
-		await fullScreenHandler.openFull();
+		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
 		await this.imageLoaderPromise;
 		this.clock = 0;
 		this.lastTime = performance.now();
@@ -21771,7 +21788,7 @@ var SoloGameHandler = class {
 		} else this.allowsMobile = false;
 	}
 	async start() {
-		await fullScreenHandler.openFull();
+		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
 		this.clock = 0;
 		this.lastTime = performance.now();
 		const protocols = getProtocol(this.gamemodeId, "solo");
@@ -21868,8 +21885,13 @@ var dynamicCssHandler = new DynamicCssHandler();
 //#endregion
 //#region client/src/dom/dom.ts
 var STORAGE_KEY_CONNECTION = "ayke_connectionKey";
+/** Runtime check for the "type 1" marker described above. */
+function isFragmentSavable(panel) {
+	const ctor = panel.constructor;
+	return typeof panel.saveFragment === "function" && typeof ctor.openFragment === "function" && typeof ctor.fragmentName === "string";
+}
 var MainComponent = class {
-	currentPage = "home";
+	_currentPage = "home";
 	templateLoader = new TemplateLoader();
 	loadingContext = "home";
 	isAuthenticated = false;
@@ -21877,6 +21899,12 @@ var MainComponent = class {
 	panel = new HomeComponent();
 	y0 = 0;
 	y1 = 0;
+	get currentPage() {
+		return this._currentPage;
+	}
+	set currentPage(value) {
+		this._currentPage = value;
+	}
 	startLoading() {
 		this.loadingContext = this.currentPage;
 		this.currentPage = "loading";
@@ -21890,6 +21918,7 @@ var MainComponent = class {
 	openHome() {
 		this.panel = new HomeComponent();
 		this.currentPage = "home";
+		pushUrlStack(this);
 	}
 	openTest() {
 		this.panel = null;
@@ -21898,10 +21927,12 @@ var MainComponent = class {
 	openLogin() {
 		this.panel = new LoginComponent();
 		this.currentPage = "login";
+		pushUrlStack(this);
 	}
 	openSignin() {
 		this.panel = new SigninComponent();
 		this.currentPage = "signin";
+		pushUrlStack(this);
 	}
 	/**
 	* Attempt auto-login using a stored connection key from localStorage.
@@ -21944,16 +21975,19 @@ var MainComponent = class {
 			const category = factory.dom();
 			this.panel = new SoloGamePanelComponent(gamemode, category, html);
 		}
+		pushUrlStack(this);
 	}
 	async openWaitPlayPanel(gamemode) {
 		this.panel = new WaitPlayPanelComponent(gamemode);
 		this.currentPage = "wait-play";
+		pushUrlStack(this);
 	}
 	openPlay() {
 		const panel = this.getWaitPlayPanel();
 		this.panel = panel.createPlay();
 		this.currentPage = "play";
 		deleteWaitingPlayHandler();
+		pushUrlStack(this);
 	}
 	/**
 	* Transition to the play-results page using the current PlayComponent
@@ -21964,34 +21998,41 @@ var MainComponent = class {
 		this.panel = playPanel.createPlayResults(results);
 		this.currentPage = "play-results";
 		deleteGameHandler();
+		pushUrlStack(this);
 	}
 	openSoloComponent(result) {
 		this.panel = new SoloPlayResultComponent(result);
 		this.currentPage = "play-solo-results";
+		pushUrlStack(this);
 	}
 	openTutorialInPlay(gamemode) {
 		this.currentPage = "play";
 		this.panel = new TutorialInplayComponent(new LocalGameHandler(gamemode, false));
+		pushUrlStack(this);
 	}
 	openVsBotsInPlay(gamemode) {
 		this.currentPage = "play";
 		this.panel = new TutorialInplayComponent(new LocalGameHandler(gamemode, true));
+		pushUrlStack(this);
 	}
 	openSoloPlayComponent(gamemodeId, game, category) {
 		this.panel = new SoloPlayComponent(gamemodeId, game, category);
 		this.currentPage = "play";
+		pushUrlStack(this);
 	}
 	openLeaderboard() {
 		const panel = new LeaderboardComponent();
 		this.panel = panel;
 		this.currentPage = "leaderboard";
 		panel.fetchLeaderboard();
+		pushUrlStack(this);
 	}
 	openSoloLeaderboard() {
 		const panel = new SoloLeaderboardComponent();
 		this.panel = panel;
 		this.currentPage = "solo-leaderboard";
 		panel.fetchRecords();
+		pushUrlStack(this);
 	}
 	getPanel(type) {
 		if (this.panel instanceof type) return this.panel;
@@ -22181,8 +22222,15 @@ var PlayResultsComponent = class {
 		dom.openHome();
 	}
 };
-var SoloPlayResultComponent = class {
+var SoloPlayResultComponent = class SoloPlayResultComponent {
 	result;
+	static fragmentName = "play-solo-results";
+	saveFragment() {
+		return { result: String(this.result) };
+	}
+	static openFragment(props) {
+		return new SoloPlayResultComponent(Number(props.result));
+	}
 	constructor(result) {
 		this.result = result;
 	}
@@ -22190,7 +22238,14 @@ var SoloPlayResultComponent = class {
 		dom.openHome();
 	}
 };
-var LoginComponent = class {
+var LoginComponent = class LoginComponent {
+	static fragmentName = "login";
+	saveFragment() {
+		return {};
+	}
+	static openFragment(_props) {
+		return new LoginComponent();
+	}
 	pseudo = "";
 	password = "";
 	errorMessage = "";
@@ -22202,7 +22257,14 @@ var LoginComponent = class {
 		} });
 	}
 };
-var SigninComponent = class {
+var SigninComponent = class SigninComponent {
+	static fragmentName = "signin";
+	saveFragment() {
+		return {};
+	}
+	static openFragment(_props) {
+		return new SigninComponent();
+	}
 	pseudo = "";
 	password = "";
 	errorMessage = "";
@@ -22214,7 +22276,14 @@ var SigninComponent = class {
 		} });
 	}
 };
-var HomeComponent = class {
+var HomeComponent = class HomeComponent {
+	static fragmentName = "home";
+	saveFragment() {
+		return {};
+	}
+	static openFragment(_props) {
+		return new HomeComponent();
+	}
 	games;
 	hasMobile = hasNavigatorMobile();
 	hasMouse = hasNavigatorMouse();
@@ -22267,7 +22336,20 @@ var TutorialInplayComponent = class {
 		this.text = text;
 	}
 };
-var LeaderboardComponent = class {
+var LeaderboardComponent = class LeaderboardComponent {
+	static fragmentName = "leaderboard";
+	saveFragment() {
+		const props = { page: String(this.page) };
+		if (this.gamemode !== null) props.gamemode = this.gamemode;
+		return props;
+	}
+	static openFragment(props) {
+		const panel = new LeaderboardComponent();
+		panel.gamemode = props.gamemode ?? null;
+		panel.page = props.page ? Number(props.page) : 0;
+		panel.fetchLeaderboard();
+		return panel;
+	}
 	entries = [];
 	gamemode = null;
 	page = 0;
@@ -22305,7 +22387,23 @@ var LeaderboardComponent = class {
 		return this.page * 64 + index + 1;
 	}
 };
-var SoloLeaderboardComponent = class {
+var SoloLeaderboardComponent = class SoloLeaderboardComponent {
+	static fragmentName = "solo-leaderboard";
+	saveFragment() {
+		return {
+			gamemode: this.gamemode,
+			category: this.category,
+			page: String(this.page)
+		};
+	}
+	static openFragment(props) {
+		const panel = new SoloLeaderboardComponent();
+		if (props.gamemode) panel.gamemode = props.gamemode;
+		if (props.category) panel.category = props.category;
+		panel.page = props.page ? Number(props.page) : 0;
+		panel.fetchRecords();
+		return panel;
+	}
 	entries = [];
 	gamemode;
 	category;
@@ -22379,6 +22477,121 @@ var SoloLeaderboardComponent = class {
 		this.entries = d.entries;
 	}
 };
+var fragmentRegistry = /* @__PURE__ */ new Map();
+function registerFragment(name, page, openFragment) {
+	fragmentRegistry.set(name, {
+		page,
+		openFragment
+	});
+}
+registerFragment(HomeComponent.fragmentName, "home", HomeComponent.openFragment);
+registerFragment(LoginComponent.fragmentName, "login", LoginComponent.openFragment);
+registerFragment(SigninComponent.fragmentName, "signin", SigninComponent.openFragment);
+registerFragment(SoloPlayResultComponent.fragmentName, "play-solo-results", SoloPlayResultComponent.openFragment);
+registerFragment(LeaderboardComponent.fragmentName, "leaderboard", LeaderboardComponent.openFragment);
+registerFragment(SoloLeaderboardComponent.fragmentName, "solo-leaderboard", SoloLeaderboardComponent.openFragment);
+var UrlFragmentManager = class {
+	/** Non-serializable panels kept alive so we can navigate back/forward to them. */
+	stack = [];
+	/** Index of the entry currently shown; -1 when the stack is empty. */
+	position = -1;
+	/**
+	* The last hash value *we* applied ourselves (via push/goToPosition). Lets the
+	* hashchange listener tell our own writes apart from a genuine user-triggered
+	* back/forward navigation.
+	*/
+	lastAppliedHash = "";
+	init() {
+		window.addEventListener("hashchange", () => this.onHashChange());
+		const hash = window.location.hash.slice(1);
+		if (hash) {
+			this.lastAppliedHash = hash;
+			this.restore(hash);
+		}
+	}
+	/**
+	* Registers `panel` (now shown on `page`) and updates the URL fragment accordingly.
+	* This is the single entry point called from MainComponent whenever the displayed
+	* panel changes — see `pushUrlStack`.
+	*/
+	push(panel, page) {
+		if (isFragmentSavable(panel)) {
+			this.stack = [];
+			this.position = -1;
+			const ctor = panel.constructor;
+			const props = panel.saveFragment();
+			this.setHash(this.buildFragmentHash(ctor.fragmentName, props));
+			return;
+		}
+		this.stack = this.stack.slice(0, this.position + 1);
+		this.stack.push({
+			page,
+			panel
+		});
+		this.position = this.stack.length - 1;
+		this.setHash(`on-stack?position=${this.position}`);
+	}
+	/** Jump to an arbitrary position within the in-memory stack (e.g. an in-app "back" button). */
+	goToPosition(position) {
+		const entry = this.stack[position];
+		if (!entry) return;
+		this.position = position;
+		dom.panel = entry.panel;
+		dom.currentPage = entry.page;
+		this.setHash(`on-stack?position=${position}`);
+	}
+	buildFragmentHash(name, props) {
+		const query = new URLSearchParams(props).toString();
+		return query ? `${name}?${query}` : name;
+	}
+	setHash(hash) {
+		this.lastAppliedHash = hash;
+		window.location.hash = hash;
+	}
+	onHashChange() {
+		const hash = window.location.hash.slice(1);
+		if (hash === this.lastAppliedHash) return;
+		this.lastAppliedHash = hash;
+		this.restore(hash);
+	}
+	/**
+	* Applies whatever page/panel a given hash describes. Used both for the initial page
+	* load and for real back/forward navigation caught by the hashchange listener.
+	*/
+	restore(hash) {
+		const [name, query] = hash.split("?");
+		const props = Object.fromEntries(new URLSearchParams(query ?? ""));
+		if (name === "on-stack") {
+			const position = Number(props.position);
+			const entry = this.stack[position];
+			if (entry) {
+				this.position = position;
+				dom.panel = entry.panel;
+				dom.currentPage = entry.page;
+			} else dom.openHome();
+			return;
+		}
+		const registered = fragmentRegistry.get(name);
+		if (!registered) {
+			dom.openHome();
+			return;
+		}
+		this.stack = [];
+		this.position = -1;
+		dom.panel = registered.openFragment(props);
+		dom.currentPage = registered.page;
+	}
+};
+var urlFragmentManager = new UrlFragmentManager();
+/**
+* Call this right after switching `dom.panel`/`dom.currentPage` to a new page, e.g.
+* `pushUrlStack(this)` at the end of a MainComponent `open*` method (`this` being the
+* MainComponent instance). Reflects the new panel into the URL fragment.
+*/
+function pushUrlStack(main) {
+	if (main.panel === null) return;
+	urlFragmentManager.push(main.panel, main.currentPage);
+}
 var dom = module_default.reactive(new MainComponent());
 function initDom() {
 	document.addEventListener("alpine:init", () => {
@@ -22387,6 +22600,7 @@ function initDom() {
 	window.Alpine = module_default;
 	window.dom = dom;
 	module_default.start();
+	urlFragmentManager.init();
 }
 //#endregion
 //#region client/src/initIndex.ts
@@ -22397,7 +22611,7 @@ function initIndex_default() {
 	});
 	initDom();
 	dom.tryLoginWithKey();
-	if (window.Capacitor) __vitePreload(() => import("./mobile-Dif-D43J.js").then((m) => m.initMobile()), []);
+	resolveMobileInterface(null);
 }
 //#endregion
 export { initIndex_default as default };
