@@ -19,7 +19,8 @@
     "protobufjs": "^8.7.2",
     "sqlite3": "^6.0.1",
     "tsx": "^4.23.12",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/alpinejs": "^3.13.11",
