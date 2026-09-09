@@ -600,7 +600,7 @@ function getSkinTexturePath(id: string) {
 }
 
 function getSkinIconPath(id: string) {
-	return `/assets/games/test/skins/${id}/icon.png`
+	return window.IMG_ROOT_PATH + `/assets/games/test/skins/${id}/icon.png`
 }
 
 

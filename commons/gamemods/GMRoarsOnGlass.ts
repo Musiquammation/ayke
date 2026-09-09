@@ -169,7 +169,9 @@ function generateClientDom(unlockedSkins: string[]) {
 		hasSkin(skin: string) {
 			return this.unlockedSkins.includes(skin);
 		},
-		getSkinIconPath: (id: string) => `/assets/games/test/skins/${id}/icon.png`
+		getSkinIconPath: (id: string) => (
+			window.IMG_ROOT_PATH + `/assets/games/test/skins/${id}/icon.png`
+		)
 	};
 }
 
