@@ -62,7 +62,7 @@ export class SoloGameHandler {
 	}
 
 	async start() {
-		await fullScreenHandler.openFull();
+		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
 		this.clock = 0;
 		this.lastTime = performance.now();
 

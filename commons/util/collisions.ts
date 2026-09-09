@@ -12,6 +12,14 @@ export namespace collisions {
 		h: number;
 	}
 
+	interface RoundedRect {
+		x: number;
+		y: number;
+		w: number;
+		h: number;
+		radius: number;
+	}
+
 	export function RectCircle(rect: Rect, circle: Circle){
 		const distX = Math.abs(circle.x - rect.x);
 		const distY = Math.abs(circle.y - rect.y);
@@ -34,6 +42,43 @@ export namespace collisions {
 
 		return dx <= (a.w + b.w) / 2 &&
 			dy <= (a.h + b.h) / 2;
+	}
+
+	export function RoundedRectCircle(rect: RoundedRect, circle: Circle) {
+		const innerW = Math.max(0, rect.w / 2 - rect.radius);
+		const innerH = Math.max(0, rect.h / 2 - rect.radius);
+
+		const distX = Math.abs(circle.x - rect.x);
+		const distY = Math.abs(circle.y - rect.y);
+
+		const clampX = Math.max(0, distX - innerW);
+		const clampY = Math.max(0, distY - innerH);
+
+		const effectiveRadius = rect.radius + circle.r;
+
+		return clampX * clampX + clampY * clampY <= effectiveRadius * effectiveRadius;
+	}
+
+	export function RoundedRectRect(rect: RoundedRect, b: Rect) {
+		const innerW = Math.max(0, rect.w / 2 - rect.radius);
+		const innerH = Math.max(0, rect.h / 2 - rect.radius);
+
+		const distX = Math.abs(b.x - rect.x);
+		const distY = Math.abs(b.y - rect.y);
+
+		const clampX = Math.max(0, distX - innerW);
+		const clampY = Math.max(0, distY - innerH);
+
+		const halfBW = b.w / 2;
+		const halfBH = b.h / 2;
+
+		if (clampX <= halfBW) return distY <= innerH + halfBH || clampY <= halfBH;
+		if (clampY <= halfBH) return distX <= innerW + halfBW || clampX <= halfBW;
+
+		const dx = clampX - halfBW;
+		const dy = clampY - halfBH;
+
+		return dx * dx + dy * dy <= rect.radius * rect.radius;
 	}
 
 	export function CircleCircle(a: Circle, b: Circle) {

@@ -20,10 +20,3 @@ export interface IMobileController {
 	showButton(button: string): void;
 	hideButton(button: string): void;
 }
-
-export interface ILogger {
-	debug(text: string): void;
-	info(text: string): void;
-	warning(text: string): void;
-	error(text: string): void;
-}

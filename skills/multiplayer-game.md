@@ -100,9 +100,9 @@ Si le joueur i et le joueur i+1 sont à égalité, alors playerEqualities contie
 ex. 
 ```
 results = [
-    [3, 0, 1], // team A
-    [2, 7, 8], // team B
-    [5, 6, 4]  // team C
+	[3, 0, 1], // team A
+	[2, 7, 8], // team B
+	[5, 6, 4]  // team C
 ]
 teamEqualities = [1]
 playerEqualities = [0, 5, 6]
@@ -129,16 +129,17 @@ Charge les données du protobuf et les met dans le jeu (Player, GMExample)
 Le temps est float en secondes.
 Mets les constantes en haut du fichier.
 Commente en anglais toutes les fonctions et utilise des petites méthodes.
+Sois verbeux dans les commentaires.
 
+On a déjà (ces fonctions sont déjà codées, pas besoin de les recoder)
 ```ts
-namespace collisions {
-    interface Circle {
+export namespace collisions {
+	interface Circle {
 		x: number;
 		y: number;
 		r: number;
 	}
 
-    // rectangle centré en (x,y)
 	interface Rect {
 		x: number;
 		y: number;
@@ -146,8 +147,18 @@ namespace collisions {
 		h: number;
 	}
 
+	interface RoundedRect {
+		x: number;
+		y: number;
+		w: number;
+		h: number;
+		radius: number;
+	}
+
 	export function RectCircle(rect: Rect, circle: Circle);
 	export function RectRect(a: Rect, b: Rect);
+	export function RoundedRectCircle(rect: RoundedRect, circle: Circle);
+	export function RoundedRectRect(rect: RoundedRect, b: Rect);
 	export function CircleCircle(a: Circle, b: Circle);
 }
 
@@ -169,7 +180,7 @@ message Empty {}
 
 
 message State {
-    // to fill...
+	// to fill...
 }
 
 message QInput {
@@ -201,7 +212,7 @@ message ClientMessage {
 message StartData {
 	string skin = 1;
 	int32 preferTeam = 2;
-    // can be completed
+	// can be completed
 }
 
 
@@ -210,7 +221,7 @@ message StartPlayerInfo {
 	float y = 2;
 	string skin = 3;
 	bool isRed = 4;
-    // can be completed
+	// can be completed
 }
 
 message StartDataClient {
@@ -599,7 +610,7 @@ function getSkinTexturePath(id: string) {
 }
 
 function getSkinIconPath(id: string) {
-	return `/assets/games/test/skins/${id}/icon.png`
+	return window.IMG_ROOT_PATH + `/assets/games/test/skins/${id}/icon.png`
 }
 
 
@@ -677,7 +688,7 @@ export class GMExample extends GameMode {
 		const totalPlayers = playerInfos.length;
 		const maxPerTeam = Math.ceil(totalPlayers / 2);
 
-		const assigned = new Array(totalPlayers);
+		const assigned = new Array<boolean>(totalPlayers);
 		let redCount = 0;
 		let blueCount = 0;
 
@@ -806,10 +817,10 @@ export class GMExample extends GameMode {
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
 		// Time
 		this.time -= dt;
-        let finished = false;
+		let finished = false;
 		if (this.time <= 0) {
 			finished = true;
-            this.time = 0;
+			this.time = 0;
 		}
 
 
@@ -867,8 +878,8 @@ export class GMExample extends GameMode {
 		_data: any,
 		_imageLoader: ImageLoader
 	) {
-        ctx.imageSmoothingEnabled = false;
-        
+		ctx.imageSmoothingEnabled = false;
+		
 		const imageLoader = _imageLoader.getFolder('example');
 
 		const data = _data as ClientData;
@@ -941,14 +952,14 @@ export class GMExample extends GameMode {
 
 	override getMobileDesc(): MobileDescriptor {
 		return {
-            joysticks: {
+			joysticks: {
 
-            },
+			},
 
-            buttons: {
+			buttons: {
 
-            }
-        };
+			}
+		};
 	}
 
 

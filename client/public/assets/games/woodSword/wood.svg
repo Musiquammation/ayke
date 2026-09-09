@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none">
+  <circle cx="50" cy="50" r="50" fill="#6D4020" />
+
+	<!-- Wood trunk -->
+	<path
+		d="M50 9
+			C61 9 73 14 82 23
+			C91 32 92 43 91 51
+			C93 62 88 73 80 81
+			C72 89 61 91 50 90
+			C39 92 27 88 19 81
+			C11 74 9 63 10 52
+			C8 41 13 30 21 22
+			C29 14 40 10 50 9Z"
+		fill="#895129"
+	/>
+
+	<!-- Dark wood rings -->
+	<path
+		d="M50 18
+			C64 18 78 28 80 42
+			C83 56 76 71 63 77
+			C50 84 34 78 26 67
+			C17 55 19 39 28 29
+			C34 22 42 19 50 18Z"
+		stroke="#693A1E"
+		stroke-width="3"
+		fill="none"
+	/>
+
+	<path
+		d="M50 27
+			C61 27 71 35 72 46
+			C74 58 67 68 57 72
+			C46 76 34 70 30 61
+			C25 51 29 39 37 32
+			C41 29 46 27 50 27Z"
+		stroke="#A86638"
+		stroke-width="3"
+		fill="none"
+	/>
+
+	<!-- Light wood ring -->
+	<path
+		d="M50 35
+			C59 35 66 42 66 50
+			C66 60 59 66 50 66
+			C41 66 34 59 34 51
+			C34 42 41 35 50 35Z"
+		stroke="#6E3F21"
+		stroke-width="3"
+		fill="none"
+	/>
+
+	<!-- Center -->
+	<circle cx="50" cy="50" r="6" fill="#A86638"/>
+	<circle cx="50" cy="50" r="2.5" fill="#693A1E"/>
+</svg>

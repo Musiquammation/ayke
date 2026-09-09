@@ -1,5 +1,5 @@
-import { Fields } from "../commons/Fields";
-import { GameMode } from "../commons/GameMode";
+import { Fields } from "./Fields";
+import { GameMode } from "./GameMode";
 
 type ActionType = 'all' | 'first' | 'loop' | 'runner';
 type Runner<GMode extends GameMode, Data> = (
@@ -28,7 +28,7 @@ interface ActionRunner<GMode extends GameMode, Data> {
 	run: Runner<GMode, Data>;
 }
 
-type ActionNode<GMode extends GameMode, Data> = (
+export type ActionNode<GMode extends GameMode, Data> = (
 	ActionAll<GMode, Data> |
 	ActionFirst<GMode, Data> |
 	ActionLoop<GMode, Data> |
@@ -217,39 +217,31 @@ export class Bot<GMode extends GameMode, Data> {
 }
 
 
-const bots: Record<string, {
-	root: ActionNode<GameMode, any>,
-	data: (()=>any)
-}[]> = {};
-
 export function generateBot(
-	gamemodeId: string,
+	nodes: {
+		root: ActionNode<GameMode, any>;
+		data: () => any;
+	}[],
 	botId: number,
 	playerId: number,
 ): Bot<GameMode, any> {
-	const root = bots[gamemodeId];
-	if (root === undefined)
-		throw new Error(`Cannot find gamemodeId='${gamemodeId}'`);
+	if (botId >= nodes.length)
+		throw new Error(`Asked bot #${botId} among ${nodes.length} bots`);
 
-	if (botId >= root.length)
-		throw new Error(`Asked bot #${botId} among ${root.length} bots`);
-
-	return new Bot(root[botId].root, playerId, root[botId].data());
+	return new Bot(nodes[botId].root, playerId, nodes[botId].data());
 }
 
 
 
-
-export function appendBots<GMode extends GameMode>(
-	gamemodeId: string,
-	nodes: {
-		root: ActionNode<GMode, any>,
-		data: (()=>any)
+export function describeBot<GMode extends GameMode, Data>(
+	list: {
+		root: ActionNode<GMode, Data>;
+		data: () => Data;
 	}[]
 ) {
-	bots[gamemodeId] = nodes as {
-		root: ActionNode<GameMode, any>,
-		data: (()=>any)
+	return list as {
+		root: ActionNode<GameMode, any>;
+		data: () => any;
 	}[];
 }
 

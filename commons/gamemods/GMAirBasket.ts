@@ -938,7 +938,7 @@ function getTexturePath(id: string) {
 }
 
 function getIconPath(id: string) {
-	return `/assets/games/airbasket/skins/${id}/icon.png`
+	return window.IMG_ROOT_PATH + `/assets/games/airbasket/skins/${id}/icon.png`
 }
 
 
@@ -1239,7 +1239,10 @@ export class GMAirBasket extends GameMode {
 			this.time += TIMES[this.timeStep];
 		}
 
-		if (this.isSuddenDeath() && this.redScore !== this.blueScore) {
+		if (
+			(this.isSuddenDeath() && this.redScore !== this.blueScore) ||
+			this.redScore + this.blueScore >= this.buckets.length
+		) {
 			this.finished = true;
 		}
 

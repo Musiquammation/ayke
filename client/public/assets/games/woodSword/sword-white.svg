@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="30" viewBox="0 0 120 30" fill="none">
+
+	<!-- Blade -->
+	<path
+		d="
+			M 8 15
+			L 86 7
+			L 96 12
+			L 96 18
+			L 86 23
+			Z
+		"
+		fill="#FFFFFF"
+		stroke="#CFCFCF"
+		stroke-width="1"
+		stroke-linejoin="round"
+	/>
+
+	<!-- Blade central facet -->
+	<path
+		d="
+			M 10 15
+			L 86 9
+			L 93 12.5
+			L 86 13.5
+			Z
+		"
+		fill="#F3F3F3"
+	/>
+
+	<!-- Blade lower facet -->
+	<path
+		d="
+			M 10 15
+			L 86 16.5
+			L 93 17.5
+			L 86 21
+			Z
+		"
+		fill="#E8E8E8"
+	/>
+
+	<!-- Guard -->
+	<path
+		d="
+			M 84 4
+			C 84 3 86 3 87 4
+			L 91 11
+			L 91 19
+			L 87 26
+			C 86 27 84 27 84 26
+			L 87 18
+			L 87 12
+			Z
+		"
+		fill="#E0E0E0"
+	/>
+
+	<!-- Grip -->
+	<path
+		d="
+			M 90 10
+			L 108 10
+			C 110 10 111 12 111 15
+			C 111 18 110 20 108 20
+			L 90 20
+			Z
+		"
+		fill="#FFFFFF"
+	/>
+
+	<!-- Grip wrapping -->
+	<path
+		d="M 94 10 L 94 20"
+		stroke="#BDBDBD"
+		stroke-width="2"
+	/>
+	<path
+		d="M 99 10 L 99 20"
+		stroke="#BDBDBD"
+		stroke-width="2"
+	/>
+	<path
+		d="M 104 10 L 104 20"
+		stroke="#BDBDBD"
+		stroke-width="2"
+	/>
+
+	<!-- Pommel -->
+	<path
+		d="
+			M 108 8
+			C 114 8 117 11 117 15
+			C 117 19 114 22 108 22
+			L 108 19
+			C 111 19 112 17 112 15
+			C 112 13 111 11 108 11
+			Z
+		"
+		fill="#D0D0D0"
+	/>
+
+	<!-- Small highlight on pommel -->
+	<path
+		d="
+			M 110 11
+			C 113 11 114 13 114 15
+			C 114 16 113.5 17 113 17.5
+		"
+		stroke="#FFFFFF"
+		stroke-width="1"
+		stroke-linecap="round"
+	/>
+
+</svg>

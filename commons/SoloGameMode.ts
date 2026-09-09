@@ -4,6 +4,12 @@ import { Fields } from "./Fields";
 import { ImageLoader } from "./util/ImageLoader";
 import { MobileDescriptor } from "../client/src/controllers/MobileController";
 
+declare global {
+	interface Window {
+		IMG_ROOT_PATH: string;
+	}
+}
+
 export abstract class SoloGameMode {
 	public static readonly MAX_DT = 0.020; // 20ms
 
@@ -52,4 +58,9 @@ export abstract class SoloGameMode {
 	): {x: number, y: number};
 
 	abstract getMobileDesc(): MobileDescriptor | null;
+
+	getMobileOrientation() {
+		const {width, height} = this.getSize();
+		return width <= height ? 'portrait' : 'landscape';
+	}
 }

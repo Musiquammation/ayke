@@ -1,0 +1,100 @@
+<svg width="100" height="100" viewBox="0 0 100 100"
+	xmlns="http://www.w3.org/2000/svg">
+
+	<!-- Shadow -->
+	<path d="
+		M 12 18
+		L 24 8
+		L 78 8
+		L 93 20
+		L 96 76
+		L 82 92
+		L 23 92
+		L 7 78
+		L 7 30
+		Z
+	" fill="#76a9c7"/>
+
+	<!-- Ice block -->
+	<path d="
+		M 10 15
+		L 23 6
+		L 77 6
+		L 91 17
+		L 94 74
+		L 80 88
+		L 24 88
+		L 8 75
+		L 8 29
+		Z
+	" fill="#bdefff"/>
+
+	<!-- Inner blue -->
+	<path d="
+		M 15 18
+		L 26 11
+		L 75 11
+		L 86 20
+		L 89 70
+		L 77 82
+		L 27 82
+		L 14 71
+		L 14 31
+		Z
+	" fill="#9cddf5"/>
+
+	<!-- Subtle depth -->
+	<path d="
+		M 14 69
+		L 27 80
+		L 77 80
+		L 89 69
+		L 89 72
+		L 77 84
+		L 27 84
+		L 14 73
+		Z
+	" fill="#7fc5e3"/>
+
+	<!-- Top light -->
+	<path d="
+		M 24 10
+		L 75 10
+		L 84 18
+		L 80 21
+		L 27 19
+		L 17 25
+		L 13 22
+		Z
+	" fill="#e4faff"/>
+
+	<!-- Left reflection -->
+	<path d="
+		M 13 27
+		L 18 22
+		L 21 23
+		L 21 65
+		L 17 69
+		L 13 65
+		Z
+	" fill="#d8f7ff"/>
+
+	<!-- Small shine -->
+	<path d="
+		M 29 15
+		L 48 15
+		L 52 18
+		L 31 18
+		Z
+	" fill="#ffffff"/>
+
+	<!-- Soft central reflection -->
+	<path d="
+		M 30 25
+		L 67 25
+		L 72 30
+		L 28 30
+		Z
+	" fill="#bfefff"/>
+
+</svg>

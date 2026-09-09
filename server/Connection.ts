@@ -4,10 +4,10 @@ import { msgtypes } from "./sendMessage";
 import { database } from "./Database";
 import { matchmaking } from "./Matchmaking";
 import { Room, roomHandler } from "./RoomHandler";
-import { getLogger } from "./Logger";
 import { Fields } from "../commons/Fields";
 import { evalSoloRunScore } from "./evalSoloRunScore";
 import { getSoloGmFactory } from "../commons/gamemods";
+import { getLogger } from "../commons/ILogger";
 
 const logger = getLogger('connection');
 // logger.setLevel('debug');

@@ -387,7 +387,6 @@ export class MobileController implements IMobileController {
 	// --- Touch Event Handlers ---
 
 	private handleTouchStart = (e: TouchEvent) => {
-		e.preventDefault();
 		for (let i = 0; i < e.changedTouches.length; i++) {
 			const touch = e.changedTouches[i];
 			const screenX = touch.clientX;
@@ -412,7 +411,6 @@ export class MobileController implements IMobileController {
 	};
 
 	private handleTouchMove = (e: TouchEvent) => {
-		e.preventDefault();
 		for (let i = 0; i < e.changedTouches.length; i++) {
 			const touch = e.changedTouches[i];
 			const existing = this.touches.get(touch.identifier);
@@ -432,7 +430,6 @@ export class MobileController implements IMobileController {
 	};
 
 	private handleTouchEnd = (e: TouchEvent) => {
-		e.preventDefault();
 		for (let i = 0; i < e.changedTouches.length; i++) {
 			const touch = e.changedTouches[i];
 			const existing = this.touches.get(touch.identifier);
