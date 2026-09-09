@@ -5,6 +5,7 @@ import { FinishGame, GameMode} from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
+import { getLogger } from "../ILogger";
 
 const protocols = getProtocol('test', 'multiplayer');
 
@@ -13,8 +14,6 @@ interface PlayerInput {
 }
 
 type Team = 'red' | 'blue';
-
-const LOG_LEVEL = 'info';
 
 class Player {
 	connected = true;
@@ -75,15 +74,6 @@ export class GMTest extends GameMode {
 	}
 
 	static async createServ(players: PlayerInput[], total: number) {
-		const logger = GMTest.getLogger('game-test', LOG_LEVEL);
-
-		logger.debug("Starting choices " + JSON.stringify(players.map(p => {
-			const {StartData} = protocols.get();
-			const m = decodeFullMessage(StartData.decode(p.data));
-			return m.testNumber;
-		})));
-
-
 		const game = new GMTest(total);
 		for (let i = 0; i < game.players.length; i++) {
 			const p = game.players[i];
@@ -141,10 +131,6 @@ export class GMTest extends GameMode {
 			p.y += p.move * dt;
 		}
 
-		const logger = GMTest.getLogger('game-test', LOG_LEVEL);
-		logger.debug(`y0=${this.players[0].y.toFixed(2)} dt=${dt}`);
-
-
 
 		if (produceFinish) {
 			for (const [idx, p] of this.players.entries()) {
@@ -158,12 +144,9 @@ export class GMTest extends GameMode {
 	}
 
 	override runInput(playerIdx: number, input: Fields): void {
-		const logger = GMTest.getLogger('game-test', LOG_LEVEL);
-
 		const player = this.players[playerIdx];
 		if (input.move !== undefined) {
 			player.move = input.move;
-			logger.debug(`input ${input.move} ${playerIdx}`);
 		}
 	}
 
