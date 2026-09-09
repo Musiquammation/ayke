@@ -44,8 +44,56 @@ interface PlayResults {
 
 const STORAGE_KEY_CONNECTION = "ayke_connectionKey";
 
+/* -------------------------------------------------------------------------------------------
+ * URL fragment handling.
+ *
+ * Every time MainComponent switches to a new panel, we mirror that navigation into
+ * `window.location.hash` so the URL, the browser's back/forward buttons and page reloads
+ * stay in sync with the app.
+ *
+ * There are two kinds of panels ("markers"):
+ *
+ *  1. Fragment-savable panels: the component exposes `saveFragment()` (returns a flat set of
+ *     simple, string-serializable properties) and a `static openFragment(props)` able to
+ *     rebuild an equivalent instance from those properties. These are simple enough to be
+ *     fully encoded in the URL, e.g. `#leaderboard?gamemode=foo&page=2`. Opening one of these
+ *     clears the in-memory stack (see below) since it's no longer reachable in a meaningful way.
+ *
+ *  2. Stack-based panels: everything else (panels holding live sockets, handlers, DOM state,
+ *     etc. that can't be cheaply serialized). These are kept alive in an in-memory array
+ *     (`stack`), and the URL only stores the current index: `#on-stack?position=1`. Pushing a
+ *     new stack panel while not at the end of the stack drops everything after the current
+ *     position first (the same way browser history works).
+ * ---------------------------------------------------------------------------------------- */
+
+/** Union of every possible non-null `MainComponent.panel` value. */
+type Panel = NonNullable<MainComponent["panel"]>;
+
+/** Implemented by panels simple enough to be fully described by a few string properties. */
+interface FragmentSavable {
+	saveFragment(): Record<string, string>;
+}
+
+/** The static side that must accompany a `FragmentSavable` panel's class. */
+interface FragmentSavableStatics {
+	/** Identifier used as the URL fragment name, e.g. "login" -> "#login". */
+	fragmentName: string;
+	/** Rebuilds an instance from properties previously produced by saveFragment(). */
+	openFragment(props: Record<string, string>): Panel;
+}
+
+/** Runtime check for the "type 1" marker described above. */
+function isFragmentSavable(panel: Panel): panel is Panel & FragmentSavable {
+	const ctor = panel.constructor as Partial<FragmentSavableStatics>;
+	return (
+		typeof (panel as Partial<FragmentSavable>).saveFragment === "function" &&
+		typeof ctor.openFragment === "function" &&
+		typeof ctor.fragmentName === "string"
+	);
+}
+
 class MainComponent {
-	private currentPage = "home";
+	private _currentPage = "home";
 	private templateLoader = new TemplateLoader();
 	private loadingContext = "home";
 
@@ -74,6 +122,14 @@ class MainComponent {
 	y0 = 0;
 	y1 = 0;
 
+	get currentPage() {
+		return this._currentPage;
+	}
+
+	set currentPage(value: string) {
+		this._currentPage = value;
+	}
+
 	startLoading() {
 		this.loadingContext = this.currentPage;
 		this.currentPage = "loading";
@@ -90,21 +146,25 @@ class MainComponent {
 	openHome() {
 		this.panel = new HomeComponent();
 		this.currentPage = "home";
+		pushUrlStack(this);
 	}
 
 	openTest() {
 		this.panel = null;
 		this.currentPage = "test";
+		// Debug-only page: intentionally not reflected in the URL.
 	}
 
 	openLogin() {
 		this.panel = new LoginComponent();
 		this.currentPage = "login";
+		pushUrlStack(this);
 	}
 
 	openSignin() {
 		this.panel = new SigninComponent();
 		this.currentPage = "signin";
+		pushUrlStack(this);
 	}
 
 	/**
@@ -167,11 +227,13 @@ class MainComponent {
 			this.panel = new SoloGamePanelComponent(gamemode, category, html);
 		}
 
+		pushUrlStack(this);
 	}
 
 	async openWaitPlayPanel(gamemode: string) {
 		this.panel = new WaitPlayPanelComponent(gamemode);
 		this.currentPage = "wait-play";
+		pushUrlStack(this);
 	}
 
 	openPlay() {
@@ -179,6 +241,7 @@ class MainComponent {
 		this.panel = panel.createPlay();
 		this.currentPage = "play";
 		deleteWaitingPlayHandler();
+		pushUrlStack(this);
 	}
 
 	/**
@@ -190,23 +253,35 @@ class MainComponent {
 		this.panel = playPanel.createPlayResults(results);
 		this.currentPage = "play-results";
 		deleteGameHandler();
+		pushUrlStack(this);
 	}
 
 	openSoloComponent(result: number) {
 		this.panel = new SoloPlayResultComponent(result);
 		this.currentPage = "play-solo-results";
+		pushUrlStack(this);
 	}
 
 	openTutorialInPlay(gamemode: string) {
 		this.currentPage = "play";
 		this.panel = new TutorialInplayComponent(
-			new LocalGameHandler(gamemode)
+			new LocalGameHandler(gamemode, false)
 		);
+		pushUrlStack(this);
+	}
+
+	openVsBotsInPlay(gamemode: string) {
+		this.currentPage = "play";
+		this.panel = new TutorialInplayComponent(
+			new LocalGameHandler(gamemode, true)
+		);
+		pushUrlStack(this);
 	}
 
 	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, category: string) {
 		this.panel = new SoloPlayComponent(gamemodeId, game, category);
 		this.currentPage = "play";
+		pushUrlStack(this);
 	}
 
 	openLeaderboard() {
@@ -214,6 +289,7 @@ class MainComponent {
 		this.panel = panel;
 		this.currentPage = "leaderboard";
 		panel.fetchLeaderboard();
+		pushUrlStack(this);
 	}
 
 	openSoloLeaderboard() {
@@ -221,15 +297,8 @@ class MainComponent {
 		this.panel = panel;
 		this.currentPage = "solo-leaderboard";
 		panel.fetchRecords();
+		pushUrlStack(this);
 	}
-
-	
-
-
-
-
-
-
 
 	getPanel<T>(type: new (...args: any[]) => T): T {
 		if (this.panel instanceof type) {
@@ -303,6 +372,17 @@ class GamePanelComponent {
 		dom.stopLoading();
 
 		dom.openTutorialInPlay(this.gamemode);
+	}
+
+	async againstBots() {
+		const factory = getMultiGmFactory(this.gamemode);
+
+		dom.startLoading();
+		await imageLoader.load(factory.textures, this.gamemode);
+		await dynamicCssHandler.load(this.gamemode);
+		dom.stopLoading();
+
+		dom.openVsBotsInPlay(this.gamemode);
 	}
 }
 
@@ -457,6 +537,18 @@ class PlayResultsComponent {
 }
 
 class SoloPlayResultComponent {
+	// --- Fragment-savable marker: trivial to rebuild from just the numeric result. ---
+	static readonly fragmentName = "play-solo-results";
+
+	saveFragment(): Record<string, string> {
+		return { result: String(this.result) };
+	}
+
+	static openFragment(props: Record<string, string>) {
+		return new SoloPlayResultComponent(Number(props.result));
+	}
+	// ---------------------------------------------------------------------------------
+
 	constructor(
 		readonly result: number
 	) {
@@ -470,6 +562,18 @@ class SoloPlayResultComponent {
 
 // Component handling the login form logic
 class LoginComponent {
+	// --- Fragment-savable marker: nothing to persist besides "we're on the login page". ---
+	static readonly fragmentName = "login";
+
+	saveFragment(): Record<string, string> {
+		return {};
+	}
+
+	static openFragment(_props: Record<string, string>) {
+		return new LoginComponent();
+	}
+	// -----------------------------------------------------------------------------------
+
 	pseudo = "";
 	password = "";
 	errorMessage = "";
@@ -487,6 +591,18 @@ class LoginComponent {
 
 // Component handling the account creation form logic
 class SigninComponent {
+	// --- Fragment-savable marker. ---
+	static readonly fragmentName = "signin";
+
+	saveFragment(): Record<string, string> {
+		return {};
+	}
+
+	static openFragment(_props: Record<string, string>) {
+		return new SigninComponent();
+	}
+	// --------------------------------
+
 	pseudo = "";
 	password = "";
 	errorMessage = "";
@@ -503,6 +619,18 @@ class SigninComponent {
 }
 
 class HomeComponent {
+	// --- Fragment-savable marker. ---
+	static readonly fragmentName = "home";
+
+	saveFragment(): Record<string, string> {
+		return {};
+	}
+
+	static openFragment(_props: Record<string, string>) {
+		return new HomeComponent();
+	}
+	// --------------------------------
+
 	private games: { category: string; list: any[]; }[];
 	private readonly hasMobile = hasNavigatorMobile();
 	private readonly hasMouse = hasNavigatorMouse();
@@ -578,6 +706,26 @@ class TutorialInplayComponent {
 }
 
 class LeaderboardComponent {
+	// --- Fragment-savable marker: gamemode + page fully describe this panel. ---
+	static readonly fragmentName = "leaderboard";
+
+	saveFragment(): Record<string, string> {
+		const props: Record<string, string> = { page: String(this.page) };
+		if (this.gamemode !== null) {
+			props.gamemode = this.gamemode;
+		}
+		return props;
+	}
+
+	static openFragment(props: Record<string, string>) {
+		const panel = new LeaderboardComponent();
+		panel.gamemode = props.gamemode ?? null;
+		panel.page = props.page ? Number(props.page) : 0;
+		panel.fetchLeaderboard();
+		return panel;
+	}
+	// -----------------------------------------------------------------------------
+
 	entries: { pseudo: string; trophees: number }[] = [];
 	gamemode: string | null = null;
 	page: number = 0;
@@ -630,6 +778,27 @@ class LeaderboardComponent {
 }
 
 class SoloLeaderboardComponent {
+	// --- Fragment-savable marker: gamemode + category + page fully describe this panel. ---
+	static readonly fragmentName = "solo-leaderboard";
+
+	saveFragment(): Record<string, string> {
+		return {
+			gamemode: this.gamemode,
+			category: this.category,
+			page: String(this.page)
+		};
+	}
+
+	static openFragment(props: Record<string, string>) {
+		const panel = new SoloLeaderboardComponent();
+		if (props.gamemode) panel.gamemode = props.gamemode;
+		if (props.category) panel.category = props.category;
+		panel.page = props.page ? Number(props.page) : 0;
+		panel.fetchRecords();
+		return panel;
+	}
+	// -------------------------------------------------------------------------------------
+
 	entries: { pseudo: string | null; score: number }[] = [];
 
 	gamemode: string;
@@ -733,15 +902,170 @@ class SoloLeaderboardComponent {
 	}
 }
 
+/* -------------------------------------------------------------------------------------------
+ * Fragment registry: maps a URL fragment name (e.g. "leaderboard") to the page string and the
+ * static `openFragment` used to rebuild the matching panel when the app boots on that hash, or
+ * when the user navigates back/forward to it.
+ * ---------------------------------------------------------------------------------------- */
+const fragmentRegistry = new Map<string, {
+	page: string;
+	openFragment: (props: Record<string, string>) => Panel;
+}>();
 
+function registerFragment(name: string, page: string, openFragment: (props: Record<string, string>) => Panel) {
+	fragmentRegistry.set(name, { page, openFragment });
+}
 
+registerFragment(HomeComponent.fragmentName, "home", HomeComponent.openFragment);
+registerFragment(LoginComponent.fragmentName, "login", LoginComponent.openFragment);
+registerFragment(SigninComponent.fragmentName, "signin", SigninComponent.openFragment);
+registerFragment(SoloPlayResultComponent.fragmentName, "play-solo-results", SoloPlayResultComponent.openFragment);
+registerFragment(LeaderboardComponent.fragmentName, "leaderboard", LeaderboardComponent.openFragment);
+registerFragment(SoloLeaderboardComponent.fragmentName, "solo-leaderboard", SoloLeaderboardComponent.openFragment);
 
+/** One entry of the in-memory navigation stack (for panels that can't be serialized). */
+interface StackEntry {
+	page: string;
+	panel: Panel;
+}
 
+class UrlFragmentManager {
+	/** Non-serializable panels kept alive so we can navigate back/forward to them. */
+	private stack: StackEntry[] = [];
+	/** Index of the entry currently shown; -1 when the stack is empty. */
+	private position = -1;
+	/**
+	 * The last hash value *we* applied ourselves (via push/goToPosition). Lets the
+	 * hashchange listener tell our own writes apart from a genuine user-triggered
+	 * back/forward navigation.
+	 */
+	private lastAppliedHash = "";
 
+	init() {
+		window.addEventListener("hashchange", () => this.onHashChange());
 
+		const hash = window.location.hash.slice(1);
+		if (hash) {
+			this.lastAppliedHash = hash;
+			this.restore(hash);
+		}
+	}
 
+	/**
+	 * Registers `panel` (now shown on `page`) and updates the URL fragment accordingly.
+	 * This is the single entry point called from MainComponent whenever the displayed
+	 * panel changes — see `pushUrlStack`.
+	 */
+	push(panel: Panel, page: string) {
+		if (isFragmentSavable(panel)) {
+			// Type 1 marker: the panel's state is entirely recoverable from the URL, so the
+			// stack (which only exists to let us return to non-serializable panels) is no
+			// longer reachable/needed.
+			this.stack = [];
+			this.position = -1;
 
+			const ctor = panel.constructor as unknown as FragmentSavableStatics;
+			const props = panel.saveFragment();
+			this.setHash(this.buildFragmentHash(ctor.fragmentName, props));
+			return;
+		}
 
+		// Type 2 marker: too complex to serialize. Keep the actual instance in memory and
+		// remember its position. Anything ahead of the current position becomes unreachable
+		// and is dropped first, exactly like a normal browser history stack.
+		this.stack = this.stack.slice(0, this.position + 1);
+		this.stack.push({ page, panel });
+		this.position = this.stack.length - 1;
+
+		this.setHash(`on-stack?position=${this.position}`);
+	}
+
+	/** Jump to an arbitrary position within the in-memory stack (e.g. an in-app "back" button). */
+	goToPosition(position: number) {
+		const entry = this.stack[position];
+		if (!entry) return;
+
+		this.position = position;
+		dom.panel = entry.panel;
+		dom.currentPage = entry.page;
+		this.setHash(`on-stack?position=${position}`);
+	}
+
+	private buildFragmentHash(name: string, props: Record<string, string>) {
+		const query = new URLSearchParams(props).toString();
+		return query ? `${name}?${query}` : name;
+	}
+
+	private setHash(hash: string) {
+		this.lastAppliedHash = hash;
+		window.location.hash = hash;
+	}
+
+	private onHashChange() {
+		const hash = window.location.hash.slice(1);
+
+		if (hash === this.lastAppliedHash) {
+			// We caused this change ourselves (via push/goToPosition) — already applied, skip.
+			return;
+		}
+
+		this.lastAppliedHash = hash;
+		this.restore(hash);
+	}
+
+	/**
+	 * Applies whatever page/panel a given hash describes. Used both for the initial page
+	 * load and for real back/forward navigation caught by the hashchange listener.
+	 */
+	private restore(hash: string) {
+		const [name, query] = hash.split("?");
+		const props = Object.fromEntries(new URLSearchParams(query ?? ""));
+
+		if (name === "on-stack") {
+			const position = Number(props.position);
+			const entry = this.stack[position];
+
+			if (entry) {
+				this.position = position;
+				dom.panel = entry.panel;
+				dom.currentPage = entry.page;
+			} else {
+				// Nothing in memory for this position (e.g. a fresh page reload) — there's
+				// nowhere sensible to restore to, so fall back to home.
+				dom.openHome();
+			}
+			return;
+		}
+
+		const registered = fragmentRegistry.get(name);
+		if (!registered) {
+			dom.openHome();
+			return;
+		}
+
+		this.stack = [];
+		this.position = -1;
+		dom.panel = registered.openFragment(props);
+		dom.currentPage = registered.page;
+	}
+}
+
+const urlFragmentManager = new UrlFragmentManager();
+
+/**
+ * Call this right after switching `dom.panel`/`dom.currentPage` to a new page, e.g.
+ * `pushUrlStack(this)` at the end of a MainComponent `open*` method (`this` being the
+ * MainComponent instance). Reflects the new panel into the URL fragment.
+ */
+export function pushUrlStack(main: MainComponent) {
+	if (main.panel === null) return;
+	urlFragmentManager.push(main.panel, main.currentPage);
+}
+
+/** Navigate to an arbitrary position in the in-memory navigation stack. */
+export function goToUrlStackPosition(position: number) {
+	urlFragmentManager.goToPosition(position);
+}
 
 export const dom = Alpine.reactive(new MainComponent());
 
@@ -754,4 +1078,6 @@ export function initDom() {
 	window.dom = dom;
 
 	Alpine.start();
+
+	urlFragmentManager.init();
 }

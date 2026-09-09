@@ -1,0 +1,32 @@
+import protobuf from "protobufjs";
+import { initProtocols } from "../../commons/protocolLoader";
+import { dom, initDom } from "./dom/dom";
+import { sendMessage } from "./messages/sendMessage";
+import { hasNavigatorMobile, hasNavigatorMouse } from "./dom/clientNavigatorType";
+import { resolveMobileInterface } from "./getMobile";
+
+
+declare global {
+	interface Window {
+		PROTOCOLS_FOLDER: string;
+		Capacitor: any;
+	}
+}
+
+export default function() {
+	initProtocols(async name => {
+		const response = await fetch(window.PROTOCOLS_FOLDER + name + ".proto");
+		const protoText = await response.text();
+		return protobuf.parse(protoText).root;
+	});
+	
+
+	initDom();
+
+	dom.tryLoginWithKey();
+	
+	import("../mobile/mobile").then(async m => {
+		resolveMobileInterface(await m.initMobile());
+	});
+
+}

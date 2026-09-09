@@ -1,7 +1,7 @@
 import { Fields } from "../../commons/Fields";
 import { GMSuperTicTacToe } from "../../commons/gamemods/GMSuperTicTacToe";
-import { appendBots, botActionNodeHelper } from "../Bot";
-import { getLogger } from "../Logger";
+import { botActionNodeHelper, describeBot } from "../Bot";
+import { getLogger } from "../ILogger";
 
 // Initialize dedicated debug logger for Super Tic-Tac-Toe bot execution
 const logger = getLogger('bots-superTicTacToe');
@@ -350,9 +350,7 @@ const root = (function() {
 	return all([frame]);
 })();
 
-appendBots('superTicTacToe', [
-	{root, data: dataConstructor}
-]);
+export default describeBot(
+	[{root, data: dataConstructor}]
+);
 
-
-logger.info("Bot loaded!");

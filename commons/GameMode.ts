@@ -1,4 +1,4 @@
-import type { IKeyboardController, ILogger, IMobileController, IMouseController } from "./util/controllerInterfaces";
+import type { IKeyboardController, IMobileController, IMouseController } from "./util/controllerInterfaces";
 import { Fields } from "./Fields";
 import { ImageLoader } from "./util/ImageLoader";
 import { MobileDescriptor } from "../client/src/controllers/MobileController";
@@ -16,36 +16,7 @@ interface Input {
 
 type LoggerLevel = "debug" | "info" | "waring" | "error";
 
-type LoggerGenerator = (
-	name: string,
-	level: "debug" | "info" | "waring" | "error"
-) => ILogger;
 
-const ALLOW_CLIENT_LOGS = false;
-
-let _loggerGenerator: LoggerGenerator = (name, level) => ({
-	debug(text) {
-		if (ALLOW_CLIENT_LOGS && level === 'debug')
-			console.log(`[${name.toUpperCase()}] ${text}`)
-	},	
-
-	info(text) {
-		if (ALLOW_CLIENT_LOGS && (level === 'info' || level === 'debug'))
-			console.log(`[${name.toUpperCase()}] ${text}`)
-
-	},
-
-	warning(text) {
-		if (ALLOW_CLIENT_LOGS && level !== 'error')
-			console.warn(`[${name.toUpperCase()}] ${text}`)
-	},
-
-	error(text) {
-		if (ALLOW_CLIENT_LOGS)
-			console.error(`[${name.toUpperCase()}] ${text}`)
-
-	}
-});
 
 export interface FinishGame {
 	results: number[][];
@@ -55,10 +26,6 @@ export interface FinishGame {
 
 export abstract class GameMode {
 	public static readonly MAX_DT = 0.020; // 20ms
-
-	protected static getLogger(name: string, level: LoggerLevel = 'info') {
-		return _loggerGenerator(name, level);
-	}
 
 	abstract init(): void;
 	abstract getBotIds(count: number): number[];
@@ -179,10 +146,11 @@ export abstract class GameMode {
 
 		return finish;
 	}
-}
 
-export function setGameModeLoggerGenerator(loggerGenerator: LoggerGenerator) {
-	_loggerGenerator = loggerGenerator;
+	getMobileOrientation() {
+		const {width, height} = this.getSize();
+		return width <= height ? 'portrait' : 'landscape';
+	}
 }
 
 export { IKeyboardController, IMobileController };

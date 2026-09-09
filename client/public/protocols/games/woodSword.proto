@@ -20,6 +20,7 @@ message PlayerState {
 	int32 swordsLeft = 1;
 	bool connected = 2;
 	bool isRed = 3;
+	bool throwing = 4;
 }
 
 message State {

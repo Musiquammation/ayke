@@ -88,7 +88,8 @@ body {
 	width: 100%;
 	height: 100%;
 
-	overflow: hidden;
+	overflow-x: hidden;
+	overflow-y: hidden;
 
 	background: var(--color-bg);
 	color: var(--color-text);
@@ -198,7 +199,9 @@ button.selected {
 	gap: 34px;
 
 	padding-top: clamp(24px, 5vh, 60px);
+	overflow-y: auto;
 }
+
 
 #home-page > h1 {
 	margin: 0 0 5px;
@@ -1148,7 +1151,7 @@ canvas {
    Responsive: tablets / small screens
    ============================================================ */
 
-@media (max-width: 699px) {
+@media (max-width: 500px) {
 	:root {
 		--page-padding: 14px;
 	}
@@ -1224,7 +1227,7 @@ canvas {
    Responsive: phones
    ============================================================ */
 
-@media (max-width: 480px) {
+@media (max-width: 350px) {
 	#home-page {
 		padding-top: 20px;
 	}

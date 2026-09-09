@@ -2,8 +2,8 @@
 import { Fields } from "../../commons/Fields";
 import { GMTurrets } from "../../commons/gamemods/GMTurrets";
 import { getBestInArray } from "../../commons/util/getBestInArray";
-import { appendBots, botActionNodeHelper } from "../Bot";
-import { getLogger } from "../Logger";
+import { botActionNodeHelper, describeBot } from "../Bot";
+import { getLogger } from "../ILogger";
 
 const logger = getLogger('bots-woodSword');
 // logger.setLevel('debug');
@@ -42,8 +42,10 @@ const root = (function() {
 	return all([method]);
 })();
 
-appendBots('woodSword', [
-	{root, data: dataConstructor}
-]);
 
-logger.info("Bot loaded!");
+export default describeBot(
+	[{root, data: dataConstructor}]
+);
+
+
+
