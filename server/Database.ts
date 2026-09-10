@@ -35,10 +35,6 @@ export class Database {
 	 */
 	private initializeTables(): void {
 		this.db.exec(`
-			UPDATE Progression
-SET trophees = 12
-WHERE gamemode = 'test'
-  AND user = 'test';
 			CREATE TABLE IF NOT EXISTS User (
 				pseudo TEXT PRIMARY KEY,
 				password TEXT NOT NULL
