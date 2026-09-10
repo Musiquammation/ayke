@@ -10,6 +10,7 @@ import { hasNavigatorMobile, hasNavigatorMouse } from "../dom/clientNavigatorTyp
 import { deleteGameHandler } from "./GameHandler";
 import { fullScreenHandler } from "./FullScreenHandler";
 import { Bot, generateBot } from "../../../commons/Bot";
+import Prando from "prando";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -30,8 +31,12 @@ export class LocalGameHandler {
 	// Bots controlled by the local game handler.
 	private readonly bots: Bot<GameMode, any>[];
 
-	constructor(gamemodeId: string, addBots: boolean) {
+	private readonly prando;
+
+	constructor(gamemodeId: string, addBots: boolean, seed = Math.random()) {
 		const factory = getMultiGmFactory(gamemodeId);
+		this.prando = new Prando(seed);
+		console.log("Current seed is " + Math.random());
 
 		const {game, data, html, skins} = factory.client(
 			null,
@@ -196,7 +201,8 @@ export class LocalGameHandler {
 			}
 		}
 
-		if (this.gamemode.quickEmulate(dt, true)) {
+		const rng = () => this.prando.next();
+		if (this.gamemode.quickEmulate(dt, true, rng)) {
 			// Finish
 			this.interrupted = true;
 			deleteGameHandler();
