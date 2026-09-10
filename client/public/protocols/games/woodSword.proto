@@ -34,6 +34,8 @@ message State {
 	repeated CliningSword clingingSwords = 8;
 	repeated MovingSword movingSwords = 9;
 	repeated PlayerState players = 10;
+	int32 streamId = 11;
+	int32 swordId = 12;
 }
 
 message QInput {
