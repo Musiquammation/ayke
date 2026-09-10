@@ -5,7 +5,7 @@ import { database } from "./Database";
 import { roomHandler } from "./RoomHandler";
 
 const logger = getLogger("matchmaking");
-logger.setLevel('debug');
+logger.setLevel('info');
 
 
 let _nextIdentifier = 0;
@@ -327,7 +327,7 @@ class Matchmaking {
 
 		const pseudo: string | null = connection.getPseudo();
 
-		logger.debug(`Player pseudo=${pseudo}`);
+		logger.info(`Player '${pseudo}' waits for ${gamemode}`);
 
 		let trophees: number;
 
@@ -408,6 +408,8 @@ class Matchmaking {
 			);
 
 			if (playerIndex !== -1) {
+				logger.info(`Player '${connection.getPseudo()}' stops waiting ${room.gamemode}`);
+
 				logger.debug(
 					`Connection found in room #${i} ` +
 					`at player index=${playerIndex}`
