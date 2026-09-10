@@ -200,6 +200,7 @@ message ProgressionResult {
 	string gamemode = 1;
 	int32 trophees = 2;
 	int32 bestTrophees = 3;
+	repeated int32 unlockedCollectibleIds = 4;
 }
 
 message UnlockCollectibleResult {

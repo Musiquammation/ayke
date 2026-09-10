@@ -250,8 +250,13 @@ export class Connection {
 			if (!c.pseudo) return; // trophy road only exists for authenticated users
 
 			const db = await database;
-			const { trophees, bestTrophees } = await db.getProgression(c.pseudo, d.gamemode);
-			c.sendMessage({ progressionResult: { gamemode: d.gamemode, trophees, bestTrophees } });
+			const { trophees, bestTrophees, unlockedCollectibles } = await db.getProgression(c.pseudo, d.gamemode);
+			c.sendMessage({ progressionResult: {
+				gamemode: d.gamemode,
+				trophees,
+				bestTrophees,
+				unlockedCollectibleIds: unlockedCollectibles
+			} });
 		},
 
 		async unlockCollectible(c, d: { gamemode: string; collectibleId: number }) {

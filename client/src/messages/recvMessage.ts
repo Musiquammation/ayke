@@ -127,7 +127,12 @@ const runners: Record<string, (data: any) => void> = {
 		}
 	},
 
-	progressionResult(d: { gamemode: string; trophees: number; bestTrophees: number }) {
+	progressionResult(d: {
+		gamemode: string,
+		trophees: number,
+		bestTrophees: number,
+		unlockedCollectibleIds: number[]
+	}) {
 		dom.getGamePanel().onProgressionResult(d);
 	},
 

@@ -13,6 +13,7 @@ import { SoloGameHandler } from "../handlers/SoloGameHandler";
 import { waitSkinsResponsePromise } from "../messages/recvMessage";
 import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 import { fullScreenHandler } from "../handlers/FullScreenHandler";
+import { Collectible } from "../../../commons/Collectible";
 
 declare global {
 	interface Window {
@@ -343,22 +344,33 @@ class MainComponent {
 }
 
 
+interface CollectibleItem {
+	id: number,
+	name: string,
+	trophees: number,
+	unlocked: boolean,
+	unlockable:  boolean
+}
+
 class GamePanelComponent {
 	// --- Trophy road state ---
 	trophees = 0;
 	bestTrophees = 0;
-	collectibleItems: {
-		id: number,
-		name: string,
-		trophees: number,
-		unlocked: boolean
-	}[] = [];
+	unlockedCollectibleIds: number[] | null = null;
+	collectibleItems: CollectibleItem[] = [];
+
+	// --- Trophy Road Layout Configuration ---
+	readonly pixelsPerTrophy;
+	readonly paddingStart = 60;     // Initial padding (px) before 0 trophies
+	readonly paddingEnd = 120;      // Extra padding (px) extending past the last collectible
 
 	constructor(
 		public readonly gamemode: string,
 		public readonly data: GamePanelData,
 		public readonly htmlContent: string
-	) {}
+	) {
+		this.pixelsPerTrophy = getMultiGmFactory(gamemode).tropheeRoalPixelsPerTrophy;
+	}
 
 	uses(gamemode: string) {
 		return this.gamemode === gamemode;
@@ -408,63 +420,121 @@ class GamePanelComponent {
 		const factory = getMultiGmFactory(this.gamemode);
 		if (!factory.collectibles) return;
 
-		// Placeholder list until the server answers; "unlocked" is guessed
-		// once bestTrophees is known, using each collectible's own threshold.
-		this.collectibleItems = factory.collectibles
+		if (this.unlockedCollectibleIds === null) {
+			sendMessage({ askProgression: { gamemode: this.gamemode } });
+			return;
+		}
+
+		const unlockedCollectibleIds = this.unlockedCollectibleIds;
+
+		this.collectibleItems = (
+			factory.collectibles
 			.slice()
 			.sort((a, b) => a.trophees - b.trophees)
-			.map(c => ({
-				id: c.id,
-				name: c.name,
-				trophees: c.trophees,
-				unlocked: false
-			}));
+			.map(c => {
+				const unlocked = unlockedCollectibleIds.includes(c.id);
 
-		sendMessage({ askProgression: { gamemode: this.gamemode } });
+				const unlockable = (
+					!unlocked &&
+					c.trophees <= this.bestTrophees
+				);
+
+				return {
+					id: c.id,
+					name: c.name,
+					trophees: c.trophees,
+					unlocked,
+					unlockable
+				}
+			})
+		);
+		
+
 	}
 
 	// Called from recvMessage.ts when the server answers askProgression.
-	onProgressionResult(d: { gamemode: string; trophees: number; bestTrophees: number }) {
+	onProgressionResult(d: {
+		gamemode: string,
+		trophees: number,
+		bestTrophees: number,
+		unlockedCollectibleIds: number[],
+	}) {
 		if (d.gamemode !== this.gamemode) return;
 
+		// Append trophy road data
+		
 		this.trophees = d.trophees;
 		this.bestTrophees = d.bestTrophees;
+		this.unlockedCollectibleIds = d.unlockedCollectibleIds;
+		this.initTrophyRoad();
 
-		// Client guesses which collectibles are already unlocked from bestTrophees,
-		// comparing directly against each collectible's own threshold.
-		this.collectibleItems = this.collectibleItems.map(item => ({
-			...item,
-			unlocked: d.bestTrophees >= item.trophees
-		}));
+		// Auto-scroll track to center on current progression position
+		setTimeout(() => this.scrollToCurrentProgress(), 50);
 	}
 
-	// Highest threshold on the road; used to scale the gauge. 0 if no collectibles.
+	get gamemodeName() {
+		return getGmFactory(this.gamemode).name;
+	}
+
+	// Highest trophy threshold on the road
 	get collectiblesTotal() {
 		if (this.collectibleItems.length === 0) return 0;
 		return this.collectibleItems[this.collectibleItems.length - 1].trophees;
 	}
 
-	get currentPercent() {
-		return this.collectiblesTotal === 0 ? 0 : Math.min(100, (this.trophees / this.collectiblesTotal) * 100);
+	// Total length of the track in pixels (ends slightly past the last collectible)
+	get trackWidth() {
+		return (this.collectiblesTotal * this.pixelsPerTrophy) + this.paddingEnd;
 	}
 
-	get bestPercent() {
-		return this.collectiblesTotal === 0 ? 0 : Math.min(100, (this.bestTrophees / this.collectiblesTotal) * 100);
+	// Pixel offset for current trophies
+	get currentPx() {
+		return this.trophees * this.pixelsPerTrophy;
+	}
+
+	// Pixel offset for best trophies
+	get bestPx() {
+		return this.bestTrophees * this.pixelsPerTrophy;
+	}
+
+	// Calculates horizontal pixel offset for a given trophy count
+	getItemLeftPx(trophees: number) {
+		return this.paddingStart + (trophees * this.pixelsPerTrophy);
+	}
+
+	// Smoothly scrolls the track container to center the current progress
+	scrollToCurrentProgress() {
+		const track = document.querySelector('.trophee-road-track') as HTMLElement;
+		if (!track) return;
+		const currentPosition = this.getItemLeftPx(this.trophees);
+		const targetScrollLeft = currentPosition - (track.clientWidth / 2);
+		track.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' });
 	}
 
 	// Draws a collectible's icon on its canvas. Called via x-init on the <canvas>.
-	async drawCollectibleIcon(canvas: HTMLCanvasElement, collectibleId: number) {
+	async drawCollectibleIcon(canvas: HTMLCanvasElement, item: CollectibleItem) {
 		const factory = getMultiGmFactory(this.gamemode);
-		const collectible = factory.collectibles?.find(c => c.id === collectibleId);
+		const collectible = factory.collectibles?.find(c => c.id === item.id);
 		const ctx = canvas.getContext("2d");
 		if (!collectible || !ctx) return;
-		ctx.fillStyle = "#f5cc00";
+
+		if (item.unlockable) {
+			ctx.fillStyle = "#f5cc00";
+		} else if (item.unlocked) {
+			ctx.fillStyle = "#967404";
+		} else {
+			ctx.fillStyle = "#808080";
+		}
+
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		await collectible.drawIcon(ctx, Math.max(canvas.width, canvas.height));
 	}
 
 	// Called from the "Unlock" button.
 	unlockCollectible(item: { id: number; name: string; trophees: number; unlocked: boolean }) {
+		// Guard condition: must have bestTrophees >= item.trophees to unlock
+		if (this.bestTrophees < item.trophees) return;
+
 		sendMessage({ unlockCollectible: { gamemode: this.gamemode, collectibleId: item.id } });
 	}
 
@@ -475,10 +545,14 @@ class GamePanelComponent {
 		const item = this.collectibleItems.find(i => i.id === d.collectibleId);
 		if (!item) return;
 
-		item.unlocked = true;
-		alert(`You unlocked "${item.name}"`);
-	}
+		sendMessage({ askProgression: { gamemode: this.gamemode } });
 
+		item.unlocked = true;
+
+		setTimeout(() => {
+			alert(`You unlocked "${item.name}"`);
+		});
+	}
 }
 
 class SoloGamePanelComponent {
@@ -798,7 +872,6 @@ class HomeComponent {
 		this.totalTrophees = String(d.totalTrophees);
 		this.coins = String(d.coins);
 		this.globalRank = String(d.globalRank);
-		console.log(d.totalTrophees, d.coins, d.globalRank);
 	}
 
 }

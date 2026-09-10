@@ -568,15 +568,50 @@ export class Database {
 	}
 
 	/**
-	 * Retrieves both the current and best trophee count of a player in a gamemode.
-	 * Used to build the trophy road progress bar.
+	 * Retrieves the current and best trophee count, as well as
+	 * the unlocked collectibles of a player in a gamemode.
 	 */
-	getProgression(pseudo: string, gamemode: string): Promise<{ trophees: number; bestTrophees: number }> {
+	getProgression(
+		pseudo: string,
+		gamemode: string
+	): Promise<{
+		trophees: number;
+		bestTrophees: number;
+		unlockedCollectibles: number[];
+	}> {
 		return new Promise((resolve, reject) => {
 			this.db.get<{ trophees: number; bestTrophees: number }>(
-				`SELECT trophees, bestTrophees FROM Progression WHERE user = ? AND gamemode = ?`,
+				`SELECT trophees, bestTrophees
+				FROM Progression
+				WHERE user = ? AND gamemode = ?`,
 				[pseudo, gamemode],
-				(error, row) => error ? reject(error) : resolve(row ?? { trophees: 0, bestTrophees: 0 })
+				(error, row) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+
+					this.db.all<{ collectibleId: number }>(
+						`SELECT collectibleId
+						FROM UnlockedCollectible
+						WHERE user = ? AND gamemode = ?`,
+						[pseudo, gamemode],
+						(error, rows) => {
+							if (error) {
+								reject(error);
+								return;
+							}
+
+							resolve({
+								trophees: row?.trophees ?? 0,
+								bestTrophees: row?.bestTrophees ?? 0,
+								unlockedCollectibles: rows.map(
+									row => row.collectibleId
+								)
+							});
+						}
+					);
+				}
 			);
 		});
 	}

@@ -49,6 +49,7 @@ interface MultiplayerFactory {
 	computerOnly: boolean,
 	iconExtension: string,
 	defaultPlayerCount: number,
+	tropheeRoalPixelsPerTrophy: number,
 	nodes: {
 		root: ActionNode<GameMode, any>,
 		data: (()=>any)
@@ -94,6 +95,7 @@ export const gamemods: Record<
 		tropheesPerPlayer: 2,
 		skins: [],
 		collectibles: collectibles_test,
+		tropheeRoalPixelsPerTrophy: 8,
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_test
@@ -110,6 +112,7 @@ export const gamemods: Record<
 		computerOnly: true,
 		skins: GMAirBasket.SKINS_IDS,
 		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_airbasket
@@ -126,6 +129,7 @@ export const gamemods: Record<
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'svg',
 		defaultPlayerCount: 4,
 		nodes: bots_turrets
@@ -147,6 +151,7 @@ export const gamemods: Record<
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_superTicTacToe
@@ -164,6 +169,7 @@ export const gamemods: Record<
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_roarsOnGlass
@@ -180,6 +186,7 @@ export const gamemods: Record<
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_woodSword
