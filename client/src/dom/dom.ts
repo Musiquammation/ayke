@@ -13,6 +13,7 @@ import { SoloGameHandler } from "../handlers/SoloGameHandler";
 import { waitSkinsResponsePromise } from "../messages/recvMessage";
 import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 import { fullScreenHandler } from "../handlers/FullScreenHandler";
+import { FinishGame } from "../../../commons/GameMode";
 
 declare global {
 	interface Window {
@@ -112,7 +113,7 @@ class MainComponent {
 		LoginComponent |
 		SigninComponent |
 		HomeComponent |
-		TutorialInplayComponent |
+		LocalPlayComponent |
 		LeaderboardComponent |
 		SoloLeaderboardComponent |
 		null
@@ -256,15 +257,23 @@ class MainComponent {
 		pushUrlStack(this);
 	}
 
+	openLocalPlayResults(results: FinishGame) {
+		const playPanel = this.getPanel(LocalPlayComponent);
+		this.panel = playPanel.createPlayResults(results);
+		this.currentPage = "play-results";
+		deleteGameHandler();
+		pushUrlStack(this);
+	}
+
 	openSoloComponent(result: number) {
 		this.panel = new SoloPlayResultComponent(result);
 		this.currentPage = "play-solo-results";
 		pushUrlStack(this);
 	}
 
-	openTutorialInPlay(gamemode: string) {
+	openLocalInPlay(gamemode: string) {
 		this.currentPage = "play";
-		this.panel = new TutorialInplayComponent(
+		this.panel = new LocalPlayComponent(
 			new LocalGameHandler(gamemode, false)
 		);
 		pushUrlStack(this);
@@ -272,7 +281,7 @@ class MainComponent {
 
 	openVsBotsInPlay(gamemode: string) {
 		this.currentPage = "play";
-		this.panel = new TutorialInplayComponent(
+		this.panel = new LocalPlayComponent(
 			new LocalGameHandler(gamemode, true)
 		);
 		pushUrlStack(this);
@@ -321,7 +330,7 @@ class MainComponent {
 	}
 
 	getTutorialInplayComponent() {
-		return this.getPanel(TutorialInplayComponent);
+		return this.getPanel(LocalPlayComponent);
 	}
 
 	getLeaderboardPanel() {
@@ -371,7 +380,7 @@ class GamePanelComponent {
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 
-		dom.openTutorialInPlay(this.gamemode);
+		dom.openLocalInPlay(this.gamemode);
 	}
 
 	async againstBots() {
@@ -490,6 +499,8 @@ class WaitPlayPanelComponent {
 		}
 		return new PlayComponent(pseudos, this.me);
 	}
+
+
 }
 
 class PlayComponent {
@@ -690,7 +701,7 @@ class HomeComponent {
 }
 
 
-class TutorialInplayComponent {
+class LocalPlayComponent {
 	private readonly TUTORIAL_MARKER = true;
 
 	private text = "";
@@ -702,6 +713,26 @@ class TutorialInplayComponent {
 
 	setText(text: string) {
 		this.text = text;
+	}
+
+	createPlayResults(finish: FinishGame) {
+		const users = this.game.generateBotLocalUsers();
+		const scores = Object.keys(users).map(key => ({
+			delta: 0,
+			result: -1,
+			identifier: Number(key) 
+		}));
+
+		const results: PlayResults = {
+			...finish,
+			scores
+		};
+
+		return new PlayResultsComponent(
+			results,
+			users,
+			0
+		);
 	}
 }
 

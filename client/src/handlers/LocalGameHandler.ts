@@ -1,4 +1,4 @@
-import { GameMode } from "../../../commons/GameMode";
+import { FinishGame, GameMode } from "../../../commons/GameMode";
 import { getMultiGmFactory } from "../../../commons/gamemods";
 import { Fields } from "../../../commons/Fields";
 import { keyboardController } from "../controllers/KeyboardController";
@@ -33,14 +33,17 @@ export class LocalGameHandler {
 
 	private readonly prando;
 
+	private readonly playerCount;
+
 	constructor(gamemodeId: string, addBots: boolean, seed = Math.random()) {
 		const factory = getMultiGmFactory(gamemodeId);
 		this.prando = new Prando(seed);
 		console.log("Current seed is " + Math.random());
 
+		this.playerCount = addBots ? factory.defaultPlayerCount : 2;
 		const {game, data, html, skins} = factory.client(
 			null,
-			addBots ? factory.defaultPlayerCount : 2,
+			this.playerCount,
 			0
 		);
 		const gameHtml = document.getElementById("game-html")!;
@@ -202,16 +205,33 @@ export class LocalGameHandler {
 		}
 
 		const rng = () => this.prando.next();
-		if (this.gamemode.quickEmulate(dt, true, rng)) {
-			// Finish
-			this.interrupted = true;
-			deleteGameHandler();
-			dom.openHome();
+		const finish = this.gamemode.quickEmulate(dt, true, rng);
+		if (finish) {
+			this.finishGame(finish);
 			return;
 		}
 
 		this.draw(dt);
 
 		requestAnimationFrame(() => this.frame());
+	}
+
+	private finishGame(finish: FinishGame) {
+		this.interrupted = true;
+		deleteGameHandler();
+		dom.openLocalPlayResults(finish);
+	}
+
+
+	generateBotLocalUsers() {
+		const pseudos: Record<number, string> = {};
+		pseudos[0] = "You";
+
+		for (let i = 1; i < this.playerCount; i++) {
+			pseudos[i] = "bot #" + i;
+		}
+
+		return pseudos;
+
 	}
 }

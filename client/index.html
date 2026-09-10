@@ -145,10 +145,10 @@
 								</span>
 
 								<!-- Display trophies score -->
-								<span class="player-score" x-text="score.result"></span>
+								<span class="player-score" x-text="score.result < 0 ? '' : score.result"></span>
 
 								<!-- Display score variation (delta) -->
-								<span class="player-delta" x-text="(score.delta > 0 ? '+' : '') + score.delta"></span>
+								<span class="player-delta" x-text="(score.delta >= 0 ? '+' : '') + score.delta"></span>
 							</div>
 						</template>
 					</div>

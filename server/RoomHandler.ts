@@ -336,7 +336,7 @@ export class Room {
 
 			const scores: number[] = Array.from({
 				length: this.players.length
-			}, ()=>0);
+			}, ()=>-1);
 
 			const rawResults = await db.giveTrophees(this.gamemodeId, deltas);
 			for (const r of rawResults) {
@@ -374,7 +374,7 @@ export class Room {
 	
 				scores: this.players.map((p, idx) => ({
 					delta: trophees[idx],
-					result: scores[idx],
+					result: idx >= scores.length ? -1 : scores[idx],
 					identifier: p.identifier,
 				}))
 			}
