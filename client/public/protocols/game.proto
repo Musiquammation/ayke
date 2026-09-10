@@ -19,6 +19,9 @@ message ClientMessage {
 		SoloRunInputs soloRunInputs = 11;
 		AskSoloRecords askSoloRecords = 12;
 		string askSkins = 13;
+		AskProgression askProgression = 14;
+		UnlockCollectible unlockCollectible = 15;
+		Empty askAccountInfo = 16;
 	}
 }
 
@@ -64,6 +67,16 @@ message SoloRunInputs {
 	repeated bytes inputs = 4;
 }
 
+message AskProgression {
+	string gamemode = 1;
+}
+
+message UnlockCollectible {
+	string gamemode = 1;
+	int32 collectibleId = 2;
+}
+
+
 
 
 
@@ -91,6 +104,10 @@ message ServerMessage {
 		LeaderboardResult leaderboardResult = 12;
 		SoloRecords soloRecords = 13;
 		SkinsResponse skinsResponse = 14;
+		ProgressionResult progressionResult = 15;
+		UnlockCollectibleResult unlockCollectibleResult = 16;
+		AccountInfoResult accountInfoResult = 17;
+
 	}
 }
 
@@ -177,4 +194,22 @@ message SoloRecords {
 
 message SkinsResponse {
 	repeated string skins = 1;
+}
+
+message ProgressionResult {
+	string gamemode = 1;
+	int32 trophees = 2;
+	int32 bestTrophees = 3;
+}
+
+message UnlockCollectibleResult {
+	bool success = 1;
+	int32 collectibleId = 2;
+	string gamemode = 3;
+}
+
+message AccountInfoResult {
+	int32 totalTrophees = 1;
+	int32 coins = 2;
+	int32 globalRank = 3;
 }

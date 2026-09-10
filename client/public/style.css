@@ -1302,3 +1302,110 @@ canvas {
 	width: 220px;
 	flex-shrink: 0;
 }
+
+
+
+
+
+/* Root container */
+.trophee-road {
+	width: 100%;
+	overflow: hidden;
+}
+
+/* The x-scrollable track */
+.trophee-road > div {
+	display: flex;
+	align-items: center;
+	gap: 32px;
+	overflow-x: auto;
+	position: relative;
+	padding: 24px 16px;
+}
+
+.trophee-road > div > div.collectible-to-unlock {
+	margin-top: 30px;
+}
+
+/* Gauge wrapper: first child of the scrollable track, spans full width,
+   sits behind the collectible items */
+.trophee-road > div > div:first-child {
+	position: absolute;
+	left: 16px;
+	right: 16px;
+	top: 50%;
+	height: 8px;
+	transform: translateY(-50%);
+	background: #808080; /* gray background */
+	border-radius: 4px;
+	z-index: 0;
+}
+
+/* Dark-yellow fill: between trophees and bestTrophees */
+.trophee-road > div > div:first-child > div:nth-child(1) {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	background: #b8960b; /* dark yellow */
+	border-radius: 4px;
+}
+
+/* Yellow fill: current trophees, drawn on top of the dark-yellow layer */
+.trophee-road > div > div:first-child > div:nth-child(2) {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	background: #f5cc00; /* yellow */
+	border-radius: 4px;
+}
+
+/* Each collectible item */
+.trophee-road > div > div:not(:first-child) {
+	position: relative;
+	z-index: 1;
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+}
+
+/* The circle holding the canvas icon */
+.trophee-road > div > div:not(:first-child) > div {
+	width: 64px;
+	height: 64px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f5cc00; /* not unlocked yet: yellow */
+	box-shadow: 0 0 0 2px #808080 inset;
+}
+
+/* Already unlocked: dark yellow background */
+.trophee-road > div > div[data-unlocked="true"] > div {
+	background: #b8960b;
+}
+
+.trophee-road > div > div:not(:first-child) canvas {
+	width: 40px;
+	height: 40px;
+	transform: translate(12px, 12px);
+}
+
+/* Unlock button */
+.trophee-road > div > div:not(:first-child) > button {
+	border: none;
+	border-radius: 4px;
+	padding: 4px 10px;
+	background: #b8960b;
+	color: white;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.trophee-road > div > div:not(:first-child) > button:hover {
+	filter: brightness(1.1);
+}

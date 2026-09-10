@@ -20,14 +20,30 @@
 						<template x-if="isAuthenticated">
 							<div>
 								<div>
-									<span>Connected as</span>
-									<i x-text="pseudo"></i>
+									<div>
+										<span>Connected as</span>
+										<i x-text="pseudo"></i>
+									</div>
+									<div x-data="panel">
+										<span>
+											<span x-text="totalTrophees"></span>
+											<span> trophees</span>
+										</span>
+
+										<span>
+											<span x-text="coins"></span>
+											<span> coins</span>
+										</span>
+
+										<span>
+											<span>Rank #</span>
+											<span x-text="globalRank"></span>
+										</span>
+									</div>
 								</div>
 								<button @pointerup="disconnect()">Disconnect</button>
 							</div>
-
 						</template>
-
 						<template x-if="!isAuthenticated">
 							<div>
 								<button @pointerup="openLogin()">Login</button>
@@ -78,8 +94,26 @@
 
 			<template x-if="uses('game-panel')">
 				<div id="test-page" class="page" x-data="panel">
+					<div class="trophee-road" x-show="isAuthenticated" x-init="initTrophyRoad()">
+						<div>
+							<div>
+								<div x-bind:style="`width:${bestPercent}%`"></div>
+								<div x-bind:style="`width:${currentPercent}%`"></div>
+							</div>
+							<template x-for="item in collectibleItems" :key="item.id">
+								<div x-bind:data-unlocked="item.unlocked" :class="{ 'collectible-to-unlock': !item.unlocked }">
+									<div>
+										<canvas width="40" height="40" x-init="drawCollectibleIcon($el, item.id)"></canvas>
+									</div>
+									<button x-show="!item.unlocked" @pointerup="unlockCollectible(item)">Unlock</button>
+								</div>
+							</template>
+						</div>
+					</div>
+					
 					<h1 x-text="gamemode"></h1>
 					<div x-ref="gamePanel" x-html="htmlContent"></div>
+
 					<div class="footer">
 						<button class="play-btn" @pointerup="play()">Play</button>
 						<template x-if="typeof tutorial === 'function'">

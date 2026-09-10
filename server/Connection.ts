@@ -6,8 +6,10 @@ import { matchmaking } from "./Matchmaking";
 import { Room, roomHandler } from "./RoomHandler";
 import { Fields } from "../commons/Fields";
 import { evalSoloRunScore } from "./evalSoloRunScore";
-import { getSoloGmFactory } from "../commons/gamemods";
+import { getMultiGmFactory, getSoloGmFactory } from "../commons/gamemods";
 import { getLogger } from "../commons/ILogger";
+import { COLLECTIBLE_APPLIES } from "./COLLECTIBLE_APPLIES";
+import { CollectibleApplyKey } from "../commons/Collectible";
 
 const logger = getLogger('connection');
 // logger.setLevel('debug');
@@ -242,7 +244,56 @@ export class Connection {
 				console.error("Failed to fetch unlocked skins:", error);
 				c.sendError(3, "Failed to retrieve unlocked kins");
 			}
+		},
 
+		async askProgression(c, d: { gamemode: string }) {
+			if (!c.pseudo) return; // trophy road only exists for authenticated users
+
+			const db = await database;
+			const { trophees, bestTrophees } = await db.getProgression(c.pseudo, d.gamemode);
+			c.sendMessage({ progressionResult: { gamemode: d.gamemode, trophees, bestTrophees } });
+		},
+
+		async unlockCollectible(c, d: { gamemode: string; collectibleId: number }) {
+			if (!c.pseudo) return;
+
+			const factory = getMultiGmFactory(d.gamemode);
+			const collectible = factory?.collectibles?.find(col => col.id === d.collectibleId);
+			if (!collectible) return; // unknown gamemode/collectible: silently ignore
+			
+			const db = await database;
+			const already = await db.hasUnlocked(c.pseudo, d.gamemode, d.collectibleId);
+			if (already) {
+				c.sendMessage({ unlockCollectibleResult: {
+					success: false,
+					collectibleId: d.collectibleId,
+					gamemode: d.gamemode
+				} });
+				
+				return;
+			}
+
+			const applyFn = COLLECTIBLE_APPLIES[collectible.apply as CollectibleApplyKey];
+			if (!applyFn) {
+				// Misconfigured apply key: refuse instead of unlocking a reward
+				// that can never be granted.
+				c.sendMessage({ unlockCollectibleResult: { success: false,
+					collectibleId: d.collectibleId,
+					gamemode: d.gamemode } });
+				return;
+			}
+
+			await db.unlockCollectible(c.pseudo, d.gamemode, d.collectibleId);
+			await applyFn(c.pseudo, db);
+
+			c.sendMessage({ unlockCollectibleResult: { success: true, collectibleId: d.collectibleId, gamemode: d.gamemode } });
+		},
+
+		async askAccountInfo(c, _d) {
+			if (!c.pseudo) return;
+			const db = await database;
+			const summary = await db.getAccountSummary(c.pseudo);
+			c.sendMessage({ accountInfoResult: summary });
 		}
 	};
 

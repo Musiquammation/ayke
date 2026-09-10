@@ -332,10 +332,28 @@ class MainComponent {
 		return this.getPanel(SoloLeaderboardComponent);
 	}
 
+	getGamePanel() {
+		return this.getPanel(GamePanelComponent);
+	}
+
+	getHomePanel() {
+		return this.getPanel(HomeComponent);
+	}
+
 }
 
 
 class GamePanelComponent {
+	// --- Trophy road state ---
+	trophees = 0;
+	bestTrophees = 0;
+	collectibleItems: {
+		id: number,
+		name: string,
+		trophees: number,
+		unlocked: boolean
+	}[] = [];
+
 	constructor(
 		public readonly gamemode: string,
 		public readonly data: GamePanelData,
@@ -384,6 +402,83 @@ class GamePanelComponent {
 
 		dom.openVsBotsInPlay(this.gamemode);
 	}
+
+	// Called by x-init when the trophy road mounts (only if authenticated).
+	initTrophyRoad() {
+		const factory = getMultiGmFactory(this.gamemode);
+		if (!factory.collectibles) return;
+
+		// Placeholder list until the server answers; "unlocked" is guessed
+		// once bestTrophees is known, using each collectible's own threshold.
+		this.collectibleItems = factory.collectibles
+			.slice()
+			.sort((a, b) => a.trophees - b.trophees)
+			.map(c => ({
+				id: c.id,
+				name: c.name,
+				trophees: c.trophees,
+				unlocked: false
+			}));
+
+		sendMessage({ askProgression: { gamemode: this.gamemode } });
+	}
+
+	// Called from recvMessage.ts when the server answers askProgression.
+	onProgressionResult(d: { gamemode: string; trophees: number; bestTrophees: number }) {
+		if (d.gamemode !== this.gamemode) return;
+
+		this.trophees = d.trophees;
+		this.bestTrophees = d.bestTrophees;
+
+		// Client guesses which collectibles are already unlocked from bestTrophees,
+		// comparing directly against each collectible's own threshold.
+		this.collectibleItems = this.collectibleItems.map(item => ({
+			...item,
+			unlocked: d.bestTrophees >= item.trophees
+		}));
+	}
+
+	// Highest threshold on the road; used to scale the gauge. 0 if no collectibles.
+	get collectiblesTotal() {
+		if (this.collectibleItems.length === 0) return 0;
+		return this.collectibleItems[this.collectibleItems.length - 1].trophees;
+	}
+
+	get currentPercent() {
+		return this.collectiblesTotal === 0 ? 0 : Math.min(100, (this.trophees / this.collectiblesTotal) * 100);
+	}
+
+	get bestPercent() {
+		return this.collectiblesTotal === 0 ? 0 : Math.min(100, (this.bestTrophees / this.collectiblesTotal) * 100);
+	}
+
+	// Draws a collectible's icon on its canvas. Called via x-init on the <canvas>.
+	async drawCollectibleIcon(canvas: HTMLCanvasElement, collectibleId: number) {
+		const factory = getMultiGmFactory(this.gamemode);
+		const collectible = factory.collectibles?.find(c => c.id === collectibleId);
+		const ctx = canvas.getContext("2d");
+		if (!collectible || !ctx) return;
+		ctx.fillStyle = "#f5cc00";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		await collectible.drawIcon(ctx, Math.max(canvas.width, canvas.height));
+	}
+
+	// Called from the "Unlock" button.
+	unlockCollectible(item: { id: number; name: string; trophees: number; unlocked: boolean }) {
+		sendMessage({ unlockCollectible: { gamemode: this.gamemode, collectibleId: item.id } });
+	}
+
+	// Called from recvMessage.ts when the server answers unlockCollectible.
+	onUnlockResult(d: { success: boolean; collectibleId: number; gamemode: string }) {
+		if (d.gamemode !== this.gamemode || !d.success) return;
+
+		const item = this.collectibleItems.find(i => i.id === d.collectibleId);
+		if (!item) return;
+
+		item.unlocked = true;
+		alert(`You unlocked "${item.name}"`);
+	}
+
 }
 
 class SoloGamePanelComponent {
@@ -634,6 +729,9 @@ class HomeComponent {
 	private games: { category: string; list: any[]; }[];
 	private readonly hasMobile = hasNavigatorMobile();
 	private readonly hasMouse = hasNavigatorMouse();
+	totalTrophees = "(?)";
+	coins = "(?)";
+	globalRank = "(?)";
 
 	constructor() {
 		this.games = [];
@@ -663,6 +761,8 @@ class HomeComponent {
 				name: gamemode.name
 			});
 		}
+
+		this.refreshAccountInfo();
 	}
 
 	getImageSrc(gamemode: string) {
@@ -687,6 +787,20 @@ class HomeComponent {
 
 		dom.openGamePanel(gamemode);
 	}
+
+	refreshAccountInfo() {
+		if (_internalDom && !_internalDom.isAuthenticated) return;
+		sendMessage({ askAccountInfo: {} });
+	}
+
+	// Called from recvMessage.ts when the server answers askAccountInfo.
+	onAccountInfo(d: { totalTrophees: number; coins: number; globalRank: number }) {
+		this.totalTrophees = String(d.totalTrophees);
+		this.coins = String(d.coins);
+		this.globalRank = String(d.globalRank);
+		console.log(d.totalTrophees, d.coins, d.globalRank);
+	}
+
 }
 
 
@@ -1067,7 +1181,12 @@ export function goToUrlStackPosition(position: number) {
 	urlFragmentManager.goToPosition(position);
 }
 
+let _internalDom: any = null;
+
+
 export const dom = Alpine.reactive(new MainComponent());
+
+_internalDom = dom;
 
 export function initDom() {
 	document.addEventListener("alpine:init", () => {
