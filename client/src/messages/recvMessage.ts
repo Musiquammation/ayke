@@ -2,7 +2,7 @@ import { getGameHandler, setGameHandler } from "../handlers/GameHandler";
 import { sendMessage } from "./sendMessage";
 import { getWaitingPlayHandler, setWaitingPlayHandler } from "../handlers/WaitingPlayHandler"
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
-import { unflattenPositiveArrays } from "../../../commons/util/flattenArrays";
+import { unflattenArrays } from "../../../commons/util/flattenArrays";
 import { dom } from "../dom/dom";
 
 
@@ -96,7 +96,7 @@ const runners: Record<string, (data: any) => void> = {
 
 	finishGame(d) {
 		d = decodeFullMessage(d);
-		d.results = unflattenPositiveArrays(d.results, -2);
+		d.results = unflattenArrays(d.results, -2);
 		dom.openPlayResults(d);
 	},
 
@@ -125,6 +125,23 @@ const runners: Record<string, (data: any) => void> = {
 			skinsResponseResolve(d.skins);
 			skinsResponseResolve = null;
 		}
+	},
+
+	progressionResult(d: {
+		gamemode: string,
+		trophees: number,
+		bestTrophees: number,
+		unlockedCollectibleIds: number[]
+	}) {
+		dom.getGamePanel().onProgressionResult(d);
+	},
+
+	unlockCollectibleResult(d: { success: boolean; collectibleId: number; gamemode: string }) {
+		dom.getGamePanel().onUnlockResult(d);
+	},
+
+	accountInfoResult(d: { totalTrophees: number; coins: number; globalRank: number }) {
+		dom.getHomePanel().onAccountInfo(d);
 	}
 };
 

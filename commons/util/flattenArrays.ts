@@ -11,7 +11,7 @@ export function flattenArrays(arrays: number[][], forbidden=-0x80000000): number
 	return result;
 }
 
-export function unflattenPositiveArrays(values: number[], forbidden=-0x80000000): number[][] {
+export function unflattenArrays(values: number[], forbidden=-0x80000000): number[][] {
 	const result: number[][] = [[]];
 
 	for (const value of values) {

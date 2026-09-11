@@ -2,6 +2,7 @@ import type { IKeyboardController, IMobileController, IMouseController } from ".
 import { Fields } from "./Fields";
 import { ImageLoader } from "./util/ImageLoader";
 import { MobileDescriptor } from "../client/src/controllers/MobileController";
+import { GameRandomGenerator } from "./util/GameRandomGenerator";
 
 
 interface TutorialData {
@@ -34,7 +35,11 @@ export abstract class GameMode {
 
 	abstract init(): void;
 	abstract getBotIds(count: number): number[];
-	protected abstract run(dt: number, produceFinish: boolean): FinishGame | null;
+	protected abstract run(
+		dt: number,
+		produceFinish: boolean,
+		rng: GameRandomGenerator | null
+	): FinishGame | null;
 	abstract runInput(playerIdx: number, input: Fields): void;
 	abstract collectInputs(
 		keyboard: IKeyboardController,
@@ -66,14 +71,18 @@ export abstract class GameMode {
 
 	abstract createTutorial(): TutorialData;
 
-	quickEmulate(duration: number, produceFinish: boolean = false) {
+	quickEmulate(
+		duration: number,
+		produceFinish: boolean = false,
+		rng: GameRandomGenerator | null
+	) {
 		while (duration > GameMode.MAX_DT) {
-			const f = this.run(GameMode.MAX_DT, produceFinish);
+			const f = this.run(GameMode.MAX_DT, produceFinish, rng);
 			if (f && produceFinish) {return f;}
 			duration -= GameMode.MAX_DT;
 		}
 
-		return this.run(duration, produceFinish);
+		return this.run(duration, produceFinish, rng);
 	}
 
 	/**
@@ -94,6 +103,7 @@ export abstract class GameMode {
 		start: number,
 		finish: number | (()=>number),
 		inputs: Input[],
+		rng: GameRandomGenerator | null,
 		preprocess?: ((timestamp: number) => Input[]),
 		finishGame?: (finish: FinishGame)=>void
 	) {
@@ -117,7 +127,12 @@ export abstract class GameMode {
 				}
 			}
 
-			const f = this.quickEmulate(duration, finishGame ? true:false);
+			const f = this.quickEmulate(
+				duration,
+				finishGame ? true:false,
+				rng
+			);
+
 			if (f && finishGame) {
 				finishGame(f);
 				return inputTimestamp;
@@ -144,7 +159,11 @@ export abstract class GameMode {
 			}
 		}
 
-		const f = this.quickEmulate(duration, finishGame ? true:false);
+		const f = this.quickEmulate(
+			duration,
+			finishGame ? true:false,
+			rng
+		);
 		if (f && finishGame) {
 			finishGame(f);
 		}

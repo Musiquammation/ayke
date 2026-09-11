@@ -8,6 +8,7 @@ import {
 	IMouseController
 } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
+import { GameRandomGenerator } from "../util/GameRandomGenerator";
 import { ImageLoader } from "../util/ImageLoader";
 
 /*
@@ -100,23 +101,174 @@ const TRUNK_ACCEL = 3;
 /*
  * Number of swords given to each player at the beginning of a round.
  */
-const SWORDS_STREAM = [10];
-
-/*
- * Predefined trunk movement sequence.
- *
- * Each entry specifies the angular speed that should be targeted
- * starting from the associated timestamp.
- *
- * The sequence loops indefinitely.
- */
-const TRUNK_STREAM = [
-	{ speed: 2, timestamp: 0 },
-	{ speed: -1.5, timestamp: 3 },
-	{ speed: 3, timestamp: 5 },
-	{ speed: 0, timestamp: 7 }
+const SWORDS_STREAM = [
+	7, 11, 5, 9, 12, 8, 6, 10, 5, 11,
+	8, 12, 7, 9, 6, 10, 8, 5, 12, 11,
+	9, 7, 10, 6, 8, 12, 5, 9, 11, 7,
+	10, 8, 6, 12, 9, 5, 11, 7, 10, 8,
+	12, 6, 9, 11, 5, 7, 10, 8, 6, 12
 ];
 
+/**
+ * Predefined trunk movement sequences.
+ */
+const TRUNK_STREAM = [
+	[
+		{ speed: 1, timestamp: 0 },
+		{ speed: 5, timestamp: 0.5 },
+		{ speed: -2, timestamp: 2 },
+		{ speed: 3, timestamp: 3.5 },
+		{ speed: 0, timestamp: 5 }
+	],
+	[
+		{ speed: -1, timestamp: 0 },
+		{ speed: -5, timestamp: 0.4 },
+		{ speed: 2, timestamp: 1.8 },
+		{ speed: -3, timestamp: 3 },
+		{ speed: 0, timestamp: 5 }
+	],
+	[
+		{ speed: 1.5, timestamp: 0 },
+		{ speed: 6, timestamp: 0.6 },
+		{ speed: 4, timestamp: 1.5 },
+		{ speed: -3, timestamp: 2.8 },
+		{ speed: 2, timestamp: 4 },
+		{ speed: -8, timestamp: 5.5 },
+		{ speed: 0, timestamp: 8 }
+	],
+	[
+		{ speed: -1.5, timestamp: 0 },
+		{ speed: -6, timestamp: 0.5 },
+		{ speed: -2, timestamp: 1.5 },
+		{ speed: 4, timestamp: 2.5 },
+		{ speed: -1, timestamp: 4 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: 0.5, timestamp: 0 },
+		{ speed: 7, timestamp: 0.35 },
+		{ speed: -4, timestamp: 1.5 },
+		{ speed: 5, timestamp: 2.5 },
+		{ speed: -2, timestamp: 3.5 },
+		{ speed: 0, timestamp: 5 }
+	],
+	[
+		{ speed: -0.5, timestamp: 0 },
+		{ speed: -7, timestamp: 0.4 },
+		{ speed: 3, timestamp: 1.3 },
+		{ speed: -5, timestamp: 2.4 },
+		{ speed: 2, timestamp: 3.8 },
+		{ speed: 0, timestamp: 5 }
+	],
+	[
+		{ speed: 2, timestamp: 0 },
+		{ speed: 8, timestamp: 0.5 },
+		{ speed: 6, timestamp: 1.2 },
+		{ speed: -4, timestamp: 2.5 },
+		{ speed: -6, timestamp: 3.2 },
+		{ speed: 3, timestamp: 4.2 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: -2, timestamp: 0 },
+		{ speed: -8, timestamp: 0.45 },
+		{ speed: -5, timestamp: 1.2 },
+		{ speed: 4, timestamp: 2.3 },
+		{ speed: 7, timestamp: 3 },
+		{ speed: -2, timestamp: 4.2 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: 1, timestamp: 0 },
+		{ speed: 5, timestamp: 0.3 },
+		{ speed: -5, timestamp: 1.2 },
+		{ speed: 6, timestamp: 2 },
+		{ speed: -4, timestamp: 3 },
+		{ speed: 3, timestamp: 4 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: -1, timestamp: 0 },
+		{ speed: -5, timestamp: 0.35 },
+		{ speed: 5, timestamp: 1.3 },
+		{ speed: -6, timestamp: 2.1 },
+		{ speed: 4, timestamp: 3 },
+		{ speed: -3, timestamp: 4.1 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: 1, timestamp: 0 },
+		{ speed: 9, timestamp: 0.5 },
+		{ speed: 2, timestamp: 1.5 },
+		{ speed: -7, timestamp: 2.5 },
+		{ speed: 5, timestamp: 3.5 },
+		{ speed: 0, timestamp: 5 }
+	],
+	[
+		{ speed: -1, timestamp: 0 },
+		{ speed: -9, timestamp: 0.45 },
+		{ speed: -2, timestamp: 1.5 },
+		{ speed: 7, timestamp: 2.5 },
+		{ speed: -5, timestamp: 3.5 },
+		{ speed: 0, timestamp: 5 }
+	],
+	[
+		{ speed: 2, timestamp: 0 },
+		{ speed: 6, timestamp: 0.4 },
+		{ speed: -1, timestamp: 1.2 },
+		{ speed: -6, timestamp: 2 },
+		{ speed: 4, timestamp: 3 },
+		{ speed: 2, timestamp: 4 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: -2, timestamp: 0 },
+		{ speed: -6, timestamp: 0.4 },
+		{ speed: 1, timestamp: 1.2 },
+		{ speed: 6, timestamp: 2 },
+		{ speed: -4, timestamp: 3 },
+		{ speed: -2, timestamp: 4 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: 0.5, timestamp: 0 },
+		{ speed: 8, timestamp: 0.3 },
+		{ speed: -3, timestamp: 1 },
+		{ speed: 6, timestamp: 1.8 },
+		{ speed: -6, timestamp: 2.8 },
+		{ speed: 4, timestamp: 3.8 },
+		{ speed: -2, timestamp: 4.6 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: -0.5, timestamp: 0 },
+		{ speed: -8, timestamp: 0.3 },
+		{ speed: 3, timestamp: 1 },
+		{ speed: -6, timestamp: 1.8 },
+		{ speed: 6, timestamp: 2.8 },
+		{ speed: -4, timestamp: 3.8 },
+		{ speed: 8, timestamp: 4.6 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: 1, timestamp: 0 },
+		{ speed: 10, timestamp: 0.5 },
+		{ speed: 8, timestamp: 1.2 },
+		{ speed: 5, timestamp: 2 },
+		{ speed: -5, timestamp: 3 },
+		{ speed: -2, timestamp: 4 },
+		{ speed: 0, timestamp: 5.5 }
+	],
+	[
+		{ speed: -1, timestamp: 0 },
+		{ speed: -10, timestamp: 0.5 },
+		{ speed: -8, timestamp: 1.2 },
+		{ speed: -5, timestamp: 2 },
+		{ speed: 5, timestamp: 3 },
+		{ speed: 0.4, timestamp: 4 },
+		{ speed: 0, timestamp: 5.1 }
+	]
+];
 /*
  * Represents a sword that has reached the trunk and is now attached
  * to it.
@@ -421,6 +573,7 @@ export class GMWoodSword extends GameMode {
 	 */
 	readonly players: Player[];
 
+
 	/*
 	 * Current score of each team.
 	 */
@@ -464,6 +617,16 @@ export class GMWoodSword extends GameMode {
 	private nextSwordId = 1;
 
 	/*
+	 * Currently selected ID for the trunk movement sequence.
+	 */
+	streamId = 0;
+
+	/*
+	 * Currently selected ID for the initial sword count.
+	 */
+	swordId = 0;
+
+	/*
 	 * Private constructor used internally by createServ/createClient.
 	 */
 	private constructor(total: number) {
@@ -501,8 +664,8 @@ export class GMWoodSword extends GameMode {
 		/*
 		 * Give both players the configured initial number of swords.
 		 */
-		game.players[0].swordsLeft = SWORDS_STREAM[0];
-		game.players[1].swordsLeft = SWORDS_STREAM[0];
+		game.players[0].swordsLeft = SWORDS_STREAM[game.swordId];
+		game.players[1].swordsLeft = SWORDS_STREAM[game.swordId];
 
 		/*
 		 * Serialize the initial player information that the client
@@ -617,7 +780,8 @@ export class GMWoodSword extends GameMode {
 	 */
 	override run(
 		dt: number,
-		produceFinish: boolean
+		produceFinish: boolean,
+		rng: GameRandomGenerator | null
 	): FinishGame | null {
 		/*
 		 * ================================================================
@@ -663,28 +827,23 @@ export class GMWoodSword extends GameMode {
 		this.trunkStreamTime += dt;
 
 		/*
+		 * Fetch the currently selected stream.
+		 */
+		const currentTrunkStream = TRUNK_STREAM[this.streamId];
+
+		/*
 		 * The final timestamp defines the duration of one complete cycle.
 		 */
 		const cycleLength =
-			TRUNK_STREAM[TRUNK_STREAM.length - 1].timestamp;
+			currentTrunkStream[currentTrunkStream.length - 1].timestamp;
 
-		/*
-		 * Wrap the stream time so that the movement repeats indefinitely.
-		 */
 		const t = this.trunkStreamTime % cycleLength;
 
-		/*
-		 * Determine the angular speed currently requested by the stream.
-		 */
 		let targetSpeed = 0;
 
-		/*
-		 * Search backwards so that the most recent stream event
-		 * before the current timestamp is selected.
-		 */
-		for (let i = TRUNK_STREAM.length - 2; i >= 0; i--) {
-			if (t >= TRUNK_STREAM[i].timestamp) {
-				targetSpeed = TRUNK_STREAM[i].speed;
+		for (let i = currentTrunkStream.length - 2; i >= 0; i--) {
+			if (t >= currentTrunkStream[i].timestamp) {
+				targetSpeed = currentTrunkStream[i].speed;
 				break;
 			}
 		}
@@ -853,6 +1012,9 @@ export class GMWoodSword extends GameMode {
 		 * Decrease the remaining round time.
 		 */
 		this.roundTimer -= dt;
+		if (this.roundTimer <= 0) {
+			this.roundTimer = 0;
+		}
 
 		/*
 		 * The round is considered "all out" when:
@@ -891,17 +1053,19 @@ export class GMWoodSword extends GameMode {
 				}
 			}
 
-			/*
-			 * Award one point to the team with the most attached swords.
-			 *
-			 * Equal counts result in no score change.
-			 */
-			if (redCount > blueCount) {
-				this.redScore++;
-			}
-
-			if (blueCount > redCount) {
-				this.blueScore++;
+			if (rng) {
+				/*
+				 * Award one point to the team with the most attached swords.
+				 *
+				 * Equal counts result in no score change.
+				 */
+				if (redCount > blueCount) {
+					this.redScore++;
+				}
+	
+				if (blueCount > redCount) {
+					this.blueScore++;
+				}
 			}
 
 			/*
@@ -921,24 +1085,32 @@ export class GMWoodSword extends GameMode {
 				/*
 				 * Start a new round.
 				 */
-				this.roundTimer = ROUND_TIME;
 
-				this.clingingSwords = [];
-				this.movingSwords = [];
+				if (rng) {
+					this.roundTimer = ROUND_TIME;
 
-				/*
-				 * Reset the trunk to its initial state.
-				 */
-				this.trunkAngle = 0;
-				this.trunkSpeed = 0;
-				this.trunkStreamTime = 0;
+					this.clingingSwords = [];
+					this.movingSwords = [];
 
-				/*
-				 * Refill both players' sword supplies.
-				 */
-				for (const p of this.players) {
-					p.swordsLeft = SWORDS_STREAM[0];
+					/*
+					* Reset the trunk to its initial state.
+					*/
+					this.trunkAngle = 0;
+					this.trunkSpeed = 0;
+					this.trunkStreamTime = 0;
+
+					// Use rng() to get a float between 0 and 1
+					this.streamId = Math.floor((rng as any)() * TRUNK_STREAM.length);
+					this.swordId = Math.floor((rng as any)() * SWORDS_STREAM.length);
+
+					/*
+					 * Refill both players' sword supplies using the selected sword stream.
+					 */
+					for (const p of this.players) {
+						p.swordsLeft = SWORDS_STREAM[this.swordId];
+					}
 				}
+
 			}
 		}
 

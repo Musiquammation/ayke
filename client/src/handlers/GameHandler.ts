@@ -102,7 +102,8 @@ class GameHandler {
 		this.gamemode.emulate(
 			msg.timestamp,
 			now,
-			inputs
+			inputs,
+			null
 		);
 
 		const output = this.protocols.ClientMessage.encode({
@@ -181,7 +182,8 @@ class GameHandler {
 		this.gamemode.emulate(
 			this.lastEmulation,
 			now,
-			newInputs.map(i => ({...i, player: this.playerIdx}))
+			newInputs.map(i => ({...i, player: this.playerIdx})),
+			null
 		);
 		this.lastEmulation = now;
 

@@ -1,4 +1,5 @@
 import { ActionNode } from "./Bot";
+import { Collectible } from "./Collectible";
 import { GameMode } from "./GameMode";
 import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMRoarsOnGlass } from "./gamemods/GMRoarsOnGlass";
@@ -16,6 +17,9 @@ import bots_superTicTacToe from "./bots/bots-superTicTacToe";
 import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
 import bots_woodSword from "./bots/bots-woodSword";
 
+import collectibles_test from "./collectibles/collectibles_test";
+import collectibles_airbasket from "./collectibles/collectibles_airbasket";
+
 
 interface Player {
 	trophees: number;
@@ -23,16 +27,14 @@ interface Player {
 	pseudo: string | null;
 }
 
+
 interface MultiplayerFactory {
 	type: 'multiplayer';
 	server(
 		players: Player[],
 		total: number,
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
-	): Promise<{
-		game: GameMode,
-		data: Uint8Array
-	}>,
+	): Promise<{ game: GameMode, data: Uint8Array }>,
 	client(entry: Uint8Array | null, total: number, playerIdx: number): {
 		game: GameMode,
 		data: any,
@@ -44,9 +46,11 @@ interface MultiplayerFactory {
 	name: string,
 	tropheesPerPlayer: number,
 	skins: string[],
+	collectibles: Collectible[] | null;
 	computerOnly: boolean,
 	iconExtension: string,
 	defaultPlayerCount: number,
+	tropheeRoalPixelsPerTrophy: number,
 	nodes: {
 		root: ActionNode<GameMode, any>,
 		data: (()=>any)
@@ -70,6 +74,8 @@ interface UiSeparator {
 	category: string
 }
 
+
+
 export const gamemods: Record<
 	string,
 	MultiplayerFactory | SoloFactory | UiSeparator
@@ -89,6 +95,8 @@ export const gamemods: Record<
 		computerOnly: false,
 		tropheesPerPlayer: 2,
 		skins: [],
+		collectibles: collectibles_test,
+		tropheeRoalPixelsPerTrophy: 8,
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_test
@@ -104,6 +112,8 @@ export const gamemods: Record<
 		tropheesPerPlayer: 20,
 		computerOnly: true,
 		skins: GMAirBasket.SKINS_IDS,
+		collectibles: collectibles_airbasket,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_airbasket
@@ -119,6 +129,8 @@ export const gamemods: Record<
 		tropheesPerPlayer: 20,
 		computerOnly: false,
 		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'svg',
 		defaultPlayerCount: 4,
 		nodes: bots_turrets
@@ -139,6 +151,8 @@ export const gamemods: Record<
 		tropheesPerPlayer: 3,
 		computerOnly: false,
 		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_superTicTacToe
@@ -155,6 +169,8 @@ export const gamemods: Record<
 		tropheesPerPlayer: 3,
 		computerOnly: false,
 		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_roarsOnGlass
@@ -170,6 +186,8 @@ export const gamemods: Record<
 		tropheesPerPlayer: 3,
 		computerOnly: false,
 		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_woodSword

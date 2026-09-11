@@ -55,6 +55,14 @@ export class Database {
 				FOREIGN KEY (user) REFERENCES User(pseudo)
 			);
 
+			CREATE TABLE IF NOT EXISTS UnlockedCollectible (
+				gamemode TEXT,
+				user TEXT,
+				collectibleId INTEGER,
+				PRIMARY KEY (gamemode, user, collectibleId),
+				FOREIGN KEY (gamemode, user) REFERENCES Progression(gamemode, user)
+			);
+
 			CREATE TABLE IF NOT EXISTS QuickConnectionKey (
 				key TEXT PRIMARY KEY,
 				user TEXT NOT NULL,
@@ -347,66 +355,50 @@ export class Database {
 		});
 	}
 
+
 	/**
-	 * Updates progression trophies for multiple players in a given gamemode at once.
-	 * @param gamemode The gamemode ID.
-	 * @param playerDeltas An array of player names and trophy changes (delta).
-	 * @returns A promise resolving to the updated player list with their new trophies.
+	 * Computes the account summary shown on the home page: total trophees
+	 * across all gamemodes, coin balance, and global ranking by summed trophees.
 	 */
-	giveTrophees(
-		gamemode: string,
-		playerDeltas: PlayerDelta[]
-	): Promise<{ player: string; trophees: number }[]> {
+	getAccountSummary(pseudo: string): Promise<{ totalTrophees: number; coins: number; globalRank: number }> {
 		return new Promise((resolve, reject) => {
-			if (playerDeltas.length === 0) {
-				resolve([]);
-				return;
-			}
+			this.db.get<{ totalTrophees: number }>(
+				`SELECT COALESCE(SUM(trophees), 0) AS totalTrophees FROM Progression WHERE user = ?`,
+				[pseudo],
+				(error, trophRow) => {
+					if (error) { reject(error); return; }
+					const totalTrophees = trophRow?.totalTrophees ?? 0;
 
-			// Ensure queries run sequentially on the connection
-			this.db.serialize(() => {
-				const statement = this.db.prepare(`
-					UPDATE Progression
-					SET trophees = MAX(0, trophees + ?)
-					WHERE gamemode = ? AND user = ?
-				`);
+					this.db.get<{ coins: number }>(
+						`SELECT coins FROM User WHERE pseudo = ?`,
+						[pseudo],
+						(error, coinRow) => {
+							if (error) { reject(error); return; }
 
-				// Apply delta to each player
-				for (const item of playerDeltas) {
-					statement.run([item.delta, gamemode, item.player]);
-				}
-
-				// Finalize the statement and fetch the updated records
-				statement.finalize((error) => {
-					if (error) {
-						reject(new Error(`Failed to update trophees: ${error.message}`));
-						return;
-					}
-
-					const placeholders = playerDeltas.map(() => "?").join(",");
-					const queryParams = [gamemode, ...playerDeltas.map((p) => p.player)];
-
-					this.db.all(
-						`
-						SELECT user AS player, trophees
-						FROM Progression
-						WHERE gamemode = ?
-						AND user IN (${placeholders})
-						`,
-						queryParams,
-						(error, rows: { player: string; trophees: number }[]) => {
-							if (error) {
-								reject(error);
-								return;
-							}
-							resolve(rows);
+							this.db.get<{ rank: number }>(
+								`
+								SELECT COUNT(*) + 1 AS rank
+								FROM (SELECT user, SUM(trophees) AS total FROM Progression GROUP BY user)
+								WHERE total > ?
+								`,
+								[totalTrophees],
+								(error, rankRow) => {
+									if (error) { reject(error); return; }
+									resolve({
+										totalTrophees,
+										coins: coinRow?.coins ?? 0,
+										globalRank: rankRow?.rank ?? 1
+									});
+								}
+							);
 						}
 					);
-				});
-			});
+				}
+			);
 		});
 	}
 
+	
 	/**
 	 * Registers a new gamemode if it doesn't exist, and creates default progression rows
 	 * (0 trophies) for all existing users.
@@ -477,6 +469,12 @@ export class Database {
 		});
 	}
 
+
+	// ==========================================
+	// TROPHEES & PROGRESSION
+	// ==========================================
+
+
 	/**
 	 * Retrieves the current number of trophies for a specific user and gamemode.
 	 * @param pseudo The username.
@@ -494,6 +492,125 @@ export class Database {
 						return;
 					}
 					resolve(row?.trophees ?? 0);
+				}
+			);
+		});
+	}
+
+	/**
+	 * Updates progression trophies for multiple players in a given gamemode at once.
+	 * Also, keeps bestTrophees in sync (bestTrophees is a high-water mark, never decreases).
+	 * @param gamemode The gamemode ID.
+	 * @param playerDeltas An array of player names and trophy changes (delta).
+	 * @returns A promise resolving to the updated player list with their new trophies.
+	 */
+	giveTrophees(
+		gamemode: string,
+		playerDeltas: PlayerDelta[]
+	): Promise<{ player: string; trophees: number }[]> {
+		return new Promise((resolve, reject) => {
+			if (playerDeltas.length === 0) { resolve([]); return; }
+
+			this.db.serialize(() => {
+				const statement = this.db.prepare(`
+					UPDATE Progression
+					SET trophees = MAX(0, trophees + ?),
+						bestTrophees = MAX(bestTrophees, MAX(0, trophees + ?))
+					WHERE gamemode = ? AND user = ?
+				`);
+
+				for (const item of playerDeltas) {
+					statement.run([item.delta, item.delta, gamemode, item.player]);
+				}
+
+				statement.finalize((error) => {
+					if (error) { reject(new Error(`Failed to update trophees: ${error.message}`)); return; }
+
+					const placeholders = playerDeltas.map(() => "?").join(",");
+					const queryParams = [gamemode, ...playerDeltas.map((p) => p.player)];
+
+					this.db.all(
+						`SELECT user AS player, trophees FROM Progression WHERE gamemode = ? AND user IN (${placeholders})`,
+						queryParams,
+						(error, rows: { player: string; trophees: number }[]) => error ? reject(error) : resolve(rows)
+					);
+				});
+			});
+		});
+	}
+
+
+	/**
+	 * Checks whether a user already unlocked a given collectible in a gamemode.
+	 */
+	hasUnlocked(pseudo: string, gamemode: string, collectibleId: number): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			this.db.get<{ count: number }>(
+				`SELECT COUNT(*) AS count FROM UnlockedCollectible WHERE gamemode = ? AND user = ? AND collectibleId = ?`,
+				[gamemode, pseudo, collectibleId],
+				(error, row) => error ? reject(error) : resolve((row?.count ?? 0) > 0)
+			);
+		});
+	}
+
+	/**
+	 * Records a collectible as unlocked for a user.
+	 * @returns true if it was newly inserted, false if it was already unlocked.
+	 */
+	unlockCollectible(pseudo: string, gamemode: string, collectibleId: number): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			this.db.run(
+				`INSERT OR IGNORE INTO UnlockedCollectible (gamemode, user, collectibleId) VALUES (?, ?, ?)`,
+				[gamemode, pseudo, collectibleId],
+				function (error) { error ? reject(error) : resolve(this.changes > 0); }
+			);
+		});
+	}
+
+	/**
+	 * Retrieves the current and best trophee count, as well as
+	 * the unlocked collectibles of a player in a gamemode.
+	 */
+	getProgression(
+		pseudo: string,
+		gamemode: string
+	): Promise<{
+		trophees: number;
+		bestTrophees: number;
+		unlockedCollectibles: number[];
+	}> {
+		return new Promise((resolve, reject) => {
+			this.db.get<{ trophees: number; bestTrophees: number }>(
+				`SELECT trophees, bestTrophees
+				FROM Progression
+				WHERE user = ? AND gamemode = ?`,
+				[pseudo, gamemode],
+				(error, row) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+
+					this.db.all<{ collectibleId: number }>(
+						`SELECT collectibleId
+						FROM UnlockedCollectible
+						WHERE user = ? AND gamemode = ?`,
+						[pseudo, gamemode],
+						(error, rows) => {
+							if (error) {
+								reject(error);
+								return;
+							}
+
+							resolve({
+								trophees: row?.trophees ?? 0,
+								bestTrophees: row?.bestTrophees ?? 0,
+								unlockedCollectibles: rows.map(
+									row => row.collectibleId
+								)
+							});
+						}
+					);
 				}
 			);
 		});
@@ -726,7 +843,7 @@ export class Database {
 		});
 	}
 
-		// ==========================================
+	// ==========================================
 	// SOLO RECORD METHODS
 	// ==========================================
 
@@ -798,6 +915,32 @@ export class Database {
 					}
 
 					resolve(rows ?? []);
+				}
+			);
+		});
+	}
+
+
+	// ==========================================
+	// COINS
+	// ==========================================
+
+	/**
+	 * Adds (or removes, if negative) coins to a user's balance, clamped at 0.
+	 * @returns the new coin balance.
+	 */
+	addCoins(pseudo: string, amount: number): Promise<number> {
+		return new Promise((resolve, reject) => {
+			this.db.run(
+				`UPDATE User SET coins = MAX(0, coins + ?) WHERE pseudo = ?`,
+				[amount, pseudo],
+				(error) => {
+					if (error) { reject(error); return; }
+					this.db.get<{ coins: number }>(
+						`SELECT coins FROM User WHERE pseudo = ?`,
+						[pseudo],
+						(err, row) => err ? reject(err) : resolve(row?.coins ?? 0)
+					);
 				}
 			);
 		});
