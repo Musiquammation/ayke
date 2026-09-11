@@ -125,6 +125,23 @@ const runners: Record<string, (data: any) => void> = {
 			skinsResponseResolve(d.skins);
 			skinsResponseResolve = null;
 		}
+	},
+
+	progressionResult(d: {
+		gamemode: string,
+		trophees: number,
+		bestTrophees: number,
+		unlockedCollectibleIds: number[]
+	}) {
+		dom.getGamePanel().onProgressionResult(d);
+	},
+
+	unlockCollectibleResult(d: { success: boolean; collectibleId: number; gamemode: string }) {
+		dom.getGamePanel().onUnlockResult(d);
+	},
+
+	accountInfoResult(d: { totalTrophees: number; coins: number; globalRank: number }) {
+		dom.getHomePanel().onAccountInfo(d);
 	}
 };
 
