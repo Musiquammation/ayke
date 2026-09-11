@@ -528,11 +528,91 @@ class SoloPlayComponent {
 }
 
 class PlayResultsComponent {
+	// Array holding the rank of the player corresponding to scores[i]
+	rankings: number[] = [];
+
 	constructor(
 		readonly results: PlayResults,
 		readonly pseudos: Record<number, string | null>,
 		readonly me: number
-	) {}
+	) {
+		this.computeAndSortRankings();
+	}
+
+	/**
+	 * Sorts the scores array and calculates the rankings managing team & player equalities.
+	 */
+	private computeAndSortRankings() {
+		const playerScores = new Map<number, number>();
+		const teamEffectiveRanks: number[] = [];
+		let currentTeamEffective = 0;
+
+		// 1. Calculate effective team rank for each team
+		for (let t = 0; t < this.results.results.length; t++) {
+			// Check if the current team is tied with the previous one
+			if (t > 0 && this.results.teamEqualities.includes(t - 1)) {
+				// Team is tied, keep the same effective team rank
+			} else {
+				currentTeamEffective = t;
+			}
+			teamEffectiveRanks.push(currentTeamEffective);
+		}
+
+		// 2. Calculate an absolute sorting score for each player
+		for (let t = 0; t < this.results.results.length; t++) {
+			let currentPEffective = 0;
+			for (let p = 0; p < this.results.results[t].length; p++) {
+				const playerId = this.results.results[t][p];
+				
+				// Check if the current player is tied with the previous player in the same team
+				if (p > 0 && this.results.playerEqualities.includes(this.results.results[t][p - 1])) {
+					// Player is tied, keep the same effective player rank
+				} else {
+					currentPEffective = p;
+				}
+				
+				// Combine team rank and player rank into a single sorting score
+				// We multiply the team rank by a large number so it safely takes precedence over individual player ranks
+				const sortingScore = teamEffectiveRanks[t] * 10000 + currentPEffective;
+				playerScores.set(playerId, sortingScore);
+			}
+		}
+
+		// 3. Sort the scores array using the previously calculated scores
+		this.results.scores.sort((a, b) => {
+			const scoreA = playerScores.get(a.identifier) ?? 0;
+			const scoreB = playerScores.get(b.identifier) ?? 0;
+			return scoreA - scoreB;
+		});
+
+		// 4. Generate the rankings array
+		this.rankings = [];
+		let currentRank = 1;
+		
+		for (let i = 0; i < this.results.scores.length; i++) {
+			if (i > 0) {
+				const prevScore = playerScores.get(this.results.scores[i - 1].identifier);
+				const currScore = playerScores.get(this.results.scores[i].identifier);
+				
+				// If the player's sorting score differs from the previous one, update the rank
+				// By jumping to `i + 1`, we perfectly handle skipping numbers after ties (e.g., 1st, 2nd, 2nd, 4th)
+				if (currScore !== prevScore) {
+					currentRank = i + 1;
+				}
+			}
+			this.rankings.push(currentRank);
+		}
+	}
+
+	/**
+	 * Formats an integer rank into a string with its ordinal suffix (1st, 2nd, 3rd, 4th...)
+	 */
+	formatRank(rank: number): string {
+		if (rank % 10 === 1 && rank % 100 !== 11) return rank + "st";
+		if (rank % 10 === 2 && rank % 100 !== 12) return rank + "nd";
+		if (rank % 10 === 3 && rank % 100 !== 13) return rank + "rd";
+		return rank + "th";
+	}
 
 	/**
 	 * Helper method to render pseudo HTML safely within the Alpine component view.

@@ -134,21 +134,25 @@
 			<template x-if="uses('play-results')">
 				<div id="play-results-page" class="page" x-data="panel">
 					<div class="results-container">
-						<!-- Iterate over each player score entry in the results -->
-						<template x-for="score in panel.results.scores" :key="score.identifier">
-							<div class="result-row">
+						<!-- Iterate over each player score entry with its index to bind the ranking -->
+						<template x-for="(score, index) in panel.results.scores" :key="score.identifier">
+							<!-- Add the 'play-results-me' class if the score belongs to the current user -->
+							<div class="result-row" :class="{ 'play-results-me': score.identifier === panel.me }">
+								
+								<!-- Display rank column (1st, 2nd, 3rd...) -->
+								<span x-text="panel.formatRank(panel.rankings[index])"></span>
+
 								<!-- Display player pseudo or fallback to anonymous if null -->
 								<span 
-									class="player-pseudo" 
 									:class="{ 'noTrophees': panel.pseudos[score.identifier] === null }" 
 									x-html="panel.showPseudo(panel.pseudos[score.identifier])">
 								</span>
 
 								<!-- Display trophies score -->
-								<span class="player-score" x-text="score.result < 0 ? '' : score.result"></span>
+								<span x-text="score.result < 0 ? '' : score.result">123</span>
 
 								<!-- Display score variation (delta) -->
-								<span class="player-delta" x-text="(score.delta  0 ? '+' : '') + score.delta"></span>
+								<span x-text="(score.delta >= 0 ? '+' : '') + score.delta"></span>
 							</div>
 						</template>
 					</div>

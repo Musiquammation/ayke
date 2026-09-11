@@ -121,9 +121,9 @@ export class GMTest extends GameMode {
 
 	private produceFinish(): FinishGame {
 		return {
-			results: [[1, 2], [0, 3]],
-			teamEqualities: [],
-			playerEqualities: [0]
+			results: [[3, 0], [1, 2]],
+			teamEqualities: [0],
+			playerEqualities: [3]
 		};
 	}
 	override run(dt: number, produceFinish: boolean) {
@@ -161,11 +161,11 @@ export class GMTest extends GameMode {
 		/* Really simplified logic */
 
 		if (keyboard.first('up')) {
-			inputs.push({move: +300});
+			inputs.push({move: -2000});
 		}
 
 		if (keyboard.first('down')) {
-			inputs.push({move: -300});
+			inputs.push({move: +2000});
 		}
 
 		if (keyboard.killed('up') || keyboard.killed('down')) {
