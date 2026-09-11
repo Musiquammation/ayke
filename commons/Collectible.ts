@@ -25,7 +25,7 @@ export function collectibleBuilder(gamemode: string) {
 		): Collectible {
 			return {
 				id,
-				name: "skin-" + skin,
+				name: `Skin '${skin}'`,
 				async drawIcon(ctx, size) {
 					const res = await fetch(
 						`${window.IMG_ROOT_PATH}/assets/games/${gamemode}/skins/${skin}/icon.png`
@@ -72,7 +72,7 @@ export function collectibleBuilder(gamemode: string) {
 			return {
 				id,
 				name: (
-					"coin-" +
+					"Coin " +
 					coins.toString().padStart(4, "0")
 				),
 				async drawIcon(ctx, size) {
