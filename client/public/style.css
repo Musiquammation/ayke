@@ -277,11 +277,12 @@ button.selected {
 .home-account > div > div {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 16px;
 
 	min-width: 0;
 }
 
+/* User identity */
 .home-account i {
 	color: var(--color-primary);
 
@@ -291,6 +292,42 @@ button.selected {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* ============================================================
+   Account stats
+   ============================================================ */
+
+.home-account > div > div > div[x-data="panel"] {
+	display: grid;
+	grid-template-columns: repeat(3, auto);
+	gap: 8px;
+
+	margin-top: 4px;
+}
+
+.home-account > div > div > div[x-data="panel"] > span {
+	display: flex;
+	align-items: baseline;
+	gap: 4px;
+
+	padding: 6px 10px;
+
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: 6px;
+
+	white-space: nowrap;
+}
+
+.home-account > div > div > div[x-data="panel"] > span > span:first-child {
+	font-size: 1.1em;
+	color: var(--color-text-muted);
+}
+
+.home-account > div > div > div[x-data="panel"] > span > span:last-child {
+	font-weight: 700;
+	font-size: 1.1em;
 }
 
 
@@ -1189,6 +1226,22 @@ canvas {
 
 	.home-account > div > div {
 		width: 100%;
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.home-account > div > div > div[x-data="panel"] {
+		width: 100%;
+		grid-template-columns: repeat(3, 1fr);
+	}
+
+	.home-account > div > div > div[x-data="panel"] > span {
+		justify-content: center;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+
+		padding: 8px 4px;
 	}
 
 	.home-account button {
