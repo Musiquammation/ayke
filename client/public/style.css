@@ -21,6 +21,7 @@
 	--color-success: #61c554;
 	--color-danger: #e05252;
 	--color-warning: #d99a32;
+	--color-highlight-me: #fff3b0;
 
 	--color-disabled: #aeb2b8;
 
@@ -66,7 +67,7 @@
 		--color-success: #65c95a;
 		--color-danger: #e46161;
 		--color-warning: #e0a13d;
-
+		--color-highlight-me: #b8860b;
 		--color-disabled: #555a63;
 
 		--color-shadow: rgba(0, 0, 0, 0.35);
@@ -685,7 +686,7 @@ button.selected {
 .result-row {
 	display: grid;
 
-	grid-template-columns: minmax(0, 1fr) auto auto;
+	grid-template-columns: 60px minmax(0, 1fr) 90px 75px;
 
 	gap: 20px;
 
@@ -700,7 +701,11 @@ button.selected {
 	border-bottom: none;
 }
 
-.player-pseudo {
+.result-row > span:first-child {
+	text-align: center;
+}
+
+.result-row > span:nth-child(2) {
 	min-width: 0;
 
 	overflow: hidden;
@@ -710,20 +715,20 @@ button.selected {
 	font-weight: 600;
 }
 
-.player-score {
+.result-row > span:nth-child(3) {
+	text-align: right;
+
 	font-weight: 700;
 }
 
-.player-delta {
-	min-width: 55px;
-
+.result-row > span:nth-child(4) {
 	text-align: right;
 
 	font-family: "Courier New", monospace;
 }
 
-.player-delta:empty {
-	display: none;
+.play-results-me {
+	background: var(--color-highlight-me);
 }
 
 .noTrophees {
