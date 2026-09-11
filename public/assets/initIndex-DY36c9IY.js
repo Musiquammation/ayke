@@ -10054,13 +10054,13 @@ var import_protobufjs = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin((
 })))(), 1);
 var GameMode = class GameMode {
 	static MAX_DT = .02;
-	quickEmulate(duration, produceFinish = false) {
+	quickEmulate(duration, produceFinish = false, rng) {
 		while (duration > GameMode.MAX_DT) {
-			const f = this.run(GameMode.MAX_DT, produceFinish);
+			const f = this.run(GameMode.MAX_DT, produceFinish, rng);
 			if (f && produceFinish) return f;
 			duration -= GameMode.MAX_DT;
 		}
-		return this.run(duration, produceFinish);
+		return this.run(duration, produceFinish, rng);
 	}
 	/**
 	* Emulates the game from a starting time to a finish time while applying
@@ -10076,7 +10076,7 @@ var GameMode = class GameMode {
 	* @param finishGame Handle game finish (if no present, Finish data will be ignored)
 	* @returns The final simulation time.
 	*/
-	emulate(start, finish, inputs, preprocess, finishGame) {
+	emulate(start, finish, inputs, rng, preprocess, finishGame) {
 		let currentTime = start;
 		const finishLimit = typeof finish === "function" ? Infinity : finish;
 		for (const input of inputs) {
@@ -10085,7 +10085,7 @@ var GameMode = class GameMode {
 			if (inputTimestamp < currentTime) continue;
 			const duration = (inputTimestamp - currentTime) / 1e3;
 			if (preprocess) for (const i of preprocess(currentTime)) this.runInput(i.player, i);
-			const f = this.quickEmulate(duration, finishGame ? true : false);
+			const f = this.quickEmulate(duration, finishGame ? true : false, rng);
 			if (f && finishGame) {
 				finishGame(f);
 				return inputTimestamp;
@@ -10096,7 +10096,7 @@ var GameMode = class GameMode {
 		if (typeof finish === "function") finish = finish();
 		const duration = (finish - currentTime) / 1e3;
 		if (preprocess) for (const i of preprocess(currentTime)) this.runInput(i.player, i);
-		const f = this.quickEmulate(duration, finishGame ? true : false);
+		const f = this.quickEmulate(duration, finishGame ? true : false, rng);
 		if (f && finishGame) finishGame(f);
 		return finish;
 	}
@@ -11386,6 +11386,7 @@ function norm2(dx, dy) {
 var protocols$4 = getProtocol("roarsOnGlass", "multiplayer");
 var WIDTH$3 = 1600;
 var HEIGHT$3 = 2800;
+var POINTS_TO_WIN = 5;
 var TILE_SIZE = 150;
 var GRID_PADDING = 1.5;
 var GRID_W = Math.floor(WIDTH$3 / TILE_SIZE) - GRID_PADDING * 2;
@@ -11885,7 +11886,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			this.roundTimer = 3;
 			if (redAliveCount > 0 && blueAliveCount === 0) this.redScore++;
 			else if (blueAliveCount > 0 && redAliveCount === 0) this.blueScore++;
-			if ((this.redScore >= 5 || this.blueScore >= 5) && produceFinish) return this.produceFinish();
+			if ((this.redScore >= POINTS_TO_WIN || this.blueScore >= POINTS_TO_WIN) && produceFinish) return this.produceFinish();
 		}
 		return null;
 	}
@@ -12667,9 +12668,9 @@ var GMTest = class GMTest extends GameMode {
 	}
 	produceFinish() {
 		return {
-			results: [[1, 2], [0, 3]],
-			teamEqualities: [],
-			playerEqualities: [0]
+			results: [[3, 0], [1, 2]],
+			teamEqualities: [0],
+			playerEqualities: [3]
 		};
 	}
 	run(dt, produceFinish) {
@@ -12685,8 +12686,8 @@ var GMTest = class GMTest extends GameMode {
 	}
 	collectInputs(keyboard, mouse, mobile, _data) {
 		const inputs = [];
-		if (keyboard.first("up")) inputs.push({ move: 300 });
-		if (keyboard.first("down")) inputs.push({ move: -300 });
+		if (keyboard.first("up")) inputs.push({ move: -2e3 });
+		if (keyboard.first("down")) inputs.push({ move: 2e3 });
 		if (keyboard.killed("up") || keyboard.killed("down")) inputs.push({ move: 1e-16 });
 		if (mobile) console.log(JSON.stringify(mobile.getDigits()), mobile.first("up"), mobile.press("up"), mobile.press("joy"), mobile.getJoystick("joy"));
 		return inputs;
@@ -15193,24 +15194,574 @@ var SWORD_HITBOX_ANGLE = Math.PI / 12;
 var MAX_SCORE = 5;
 var ROUND_TIME = 30;
 var TRUNK_ACCEL = 3;
-var SWORDS_STREAM = [10];
+var SWORDS_STREAM = [
+	7,
+	11,
+	5,
+	9,
+	12,
+	8,
+	6,
+	10,
+	5,
+	11,
+	8,
+	12,
+	7,
+	9,
+	6,
+	10,
+	8,
+	5,
+	12,
+	11,
+	9,
+	7,
+	10,
+	6,
+	8,
+	12,
+	5,
+	9,
+	11,
+	7,
+	10,
+	8,
+	6,
+	12,
+	9,
+	5,
+	11,
+	7,
+	10,
+	8,
+	12,
+	6,
+	9,
+	11,
+	5,
+	7,
+	10,
+	8,
+	6,
+	12
+];
+/**
+* Predefined trunk movement sequences.
+*/
 var TRUNK_STREAM = [
-	{
-		speed: 2,
-		timestamp: 0
-	},
-	{
-		speed: -1.5,
-		timestamp: 3
-	},
-	{
-		speed: 3,
-		timestamp: 5
-	},
-	{
-		speed: 0,
-		timestamp: 7
-	}
+	[
+		{
+			speed: 1,
+			timestamp: 0
+		},
+		{
+			speed: 5,
+			timestamp: .5
+		},
+		{
+			speed: -2,
+			timestamp: 2
+		},
+		{
+			speed: 3,
+			timestamp: 3.5
+		},
+		{
+			speed: 0,
+			timestamp: 5
+		}
+	],
+	[
+		{
+			speed: -1,
+			timestamp: 0
+		},
+		{
+			speed: -5,
+			timestamp: .4
+		},
+		{
+			speed: 2,
+			timestamp: 1.8
+		},
+		{
+			speed: -3,
+			timestamp: 3
+		},
+		{
+			speed: 0,
+			timestamp: 5
+		}
+	],
+	[
+		{
+			speed: 1.5,
+			timestamp: 0
+		},
+		{
+			speed: 6,
+			timestamp: .6
+		},
+		{
+			speed: 4,
+			timestamp: 1.5
+		},
+		{
+			speed: -3,
+			timestamp: 2.8
+		},
+		{
+			speed: 2,
+			timestamp: 4
+		},
+		{
+			speed: -8,
+			timestamp: 5.5
+		},
+		{
+			speed: 0,
+			timestamp: 8
+		}
+	],
+	[
+		{
+			speed: -1.5,
+			timestamp: 0
+		},
+		{
+			speed: -6,
+			timestamp: .5
+		},
+		{
+			speed: -2,
+			timestamp: 1.5
+		},
+		{
+			speed: 4,
+			timestamp: 2.5
+		},
+		{
+			speed: -1,
+			timestamp: 4
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: .5,
+			timestamp: 0
+		},
+		{
+			speed: 7,
+			timestamp: .35
+		},
+		{
+			speed: -4,
+			timestamp: 1.5
+		},
+		{
+			speed: 5,
+			timestamp: 2.5
+		},
+		{
+			speed: -2,
+			timestamp: 3.5
+		},
+		{
+			speed: 0,
+			timestamp: 5
+		}
+	],
+	[
+		{
+			speed: -.5,
+			timestamp: 0
+		},
+		{
+			speed: -7,
+			timestamp: .4
+		},
+		{
+			speed: 3,
+			timestamp: 1.3
+		},
+		{
+			speed: -5,
+			timestamp: 2.4
+		},
+		{
+			speed: 2,
+			timestamp: 3.8
+		},
+		{
+			speed: 0,
+			timestamp: 5
+		}
+	],
+	[
+		{
+			speed: 2,
+			timestamp: 0
+		},
+		{
+			speed: 8,
+			timestamp: .5
+		},
+		{
+			speed: 6,
+			timestamp: 1.2
+		},
+		{
+			speed: -4,
+			timestamp: 2.5
+		},
+		{
+			speed: -6,
+			timestamp: 3.2
+		},
+		{
+			speed: 3,
+			timestamp: 4.2
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: -2,
+			timestamp: 0
+		},
+		{
+			speed: -8,
+			timestamp: .45
+		},
+		{
+			speed: -5,
+			timestamp: 1.2
+		},
+		{
+			speed: 4,
+			timestamp: 2.3
+		},
+		{
+			speed: 7,
+			timestamp: 3
+		},
+		{
+			speed: -2,
+			timestamp: 4.2
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: 1,
+			timestamp: 0
+		},
+		{
+			speed: 5,
+			timestamp: .3
+		},
+		{
+			speed: -5,
+			timestamp: 1.2
+		},
+		{
+			speed: 6,
+			timestamp: 2
+		},
+		{
+			speed: -4,
+			timestamp: 3
+		},
+		{
+			speed: 3,
+			timestamp: 4
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: -1,
+			timestamp: 0
+		},
+		{
+			speed: -5,
+			timestamp: .35
+		},
+		{
+			speed: 5,
+			timestamp: 1.3
+		},
+		{
+			speed: -6,
+			timestamp: 2.1
+		},
+		{
+			speed: 4,
+			timestamp: 3
+		},
+		{
+			speed: -3,
+			timestamp: 4.1
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: 1,
+			timestamp: 0
+		},
+		{
+			speed: 9,
+			timestamp: .5
+		},
+		{
+			speed: 2,
+			timestamp: 1.5
+		},
+		{
+			speed: -7,
+			timestamp: 2.5
+		},
+		{
+			speed: 5,
+			timestamp: 3.5
+		},
+		{
+			speed: 0,
+			timestamp: 5
+		}
+	],
+	[
+		{
+			speed: -1,
+			timestamp: 0
+		},
+		{
+			speed: -9,
+			timestamp: .45
+		},
+		{
+			speed: -2,
+			timestamp: 1.5
+		},
+		{
+			speed: 7,
+			timestamp: 2.5
+		},
+		{
+			speed: -5,
+			timestamp: 3.5
+		},
+		{
+			speed: 0,
+			timestamp: 5
+		}
+	],
+	[
+		{
+			speed: 2,
+			timestamp: 0
+		},
+		{
+			speed: 6,
+			timestamp: .4
+		},
+		{
+			speed: -1,
+			timestamp: 1.2
+		},
+		{
+			speed: -6,
+			timestamp: 2
+		},
+		{
+			speed: 4,
+			timestamp: 3
+		},
+		{
+			speed: 2,
+			timestamp: 4
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: -2,
+			timestamp: 0
+		},
+		{
+			speed: -6,
+			timestamp: .4
+		},
+		{
+			speed: 1,
+			timestamp: 1.2
+		},
+		{
+			speed: 6,
+			timestamp: 2
+		},
+		{
+			speed: -4,
+			timestamp: 3
+		},
+		{
+			speed: -2,
+			timestamp: 4
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: .5,
+			timestamp: 0
+		},
+		{
+			speed: 8,
+			timestamp: .3
+		},
+		{
+			speed: -3,
+			timestamp: 1
+		},
+		{
+			speed: 6,
+			timestamp: 1.8
+		},
+		{
+			speed: -6,
+			timestamp: 2.8
+		},
+		{
+			speed: 4,
+			timestamp: 3.8
+		},
+		{
+			speed: -2,
+			timestamp: 4.6
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: -.5,
+			timestamp: 0
+		},
+		{
+			speed: -8,
+			timestamp: .3
+		},
+		{
+			speed: 3,
+			timestamp: 1
+		},
+		{
+			speed: -6,
+			timestamp: 1.8
+		},
+		{
+			speed: 6,
+			timestamp: 2.8
+		},
+		{
+			speed: -4,
+			timestamp: 3.8
+		},
+		{
+			speed: 8,
+			timestamp: 4.6
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: 1,
+			timestamp: 0
+		},
+		{
+			speed: 10,
+			timestamp: .5
+		},
+		{
+			speed: 8,
+			timestamp: 1.2
+		},
+		{
+			speed: 5,
+			timestamp: 2
+		},
+		{
+			speed: -5,
+			timestamp: 3
+		},
+		{
+			speed: -2,
+			timestamp: 4
+		},
+		{
+			speed: 0,
+			timestamp: 5.5
+		}
+	],
+	[
+		{
+			speed: -1,
+			timestamp: 0
+		},
+		{
+			speed: -10,
+			timestamp: .5
+		},
+		{
+			speed: -8,
+			timestamp: 1.2
+		},
+		{
+			speed: -5,
+			timestamp: 2
+		},
+		{
+			speed: 5,
+			timestamp: 3
+		},
+		{
+			speed: .4,
+			timestamp: 4
+		},
+		{
+			speed: 0,
+			timestamp: 5.1
+		}
+	]
 ];
 var Player = class {
 	connected = true;
@@ -15310,6 +15861,8 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 	clingingSwords = [];
 	movingSwords = [];
 	nextSwordId = 1;
+	streamId = 0;
+	swordId = 0;
 	constructor(total) {
 		super();
 		this.players = Array.from({ length: total }, () => new Player());
@@ -15319,8 +15872,8 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		const game = new GMWoodSword(total);
 		game.players[0].team = "red";
 		game.players[1].team = "blue";
-		game.players[0].swordsLeft = SWORDS_STREAM[0];
-		game.players[1].swordsLeft = SWORDS_STREAM[0];
+		game.players[0].swordsLeft = SWORDS_STREAM[game.swordId];
+		game.players[1].swordsLeft = SWORDS_STREAM[game.swordId];
 		return {
 			game,
 			data: StartDataClient.encode({ players: game.players.map((p) => ({
@@ -15364,7 +15917,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 	produceSwordId() {
 		return this.nextSwordId++;
 	}
-	run(dt, produceFinish) {
+	run(dt, produceFinish, rng) {
 		for (const player of this.players) {
 			if (!player.throwing) continue;
 			player.throwing = false;
@@ -15377,11 +15930,12 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 			});
 		}
 		this.trunkStreamTime += dt;
-		const cycleLength = TRUNK_STREAM[TRUNK_STREAM.length - 1].timestamp;
+		const currentTrunkStream = TRUNK_STREAM[this.streamId];
+		const cycleLength = currentTrunkStream[currentTrunkStream.length - 1].timestamp;
 		const t = this.trunkStreamTime % cycleLength;
 		let targetSpeed = 0;
-		for (let i = TRUNK_STREAM.length - 2; i >= 0; i--) if (t >= TRUNK_STREAM[i].timestamp) {
-			targetSpeed = TRUNK_STREAM[i].speed;
+		for (let i = currentTrunkStream.length - 2; i >= 0; i--) if (t >= currentTrunkStream[i].timestamp) {
+			targetSpeed = currentTrunkStream[i].speed;
 			break;
 		}
 		if (this.trunkSpeed < targetSpeed) this.trunkSpeed = Math.min(targetSpeed, this.trunkSpeed + TRUNK_ACCEL * dt);
@@ -15420,6 +15974,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 			}
 		}
 		this.roundTimer -= dt;
+		if (this.roundTimer <= 0) this.roundTimer = 0;
 		const allOut = this.players.every((p) => p.swordsLeft <= 0) && this.movingSwords.length === 0;
 		if (this.roundTimer <= 0 || allOut) {
 			let redCount = 0;
@@ -15428,18 +15983,22 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 				if (cs.team === "red") redCount++;
 				if (cs.team === "blue") blueCount++;
 			}
-			if (redCount > blueCount) this.redScore++;
-			if (blueCount > redCount) this.blueScore++;
+			if (rng) {
+				if (redCount > blueCount) this.redScore++;
+				if (blueCount > redCount) this.blueScore++;
+			}
 			if (this.redScore >= MAX_SCORE || this.blueScore >= MAX_SCORE) {
 				if (produceFinish) return this.produceFinish();
-			} else {
+			} else if (rng) {
 				this.roundTimer = ROUND_TIME;
 				this.clingingSwords = [];
 				this.movingSwords = [];
 				this.trunkAngle = 0;
 				this.trunkSpeed = 0;
 				this.trunkStreamTime = 0;
-				for (const p of this.players) p.swordsLeft = SWORDS_STREAM[0];
+				this.streamId = Math.floor(rng() * TRUNK_STREAM.length);
+				this.swordId = Math.floor(rng() * SWORDS_STREAM.length);
+				for (const p of this.players) p.swordsLeft = SWORDS_STREAM[this.swordId];
 			}
 		}
 		return null;
@@ -15809,8 +16368,8 @@ var followNearestOpponent = runner$5((game, data, playerIdx) => {
 	let move;
 	const target = game.players[data.nearestOpponent];
 	if (target === void 0) move = 0;
-	else if (target.y > game.players[playerIdx].y) move = 300;
-	else if (target.y < game.players[playerIdx].y) move = -300;
+	else if (target.y > game.players[playerIdx].y) move = -300;
+	else if (target.y < game.players[playerIdx].y) move = 300;
 	else move = 0;
 	logger$2.debug(`move ${move} ty=${target.y} py=${game.players[playerIdx].y}`);
 	if (game.players[playerIdx].move !== move) inputs.push({ move });
@@ -16885,6 +17444,171 @@ var bots_woodSword_default = describeBot([{
 	data: dataConstructor
 }]);
 //#endregion
+//#region commons/collectibles/collectibles_test.ts
+var collectibles$1 = [
+	{
+		id: 0,
+		name: "test0",
+		async drawIcon(ctx, size) {
+			ctx.fillStyle = "#f87";
+			ctx.fillRect(0, 0, size, size);
+		},
+		arg: "(argument)",
+		apply: "test",
+		trophees: 10
+	},
+	{
+		id: 1,
+		name: "test1",
+		async drawIcon(ctx, size) {
+			ctx.fillStyle = "#88f";
+			ctx.fillRect(0, 0, size, size);
+		},
+		arg: "(argument)",
+		apply: "test",
+		trophees: 50
+	},
+	{
+		id: 2,
+		name: "test2",
+		async drawIcon(ctx, size) {
+			ctx.fillStyle = "#f87";
+			ctx.fillRect(0, 0, size, size);
+		},
+		arg: "(argument)",
+		apply: "test",
+		trophees: 100
+	},
+	{
+		id: 3,
+		name: "test3",
+		async drawIcon(ctx, size) {
+			ctx.fillStyle = "#88f";
+			ctx.fillRect(0, 0, size, size);
+		},
+		arg: "(argument)",
+		apply: "test",
+		trophees: 200
+	},
+	{
+		id: 4,
+		name: "test4",
+		async drawIcon(ctx, size) {
+			ctx.fillStyle = "#f87";
+			ctx.fillRect(0, 0, size, size);
+		},
+		arg: "(argument)",
+		apply: "test",
+		trophees: 250
+	},
+	{
+		id: 5,
+		name: "test5",
+		async drawIcon(ctx, size) {
+			ctx.fillStyle = "#88f";
+			ctx.fillRect(0, 0, size, size);
+		},
+		arg: "(argument)",
+		apply: "test",
+		trophees: 500
+	}
+];
+//#endregion
+//#region commons/Collectible.ts
+function collectibleBuilder(gamemode) {
+	return {
+		skin(id, trophees, skin) {
+			return {
+				id,
+				name: `Skin '${skin}'`,
+				async drawIcon(ctx, size) {
+					const res = await fetch(`${window.IMG_ROOT_PATH}/assets/games/${gamemode}/skins/${skin}/icon.png`);
+					if (!res.ok) throw new Error(`Failed to load icon: ${res.status}`);
+					const blob = await res.blob();
+					const url = URL.createObjectURL(blob);
+					try {
+						const image = new Image();
+						await new Promise((resolve, reject) => {
+							image.onload = () => resolve();
+							image.onerror = reject;
+							image.src = url;
+						});
+						ctx.drawImage(image, 0, 0, size, size);
+					} finally {
+						URL.revokeObjectURL(url);
+					}
+				},
+				apply: "giveSkin",
+				arg: {
+					gamemode,
+					skin
+				},
+				trophees
+			};
+		},
+		coin(id, trophees, coins) {
+			return {
+				id,
+				name: "Coin " + coins.toString().padStart(4, "0"),
+				async drawIcon(ctx, size) {
+					const center = size / 2;
+					const hexRadius = size * .5;
+					ctx.save();
+					ctx.beginPath();
+					for (let i = 0; i < 6; i++) {
+						const angle = Math.PI / 3 * i - Math.PI / 2;
+						const x = center + Math.cos(angle) * hexRadius;
+						const y = center + Math.sin(angle) * hexRadius;
+						if (i === 0) ctx.moveTo(x, y);
+						else ctx.lineTo(x, y);
+					}
+					ctx.closePath();
+					ctx.fillStyle = "#2196f3";
+					ctx.fill();
+					ctx.fillStyle = "#ffffff";
+					ctx.font = `bold ${size * .38}px monospace`;
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					ctx.fillText(coins.toString(), center, center);
+					ctx.restore();
+				},
+				apply: "giveCoins",
+				arg: {
+					gamemode,
+					coins
+				},
+				trophees
+			};
+		}
+	};
+}
+//#endregion
+//#region commons/collectibles/collectibles_airbasket.ts
+var cb = collectibleBuilder("airbasket");
+var collectibles = [
+	cb.skin(0, 50, "nooby"),
+	cb.coin(1, 100, 16),
+	cb.coin(2, 150, 9),
+	cb.skin(3, 175, "kwanita"),
+	cb.coin(4, 200, 15),
+	cb.coin(5, 250, 9),
+	cb.coin(6, 300, 15),
+	cb.coin(7, 350, 9),
+	cb.skin(8, 400, "willy"),
+	cb.coin(9, 450, 9),
+	cb.coin(10, 500, 25),
+	cb.coin(11, 550, 9),
+	cb.coin(12, 600, 18),
+	cb.coin(13, 650, 13),
+	cb.coin(14, 700, 18),
+	cb.coin(15, 750, 13),
+	cb.coin(16, 800, 18),
+	cb.coin(17, 850, 18),
+	cb.coin(18, 900, 23),
+	cb.coin(19, 950, 24),
+	cb.coin(20, 1e3, 50)
+];
+//#endregion
 //#region commons/gamemods.ts
 var gamemods = {
 	separator_competitive: {
@@ -16901,6 +17625,8 @@ var gamemods = {
 		computerOnly: false,
 		tropheesPerPlayer: 2,
 		skins: [],
+		collectibles: collectibles$1,
+		tropheeRoalPixelsPerTrophy: 8,
 		iconExtension: "png",
 		defaultPlayerCount: 4,
 		nodes: bots_test_default
@@ -16915,6 +17641,8 @@ var gamemods = {
 		tropheesPerPlayer: 20,
 		computerOnly: true,
 		skins: GMAirBasket.SKINS_IDS,
+		collectibles,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: "png",
 		defaultPlayerCount: 4,
 		nodes: bots_airbasket_default
@@ -16929,6 +17657,8 @@ var gamemods = {
 		tropheesPerPlayer: 20,
 		computerOnly: false,
 		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: "svg",
 		defaultPlayerCount: 4,
 		nodes: bots_turrets_default
@@ -16947,6 +17677,8 @@ var gamemods = {
 		tropheesPerPlayer: 3,
 		computerOnly: false,
 		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: "png",
 		defaultPlayerCount: 2,
 		nodes: bots_superTicTacToe_default
@@ -16961,6 +17693,8 @@ var gamemods = {
 		tropheesPerPlayer: 3,
 		computerOnly: false,
 		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: "png",
 		defaultPlayerCount: 4,
 		nodes: bots_roarsOnGlass_default
@@ -16975,6 +17709,8 @@ var gamemods = {
 		tropheesPerPlayer: 3,
 		computerOnly: false,
 		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: "png",
 		defaultPlayerCount: 2,
 		nodes: bots_woodSword_default
@@ -21174,7 +21910,7 @@ var GameHandler = class {
 			...i,
 			player: this.playerIdx
 		})), compareInputs);
-		this.gamemode.emulate(msg.timestamp, now, inputs);
+		this.gamemode.emulate(msg.timestamp, now, inputs, null);
 		const output = this.protocols.ClientMessage.encode({
 			timestamp: now,
 			inputs: this.userInputs
@@ -21218,7 +21954,7 @@ var GameHandler = class {
 		this.gamemode.emulate(this.lastEmulation, now, newInputs.map((i) => ({
 			...i,
 			player: this.playerIdx
-		})));
+		})), null);
 		this.lastEmulation = now;
 		this.draw(this.prevDraw === null ? 1 / 60 : now - this.prevDraw);
 		this.prevDraw = now;
@@ -21340,7 +22076,7 @@ function deleteWaitingPlayHandler() {
 }
 //#endregion
 //#region commons/util/flattenArrays.ts
-function unflattenPositiveArrays(values, forbidden = -2147483648) {
+function unflattenArrays(values, forbidden = -2147483648) {
 	const result = [[]];
 	for (const value of values) if (value === forbidden) result.push([]);
 	else result[result.length - 1].push(value);
@@ -21403,7 +22139,7 @@ var runners = {
 	},
 	finishGame(d) {
 		d = decodeFullMessage(d);
-		d.results = unflattenPositiveArrays(d.results, -2);
+		d.results = unflattenArrays(d.results, -2);
 		dom.openPlayResults(d);
 	},
 	/**
@@ -21428,6 +22164,15 @@ var runners = {
 			skinsResponseResolve(d.skins);
 			skinsResponseResolve = null;
 		}
+	},
+	progressionResult(d) {
+		dom.getGamePanel().onProgressionResult(d);
+	},
+	unlockCollectibleResult(d) {
+		dom.getGamePanel().onUnlockResult(d);
+	},
+	accountInfoResult(d) {
+		dom.getHomePanel().onAccountInfo(d);
 	}
 };
 var skinsResponseResolve = null;
@@ -21513,105 +22258,6 @@ function escapeHTML(str) {
 		"'": "&#39;"
 	})[char]);
 }
-//#endregion
-//#region client/src/handlers/LocalGameHandler.ts
-var ctx$1 = document.getElementById("play-canvas").getContext("2d");
-var LocalGameHandler = class {
-	clock = 0;
-	lastTime = 0;
-	gamemode;
-	interrupted = false;
-	tutorial;
-	clientData;
-	gameWidth;
-	gameHeight;
-	allowsMobile;
-	imageLoaderPromise;
-	bots;
-	constructor(gamemodeId, addBots) {
-		const factory = getMultiGmFactory(gamemodeId);
-		const { game, data, html, skins } = factory.client(null, addBots ? factory.defaultPlayerCount : 2, 0);
-		const gameHtml = document.getElementById("game-html");
-		gameHtml.innerHTML = "";
-		if (html) gameHtml.appendChild(html);
-		this.gamemode = game;
-		if (addBots) this.tutorial = null;
-		else this.tutorial = this.gamemode.createTutorial();
-		this.clientData = data;
-		if (addBots) this.bots = this.gamemode.getBotIds(factory.defaultPlayerCount - 1).map((i, index) => generateBot(factory.nodes, i, 1 + index));
-		else this.bots = [];
-		const gsize = this.gamemode.getSize();
-		this.gameWidth = gsize.width;
-		this.gameHeight = gsize.height;
-		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
-		if (this.gamemode.getMobileDesc() && hasNavigatorMobile()) {
-			this.allowsMobile = true;
-			mobileController.setScreenCoordsAdapter(this.gamemode, 0, data);
-		} else this.allowsMobile = false;
-		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
-	}
-	async start() {
-		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
-		await this.imageLoaderPromise;
-		this.clock = 0;
-		this.lastTime = performance.now();
-		requestAnimationFrame(() => this.frame());
-	}
-	draw(dt) {
-		const scaleX = innerWidth / this.gameWidth;
-		const scaleY = innerHeight / this.gameHeight;
-		const scale = Math.min(scaleX, scaleY);
-		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
-		const offsetY = (innerHeight - this.gameHeight * scale) / 2;
-		ctx$1.save();
-		ctx$1.clearRect(0, 0, innerWidth, innerHeight);
-		ctx$1.translate(offsetX, offsetY);
-		ctx$1.scale(scale, scale);
-		this.gamemode.draw(ctx$1, 0, this.clientData, imageLoader, dt);
-		ctx$1.restore();
-		ctx$1.fillStyle = "black";
-		if (offsetX > 0) {
-			ctx$1.fillRect(0, 0, offsetX, innerHeight);
-			ctx$1.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight);
-		}
-		if (offsetY > 0) {
-			ctx$1.fillRect(0, 0, innerWidth, offsetY);
-			ctx$1.fillRect(0, innerHeight - offsetY, innerWidth, offsetY);
-		}
-		if (this.allowsMobile) mobileController.draw(ctx$1);
-	}
-	frame() {
-		if (this.interrupted) return;
-		const now = performance.now();
-		const dt = (now - this.lastTime) / 1e3;
-		this.lastTime = now;
-		this.clock += dt;
-		const inputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData);
-		keyboardController.frame();
-		mouseController.frame();
-		mobileController.frame();
-		for (const input of inputs) this.gamemode.runInput(0, input);
-		const collected = {};
-		for (const bot of this.bots) collected[bot.playerIdx] = bot.play(this.gamemode);
-		for (const [playerIdx, inputs] of Object.entries(collected)) for (const input of inputs) this.gamemode.runInput(Number(playerIdx), input);
-		if (this.tutorial) {
-			const tutorialResult = this.tutorial.frame(dt, this.clock);
-			if (tutorialResult === null) {
-				this.interrupted = true;
-				dom.openHome();
-				return;
-			} else dom.getTutorialInplayComponent().setText(tutorialResult);
-		}
-		if (this.gamemode.quickEmulate(dt, true)) {
-			this.interrupted = true;
-			deleteGameHandler();
-			dom.openHome();
-			return;
-		}
-		this.draw(dt);
-		requestAnimationFrame(() => this.frame());
-	}
-};
 //#endregion
 //#region node_modules/prando/dist/Prando.es.js
 var Prando = function() {
@@ -21763,6 +22409,121 @@ var Prando = function() {
 	Prando.MAX = 2147483647;
 	return Prando;
 }();
+//#endregion
+//#region client/src/handlers/LocalGameHandler.ts
+var ctx$1 = document.getElementById("play-canvas").getContext("2d");
+var LocalGameHandler = class {
+	clock = 0;
+	lastTime = 0;
+	gamemode;
+	interrupted = false;
+	tutorial;
+	clientData;
+	gameWidth;
+	gameHeight;
+	allowsMobile;
+	imageLoaderPromise;
+	bots;
+	prando;
+	playerCount;
+	constructor(gamemodeId, addBots, seed = Math.random()) {
+		const factory = getMultiGmFactory(gamemodeId);
+		this.prando = new Prando(seed);
+		console.log("Current seed is " + Math.random());
+		this.playerCount = addBots ? factory.defaultPlayerCount : 2;
+		const { game, data, html, skins } = factory.client(null, this.playerCount, 0);
+		const gameHtml = document.getElementById("game-html");
+		gameHtml.innerHTML = "";
+		if (html) gameHtml.appendChild(html);
+		this.gamemode = game;
+		if (addBots) this.tutorial = null;
+		else this.tutorial = this.gamemode.createTutorial();
+		this.clientData = data;
+		if (addBots) this.bots = this.gamemode.getBotIds(factory.defaultPlayerCount - 1).map((i, index) => generateBot(factory.nodes, i, 1 + index));
+		else this.bots = [];
+		const gsize = this.gamemode.getSize();
+		this.gameWidth = gsize.width;
+		this.gameHeight = gsize.height;
+		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
+		if (this.gamemode.getMobileDesc() && hasNavigatorMobile()) {
+			this.allowsMobile = true;
+			mobileController.setScreenCoordsAdapter(this.gamemode, 0, data);
+		} else this.allowsMobile = false;
+		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
+	}
+	async start() {
+		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
+		await this.imageLoaderPromise;
+		this.clock = 0;
+		this.lastTime = performance.now();
+		requestAnimationFrame(() => this.frame());
+	}
+	draw(dt) {
+		const scaleX = innerWidth / this.gameWidth;
+		const scaleY = innerHeight / this.gameHeight;
+		const scale = Math.min(scaleX, scaleY);
+		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
+		const offsetY = (innerHeight - this.gameHeight * scale) / 2;
+		ctx$1.save();
+		ctx$1.clearRect(0, 0, innerWidth, innerHeight);
+		ctx$1.translate(offsetX, offsetY);
+		ctx$1.scale(scale, scale);
+		this.gamemode.draw(ctx$1, 0, this.clientData, imageLoader, dt);
+		ctx$1.restore();
+		ctx$1.fillStyle = "black";
+		if (offsetX > 0) {
+			ctx$1.fillRect(0, 0, offsetX, innerHeight);
+			ctx$1.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight);
+		}
+		if (offsetY > 0) {
+			ctx$1.fillRect(0, 0, innerWidth, offsetY);
+			ctx$1.fillRect(0, innerHeight - offsetY, innerWidth, offsetY);
+		}
+		if (this.allowsMobile) mobileController.draw(ctx$1);
+	}
+	frame() {
+		if (this.interrupted) return;
+		const now = performance.now();
+		const dt = (now - this.lastTime) / 1e3;
+		this.lastTime = now;
+		this.clock += dt;
+		const inputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData);
+		keyboardController.frame();
+		mouseController.frame();
+		mobileController.frame();
+		for (const input of inputs) this.gamemode.runInput(0, input);
+		const collected = {};
+		for (const bot of this.bots) collected[bot.playerIdx] = bot.play(this.gamemode);
+		for (const [playerIdx, inputs] of Object.entries(collected)) for (const input of inputs) this.gamemode.runInput(Number(playerIdx), input);
+		if (this.tutorial) {
+			const tutorialResult = this.tutorial.frame(dt, this.clock);
+			if (tutorialResult === null) {
+				this.interrupted = true;
+				dom.openHome();
+				return;
+			} else dom.getTutorialInplayComponent().setText(tutorialResult);
+		}
+		const rng = () => this.prando.next();
+		const finish = this.gamemode.quickEmulate(dt, true, rng);
+		if (finish) {
+			this.finishGame(finish);
+			return;
+		}
+		this.draw(dt);
+		requestAnimationFrame(() => this.frame());
+	}
+	finishGame(finish) {
+		this.interrupted = true;
+		deleteGameHandler();
+		dom.openLocalPlayResults(finish);
+	}
+	generateBotLocalUsers() {
+		const pseudos = {};
+		pseudos[0] = "You";
+		for (let i = 1; i < this.playerCount; i++) pseudos[i] = "bot #" + i;
+		return pseudos;
+	}
+};
 //#endregion
 //#region client/src/handlers/SoloGameHandler.ts
 var ctx = document.getElementById("play-canvas").getContext("2d");
@@ -22008,19 +22769,26 @@ var MainComponent = class {
 		deleteGameHandler();
 		pushUrlStack(this);
 	}
+	openLocalPlayResults(results) {
+		const playPanel = this.getPanel(LocalPlayComponent);
+		this.panel = playPanel.createPlayResults(results);
+		this.currentPage = "play-results";
+		deleteGameHandler();
+		pushUrlStack(this);
+	}
 	openSoloComponent(result) {
 		this.panel = new SoloPlayResultComponent(result);
 		this.currentPage = "play-solo-results";
 		pushUrlStack(this);
 	}
-	openTutorialInPlay(gamemode) {
+	openLocalInPlay(gamemode) {
 		this.currentPage = "play";
-		this.panel = new TutorialInplayComponent(new LocalGameHandler(gamemode, false));
+		this.panel = new LocalPlayComponent(new LocalGameHandler(gamemode, false));
 		pushUrlStack(this);
 	}
 	openVsBotsInPlay(gamemode) {
 		this.currentPage = "play";
-		this.panel = new TutorialInplayComponent(new LocalGameHandler(gamemode, true));
+		this.panel = new LocalPlayComponent(new LocalGameHandler(gamemode, true));
 		pushUrlStack(this);
 	}
 	openSoloPlayComponent(gamemodeId, game, category) {
@@ -22056,7 +22824,7 @@ var MainComponent = class {
 		return this.getPanel(SigninComponent);
 	}
 	getTutorialInplayComponent() {
-		return this.getPanel(TutorialInplayComponent);
+		return this.getPanel(LocalPlayComponent);
 	}
 	getLeaderboardPanel() {
 		return this.getPanel(LeaderboardComponent);
@@ -22064,15 +22832,29 @@ var MainComponent = class {
 	getSoloLeaderboardPanel() {
 		return this.getPanel(SoloLeaderboardComponent);
 	}
+	getGamePanel() {
+		return this.getPanel(GamePanelComponent);
+	}
+	getHomePanel() {
+		return this.getPanel(HomeComponent);
+	}
 };
 var GamePanelComponent = class {
 	gamemode;
 	data;
 	htmlContent;
+	trophees = 0;
+	bestTrophees = 0;
+	unlockedCollectibleIds = null;
+	collectibleItems = [];
+	pixelsPerTrophy;
+	paddingStart = 60;
+	paddingEnd = 120;
 	constructor(gamemode, data, htmlContent) {
 		this.gamemode = gamemode;
 		this.data = data;
 		this.htmlContent = htmlContent;
+		this.pixelsPerTrophy = getMultiGmFactory(gamemode).tropheeRoalPixelsPerTrophy;
 	}
 	uses(gamemode) {
 		return this.gamemode === gamemode;
@@ -22095,7 +22877,7 @@ var GamePanelComponent = class {
 		await imageLoader.load(factory.textures, this.gamemode);
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
-		dom.openTutorialInPlay(this.gamemode);
+		dom.openLocalInPlay(this.gamemode);
 	}
 	async againstBots() {
 		const factory = getMultiGmFactory(this.gamemode);
@@ -22104,6 +22886,89 @@ var GamePanelComponent = class {
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 		dom.openVsBotsInPlay(this.gamemode);
+	}
+	initTrophyRoad() {
+		const factory = getMultiGmFactory(this.gamemode);
+		if (!factory.collectibles) return;
+		if (this.unlockedCollectibleIds === null) {
+			sendMessage({ askProgression: { gamemode: this.gamemode } });
+			return;
+		}
+		const unlockedCollectibleIds = this.unlockedCollectibleIds;
+		this.collectibleItems = factory.collectibles.slice().sort((a, b) => a.trophees - b.trophees).map((c) => {
+			const unlocked = unlockedCollectibleIds.includes(c.id);
+			const unlockable = !unlocked && c.trophees <= this.bestTrophees;
+			return {
+				id: c.id,
+				name: c.name,
+				trophees: c.trophees,
+				unlocked,
+				unlockable
+			};
+		});
+	}
+	onProgressionResult(d) {
+		if (d.gamemode !== this.gamemode) return;
+		this.trophees = d.trophees;
+		this.bestTrophees = d.bestTrophees;
+		this.unlockedCollectibleIds = d.unlockedCollectibleIds;
+		this.initTrophyRoad();
+		setTimeout(() => this.scrollToCurrentProgress(), 50);
+	}
+	get gamemodeName() {
+		return getGmFactory(this.gamemode).name;
+	}
+	get collectiblesTotal() {
+		if (this.collectibleItems.length === 0) return 0;
+		return this.collectibleItems[this.collectibleItems.length - 1].trophees;
+	}
+	get trackWidth() {
+		return this.collectiblesTotal * this.pixelsPerTrophy + this.paddingEnd;
+	}
+	get currentPx() {
+		return this.trophees * this.pixelsPerTrophy;
+	}
+	get bestPx() {
+		return this.bestTrophees * this.pixelsPerTrophy;
+	}
+	getItemLeftPx(trophees) {
+		return this.paddingStart + trophees * this.pixelsPerTrophy;
+	}
+	scrollToCurrentProgress() {
+		const track = document.querySelector(".trophee-road-track");
+		if (!track) return;
+		const targetScrollLeft = this.getItemLeftPx(this.trophees) - track.clientWidth / 2;
+		track.scrollTo({
+			left: Math.max(0, targetScrollLeft),
+			behavior: "smooth"
+		});
+	}
+	async drawCollectibleIcon(canvas, item) {
+		const collectible = getMultiGmFactory(this.gamemode).collectibles?.find((c) => c.id === item.id);
+		const ctx = canvas.getContext("2d");
+		if (!collectible || !ctx) return;
+		if (item.unlockable) ctx.fillStyle = "#f5cc00";
+		else if (item.unlocked) ctx.fillStyle = "#967404";
+		else ctx.fillStyle = "#808080";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		await collectible.drawIcon(ctx, Math.max(canvas.width, canvas.height));
+	}
+	unlockCollectible(item) {
+		if (this.bestTrophees < item.trophees) return;
+		sendMessage({ unlockCollectible: {
+			gamemode: this.gamemode,
+			collectibleId: item.id
+		} });
+	}
+	onUnlockResult(d) {
+		if (d.gamemode !== this.gamemode || !d.success) return;
+		const item = this.collectibleItems.find((i) => i.id === d.collectibleId);
+		if (!item) return;
+		sendMessage({ askProgression: { gamemode: this.gamemode } });
+		item.unlocked = true;
+		setTimeout(() => {
+			alert(`You unlocked "${item.name}"`);
+		});
 	}
 };
 var SoloGamePanelComponent = class {
@@ -22214,10 +23079,54 @@ var PlayResultsComponent = class {
 	results;
 	pseudos;
 	me;
+	rankings = [];
 	constructor(results, pseudos, me) {
 		this.results = results;
 		this.pseudos = pseudos;
 		this.me = me;
+		this.computeAndSortRankings();
+	}
+	/**
+	* Sorts the scores array and calculates the rankings managing team & player equalities.
+	*/
+	computeAndSortRankings() {
+		const playerScores = /* @__PURE__ */ new Map();
+		const teamEffectiveRanks = [];
+		let currentTeamEffective = 0;
+		for (let t = 0; t < this.results.results.length; t++) {
+			if (t > 0 && this.results.teamEqualities.includes(t - 1)) {} else currentTeamEffective = t;
+			teamEffectiveRanks.push(currentTeamEffective);
+		}
+		for (let t = 0; t < this.results.results.length; t++) {
+			let currentPEffective = 0;
+			for (let p = 0; p < this.results.results[t].length; p++) {
+				const playerId = this.results.results[t][p];
+				if (p > 0 && this.results.playerEqualities.includes(this.results.results[t][p - 1])) {} else currentPEffective = p;
+				const sortingScore = teamEffectiveRanks[t] * 1e4 + currentPEffective;
+				playerScores.set(playerId, sortingScore);
+			}
+		}
+		this.results.scores.sort((a, b) => {
+			return (playerScores.get(a.identifier) ?? 0) - (playerScores.get(b.identifier) ?? 0);
+		});
+		this.rankings = [];
+		let currentRank = 1;
+		for (let i = 0; i < this.results.scores.length; i++) {
+			if (i > 0) {
+				const prevScore = playerScores.get(this.results.scores[i - 1].identifier);
+				if (playerScores.get(this.results.scores[i].identifier) !== prevScore) currentRank = i + 1;
+			}
+			this.rankings.push(currentRank);
+		}
+	}
+	/**
+	* Formats an integer rank into a string with its ordinal suffix (1st, 2nd, 3rd, 4th...)
+	*/
+	formatRank(rank) {
+		if (rank % 10 === 1 && rank % 100 !== 11) return rank + "st";
+		if (rank % 10 === 2 && rank % 100 !== 12) return rank + "nd";
+		if (rank % 10 === 3 && rank % 100 !== 13) return rank + "rd";
+		return rank + "th";
 	}
 	/**
 	* Helper method to render pseudo HTML safely within the Alpine component view.
@@ -22295,6 +23204,9 @@ var HomeComponent = class HomeComponent {
 	games;
 	hasMobile = hasNavigatorMobile();
 	hasMouse = hasNavigatorMouse();
+	totalTrophees = "(?)";
+	coins = "(?)";
+	globalRank = "(?)";
 	constructor() {
 		this.games = [];
 		for (const [key, gamemode] of Object.entries(gamemods)) {
@@ -22313,6 +23225,7 @@ var HomeComponent = class HomeComponent {
 				name: gamemode.name
 			});
 		}
+		this.refreshAccountInfo();
 	}
 	getImageSrc(gamemode) {
 		const ext = getGmFactory(gamemode).iconExtension;
@@ -22330,8 +23243,17 @@ var HomeComponent = class HomeComponent {
 		}
 		dom.openGamePanel(gamemode);
 	}
+	refreshAccountInfo() {
+		if (_internalDom && !_internalDom.isAuthenticated) return;
+		sendMessage({ askAccountInfo: {} });
+	}
+	onAccountInfo(d) {
+		this.totalTrophees = String(d.totalTrophees);
+		this.coins = String(d.coins);
+		this.globalRank = String(d.globalRank);
+	}
 };
-var TutorialInplayComponent = class {
+var LocalPlayComponent = class {
 	game;
 	TUTORIAL_MARKER = true;
 	text = "";
@@ -22342,6 +23264,18 @@ var TutorialInplayComponent = class {
 	}
 	setText(text) {
 		this.text = text;
+	}
+	createPlayResults(finish) {
+		const users = this.game.generateBotLocalUsers();
+		const scores = Object.keys(users).map((key) => ({
+			delta: 0,
+			result: -1,
+			identifier: Number(key)
+		}));
+		return new PlayResultsComponent({
+			...finish,
+			scores
+		}, users, 0);
 	}
 };
 var LeaderboardComponent = class LeaderboardComponent {
@@ -22600,7 +23534,9 @@ function pushUrlStack(main) {
 	if (main.panel === null) return;
 	urlFragmentManager.push(main.panel, main.currentPage);
 }
+var _internalDom = null;
 var dom = module_default.reactive(new MainComponent());
+_internalDom = dom;
 function initDom() {
 	document.addEventListener("alpine:init", () => {
 		module_default.data("main", () => dom);

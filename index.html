@@ -20,14 +20,30 @@
 						<template x-if="isAuthenticated">
 							<div>
 								<div>
-									<span>Connected as</span>
-									<i x-text="pseudo"></i>
+									<div>
+										<span>Connected as</span>
+										<i x-text="pseudo"></i>
+									</div>
+									<div x-data="panel">
+										<span>
+											<span x-text="totalTrophees"></span>
+											<span> trophees</span>
+										</span>
+
+										<span>
+											<span x-text="coins"></span>
+											<span> coins</span>
+										</span>
+
+										<span>
+											<span>Rank #</span>
+											<span x-text="globalRank"></span>
+										</span>
+									</div>
 								</div>
 								<button @pointerup="disconnect()">Disconnect</button>
 							</div>
-
 						</template>
-
 						<template x-if="!isAuthenticated">
 							<div>
 								<button @pointerup="openLogin()">Login</button>
@@ -78,8 +94,53 @@
 
 			<template x-if="uses('game-panel')">
 				<div id="test-page" class="page" x-data="panel">
-					<h1 x-text="gamemode"></h1>
+					<h1 x-text="gamemodeName"></h1>
+
+					<div class="trophee-road" x-show="isAuthenticated" x-init="initTrophyRoad()">
+						<!-- Scrollable track container referenced for auto-scrolling -->
+						<div class="trophee-road-track" x-ref="track">
+							
+							<!-- Completion gauge background spanning the full width of the road -->
+							<div class="gauge-bar" :style="`width: ${trackWidth}px; left: ${paddingStart}px;`">
+								<!-- Dark-yellow fill: bestTrophees progress -->
+								<div class="gauge-fill-best" :style="`width: ${bestPx}px`"></div>
+								<!-- Yellow fill: current trophees progress -->
+								<div class="gauge-fill-current" :style="`width: ${currentPx}px`">
+									<!-- Badge displaying current trophies directly on the gauge -->
+									<div class="current-trophy-badge">
+										<span x-text="`${trophees} 🏆`"></span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Collectible nodes dynamically positioned according to trophy requirement -->
+							<template x-for="item in collectibleItems" :key="item.id">
+								<div class="collectible-node"
+									:data-unlocked="item.unlocked"
+									:data-unlockable="item.unlockable"
+									:class="{ 'collectible-unlockable': item.unlockable, 'collectible-unlocked': item.unlocked }"
+									:style="`left: ${getItemLeftPx(item.trophees)}px`">
+									
+									<!-- Canvas container -->
+									<div class="icon-wrapper">
+										<canvas width="40" height="40" x-init="drawCollectibleIcon($el, item)"></canvas>
+									</div>
+
+									<!-- Display required trophies for each collectible -->
+									<div class="trophy-requirement" x-text="`${item.trophees} 🏆`"></div>
+
+									<!-- Unlock button: shown ONLY if item is not unlocked AND bestTrophees >= item.trophees -->
+									<button x-show="item.unlockable" 
+											@pointerup="unlockCollectible(item)">
+										Unlock
+									</button>
+								</div>
+							</template>
+						</div>
+					</div>
+					
 					<div x-ref="gamePanel" x-html="htmlContent"></div>
+
 					<div class="footer">
 						<button class="play-btn" @pointerup="play()">Play</button>
 						<template x-if="typeof tutorial === 'function'">
@@ -134,21 +195,25 @@
 			<template x-if="uses('play-results')">
 				<div id="play-results-page" class="page" x-data="panel">
 					<div class="results-container">
-						<!-- Iterate over each player score entry in the results -->
-						<template x-for="score in panel.results.scores" :key="score.identifier">
-							<div class="result-row">
+						<!-- Iterate over each player score entry with its index to bind the ranking -->
+						<template x-for="(score, index) in panel.results.scores" :key="score.identifier">
+							<!-- Add the 'play-results-me' class if the score belongs to the current user -->
+							<div class="result-row" :class="{ 'play-results-me': score.identifier === panel.me }">
+								
+								<!-- Display rank column (1st, 2nd, 3rd...) -->
+								<span x-text="panel.formatRank(panel.rankings[index])"></span>
+
 								<!-- Display player pseudo or fallback to anonymous if null -->
 								<span 
-									class="player-pseudo" 
 									:class="{ 'noTrophees': panel.pseudos[score.identifier] === null }" 
 									x-html="panel.showPseudo(panel.pseudos[score.identifier])">
 								</span>
 
 								<!-- Display trophies score -->
-								<span class="player-score" x-text="score.result"></span>
+								<span x-text="score.result < 0 ? '' : score.result">123</span>
 
 								<!-- Display score variation (delta) -->
-								<span class="player-delta" x-text="(score.delta > 0 ? '+' : '') + score.delta"></span>
+								<span x-text="(score.delta >= 0 ? '+' : '') + score.delta"></span>
 							</div>
 						</template>
 					</div>
@@ -340,7 +405,7 @@
 			window.PROTOCOLS_FOLDER = "/ayke/public/protocols/games/";
 			window.INDEX_TS = "/src/index.ts";
 
-			console.log("v1.2.1");
+			console.log("v1.3.0");
 
 			document.addEventListener("DOMContentLoaded", () => {
 				import("/ayke/public/bundle.js").then(m => m.init());
