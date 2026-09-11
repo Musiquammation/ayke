@@ -17,6 +17,7 @@ interface PlayerInput {
 
 const WIDTH = 1600;
 const HEIGHT = 2800;
+const POINTS_TO_WIN = 5;
 const TILE_SIZE = 150;
 const GRID_PADDING = 1.5;
 const GRID_W = Math.floor(WIDTH / TILE_SIZE) - GRID_PADDING*2;
@@ -700,7 +701,7 @@ export class GMRoarsOnGlass extends GameMode {
 				this.blueScore++;
 			}
 			// First to 5 points
-			if ((this.redScore >= 5 || this.blueScore >= 5) && produceFinish) {
+			if ((this.redScore >= POINTS_TO_WIN || this.blueScore >= POINTS_TO_WIN) && produceFinish) {
 				return this.produceFinish();
 			}
 		}
