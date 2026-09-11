@@ -4,7 +4,6 @@ import { mouseController } from "../controllers/MouseController";
 import { mobileController } from "../controllers/MobileController";
 import { dom } from "../dom/dom";
 import { imageLoader } from "./imageLoader";
-import { Fields } from "../../../commons/Fields";
 import { getProtocol } from "../../../commons/protocolLoader";
 import Prando from "prando";
 import { sendMessage } from "../messages/sendMessage";

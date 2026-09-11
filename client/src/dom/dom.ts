@@ -12,7 +12,7 @@ import { SoloGameMode } from "../../../commons/SoloGameMode";
 import { SoloGameHandler } from "../handlers/SoloGameHandler";
 import { waitSkinsResponsePromise } from "../messages/recvMessage";
 import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
-import { fullScreenHandler } from "../handlers/FullScreenHandler";
+import { FinishGame } from "../../../commons/GameMode";
 
 declare global {
 	interface Window {
@@ -112,7 +112,7 @@ class MainComponent {
 		LoginComponent |
 		SigninComponent |
 		HomeComponent |
-		TutorialInplayComponent |
+		LocalPlayComponent |
 		LeaderboardComponent |
 		SoloLeaderboardComponent |
 		null
@@ -256,15 +256,23 @@ class MainComponent {
 		pushUrlStack(this);
 	}
 
+	openLocalPlayResults(results: FinishGame) {
+		const playPanel = this.getPanel(LocalPlayComponent);
+		this.panel = playPanel.createPlayResults(results);
+		this.currentPage = "play-results";
+		deleteGameHandler();
+		pushUrlStack(this);
+	}
+
 	openSoloComponent(result: number) {
 		this.panel = new SoloPlayResultComponent(result);
 		this.currentPage = "play-solo-results";
 		pushUrlStack(this);
 	}
 
-	openTutorialInPlay(gamemode: string) {
+	openLocalInPlay(gamemode: string) {
 		this.currentPage = "play";
-		this.panel = new TutorialInplayComponent(
+		this.panel = new LocalPlayComponent(
 			new LocalGameHandler(gamemode, false)
 		);
 		pushUrlStack(this);
@@ -272,7 +280,7 @@ class MainComponent {
 
 	openVsBotsInPlay(gamemode: string) {
 		this.currentPage = "play";
-		this.panel = new TutorialInplayComponent(
+		this.panel = new LocalPlayComponent(
 			new LocalGameHandler(gamemode, true)
 		);
 		pushUrlStack(this);
@@ -321,7 +329,7 @@ class MainComponent {
 	}
 
 	getTutorialInplayComponent() {
-		return this.getPanel(TutorialInplayComponent);
+		return this.getPanel(LocalPlayComponent);
 	}
 
 	getLeaderboardPanel() {
@@ -332,15 +340,44 @@ class MainComponent {
 		return this.getPanel(SoloLeaderboardComponent);
 	}
 
+	getGamePanel() {
+		return this.getPanel(GamePanelComponent);
+	}
+
+	getHomePanel() {
+		return this.getPanel(HomeComponent);
+	}
+
 }
 
 
+interface CollectibleItem {
+	id: number,
+	name: string,
+	trophees: number,
+	unlocked: boolean,
+	unlockable:  boolean
+}
+
 class GamePanelComponent {
+	// --- Trophy road state ---
+	trophees = 0;
+	bestTrophees = 0;
+	unlockedCollectibleIds: number[] | null = null;
+	collectibleItems: CollectibleItem[] = [];
+
+	// --- Trophy Road Layout Configuration ---
+	readonly pixelsPerTrophy;
+	readonly paddingStart = 60;     // Initial padding (px) before 0 trophies
+	readonly paddingEnd = 120;      // Extra padding (px) extending past the last collectible
+
 	constructor(
 		public readonly gamemode: string,
 		public readonly data: GamePanelData,
 		public readonly htmlContent: string
-	) {}
+	) {
+		this.pixelsPerTrophy = getMultiGmFactory(gamemode).tropheeRoalPixelsPerTrophy;
+	}
 
 	uses(gamemode: string) {
 		return this.gamemode === gamemode;
@@ -371,7 +408,7 @@ class GamePanelComponent {
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 
-		dom.openTutorialInPlay(this.gamemode);
+		dom.openLocalInPlay(this.gamemode);
 	}
 
 	async againstBots() {
@@ -383,6 +420,145 @@ class GamePanelComponent {
 		dom.stopLoading();
 
 		dom.openVsBotsInPlay(this.gamemode);
+	}
+
+	// Called by x-init when the trophy road mounts (only if authenticated).
+	initTrophyRoad() {
+		const factory = getMultiGmFactory(this.gamemode);
+		if (!factory.collectibles) return;
+
+		if (this.unlockedCollectibleIds === null) {
+			sendMessage({ askProgression: { gamemode: this.gamemode } });
+			return;
+		}
+
+		const unlockedCollectibleIds = this.unlockedCollectibleIds;
+
+		this.collectibleItems = (
+			factory.collectibles
+			.slice()
+			.sort((a, b) => a.trophees - b.trophees)
+			.map(c => {
+				const unlocked = unlockedCollectibleIds.includes(c.id);
+
+				const unlockable = (
+					!unlocked &&
+					c.trophees <= this.bestTrophees
+				);
+
+				return {
+					id: c.id,
+					name: c.name,
+					trophees: c.trophees,
+					unlocked,
+					unlockable
+				}
+			})
+		);
+		
+
+	}
+
+	// Called from recvMessage.ts when the server answers askProgression.
+	onProgressionResult(d: {
+		gamemode: string,
+		trophees: number,
+		bestTrophees: number,
+		unlockedCollectibleIds: number[],
+	}) {
+		if (d.gamemode !== this.gamemode) return;
+
+		// Append trophy road data
+		
+		this.trophees = d.trophees;
+		this.bestTrophees = d.bestTrophees;
+		this.unlockedCollectibleIds = d.unlockedCollectibleIds;
+		this.initTrophyRoad();
+
+		// Auto-scroll track to center on current progression position
+		setTimeout(() => this.scrollToCurrentProgress(), 50);
+	}
+
+	get gamemodeName() {
+		return getGmFactory(this.gamemode).name;
+	}
+
+	// Highest trophy threshold on the road
+	get collectiblesTotal() {
+		if (this.collectibleItems.length === 0) return 0;
+		return this.collectibleItems[this.collectibleItems.length - 1].trophees;
+	}
+
+	// Total length of the track in pixels (ends slightly past the last collectible)
+	get trackWidth() {
+		return (this.collectiblesTotal * this.pixelsPerTrophy) + this.paddingEnd;
+	}
+
+	// Pixel offset for current trophies
+	get currentPx() {
+		return this.trophees * this.pixelsPerTrophy;
+	}
+
+	// Pixel offset for best trophies
+	get bestPx() {
+		return this.bestTrophees * this.pixelsPerTrophy;
+	}
+
+	// Calculates horizontal pixel offset for a given trophy count
+	getItemLeftPx(trophees: number) {
+		return this.paddingStart + (trophees * this.pixelsPerTrophy);
+	}
+
+	// Smoothly scrolls the track container to center the current progress
+	scrollToCurrentProgress() {
+		const track = document.querySelector('.trophee-road-track') as HTMLElement;
+		if (!track) return;
+		const currentPosition = this.getItemLeftPx(this.trophees);
+		const targetScrollLeft = currentPosition - (track.clientWidth / 2);
+		track.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' });
+	}
+
+	// Draws a collectible's icon on its canvas. Called via x-init on the <canvas>.
+	async drawCollectibleIcon(canvas: HTMLCanvasElement, item: CollectibleItem) {
+		const factory = getMultiGmFactory(this.gamemode);
+		const collectible = factory.collectibles?.find(c => c.id === item.id);
+		const ctx = canvas.getContext("2d");
+		if (!collectible || !ctx) return;
+
+		if (item.unlockable) {
+			ctx.fillStyle = "#f5cc00";
+		} else if (item.unlocked) {
+			ctx.fillStyle = "#967404";
+		} else {
+			ctx.fillStyle = "#808080";
+		}
+
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		await collectible.drawIcon(ctx, Math.max(canvas.width, canvas.height));
+	}
+
+	// Called from the "Unlock" button.
+	unlockCollectible(item: { id: number; name: string; trophees: number; unlocked: boolean }) {
+		// Guard condition: must have bestTrophees >= item.trophees to unlock
+		if (this.bestTrophees < item.trophees) return;
+
+		sendMessage({ unlockCollectible: { gamemode: this.gamemode, collectibleId: item.id } });
+	}
+
+	// Called from recvMessage.ts when the server answers unlockCollectible.
+	onUnlockResult(d: { success: boolean; collectibleId: number; gamemode: string }) {
+		if (d.gamemode !== this.gamemode || !d.success) return;
+
+		const item = this.collectibleItems.find(i => i.id === d.collectibleId);
+		if (!item) return;
+
+		sendMessage({ askProgression: { gamemode: this.gamemode } });
+
+		item.unlocked = true;
+
+		setTimeout(() => {
+			alert(`You unlocked "${item.name}"`);
+		});
 	}
 }
 
@@ -490,6 +666,8 @@ class WaitPlayPanelComponent {
 		}
 		return new PlayComponent(pseudos, this.me);
 	}
+
+
 }
 
 class PlayComponent {
@@ -517,11 +695,91 @@ class SoloPlayComponent {
 }
 
 class PlayResultsComponent {
+	// Array holding the rank of the player corresponding to scores[i]
+	rankings: number[] = [];
+
 	constructor(
 		readonly results: PlayResults,
 		readonly pseudos: Record<number, string | null>,
 		readonly me: number
-	) {}
+	) {
+		this.computeAndSortRankings();
+	}
+
+	/**
+	 * Sorts the scores array and calculates the rankings managing team & player equalities.
+	 */
+	private computeAndSortRankings() {
+		const playerScores = new Map<number, number>();
+		const teamEffectiveRanks: number[] = [];
+		let currentTeamEffective = 0;
+
+		// 1. Calculate effective team rank for each team
+		for (let t = 0; t < this.results.results.length; t++) {
+			// Check if the current team is tied with the previous one
+			if (t > 0 && this.results.teamEqualities.includes(t - 1)) {
+				// Team is tied, keep the same effective team rank
+			} else {
+				currentTeamEffective = t;
+			}
+			teamEffectiveRanks.push(currentTeamEffective);
+		}
+
+		// 2. Calculate an absolute sorting score for each player
+		for (let t = 0; t < this.results.results.length; t++) {
+			let currentPEffective = 0;
+			for (let p = 0; p < this.results.results[t].length; p++) {
+				const playerId = this.results.results[t][p];
+				
+				// Check if the current player is tied with the previous player in the same team
+				if (p > 0 && this.results.playerEqualities.includes(this.results.results[t][p - 1])) {
+					// Player is tied, keep the same effective player rank
+				} else {
+					currentPEffective = p;
+				}
+				
+				// Combine team rank and player rank into a single sorting score
+				// We multiply the team rank by a large number so it safely takes precedence over individual player ranks
+				const sortingScore = teamEffectiveRanks[t] * 10000 + currentPEffective;
+				playerScores.set(playerId, sortingScore);
+			}
+		}
+
+		// 3. Sort the scores array using the previously calculated scores
+		this.results.scores.sort((a, b) => {
+			const scoreA = playerScores.get(a.identifier) ?? 0;
+			const scoreB = playerScores.get(b.identifier) ?? 0;
+			return scoreA - scoreB;
+		});
+
+		// 4. Generate the rankings array
+		this.rankings = [];
+		let currentRank = 1;
+		
+		for (let i = 0; i < this.results.scores.length; i++) {
+			if (i > 0) {
+				const prevScore = playerScores.get(this.results.scores[i - 1].identifier);
+				const currScore = playerScores.get(this.results.scores[i].identifier);
+				
+				// If the player's sorting score differs from the previous one, update the rank
+				// By jumping to `i + 1`, we perfectly handle skipping numbers after ties (e.g., 1st, 2nd, 2nd, 4th)
+				if (currScore !== prevScore) {
+					currentRank = i + 1;
+				}
+			}
+			this.rankings.push(currentRank);
+		}
+	}
+
+	/**
+	 * Formats an integer rank into a string with its ordinal suffix (1st, 2nd, 3rd, 4th...)
+	 */
+	formatRank(rank: number): string {
+		if (rank % 10 === 1 && rank % 100 !== 11) return rank + "st";
+		if (rank % 10 === 2 && rank % 100 !== 12) return rank + "nd";
+		if (rank % 10 === 3 && rank % 100 !== 13) return rank + "rd";
+		return rank + "th";
+	}
 
 	/**
 	 * Helper method to render pseudo HTML safely within the Alpine component view.
@@ -634,6 +892,9 @@ class HomeComponent {
 	private games: { category: string; list: any[]; }[];
 	private readonly hasMobile = hasNavigatorMobile();
 	private readonly hasMouse = hasNavigatorMouse();
+	totalTrophees = "(?)";
+	coins = "(?)";
+	globalRank = "(?)";
 
 	constructor() {
 		this.games = [];
@@ -663,6 +924,8 @@ class HomeComponent {
 				name: gamemode.name
 			});
 		}
+
+		this.refreshAccountInfo();
 	}
 
 	getImageSrc(gamemode: string) {
@@ -687,10 +950,23 @@ class HomeComponent {
 
 		dom.openGamePanel(gamemode);
 	}
+
+	refreshAccountInfo() {
+		if (_internalDom && !_internalDom.isAuthenticated) return;
+		sendMessage({ askAccountInfo: {} });
+	}
+
+	// Called from recvMessage.ts when the server answers askAccountInfo.
+	onAccountInfo(d: { totalTrophees: number; coins: number; globalRank: number }) {
+		this.totalTrophees = String(d.totalTrophees);
+		this.coins = String(d.coins);
+		this.globalRank = String(d.globalRank);
+	}
+
 }
 
 
-class TutorialInplayComponent {
+class LocalPlayComponent {
 	private readonly TUTORIAL_MARKER = true;
 
 	private text = "";
@@ -702,6 +978,26 @@ class TutorialInplayComponent {
 
 	setText(text: string) {
 		this.text = text;
+	}
+
+	createPlayResults(finish: FinishGame) {
+		const users = this.game.generateBotLocalUsers();
+		const scores = Object.keys(users).map(key => ({
+			delta: 0,
+			result: -1,
+			identifier: Number(key) 
+		}));
+
+		const results: PlayResults = {
+			...finish,
+			scores
+		};
+
+		return new PlayResultsComponent(
+			results,
+			users,
+			0
+		);
 	}
 }
 
@@ -1067,7 +1363,12 @@ export function goToUrlStackPosition(position: number) {
 	urlFragmentManager.goToPosition(position);
 }
 
+let _internalDom: any = null;
+
+
 export const dom = Alpine.reactive(new MainComponent());
+
+_internalDom = dom;
 
 export function initDom() {
 	document.addEventListener("alpine:init", () => {
