@@ -282,14 +282,16 @@ export class Connection {
 			if (!applyFn) {
 				// Misconfigured apply key: refuse instead of unlocking a reward
 				// that can never be granted.
-				c.sendMessage({ unlockCollectibleResult: { success: false,
+				c.sendMessage({ unlockCollectibleResult: {
+					success: false,
 					collectibleId: d.collectibleId,
-					gamemode: d.gamemode } });
+					gamemode: d.gamemode
+				} });
 				return;
 			}
 
 			await db.unlockCollectible(c.pseudo, d.gamemode, d.collectibleId);
-			await applyFn(c.pseudo, db);
+			await applyFn(c.pseudo, db, collectible.arg);
 
 			c.sendMessage({ unlockCollectibleResult: { success: true, collectibleId: d.collectibleId, gamemode: d.gamemode } });
 		},

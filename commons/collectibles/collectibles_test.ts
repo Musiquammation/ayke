@@ -8,6 +8,7 @@ const collectibles: Collectible[] = [
             ctx.fillStyle = "#f87";
             ctx.fillRect(0, 0, size, size);
         },
+        arg: "(argument)",
         apply: 'test',
         trophees: 10
     },
@@ -19,6 +20,7 @@ const collectibles: Collectible[] = [
             ctx.fillStyle = "#88f";
             ctx.fillRect(0, 0, size, size);
         },
+        arg: "(argument)",
         apply: 'test',
         trophees: 50
     },
@@ -30,6 +32,7 @@ const collectibles: Collectible[] = [
             ctx.fillStyle = "#f87";
             ctx.fillRect(0, 0, size, size);
         },
+        arg: "(argument)",
         apply: 'test',
         trophees: 100
     },
@@ -41,6 +44,7 @@ const collectibles: Collectible[] = [
             ctx.fillStyle = "#88f";
             ctx.fillRect(0, 0, size, size);
         },
+        arg: "(argument)",
         apply: 'test',
         trophees: 200
     },
@@ -52,6 +56,7 @@ const collectibles: Collectible[] = [
             ctx.fillStyle = "#f87";
             ctx.fillRect(0, 0, size, size);
         },
+        arg: "(argument)",
         apply: 'test',
         trophees: 250
     },
@@ -63,6 +68,7 @@ const collectibles: Collectible[] = [
             ctx.fillStyle = "#88f";
             ctx.fillRect(0, 0, size, size);
         },
+        arg: "(argument)",
         apply: 'test',
         trophees: 500
     },
