@@ -18,6 +18,7 @@ import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
 import bots_woodSword from "./bots/bots-woodSword";
 
 import collectibles_test from "./collectibles/collectibles_test";
+import collectibles_airbasket from "./collectibles/collectibles_airbasket";
 
 
 interface Player {
@@ -111,7 +112,7 @@ export const gamemods: Record<
 		tropheesPerPlayer: 20,
 		computerOnly: true,
 		skins: GMAirBasket.SKINS_IDS,
-		collectibles: null,
+		collectibles: collectibles_airbasket,
 		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
