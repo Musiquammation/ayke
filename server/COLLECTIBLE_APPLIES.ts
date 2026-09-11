@@ -13,10 +13,10 @@ export const COLLECTIBLE_APPLIES: Record<
 	},
 
 	async giveSkin(pseudo, db, arg: any) {
-		const r = await db.giveSkin(arg.gamemode, arg.coins, pseudo);
+		const r = await db.giveSkin(arg.gamemode, arg.skin, pseudo);
 		
 		if (r) {
-			logger.info(`Give coins ${arg.skin} to ${arg.skin} in ${arg.gamemode}`);
+			logger.info(`Give skin ${arg.skin} to ${pseudo} in ${arg.gamemode}`);
 		} else {
 			logger.error(`Failed to give skin ${arg.skin} to ${arg.skin} in ${arg.gamemode}`);
 		}
