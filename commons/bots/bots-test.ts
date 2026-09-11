@@ -57,10 +57,10 @@ const followNearestOpponent = runner((game, data, playerIdx) => {
 		move = 0;
 
 	else if (target.y > game.players[playerIdx].y)
-		move = 300;
+		move = -300;
 
 	else if (target.y < game.players[playerIdx].y)
-		move = -300;
+		move = +300;
 
 	else
 		move = 0;

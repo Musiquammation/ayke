@@ -938,7 +938,7 @@ function getTexturePath(id: string) {
 }
 
 function getIconPath(id: string) {
-	return `/assets/games/airbasket/skins/${id}/icon.png`
+	return window.IMG_ROOT_PATH + `/assets/games/airbasket/skins/${id}/icon.png`
 }
 
 

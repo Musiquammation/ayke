@@ -7,11 +7,16 @@ import { getLogger } from "../ILogger";
 const logger = getLogger('bots-superTicTacToe');
 logger.setLevel('debug');
 
+
+const COOLDOWN = 0.6;
+
 /**
  * Persistent bot state maintained across frame runner calls.
  * Used primarily to throttle inputs and prevent spamming the game runner.
  */
 interface Data {
+	nextDate: number;
+
 	/** Tracks the active team turn from the last processed frame */
 	lastProcessedTurn: 'red' | 'blue' | null;
 	/** Flag indicating if an input payload was already emitted for the current turn */
@@ -27,7 +32,8 @@ function dataConstructor(): Data {
 	return {
 		lastProcessedTurn: null,
 		hasPlayedThisTurn: false,
-		moveCount: 0
+		moveCount: 0,
+		nextDate: -1
 	};
 }
 
@@ -279,6 +285,18 @@ const frame = runner((game: GMSuperTicTacToe, data: Data, playerIdx: number) => 
 	if (data.hasPlayedThisTurn && data.lastProcessedTurn === myTeam) {
 		return [inputs, 'success'];
 	}
+
+	// Wait
+	if (data.nextDate < 0) {
+		data.nextDate = performance.now() + COOLDOWN*1000;
+		return [inputs, 'success'];
+	}
+
+	if (performance.now() < data.nextDate)
+		return [inputs, 'success'];
+
+	data.nextDate = -1;
+	
 
 	logger.debug(`=== Bot Turn Started (${myTeam.toUpperCase()}) | Forced Sub-grid: ${game.forced} ===`);
 

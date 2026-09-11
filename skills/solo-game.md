@@ -99,16 +99,16 @@ Le temps est float en secondes.
 Mets les constantes en haut du fichier.
 Commente en anglais toutes les fonctions et utilise des petites méthodes.
 Sois verbeux dans les commentaires.
+On a déjà (ces fonctions sont déjà codées, pas besoin de les recoder)
 
 ```ts
-namespace collisions {
-    interface Circle {
+export namespace collisions {
+	interface Circle {
 		x: number;
 		y: number;
 		r: number;
 	}
 
-    // rectangle centré en (x,y)
 	interface Rect {
 		x: number;
 		y: number;
@@ -116,8 +116,18 @@ namespace collisions {
 		h: number;
 	}
 
+	interface RoundedRect {
+		x: number;
+		y: number;
+		w: number;
+		h: number;
+		radius: number;
+	}
+
 	export function RectCircle(rect: Rect, circle: Circle);
 	export function RectRect(a: Rect, b: Rect);
+	export function RoundedRectCircle(rect: RoundedRect, circle: Circle);
+	export function RoundedRectRect(rect: RoundedRect, b: Rect);
 	export function CircleCircle(a: Circle, b: Circle);
 }
 
