@@ -37,7 +37,8 @@ export class Database {
 		this.db.exec(`
 			CREATE TABLE IF NOT EXISTS User (
 				pseudo TEXT PRIMARY KEY,
-				password TEXT NOT NULL
+				password TEXT NOT NULL,
+				coins INTEGER NOT NULL DEFAULT 0 CHECK(coins >= 0)
 			);
 
 			CREATE TABLE IF NOT EXISTS Gamemode (
@@ -47,28 +48,33 @@ export class Database {
 			);
 
 			CREATE TABLE IF NOT EXISTS Progression (
-				gamemode TEXT,
-				user TEXT,
-				trophees INTEGER DEFAULT 0 CHECK(trophees >= 0),
+				gamemode TEXT NOT NULL,
+				user TEXT NOT NULL,
+				trophees INTEGER NOT NULL DEFAULT 0 CHECK(trophees >= 0),
+				bestTrophees INTEGER NOT NULL DEFAULT 0 CHECK(bestTrophees >= 0),
 				PRIMARY KEY (gamemode, user),
 				FOREIGN KEY (gamemode) REFERENCES Gamemode(id),
 				FOREIGN KEY (user) REFERENCES User(pseudo)
 			);
 
 			CREATE TABLE IF NOT EXISTS UnlockedCollectible (
-				gamemode TEXT,
-				user TEXT,
-				collectibleId INTEGER,
+				gamemode TEXT NOT NULL,
+				user TEXT NOT NULL,
+				collectibleId INTEGER NOT NULL,
 				PRIMARY KEY (gamemode, user, collectibleId),
-				FOREIGN KEY (gamemode, user) REFERENCES Progression(gamemode, user)
+				FOREIGN KEY (gamemode, user)
+					REFERENCES Progression(gamemode, user)
+					ON DELETE CASCADE
 			);
 
 			CREATE TABLE IF NOT EXISTS QuickConnectionKey (
 				key TEXT PRIMARY KEY,
 				user TEXT NOT NULL,
-				createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+				createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				expiresAt DATETIME,
-				FOREIGN KEY (user) REFERENCES User(pseudo) ON DELETE CASCADE
+				FOREIGN KEY (user)
+					REFERENCES User(pseudo)
+					ON DELETE CASCADE
 			);
 
 			CREATE TABLE IF NOT EXISTS SoloRecord (
@@ -76,23 +82,34 @@ export class Database {
 				score REAL NOT NULL,
 				pseudo TEXT,
 				gamemode TEXT NOT NULL,
-				category TEXT NOT NULL
+				category TEXT NOT NULL,
+				FOREIGN KEY (pseudo)
+					REFERENCES User(pseudo)
+					ON DELETE SET NULL,
+				FOREIGN KEY (gamemode)
+					REFERENCES Gamemode(id)
 			);
-			
+
 			CREATE TABLE IF NOT EXISTS Skin (
-				gamemode TEXT,
-				id TEXT,
+				gamemode TEXT NOT NULL,
+				id TEXT NOT NULL,
 				PRIMARY KEY (gamemode, id),
-				FOREIGN KEY (gamemode) REFERENCES Gamemode(id)
+				FOREIGN KEY (gamemode)
+					REFERENCES Gamemode(id)
+					ON DELETE CASCADE
 			);
 
 			CREATE TABLE IF NOT EXISTS SkinUnlock (
-				gamemode TEXT,
-				skinId TEXT,
-				user TEXT,
+				gamemode TEXT NOT NULL,
+				skinId TEXT NOT NULL,
+				user TEXT NOT NULL,
 				PRIMARY KEY (gamemode, skinId, user),
-				FOREIGN KEY (gamemode, skinId) REFERENCES Skin(gamemode, id),
-				FOREIGN KEY (gamemode, user) REFERENCES Progression(gamemode, user)
+				FOREIGN KEY (gamemode, skinId)
+					REFERENCES Skin(gamemode, id)
+					ON DELETE CASCADE,
+				FOREIGN KEY (gamemode, user)
+					REFERENCES Progression(gamemode, user)
+					ON DELETE CASCADE
 			);
 		`);
 	}
