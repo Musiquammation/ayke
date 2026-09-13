@@ -400,8 +400,11 @@ export class GMRoarsOnGlass extends GameMode {
 	
 	// Helper to apply velocity physics based on input direction
 	private applyPhysics(dt: number, velocity: number, dir: number) {
+		const targetVelocity = dir * SPEED;
 		let v = velocity;
+
 		if (dir === 0) {
+
 			if (v > 0) {
 				v -= SOFT_DECELERATION * dt;
 				if (v < 0) v = 0;
@@ -409,29 +412,18 @@ export class GMRoarsOnGlass extends GameMode {
 				v += SOFT_DECELERATION * dt;
 				if (v > 0) v = 0;
 			}
-		} else if (dir > 0) {
-			if (v < 0) {
-				v += QUICK_DECELERATION * dt;
-				if (v > 0) v = 0;
-			} else if (v < SPEED) {
-				v += ACCELERATION * dt;
-				if (v > SPEED) v = SPEED;
-			} else if (v > SPEED) {
-				v -= MIN_DECELERATION * dt;
-				if (v < SPEED) v = SPEED;
-			}
-		} else { // dir < 0
-			if (v > 0) {
-				v -= QUICK_DECELERATION * dt;
-				if (v < 0) v = 0;
-			} else if (v > -SPEED) {
-				v -= ACCELERATION * dt;
-				if (v < -SPEED) v = -SPEED;
-			} else if (v < -SPEED) {
-				v += MIN_DECELERATION * dt;
-				if (v > -SPEED) v = -SPEED;
-			}
+
+		} else if (v < targetVelocity) {
+
+			v += ACCELERATION * dt;
+			if (v > targetVelocity) v = targetVelocity;
+
+		} else if (v > targetVelocity) {
+
+			v -= ACCELERATION * dt;
+			if (v < targetVelocity) v = targetVelocity;
 		}
+
 		return v;
 	}
 
@@ -718,6 +710,13 @@ export class GMRoarsOnGlass extends GameMode {
 		if (input.action === 'move') {
 			p.dirX = input.move.dx || 0;
 			p.dirY = input.move.dy || 0;
+
+			const norm2 = p.dirX * p.dirX + p.dirY * p.dirY;
+			if (norm2 > 1) {
+				const inv = 1/Math.sqrt(norm2);
+				p.dirX *= inv;
+				p.dirY *= inv;
+			}
 		}
 		
 		if (input.action === 'roar') {
@@ -948,7 +947,7 @@ export class GMRoarsOnGlass extends GameMode {
 				move: {
 					x: 100,
 					xp: 'left',
-					y: 100,
+					y: 200,
 					yp: 'bottom',
 					size: 100,
 					color: "#007700"
@@ -959,7 +958,7 @@ export class GMRoarsOnGlass extends GameMode {
 				roar: {
 					x: 100,
 					xp: 'right',
-					y: 100,
+					y: 200,
 					yp: 'bottom',
 					size: 100,
 					color: "#ff00ff"
