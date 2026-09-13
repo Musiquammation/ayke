@@ -15,7 +15,7 @@ import { Fields } from "../../commons/Fields";
 import { GMExample } from "../../commons/gamemods/GMExample";
 import { getBestInArray } from "../../commons/util/getBestInArray";
 import { appendBots, botActionNodeHelper } from "../Bot";
-import { getLogger } from "../Logger";
+import { getLogger } from "../ILogger";
 
 const logger = getLogger('bots-example');
 // logger.setLevel('debug');

@@ -44,7 +44,7 @@ const HEIGHT = 1080;
  *
  * Swords stop moving when their front reaches this radius.
  */
-const TRUNK_RADIUS = 150;
+const TRUNK_RADIUS = 200;
 
 /*
  * Initial X position of a newly thrown sword.
@@ -52,7 +52,7 @@ const TRUNK_RADIUS = 150;
  * Red swords start on the left and travel towards the right.
  * Blue swords start on the right and travel towards the left.
  */
-const SWORD_SPAWN = 650;
+const SWORD_SPAWN = 700;
 
 /*
  * Constant horizontal speed of moving swords.
@@ -562,6 +562,14 @@ class TutorialData {
  * become attached to the trunk.
  */
 export class GMWoodSword extends GameMode {
+	static readonly DATA = {
+		SWORD_SPEED,
+		SWORD_SPAWN,
+		TRUNK_RADIUS,
+		SWORD_HITBOX_ANGLE,
+		ROUND_TIME
+	};
+
 	/*
 	 * Tell the generic game framework which data type represents
 	 * a player.
@@ -1256,15 +1264,19 @@ export class GMWoodSword extends GameMode {
 		// have at least one sword available to throw.
 		const player = this.players[playerIdx];
 
-		if (player.swordsLeft > 0) {
+		for (const player of this.players) {
+			if (player.swordsLeft <= 0) continue;
+
 			ctx.save();
-			// Position the sword at the player's spawn point.
-			ctx.translate(player.team === 'red' ? -SWORD_SPAWN : +SWORD_SPAWN, 0);
+
+			ctx.translate(
+				player.team === 'red' ? -SWORD_SPAWN : +SWORD_SPAWN,
+				0
+			);
 
 			const tex = imageLoader.get(`sword-${player.team}`);
 
 			if (tex) {
-				// Orient the sword towards the trunk.
 				ctx.rotate(player.team === "red" ? Math.PI : 0);
 
 				ctx.drawImage(
@@ -1272,12 +1284,16 @@ export class GMWoodSword extends GameMode {
 					-SWORD_LENGTH,
 					-SWORD_THICKNESS,
 					SWORD_LENGTH,
-					SWORD_THICKNESS*2
+					SWORD_THICKNESS * 2
 				);
 			}
 
 			ctx.restore();
 		}
+
+
+
+
 
 		/*
 		 * ================================================================
