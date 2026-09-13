@@ -24,7 +24,7 @@ const {
 
 
 const TIME_OF_FLIGHT = (SWORD_SPAWN - TRUNK_RADIUS) / SWORD_SPEED;
-const THROW_COOLDOWN = 0.15; 
+const THROW_COOLDOWN = 0.2; 
 
 // The ideal safety margin. Slightly larger than the strict engine hitbox
 // to account for the trunk's acceleration which we don't fully predict.

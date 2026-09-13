@@ -114,161 +114,183 @@ const SWORDS_STREAM = [
  */
 const TRUNK_STREAM = [
 	[
-		{ speed: 1, timestamp: 0 },
-		{ speed: 5, timestamp: 0.5 },
-		{ speed: -2, timestamp: 2 },
-		{ speed: 3, timestamp: 3.5 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: 5, timestamp: 0 },
+		{ speed: 2, timestamp: 5 },
+		{ speed: -2, timestamp: 10 },
+		{ speed: 3, timestamp: 15 },
+		{ speed: -1, timestamp: 20 },
+		{ speed: 0, timestamp: 25 }
 	],
 	[
-		{ speed: -1, timestamp: 0 },
-		{ speed: -5, timestamp: 0.4 },
-		{ speed: 2, timestamp: 1.8 },
-		{ speed: -3, timestamp: 3 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: -5, timestamp: 0 },
+		{ speed: -2, timestamp: 5 },
+		{ speed: 2, timestamp: 10 },
+		{ speed: -3, timestamp: 15 },
+		{ speed: 1, timestamp: 20 },
+		{ speed: 0, timestamp: 25 }
 	],
 	[
-		{ speed: 1.5, timestamp: 0 },
-		{ speed: 6, timestamp: 0.6 },
-		{ speed: 4, timestamp: 1.5 },
-		{ speed: -3, timestamp: 2.8 },
-		{ speed: 2, timestamp: 4 },
-		{ speed: -8, timestamp: 5.5 },
-		{ speed: 0, timestamp: 8 }
+		{ speed: 6, timestamp: 0 },
+		{ speed: 3, timestamp: 5 },
+		{ speed: -2, timestamp: 10 },
+		{ speed: 2, timestamp: 15 },
+		{ speed: -3, timestamp: 20 },
+		{ speed: 1, timestamp: 25 },
+		{ speed: 0, timestamp: 30 }
 	],
 	[
-		{ speed: -1.5, timestamp: 0 },
-		{ speed: -6, timestamp: 0.5 },
-		{ speed: -2, timestamp: 1.5 },
-		{ speed: 4, timestamp: 2.5 },
-		{ speed: -1, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -6, timestamp: 0 },
+		{ speed: -3, timestamp: 5 },
+		{ speed: 2, timestamp: 10 },
+		{ speed: -2, timestamp: 15 },
+		{ speed: 3, timestamp: 20 },
+		{ speed: -1, timestamp: 25 },
+		{ speed: 0, timestamp: 30 }
 	],
 	[
-		{ speed: 0.5, timestamp: 0 },
-		{ speed: 7, timestamp: 0.35 },
-		{ speed: -4, timestamp: 1.5 },
-		{ speed: 5, timestamp: 2.5 },
-		{ speed: -2, timestamp: 3.5 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: 5, timestamp: 0 },
+		{ speed: 1, timestamp: 5 },
+		{ speed: -3, timestamp: 11 },
+		{ speed: 2, timestamp: 16 },
+		{ speed: -2, timestamp: 21 },
+		{ speed: 1, timestamp: 26 },
+		{ speed: 0, timestamp: 31 }
 	],
 	[
-		{ speed: -0.5, timestamp: 0 },
-		{ speed: -7, timestamp: 0.4 },
-		{ speed: 3, timestamp: 1.3 },
-		{ speed: -5, timestamp: 2.4 },
-		{ speed: 2, timestamp: 3.8 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: -5, timestamp: 0 },
+		{ speed: -1, timestamp: 5 },
+		{ speed: 3, timestamp: 11 },
+		{ speed: -2, timestamp: 16 },
+		{ speed: 2, timestamp: 21 },
+		{ speed: -1, timestamp: 26 },
+		{ speed: 0, timestamp: 31 }
 	],
 	[
-		{ speed: 2, timestamp: 0 },
-		{ speed: 8, timestamp: 0.5 },
-		{ speed: 6, timestamp: 1.2 },
-		{ speed: -4, timestamp: 2.5 },
-		{ speed: -6, timestamp: 3.2 },
-		{ speed: 3, timestamp: 4.2 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 7, timestamp: 0 },
+		{ speed: 3, timestamp: 5 },
+		{ speed: 1, timestamp: 11 },
+		{ speed: -3, timestamp: 16 },
+		{ speed: -1, timestamp: 21 },
+		{ speed: 2, timestamp: 26 },
+		{ speed: -2, timestamp: 31 },
+		{ speed: 0, timestamp: 36 }
 	],
 	[
-		{ speed: -2, timestamp: 0 },
-		{ speed: -8, timestamp: 0.45 },
-		{ speed: -5, timestamp: 1.2 },
-		{ speed: 4, timestamp: 2.3 },
-		{ speed: 7, timestamp: 3 },
-		{ speed: -2, timestamp: 4.2 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -7, timestamp: 0 },
+		{ speed: -3, timestamp: 5 },
+		{ speed: -1, timestamp: 11 },
+		{ speed: 3, timestamp: 16 },
+		{ speed: 1, timestamp: 21 },
+		{ speed: -2, timestamp: 26 },
+		{ speed: 2, timestamp: 31 },
+		{ speed: 0, timestamp: 36 }
 	],
 	[
-		{ speed: 1, timestamp: 0 },
-		{ speed: 5, timestamp: 0.3 },
-		{ speed: -5, timestamp: 1.2 },
-		{ speed: 6, timestamp: 2 },
-		{ speed: -4, timestamp: 3 },
-		{ speed: 3, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 5, timestamp: 0 },
+		{ speed: 2, timestamp: 5 },
+		{ speed: -3, timestamp: 10 },
+		{ speed: 1, timestamp: 15 },
+		{ speed: -2, timestamp: 20 },
+		{ speed: 3, timestamp: 25 },
+		{ speed: -1, timestamp: 30 },
+		{ speed: 0, timestamp: 35 }
 	],
 	[
-		{ speed: -1, timestamp: 0 },
-		{ speed: -5, timestamp: 0.35 },
-		{ speed: 5, timestamp: 1.3 },
-		{ speed: -6, timestamp: 2.1 },
-		{ speed: 4, timestamp: 3 },
-		{ speed: -3, timestamp: 4.1 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -5, timestamp: 0 },
+		{ speed: -2, timestamp: 5 },
+		{ speed: 3, timestamp: 10 },
+		{ speed: -1, timestamp: 15 },
+		{ speed: 2, timestamp: 20 },
+		{ speed: -3, timestamp: 25 },
+		{ speed: 1, timestamp: 30 },
+		{ speed: 0, timestamp: 35 }
 	],
 	[
-		{ speed: 1, timestamp: 0 },
-		{ speed: 9, timestamp: 0.5 },
-		{ speed: 2, timestamp: 1.5 },
-		{ speed: -7, timestamp: 2.5 },
-		{ speed: 5, timestamp: 3.5 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: 6, timestamp: 0 },
+		{ speed: 2, timestamp: 5 },
+		{ speed: -2, timestamp: 11 },
+		{ speed: 3, timestamp: 16 },
+		{ speed: -1, timestamp: 21 },
+		{ speed: 2, timestamp: 26 },
+		{ speed: -2, timestamp: 31 },
+		{ speed: 0, timestamp: 36 }
 	],
 	[
-		{ speed: -1, timestamp: 0 },
-		{ speed: -9, timestamp: 0.45 },
-		{ speed: -2, timestamp: 1.5 },
-		{ speed: 7, timestamp: 2.5 },
-		{ speed: -5, timestamp: 3.5 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: -6, timestamp: 0 },
+		{ speed: -2, timestamp: 5 },
+		{ speed: 2, timestamp: 11 },
+		{ speed: -3, timestamp: 16 },
+		{ speed: 1, timestamp: 21 },
+		{ speed: -2, timestamp: 26 },
+		{ speed: 2, timestamp: 31 },
+		{ speed: 0, timestamp: 36 }
 	],
 	[
-		{ speed: 2, timestamp: 0 },
-		{ speed: 6, timestamp: 0.4 },
-		{ speed: -1, timestamp: 1.2 },
-		{ speed: -6, timestamp: 2 },
-		{ speed: 4, timestamp: 3 },
-		{ speed: 2, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 5, timestamp: 0 },
+		{ speed: 1, timestamp: 5 },
+		{ speed: -2, timestamp: 10 },
+		{ speed: 3, timestamp: 15 },
+		{ speed: -3, timestamp: 20 },
+		{ speed: 2, timestamp: 25 },
+		{ speed: -1, timestamp: 30 },
+		{ speed: 0, timestamp: 35 }
 	],
 	[
-		{ speed: -2, timestamp: 0 },
-		{ speed: -6, timestamp: 0.4 },
-		{ speed: 1, timestamp: 1.2 },
-		{ speed: 6, timestamp: 2 },
-		{ speed: -4, timestamp: 3 },
-		{ speed: -2, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -5, timestamp: 0 },
+		{ speed: -1, timestamp: 5 },
+		{ speed: 2, timestamp: 10 },
+		{ speed: -3, timestamp: 15 },
+		{ speed: 3, timestamp: 20 },
+		{ speed: -2, timestamp: 25 },
+		{ speed: 1, timestamp: 30 },
+		{ speed: 0, timestamp: 35 }
 	],
 	[
-		{ speed: 0.5, timestamp: 0 },
-		{ speed: 8, timestamp: 0.3 },
-		{ speed: -3, timestamp: 1 },
-		{ speed: 6, timestamp: 1.8 },
-		{ speed: -6, timestamp: 2.8 },
-		{ speed: 4, timestamp: 3.8 },
-		{ speed: -2, timestamp: 4.6 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 6, timestamp: 0 },
+		{ speed: 2, timestamp: 5 },
+		{ speed: -1, timestamp: 10 },
+		{ speed: 3, timestamp: 15 },
+		{ speed: -2, timestamp: 20 },
+		{ speed: 2, timestamp: 25 },
+		{ speed: -3, timestamp: 30 },
+		{ speed: 1, timestamp: 35 },
+		{ speed: 0, timestamp: 40 }
 	],
 	[
-		{ speed: -0.5, timestamp: 0 },
-		{ speed: -8, timestamp: 0.3 },
-		{ speed: 3, timestamp: 1 },
-		{ speed: -6, timestamp: 1.8 },
-		{ speed: 6, timestamp: 2.8 },
-		{ speed: -4, timestamp: 3.8 },
-		{ speed: 8, timestamp: 4.6 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -6, timestamp: 0 },
+		{ speed: -2, timestamp: 5 },
+		{ speed: 1, timestamp: 10 },
+		{ speed: -3, timestamp: 15 },
+		{ speed: 2, timestamp: 20 },
+		{ speed: -2, timestamp: 25 },
+		{ speed: 3, timestamp: 30 },
+		{ speed: -1, timestamp: 35 },
+		{ speed: 0, timestamp: 40 }
 	],
 	[
-		{ speed: 1, timestamp: 0 },
-		{ speed: 10, timestamp: 0.5 },
-		{ speed: 8, timestamp: 1.2 },
-		{ speed: 5, timestamp: 2 },
-		{ speed: -5, timestamp: 3 },
-		{ speed: -2, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 7, timestamp: 0 },
+		{ speed: 4, timestamp: 5 },
+		{ speed: 2, timestamp: 10 },
+		{ speed: -2, timestamp: 15 },
+		{ speed: -3, timestamp: 20 },
+		{ speed: 1, timestamp: 25 },
+		{ speed: -2, timestamp: 30 },
+		{ speed: 2, timestamp: 35 },
+		{ speed: 0, timestamp: 40 }
 	],
 	[
-		{ speed: -1, timestamp: 0 },
-		{ speed: -10, timestamp: 0.5 },
-		{ speed: -8, timestamp: 1.2 },
-		{ speed: -5, timestamp: 2 },
-		{ speed: 5, timestamp: 3 },
-		{ speed: 0.4, timestamp: 4 },
-		{ speed: 0, timestamp: 5.1 }
+		{ speed: -7, timestamp: 0 },
+		{ speed: -4, timestamp: 5 },
+		{ speed: -2, timestamp: 10 },
+		{ speed: 2, timestamp: 15 },
+		{ speed: 3, timestamp: 20 },
+		{ speed: -1, timestamp: 25 },
+		{ speed: 2, timestamp: 30 },
+		{ speed: -2, timestamp: 35 },
+		{ speed: 0, timestamp: 40 }
 	]
 ];
+
 /*
  * Represents a sword that has reached the trunk and is now attached
  * to it.
@@ -1101,16 +1123,17 @@ export class GMWoodSword extends GameMode {
 					this.clingingSwords = [];
 					this.movingSwords = [];
 
+					// Use rng() to get a float between 0 and 1
+					this.streamId = Math.floor((rng as any)() * TRUNK_STREAM.length);
+					this.swordId = Math.floor((rng as any)() * SWORDS_STREAM.length);
+
 					/*
 					* Reset the trunk to its initial state.
 					*/
 					this.trunkAngle = 0;
-					this.trunkSpeed = 0;
+					this.trunkSpeed = TRUNK_STREAM[this.streamId][0].speed;
 					this.trunkStreamTime = 0;
 
-					// Use rng() to get a float between 0 and 1
-					this.streamId = Math.floor((rng as any)() * TRUNK_STREAM.length);
-					this.swordId = Math.floor((rng as any)() * SWORDS_STREAM.length);
 
 					/*
 					 * Refill both players' sword supplies using the selected sword stream.
