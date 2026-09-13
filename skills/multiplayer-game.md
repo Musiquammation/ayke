@@ -343,7 +343,7 @@ Commente avec ça.
 ```ts
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
 import { norm2 } from "../util/norm2";
@@ -747,15 +747,16 @@ export class GMExample extends GameMode {
 	}
 
 	static createClient(
-		data: Uint8Array | null,
-		total: number
+		{data, origin}: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number
 	) {
 		const game = new GMExample(total);
-		const {StartDataClient} = protocols.get();
+		const {StartData, StartDataClient} = protocols.get();
 		const clientData = new ClientData();
 		let skins: { [k: string]: string; };
 
-		if (data) {
+		if (origin === 'server') {
 			const {players} = decodeFullMessage(StartDataClient.decode(data));
 	
 			const skinSet = new Set<string>();
@@ -764,22 +765,26 @@ export class GMExample extends GameMode {
 				clientData.skins.push(p.skin);
 				skinSet.add(p.skin);
 			}
-			console.log(skinSet);
 			skins = Object.fromEntries(
 				[...skinSet].map(key => ['skin-' + key, getSkinTexturePath(key)])
 			);
 
-		} else {
+		} else { // origin === 'client'
+			/// NOTE: here, data: any is produced by generateClientDom.produce()
+			const {skin} = decodeFullMessage(StartData.decode(data));
+
 			game.players[0].initSpawn(-WIDTH * 2, 0, 'red');
 			game.players[1].initSpawn(+WIDTH * 2, 0, 'blue');
+		
 			clientData.skins = Array.from(
 				{length: game.players.length},
-				()=>GMExample.SKINS_IDS[0]
+				() => GMAirBasket.SKINS_IDS[0]
 			);
+
+			clientData.skins[0] = skin;
 
 			skins = {};
 		}
-
 
 		return {
 			game,

@@ -30,6 +30,11 @@ export interface FinishGame {
 	playerEqualities: number[];
 }
 
+export type MultiplayerClientEntry = (
+	{data: Uint8Array, origin: 'server'} |
+	{data: Uint8Array, origin: 'client'}
+);
+
 export abstract class GameMode {
 	public static readonly MAX_DT = 0.020; // 20ms
 

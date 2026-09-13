@@ -1,6 +1,6 @@
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import {
 	IKeyboardController,
@@ -688,8 +688,9 @@ export class GMWoodSword extends GameMode {
 	 * the initial spawn positions and team assignments.
 	 */
 	static createClient(
-		data: Uint8Array | null,
-		total: number
+		{data, origin}: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number
 	) {
 		const game = new GMWoodSword(total);
 		const { StartDataClient } = protocols.get();
@@ -697,7 +698,7 @@ export class GMWoodSword extends GameMode {
 
 		let skins: { [k: string]: string } = {};
 
-		if (data) {
+		if (origin === 'server') {
 			/*
 			 * Decode the server-provided initialization message.
 			 */

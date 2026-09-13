@@ -1,5 +1,5 @@
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
@@ -1082,38 +1082,50 @@ export class GMAirBasket extends GameMode {
 	}
 
 	static createClient(
-		data: Uint8Array | null,
+		{data, origin}: MultiplayerClientEntry,
 		total: number
 	) {
 		const game = new GMAirBasket(total);
-		const {StartDataClient} = protocols.get();
+		const {StartData, StartDataClient} = protocols.get();
 		const clientData = new ClientData();
-		let skins: { [k: string]: string; };
 
-		if (data) {
+		const skinSet = new Set<string>();
+		if (origin === 'server') {
 			const {players} = decodeFullMessage(StartDataClient.decode(data));
 	
-			const skinSet = new Set<string>();
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
 				clientData.skins.push(p.skin);
 				skinSet.add(p.skin);
 			}
-			console.log(skinSet);
-			skins = Object.fromEntries(
-				[...skinSet].map(key => ['skin-' + key, getTexturePath(key)])
-			);
 
 		} else {
-			game.players[0].initSpawn(-WIDTH * 2, 0, 'red');
-			game.players[1].initSpawn(+WIDTH * 2, 0, 'blue');
+			const {skin, preferTeam} = decodeFullMessage(StartData.decode(data));
+
+			const modResult = preferTeam >= 0 ? 0 : 1;
+			for (let i = 0; i < game.players.length; i++) {
+				if (i % 2 === modResult) {
+					game.players[i].initSpawn(-WIDTH * 2, 0, 'red');
+				} else {
+					game.players[i].initSpawn(+WIDTH * 2, 0, 'blue');
+				}
+			}
+
+
 			clientData.skins = Array.from(
 				{length: game.players.length},
-				()=>GMAirBasket.SKINS_IDS[0]
+				() => GMAirBasket.SKINS_IDS[0]
 			);
 
-			skins = {};
+			clientData.skins[0] = skin;
+			skinSet.add(skin);
 		}
+
+		console.log(skinSet);
+		const skins = Object.fromEntries(
+			[...skinSet].map(key => ['skin-' + key, getTexturePath(key)])
+		);
+
 
 
 		return {

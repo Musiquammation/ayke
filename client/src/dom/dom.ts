@@ -270,18 +270,18 @@ class MainComponent {
 		pushUrlStack(this);
 	}
 
-	openLocalInPlay(gamemode: string) {
+	openLocalInPlay(gamemode: string, startData: Uint8Array) {
 		this.currentPage = "play";
 		this.panel = new LocalPlayComponent(
-			new LocalGameHandler(gamemode, false)
+			new LocalGameHandler(gamemode, false, startData)
 		);
 		pushUrlStack(this);
 	}
 
-	openVsBotsInPlay(gamemode: string) {
+	openVsBotsInPlay(gamemode: string, startData: Uint8Array) {
 		this.currentPage = "play";
 		this.panel = new LocalPlayComponent(
-			new LocalGameHandler(gamemode, true)
+			new LocalGameHandler(gamemode, true, startData)
 		);
 		pushUrlStack(this);
 	}
@@ -408,7 +408,7 @@ class GamePanelComponent {
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 
-		dom.openLocalInPlay(this.gamemode);
+		dom.openLocalInPlay(this.gamemode, this.data.produce());
 	}
 
 	async againstBots() {
@@ -419,7 +419,7 @@ class GamePanelComponent {
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 
-		dom.openVsBotsInPlay(this.gamemode);
+		dom.openVsBotsInPlay(this.gamemode, this.data.produce());
 	}
 
 	// Called by x-init when the trophy road mounts (only if authenticated).

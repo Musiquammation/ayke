@@ -1,6 +1,6 @@
 import { ActionNode } from "./Bot";
 import { Collectible } from "./Collectible";
-import { GameMode } from "./GameMode";
+import { GameMode, MultiplayerClientEntry } from "./GameMode";
 import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMRoarsOnGlass } from "./gamemods/GMRoarsOnGlass";
 import { GMSuperTicTacToe } from "./gamemods/GMSuperTicTacToe";
@@ -35,7 +35,7 @@ interface MultiplayerFactory {
 		total: number,
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	): Promise<{ game: GameMode, data: Uint8Array }>,
-	client(entry: Uint8Array | null, total: number, playerIdx: number): {
+	client(entry: MultiplayerClientEntry, total: number, playerIdx: number): {
 		game: GameMode,
 		data: any,
 		html: HTMLDivElement | null,

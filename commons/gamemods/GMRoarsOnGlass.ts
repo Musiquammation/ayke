@@ -1,6 +1,6 @@
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
@@ -360,12 +360,15 @@ export class GMRoarsOnGlass extends GameMode {
 		};
 	}
 	
-	static createClient(data: Uint8Array | null, total: number) {
+	static createClient(
+		{data, origin}: MultiplayerClientEntry,
+		total: number
+	) {
 		const game = new GMRoarsOnGlass(total);
 		const {StartDataClient} = protocols.get();
 		const clientData = new ClientData();
 		
-		if (data) {
+		if (origin === 'server') {
 			const decoded = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of decoded.players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
