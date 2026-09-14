@@ -142,6 +142,18 @@ const runners: Record<string, (data: any) => void> = {
 
 	accountInfoResult(d: { totalTrophees: number; coins: number; globalRank: number }) {
 		dom.getHomePanel().onAccountInfo(d);
+	},
+
+	connectedUsersInfo(d)  {
+		const connectedUsersInfo = {
+    		total: d.total,
+			gamemods: Object.fromEntries(
+				d.gamemods.map((i: any) => [i.gamemode, i.total])
+			)
+		};
+
+		console.log(connectedUsersInfo);
+		Object.assign(dom.getHomePanel().connectedUsersInfo, connectedUsersInfo);
 	}
 };
 

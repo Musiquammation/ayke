@@ -392,6 +392,10 @@ export class Room {
 	isFinished() {
 		return this.finished;
 	}
+
+	getPlayerCount() {
+		return this.players.length;
+	}
 }
 
 
@@ -438,6 +442,16 @@ class RoomHandler {
 			return;
 
 		connection.roomInfo.room.disconnect(connection.roomInfo.idx);
+	}
+
+	askConnectedUsers() {
+		const result: Record<string, number> = {};
+
+		for (const room of this.rooms) {
+			result[room.gamemodeId] = (result[room.gamemodeId] ?? 0) + room.getPlayerCount();
+		}
+
+		return result;
 	}
 }
 

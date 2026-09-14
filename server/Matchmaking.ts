@@ -301,6 +301,10 @@ class WaitingRoom {
 		for (const p of this.players)
 			p.connection.sendMessage(obj);
 	}
+
+	getPlayerCount() {
+		return this.players.length;
+	}
 }
 
 class Matchmaking {
@@ -721,6 +725,17 @@ class Matchmaking {
 				)
 				.join(" | ")
 		);
+	}
+
+	askConnectedUsers() {
+		const result: Record<string, number> = {};
+
+		for (const room of this.rooms) {
+			result[room.gamemode] = (result[room.gamemode] ?? 0) + room.getPlayerCount();
+		}
+
+		return result;
+
 	}
 }
 

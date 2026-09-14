@@ -10,6 +10,7 @@ import { getMultiGmFactory, getSoloGmFactory } from "../commons/gamemods";
 import { getLogger } from "../commons/ILogger";
 import { COLLECTIBLE_APPLIES } from "./COLLECTIBLE_APPLIES";
 import { CollectibleApplyKey } from "../commons/Collectible";
+import { connectedUsersInfoHandler } from "./ConnectedUsersInfoHandler";
 
 const logger = getLogger('connection');
 // logger.setLevel('debug');
@@ -301,10 +302,20 @@ export class Connection {
 			const db = await database;
 			const summary = await db.getAccountSummary(c.pseudo);
 			c.sendMessage({ accountInfoResult: summary });
+		},
+
+		subscribeConnectedUsersInfo(c, d) {
+			connectedUsersInfoHandler.subscribe(c, d);
 		}
 	};
 
-
+	static async encode(msg: {[k: string]: any}) {
+		const m = await msgtypes;
+		const data = m.ServerMessage.encode(msg).finish();
+		const buffer = new ArrayBuffer(data.byteLength);
+		new Uint8Array(buffer).set(data);
+		return buffer;
+	}
 
 
 
@@ -312,7 +323,7 @@ export class Connection {
 	constructor(
 		private socket: WebSocket
 	) {
-
+		connectedUsersInfoHandler.addUser();
 	}
 
 	getPseudo() {
@@ -320,12 +331,13 @@ export class Connection {
 	}
 
 	sendMessage(msg: {[k: string]: any}) {
-		msgtypes.then(m => {
-			const data = m.ServerMessage.encode(msg).finish();
-			const buffer = new ArrayBuffer(data.byteLength);
-			new Uint8Array(buffer).set(data);
+		Connection.encode(msg).then(buffer => {
 			this.socket.send(buffer);
 		});
+	}
+
+	sendEncodedMessage(buffer: ArrayBuffer) {
+		this.socket.send(buffer);
 	}
 
 	sendError(code: number, message: string) {
@@ -342,6 +354,7 @@ export class Connection {
 	onClose() {
 		matchmaking.removeConnection(this);
 		roomHandler.disconnect(this);
+		connectedUsersInfoHandler.remUser(this);
 	}
 
 	isAlive() {

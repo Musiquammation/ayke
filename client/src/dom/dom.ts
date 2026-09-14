@@ -14,6 +14,7 @@ import { waitSkinsResponsePromise } from "../messages/recvMessage";
 import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 import { FinishGame } from "../../../commons/GameMode";
 
+
 declare global {
 	interface Window {
 		Alpine: any;
@@ -92,6 +93,23 @@ function isFragmentSavable(panel: Panel): panel is Panel & FragmentSavable {
 	);
 }
 
+type PanelComponent = (
+	GamePanelComponent |
+	SoloGamePanelComponent |
+	WaitPlayPanelComponent |
+	PlayResultsComponent |
+	SoloPlayResultComponent |
+	PlayComponent |
+	SoloPlayComponent |
+	LoginComponent |
+	SigninComponent |
+	HomeComponent |
+	LocalPlayComponent |
+	LeaderboardComponent |
+	SoloLeaderboardComponent |
+	null
+);
+
 class MainComponent {
 	private _currentPage = "home";
 	private templateLoader = new TemplateLoader();
@@ -101,22 +119,25 @@ class MainComponent {
 	isAuthenticated = false;
 	pseudo: string | null = null;
 
-	panel: (
-		GamePanelComponent |
-		SoloGamePanelComponent |
-		WaitPlayPanelComponent |
-		PlayResultsComponent |
-		SoloPlayResultComponent |
-		PlayComponent |
-		SoloPlayComponent |
-		LoginComponent |
-		SigninComponent |
-		HomeComponent |
-		LocalPlayComponent |
-		LeaderboardComponent |
-		SoloLeaderboardComponent |
-		null
-	) = new HomeComponent();
+	panel: PanelComponent = new HomeComponent();
+
+	constructor() {
+		sendMessage({subscribeConnectedUsersInfo: true});
+	}
+
+	private setPanel(panel: PanelComponent) {
+		const h1 = this.panel instanceof HomeComponent;
+		const h2 = panel instanceof HomeComponent;
+		if (h1 && !h2) {
+			sendMessage({subscribeConnectedUsersInfo: false});
+		}
+
+		this.panel = panel;
+
+		if (h2 && !h1) {
+			sendMessage({subscribeConnectedUsersInfo: true});
+		}
+	}
 
 	// Test data
 	y0 = 0;
@@ -144,7 +165,7 @@ class MainComponent {
 	}
 
 	openHome() {
-		this.panel = new HomeComponent();
+		this.setPanel(new HomeComponent());
 		this.currentPage = "home";
 		pushUrlStack(this);
 	}
@@ -156,13 +177,13 @@ class MainComponent {
 	}
 
 	openLogin() {
-		this.panel = new LoginComponent();
+		this.setPanel(new LoginComponent());
 		this.currentPage = "login";
 		pushUrlStack(this);
 	}
 
 	openSignin() {
-		this.panel = new SigninComponent();
+		this.setPanel(new SigninComponent());
 		this.currentPage = "signin";
 		pushUrlStack(this);
 	}
@@ -221,17 +242,17 @@ class MainComponent {
 
 		if (factory.type === 'multiplayer') {
 			const data = factory.dom(unlockedSkins);
-			this.panel = new GamePanelComponent(gamemode, data, html);
+			this.setPanel(new GamePanelComponent(gamemode, data, html));
 		} else {
 			const category = factory.dom();
-			this.panel = new SoloGamePanelComponent(gamemode, category, html);
+			this.setPanel(new SoloGamePanelComponent(gamemode, category, html));
 		}
 
 		pushUrlStack(this);
 	}
 
 	async openWaitPlayPanel(gamemode: string) {
-		this.panel = new WaitPlayPanelComponent(gamemode);
+		this.setPanel(new WaitPlayPanelComponent(gamemode));
 		this.currentPage = "wait-play";
 		pushUrlStack(this);
 	}
@@ -265,29 +286,29 @@ class MainComponent {
 	}
 
 	openSoloComponent(result: number) {
-		this.panel = new SoloPlayResultComponent(result);
+		this.setPanel(new SoloPlayResultComponent(result));
 		this.currentPage = "play-solo-results";
 		pushUrlStack(this);
 	}
 
 	openLocalInPlay(gamemode: string, startData: Uint8Array) {
 		this.currentPage = "play";
-		this.panel = new LocalPlayComponent(
+		this.setPanel(new LocalPlayComponent(
 			new LocalGameHandler(gamemode, false, startData)
-		);
+		));
 		pushUrlStack(this);
 	}
 
 	openVsBotsInPlay(gamemode: string, startData: Uint8Array) {
 		this.currentPage = "play";
-		this.panel = new LocalPlayComponent(
+		this.setPanel(new LocalPlayComponent(
 			new LocalGameHandler(gamemode, true, startData)
-		);
+		));
 		pushUrlStack(this);
 	}
 
 	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, category: string) {
-		this.panel = new SoloPlayComponent(gamemodeId, game, category);
+		this.setPanel(new SoloPlayComponent(gamemodeId, game, category));
 		this.currentPage = "play";
 		pushUrlStack(this);
 	}
@@ -876,6 +897,11 @@ class SigninComponent {
 	}
 }
 
+interface ConnectedUsersInfo {
+	total: number;
+	gamemods: Record<string, number>;
+}
+
 class HomeComponent {
 	// --- Fragment-savable marker. ---
 	static readonly fragmentName = "home";
@@ -895,6 +921,15 @@ class HomeComponent {
 	totalTrophees = "(?)";
 	coins = "(?)";
 	globalRank = "(?)";
+
+	readonly connectedUsersInfo = {
+		total: 0,
+		gamemods: Object.fromEntries(
+			Object.entries(gamemods)
+				.filter(([, i]) => i.type === 'multiplayer')
+				.map(([gamemode]) => [gamemode, 0])
+		)
+	};
 
 	constructor() {
 		this.games = [];
@@ -963,6 +998,10 @@ class HomeComponent {
 		this.globalRank = String(d.globalRank);
 	}
 
+
+	getConnectedUsers(gamemode: string) {
+		return this.connectedUsersInfo.gamemods[gamemode];
+	}
 }
 
 
