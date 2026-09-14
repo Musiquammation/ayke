@@ -943,7 +943,7 @@ function getIconPath(id: string) {
 
 
 export class GMAirBasket extends GameMode {
-	static readonly types = {Player, Bucket};
+	static readonly types = {Player, Bucket, Ball};
 
 	static readonly DATA = {
 		GRAVITY,
