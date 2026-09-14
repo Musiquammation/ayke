@@ -47,8 +47,8 @@ const SUDDEN_DEATH_DAMAGE_MULTIPLIER = 2;
  *  a load() never desyncs it). The gauge fills over time and gets a bonus
  *  whenever a troop of that type dies; once it crosses the threshold, 1 unit
  *  is consumed and a troop of that type spawns automatically. */
-const SPAWN_MANA_RATE = 0.025; // gauge units gained per second
-const DEATH_MANA_BONUS = 1.2; // gauge units gained when a troop of this type dies
+const SPAWN_MANA_RATE = 0.1; // gauge units gained per second
+const DEATH_MANA_BONUS = 0.9; // gauge units gained when a troop of this type dies
 const SPAWN_MANA_THRESHOLD = 1; // gauge threshold that triggers a spawn
 
 /** AI "neighboor" (movement link) behaviour. */
