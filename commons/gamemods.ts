@@ -131,7 +131,7 @@ export const gamemods: Record<
 		tropheesPerPlayer: 20,
 		computerOnly: true,
 		skins: GMMoveArmy.SKINS_IDS,
-		collectibles: collectibles_airbasket,
+		collectibles: null,
 		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
