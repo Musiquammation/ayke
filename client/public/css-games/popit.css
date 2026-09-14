@@ -1,5 +1,5 @@
 /* Main overlay container positioning */
-.-game-popit-root {
+.game-popit-root {
 	position: fixed;
 
 	top: 2vh;
@@ -19,7 +19,7 @@
 }
 
 /* Header bar containing clock and score status */
-.-game-popit-header {
+.game-popit-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -36,7 +36,7 @@
 }
 
 /* Timer display */
-.-game-popit-time {
+.game-popit-time {
 	font-size: 2.8vh;
 	font-weight: 700;
 	color: #ffffff;
@@ -44,7 +44,7 @@
 }
 
 /* Score display container */
-.-game-popit-scores {
+.game-popit-scores {
 	display: flex;
 	align-items: center;
 	gap: 1vw;
@@ -53,16 +53,16 @@
 	font-weight: 800;
 }
 
-.-game-popit-red-score {
+.game-popit-red-score {
 	color: #FF3B30;
 }
 
-.-game-popit-blue-score {
+.game-popit-blue-score {
 	color: #007AFF;
 }
 
 /* Turn prompt banner */
-.-game-popit-turn-info {
+.game-popit-turn-info {
 	margin-top: 1.5vh;
 	padding: 0.8vh 2vw;
 
@@ -77,7 +77,7 @@
 }
 
 /* Turn Validation Button */
-.-game-popit-end-turn-btn {
+.game-popit-end-turn-btn {
 	margin-top: 2vh;
 	padding: 1.2vh 3vw;
 
@@ -85,7 +85,7 @@
 	font-weight: 800;
 	color: #ffffff;
 
-	background: linear-gradient(135deg, #34C759, #28A745);
+	background: #34C759;
 	border: none;
 	border-radius: 50px;
 
@@ -96,11 +96,16 @@
 	transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
-.-game-popit-end-turn-btn:hover {
+.game-popit-end-turn-btn:hover {
 	transform: scale(1.05);
-	box-shadow: 0 6px 20px rgba(52, 199, 89, 0.6);
+	/* box-shadow: 0 6px 20px rgba(52, 199, 89, 0.6); */
 }
 
-.-game-popit-end-turn-btn:active {
+.game-popit-end-turn-btn:active {
 	transform: scale(0.98);
+}
+
+button:hover:not(:disabled) {
+	background: #34C759;
+	border: none;
 }

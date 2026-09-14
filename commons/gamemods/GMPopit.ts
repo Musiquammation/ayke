@@ -135,22 +135,22 @@ class ClientData {
 	constructor() {
 		// Root container element
 		this.html = document.createElement("div");
-		this.html.classList.add(".-game-popit-root");
+		this.html.classList.add("game-popit-root");
 
 		// Header area with game clock and scores
 		const header = document.createElement("div");
-		header.classList.add(".-game-popit-header");
+		header.classList.add("game-popit-header");
 
 		this.time = document.createElement("div");
-		this.time.classList.add(".-game-popit-time");
+		this.time.classList.add("game-popit-time");
 
 		const scores = document.createElement("div");
-		scores.classList.add(".-game-popit-scores");
+		scores.classList.add("game-popit-scores");
 		this.redScore = document.createElement("div");
 		this.blueScore = document.createElement("div");
 
-		this.redScore.classList.add(".-game-popit-red-score");
-		this.blueScore.classList.add(".-game-popit-blue-score");
+		this.redScore.classList.add("game-popit-red-score");
+		this.blueScore.classList.add("game-popit-blue-score");
 
 		const separator = document.createElement("div");
 		separator.textContent = "-";
@@ -164,11 +164,11 @@ class ClientData {
 
 		// Current turn display bar
 		this.turnInfo = document.createElement("div");
-		this.turnInfo.classList.add(".-game-popit-turn-info");
+		this.turnInfo.classList.add("game-popit-turn-info");
 
 		// End Turn button overlay
 		this.endTurnBtn = document.createElement("button");
-		this.endTurnBtn.classList.add(".-game-popit-end-turn-btn");
+		this.endTurnBtn.classList.add("game-popit-end-turn-btn");
 		this.endTurnBtn.textContent = "VALIDATE TURN";
 
 		this.html.appendChild(header);
@@ -202,11 +202,11 @@ class ClientData {
 			this.endTurnBtn.style.display = "none";
 		} else {
 			if (isMyTurn) {
-				this.turnInfo.innerText = "YOUR TURN - Pop bubbles!";
+				this.turnInfo.innerText = "Your turn - Pop bubbles!";
 				this.turnInfo.style.color = "#4CD964";
 				this.endTurnBtn.style.display = game.turnPoppedCount > 0 ? "block" : "none";
 			} else {
-				this.turnInfo.innerText = `Player ${game.currentTurnPlayer + 1}'s Turn...`;
+				this.turnInfo.innerText = `Opponent's Turn...`;
 				this.turnInfo.style.color = "#FF9500";
 				this.endTurnBtn.style.display = "none";
 			}
