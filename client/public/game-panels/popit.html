@@ -1,0 +1,113 @@
+<div x-data="data">
+	<style>
+		.skin-select-button {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			width: 100%;
+			padding: 0.8vh 1vw;
+			background: #2c2c34;
+			border: 1px solid #444;
+			border-radius: 8px;
+			color: #fff;
+			cursor: pointer;
+		}
+		.skin-select-current {
+			display: flex;
+			align-items: center;
+			gap: 0.5vw;
+		}
+		.skin-select-current img, .skin-select-option img {
+			width: 2vh;
+			height: 2vh;
+		}
+		.skin-select-options {
+			margin-top: 0.5vh;
+			background: #1e1e24;
+			border: 1px solid #444;
+			border-radius: 8px;
+			overflow: hidden;
+		}
+		.skin-select-option {
+			display: flex;
+			align-items: center;
+			gap: 0.5vw;
+			padding: 0.8vh 1vw;
+			cursor: pointer;
+		}
+		.skin-select-option:hover {
+			background: #3a3a46;
+		}
+		.skin-select-option.selected {
+			background: #34c759;
+		}
+	</style>
+
+	<div>
+		<span>Board Skin:</span>
+
+		<div
+			class="skin-select"
+			x-data="{ open: false }"
+			@click.outside="open = false"
+		>
+			<button
+				type="button"
+				class="skin-select-button"
+				@click="open = !open"
+			>
+				<div class="skin-select-current">
+					<img
+						:src="getIconPath(skin)"
+						:alt="SKINS[skin]"
+					>
+					<span x-text="SKINS[skin]"></span>
+				</div>
+
+				<span class="skin-select-arrow" x-text="open ? '▲' : '▼'"></span>
+			</button>
+
+			<div
+				class="skin-select-options"
+				x-show="open"
+				x-transition
+			>
+				<template x-for="(name, id) in SKINS" :key="id">
+					<div
+						class="skin-select-option"
+						:class="{ selected: skin === id, disabled: !hasSkin(id) }"
+						@click="skin = id; open = false"
+					>
+						<img
+							:src="getIconPath(id)"
+							:alt="name"
+						>
+
+						<span x-text="name"></span>
+					</div>
+				</template>
+			</div>
+		</div>
+	</div>
+
+	<div>
+		<span>Preferred team:</span>
+		<button type="button"
+				@pointerup="preferTeam = 0"
+				:class="{ selected: preferTeam === 0 }">
+			None
+		</button>
+
+		<button type="button"
+				@pointerup="preferTeam = 1"
+				:class="{ selected: preferTeam === 1 }">
+			Red
+		</button>
+
+		<button type="button"
+				@pointerup="preferTeam = -1"
+				:class="{ selected: preferTeam === -1 }">
+			Blue
+		</button>
+	</div>
+</div>

@@ -16,9 +16,11 @@ import bots_turrets from "./bots/bots-turrets";
 import bots_superTicTacToe from "./bots/bots-superTicTacToe";
 import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
 import bots_woodSword from "./bots/bots-woodSword";
+import bots_popit from "./bots/bots-popit";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
+import { GMPopit } from "./gamemods/GMPopit";
 
 
 interface Player {
@@ -191,6 +193,23 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_woodSword
+	},
+
+	popit: {
+		type: 'multiplayer',
+		server: GMPopit.createServ,
+		client: GMPopit.createClient,
+		dom: GMPopit.generateClientDom,
+		textures: GMPopit.TEXTURES,
+		name: "Pop it",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'svg',
+		defaultPlayerCount: 4,
+		nodes: bots_popit
 	},
 
 	separator_solo: {

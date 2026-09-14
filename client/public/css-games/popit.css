@@ -1,0 +1,78 @@
+/* Container root styling for GMPopit HUD */
+.-game-popit-root {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+
+	width: 96vw;
+
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+	font-size: 2vh;
+
+	pointer-events: none;
+}
+
+.-game-popit-scores {
+	display: flex;
+	gap: 1vw;
+	font-size: 3.5vh;
+	font-weight: bold;
+	color: #ffffff;
+	text-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+}
+
+.-game-popit-red-score {
+	color: #ff3b30;
+}
+
+.-game-popit-blue-score {
+	color: #007aff;
+}
+
+.-game-popit-time {
+	margin-top: 1vh;
+	font-size: 2.5vh;
+	font-weight: 600;
+	color: #f0f0f0;
+	background: rgba(0, 0, 0, 0.5);
+	padding: 0.5vh 1.5vw;
+	border-radius: 12px;
+}
+
+.-game-popit-turn-indicator {
+	margin-top: 1.5vh;
+	font-size: 3vh;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.1vw;
+	text-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+.-game-popit-end-turn-btn {
+	margin-top: 2vh;
+	padding: 1vh 2vw;
+	font-size: 2.2vh;
+	font-weight: bold;
+	color: #ffffff;
+	background-color: #34c759;
+	border: none;
+	border-radius: 20px;
+	box-shadow: 0 4px 12px rgba(52, 199, 89, 0.4);
+	cursor: pointer;
+	pointer-events: auto;
+	transition: transform 0.1s ease, background-color 0.2s ease;
+}
+
+.-game-popit-end-turn-btn:hover {
+	background-color: #2eb04f;
+	transform: scale(1.05);
+}
+
+.-game-popit-end-turn-btn:active {
+	transform: scale(0.98);
+}
