@@ -604,7 +604,6 @@ export class GMPopit extends GameMode {
 		if (this.gameOver) return;
 		if (playerIdx !== this.currentTurnPlayer) return; // Ignore inputs if not player's turn
 
-		console.log(input);
 		switch (input.action) {
 			case 'popCell': {
 				const r = input.popCell.row;
@@ -652,7 +651,6 @@ export class GMPopit extends GameMode {
 				const row = Math.floor((mousePos.y - BOARD_Y) / CELL_SIZE);
 
 				if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
-				console.log(row, col);
 					inputs.push({
 						action: 'popCell',
 						popCell: {
