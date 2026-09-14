@@ -22,8 +22,8 @@ interface PlayerInput {
 // ============================================================================
 
 /** Portrait arena. Coordinates are centered: x/y in [-LIMIT, +LIMIT]. */
-const WIDTH = 900;
-const HEIGHT = 1600;
+const WIDTH = 1800;
+const HEIGHT = 3600;
 const X_LIMIT = WIDTH / 2;
 const Y_LIMIT = HEIGHT / 2;
 
@@ -31,11 +31,11 @@ const Y_LIMIT = HEIGHT / 2;
  *  band ZONE_COUNT-1 (bottommost, blue side) are "slow zones": troops standing
  *  in them are slowed down regardless of their team. The 3 middle bands behave
  *  identically to each other ("zone normale"). */
-const ZONE_COUNT = 5;
+const ZONE_COUNT = 10;
 const ZONE_HEIGHT = HEIGHT / ZONE_COUNT;
 const SLOW_ZONE_SPEED_MULTIPLIER = 0.5;
 
-/** Match timing. The match lasts MATCH_TOTAL_TIME seconds, and the last
+/** Match S. The match lasts MATCH_TOTAL_TIME seconds, and the last
  *  SUDDEN_DEATH_DURATION seconds of it are sudden death (towers take extra
  *  damage to force a conclusion). */
 const MATCH_TOTAL_TIME = 180; // 3 minutes
@@ -48,7 +48,7 @@ const SUDDEN_DEATH_DAMAGE_MULTIPLIER = 2;
  *  whenever a troop of that type dies; once it crosses the threshold, 1 unit
  *  is consumed and a troop of that type spawns automatically. */
 const SPAWN_MANA_RATE = 0.025; // gauge units gained per second
-const DEATH_MANA_BONUS = 0.9; // gauge units gained when a troop of this type dies
+const DEATH_MANA_BONUS = 1.2; // gauge units gained when a troop of this type dies
 const SPAWN_MANA_THRESHOLD = 1; // gauge threshold that triggers a spawn
 
 /** AI "neighboor" (movement link) behaviour. */
@@ -63,7 +63,7 @@ const TOWER_DAMAGE = 18;
 const TOWER_FIRE_RATE = 0.25; // seconds between shots (towers fire fast)
 const TOWER_RADIUS = 40;
 const TOWER_X_POSITIONS = [-X_LIMIT * 0.55, 0, X_LIMIT * 0.55];
-const TOWER_Y_OFFSET = Y_LIMIT * 0.6;
+const TOWER_Y_OFFSET = Y_LIMIT * 0.8;
 
 /** Troops. */
 const TROOP_RADIUS = 18;
@@ -401,13 +401,19 @@ abstract class Troop {
 			return;
 		}
 
+
 		const dx = pos.x - this.x;
 		const dy = pos.y - this.y;
 		const dist = Math.sqrt(norm2(dx, dy));
 
 		// Stop a bit short so troops don't stack exactly on top of their target.
 		const stopDistance = TROOP_RADIUS * 2;
-		if (dist <= stopDistance) return;
+		if (dist <= stopDistance) {
+			if (this.neighboor.kind === 'point') {
+				this.neighboor = null;
+			}
+			return;
+		}
 
 		const speed = this.getEffectiveSpeed();
 		this.x += (dx / dist) * speed * dt;
@@ -455,7 +461,7 @@ class TSoldier extends Troop {
 
 	getType(): TroopTypeId { return 'soldier'; }
 	getMaxHp() { return 120; }
-	getSpeed() { return 80; }
+	getSpeed() { return 160; }
 	getAttackRange() { return 50; }
 	getAttackDamage() { return 20; }
 	getAttackRate() { return 0.8; }
@@ -467,11 +473,11 @@ class TSoldier extends Troop {
 
 /** Ranged unit: fires arrows at anything within a fairly large radius. */
 class TArcher extends Troop {
-	static readonly SPAWN_MANA = 0;
+	static readonly SPAWN_MANA = 1;
 
 	getType(): TroopTypeId { return 'archer'; }
 	getMaxHp() { return 70; }
-	getSpeed() { return 70; }
+	getSpeed() { return 140; }
 	getAttackRange() { return 220; }
 	getAttackDamage() { return 14; }
 	getAttackRate() { return 1.0; }
@@ -483,11 +489,11 @@ class TArcher extends Troop {
 
 /** Heavy unit: huge HP pool, but a small range and low damage. */
 class TTank extends Troop {
-	static readonly SPAWN_MANA = 0;
+	static readonly SPAWN_MANA = 1;
 
 	getType(): TroopTypeId { return 'tank'; }
 	getMaxHp() { return 400; }
-	getSpeed() { return 40; }
+	getSpeed() { return 80; }
 	getAttackRange() { return 70; }
 	getAttackDamage() { return 10; }
 	getAttackRate() { return 1.2; }
@@ -499,11 +505,11 @@ class TTank extends Troop {
 
 /** Support unit: lobs area-damage bombs at nearby enemies. */
 class TBomber extends Troop {
-	static readonly SPAWN_MANA = 0;
+	static readonly SPAWN_MANA = 1;
 
 	getType(): TroopTypeId { return 'bomber'; }
 	getMaxHp() { return 90; }
-	getSpeed() { return 60; }
+	getSpeed() { return 150; }
 	getAttackRange() { return 180; }
 	getAttackDamage() { return 25; }
 	getAttackRate() { return 1.6; }
@@ -515,11 +521,11 @@ class TBomber extends Troop {
 
 /** Fast skirmisher: shoots like an archer but never stops moving. */
 class TCar extends Troop {
-	static readonly SPAWN_MANA = 0;
+	static readonly SPAWN_MANA = 1;
 
 	getType(): TroopTypeId { return 'car'; }
 	getMaxHp() { return 80; }
-	getSpeed() { return 160; }
+	getSpeed() { return 400; }
 	getAttackRange() { return 200; }
 	getAttackDamage() { return 12; }
 	getAttackRate() { return 0.9; }
@@ -1298,7 +1304,7 @@ export class GMMoveArmy extends GameMode {
 
 		switch (input.action) {
 			case 'cutLine':
-				this.handleCutLine(player, input.cutLine);
+				this.handleCutLine(player.team, input.cutLine);
 				break;
 
 			case 'changeNeighboor':
@@ -1309,11 +1315,15 @@ export class GMMoveArmy extends GameMode {
 
 	/** Cuts every link (of any team — cutting isn't restricted, only creating
 	 *  new links is) that crosses the given segment. */
-	private handleCutLine(_player: Player, data: Fields) {
+	private handleCutLine(team: 'red' | 'blue', data: Fields) {
 		const { startX, startY, endX, endY } = data;
 
 		for (const troop of this.troops) {
-			if (!troop.neighboor || troop.neighboor.kind !== 'troop') continue;
+			if (
+				!troop.neighboor ||
+				troop.neighboor.kind !== 'troop' ||
+				troop.team !== team
+			) continue;
 
 			const pos = this.resolveNeighboorPosition(troop.neighboor);
 			if (!pos) continue;
