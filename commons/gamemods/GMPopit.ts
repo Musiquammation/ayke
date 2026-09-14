@@ -734,25 +734,63 @@ export class GMPopit extends GameMode {
 
 				if (isUnpopped) {
 					// --- UNPOPPED BUBBLE (ON) ---
-					// Outer shadow ring
-					ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
-					ctx.shadowBlur = 10;
-					ctx.shadowOffsetY = 6;
+					// Raised silicone bubble with a soft 3D appearance.
 
-					// Main bubble fill
+					const radius = BUBBLE_RADIUS;
+
+					ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+					ctx.shadowBlur = 8;
+					ctx.shadowOffsetY = 5;
+
+					const gradient = ctx.createRadialGradient(
+						centerX - radius * 0.35,
+						centerY - radius * 0.4,
+						radius * 0.1,
+						centerX,
+						centerY,
+						radius
+					);
+
+					gradient.addColorStop(0, "#ffffff");
+					gradient.addColorStop(0.18, rowColor.bg);
+					gradient.addColorStop(0.75, rowColor.bg);
+					gradient.addColorStop(1, rowColor.popped);
+
 					ctx.beginPath();
-					ctx.arc(centerX, centerY, BUBBLE_RADIUS, 0, Math.PI * 2);
-					ctx.fillStyle = rowColor.bg;
+					ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+					ctx.fillStyle = gradient;
 					ctx.fill();
 
-					// Inner highlight 3D effect
+					ctx.shadowColor = "transparent";
 					ctx.shadowBlur = 0;
+					ctx.shadowOffsetY = 0;
+
+					// Soft inner rim to emphasize the raised shape.
 					ctx.beginPath();
-					ctx.arc(centerX - BUBBLE_RADIUS * 0.25, centerY - BUBBLE_RADIUS * 0.25, BUBBLE_RADIUS * 0.35, 0, Math.PI * 2);
-					ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+					ctx.arc(centerX, centerY, radius * 0.88, 0, Math.PI * 2);
+					ctx.lineWidth = 3;
+					ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+					ctx.stroke();
+
+					// Small soft highlight.
+					const highlight = ctx.createRadialGradient(
+						centerX - radius * 0.35,
+						centerY - radius * 0.4,
+						0,
+						centerX - radius * 0.35,
+						centerY - radius * 0.4,
+						radius * 0.4
+					);
+
+					highlight.addColorStop(0, "rgba(255, 255, 255, 0.30)");
+					highlight.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+					ctx.beginPath();
+					ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+					ctx.fillStyle = highlight;
 					ctx.fill();
 
-					// Active turn glow if row is valid
+					// Active turn glow.
 					if (this.currentTurnPlayer === playerIdx && !this.gameOver) {
 						if (this.turnRow === -1 || this.turnRow === r) {
 							ctx.lineWidth = 4;
@@ -760,6 +798,7 @@ export class GMPopit extends GameMode {
 							ctx.stroke();
 						}
 					}
+					
 				} else {
 					// --- POPPED BUBBLE (OFF) ---
 					// Inset sunken hole effect
