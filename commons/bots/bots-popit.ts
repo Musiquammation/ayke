@@ -1,18 +1,5 @@
-Fill in Data and method.
-
-Use helper methods (do not write one large function), and add verbose comments in English.
-
-Replace GMExample by the actual GMFoo (and example by 'foo').
-
-You already have foo.ts. send inputs (put everytime `{action: 'name', name{data}}`)
-
-
-Use foo.md do read strategy and understand how the game works.
-
-
-```ts
 import { Fields } from "../../commons/Fields";
-import { GMExample } from "../../commons/gamemods/GMExample";
+import { GMPopit } from "../../commons/gamemods/GMPopit";
 import { getBestInArray } from "../../commons/util/getBestInArray";
 import { botActionNodeHelper, describeBot } from "../Bot";
 import { getLogger } from "../ILogger";
@@ -20,9 +7,9 @@ import { getLogger } from "../ILogger";
 const logger = getLogger('bots-example');
 // logger.setLevel('debug');
 
-const {all, first, loop, runner} = botActionNodeHelper<GMExample, Data>();
+const {all, first, loop, runner} = botActionNodeHelper<GMPopit, Data>();
 
-const TYPES = GMExample.types;
+const TYPES = GMPopit.types;
 
 const INPUTS = {
 	left: {left: {}, action: 'left'},
@@ -55,5 +42,3 @@ export default describeBot(
 	[{root, data: dataConstructor}]
 );
 
-
-```

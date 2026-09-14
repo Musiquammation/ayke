@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package game_popit;
+
+message Empty {}
+
+message PlayerState {
+	bool connected = 1;
+	int32 score = 2;
+	string team = 3;
+}
+
+message State {
+	repeated bool grid = 1;
+	int32 currentTurnPlayer = 2;
+	int32 turnRow = 3;
+	repeated int32 turnPoppedCols = 4;
+	float turnTimer = 5;
+	float globalTime = 6;
+	bool gameOver = 7;
+	int32 loserPlayer = 8;
+	int32 winnerPlayer = 9;
+	int32 redScore = 10;
+	int32 blueScore = 11;
+	repeated PlayerState players = 12;
+}
+
+message PopCellAction {
+	int32 row = 1;
+	int32 col = 2;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		PopCellAction popCell = 2;
+		Empty endTurn = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	string skin = 1;
+	int32 preferTeam = 2;
+}
+
+message StartPlayerInfo {
+	float x = 1;
+	float y = 2;
+	string skin = 3;
+	bool isRed = 4;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}

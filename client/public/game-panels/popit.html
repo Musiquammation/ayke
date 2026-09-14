@@ -1,0 +1,139 @@
+<div x-data="data" class="popit-config-container">
+	<style>
+		.popit-config-container {
+			display: flex;
+			flex-direction: column;
+			gap: 1.5vh;
+			color: #ffffff;
+			font-family: system-ui, sans-serif;
+		}
+		.popit-option-group {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			background: rgba(255, 255, 255, 0.05);
+			padding: 1vh 1.5vw;
+			border-radius: 8px;
+		}
+		.skin-select-button {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			background: #2a2a36;
+			border: 1px solid #444;
+			color: #fff;
+			padding: 0.8vh 1vw;
+			border-radius: 6px;
+			cursor: pointer;
+			min-width: 12vw;
+		}
+		.skin-select-options {
+			position: absolute;
+			background: #1e1e24;
+			border: 1px solid #555;
+			border-radius: 6px;
+			margin-top: 0.5vh;
+			z-index: 100;
+			width: 12vw;
+		}
+		.skin-select-option {
+			display: flex;
+			align-items: center;
+			gap: 0.5vw;
+			padding: 0.8vh 1vw;
+			cursor: pointer;
+		}
+		.skin-select-option:hover {
+			background: #34c759;
+		}
+		.team-btn {
+			padding: 0.8vh 1.2vw;
+			border-radius: 6px;
+			border: none;
+			background: #3a3a4c;
+			color: #fff;
+			cursor: pointer;
+		}
+		.team-btn.selected {
+			background: #007aff;
+			font-weight: bold;
+		}
+	</style>
+
+	<div class="popit-option-group">
+		<span>Select Skin:</span>
+
+		<div
+			class="skin-select"
+			x-data="{ open: false }"
+			@click.outside="open = false"
+		>
+			<button
+				type="button"
+				class="skin-select-button"
+				@click="open = !open"
+			>
+				<div class="skin-select-current">
+					<img
+						:src="getIconPath(skin)"
+						:alt="SKINS[skin]"
+						width="24"
+						height="24"
+					>
+					<span x-text="SKINS[skin]"></span>
+				</div>
+
+				<span class="skin-select-arrow" x-text="open ? '▲' : '▼'"></span>
+			</button>
+
+			<div
+				class="skin-select-options"
+				x-show="open"
+				x-transition
+			>
+				<template x-for="(name, id) in SKINS" :key="id">
+					<div
+						class="skin-select-option"
+						:class="{ selected: skin === id, disabled: !hasSkin(id) }"
+						@click="skin = id; open = false"
+					>
+						<img
+							:src="getIconPath(id)"
+							:alt="name"
+							width="20"
+							height="20"
+						>
+
+						<span x-text="name"></span>
+					</div>
+				</template>
+			</div>
+		</div>
+	</div>
+
+	<div class="popit-option-group">
+		<span>Preferred Team:</span>
+		<div>
+			<button type="button"
+					class="team-btn"
+					@pointerup="preferTeam = 0"
+					:class="{ selected: preferTeam === 0 }">
+				None
+			</button>
+
+			<button type="button"
+					class="team-btn"
+					@pointerup="preferTeam = 1"
+					:class="{ selected: preferTeam === 1 }">
+				Red
+			</button>
+
+			<button type="button"
+					class="team-btn"
+					@pointerup="preferTeam = -1"
+					:class="{ selected: preferTeam === -1 }">
+				Blue
+			</button>
+		</div>
+	</div>
+</div>
