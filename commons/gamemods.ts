@@ -9,6 +9,7 @@ import { GMTestSolo } from "./gamemods/GMTestSolo";
 import { GMTurrets } from "./gamemods/GMTurrets";
 import { GMWoodSword } from "./gamemods/GMWoodSword";
 import { SoloGameMode } from "./SoloGameMode";
+import { GMMoveArmy } from "./gamemods/GMMoveArmy";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -16,6 +17,7 @@ import bots_turrets from "./bots/bots-turrets";
 import bots_superTicTacToe from "./bots/bots-superTicTacToe";
 import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
 import bots_woodSword from "./bots/bots-woodSword";
+import bots_moveArmy from "./bots/bots-moveArmy";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
@@ -117,6 +119,23 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_airbasket
+	},
+
+	moveArmy: {
+		type: 'multiplayer',
+		server: GMMoveArmy.createServ,
+		client: GMMoveArmy.createClient,
+		dom: GMMoveArmy.generateClientDom,
+		textures: GMMoveArmy.TEXTURES,
+		name: "Move army",
+		tropheesPerPlayer: 20,
+		computerOnly: true,
+		skins: GMMoveArmy.SKINS_IDS,
+		collectibles: collectibles_airbasket,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_moveArmy
 	},
 
 	turrets: {

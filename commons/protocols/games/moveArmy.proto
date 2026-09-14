@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package game_moveArmy;
+
+// Generic empty payload
+message Empty {}
+
+// Action sent when a player draws a line to cut links
+message CutLine {
+  float startX = 1;
+  float startY = 2;
+  float endX = 3;
+  float endY = 4;
+}
+
+// Action sent when a player creates or updates a unit's link target
+message ChangeNeighboor {
+  int32 troopId = 1;
+  int32 targetKind = 2; // 0: none, 1: point, 2: troop, 3: tower
+  int32 targetId = 3;
+  float targetX = 4;
+  float targetY = 5;
+}
+
+// Single player action wrapper
+message QInput {
+  double timestamp = 1;
+  oneof action {
+	CutLine cutLine = 2;
+	ChangeNeighboor changeNeighboor = 3;
+  }
+}
+
+// Input packet attributed to a specific player index
+message Input {
+  QInput data = 1;
+  float player = 2;
+}
+
+// Message broadcast by the server containing snapshot state and inputs
+message ServerMessage {
+  double timestamp = 1;
+  bytes state = 2;
+  repeated Input inputs = 3;
+}
+
+// Message sent from client to server containing accumulated inputs
+message ClientMessage {
+  double timestamp = 1;
+  repeated QInput inputs = 2;
+}
+
+// Initial configuration provided by the client when creating/joining
+message StartData {
+  int32 preferTeam = 1; // 0: none, 1: red, -1: blue
+}
+
+// Per-player static info at match start
+message StartPlayerInfo {
+  bool isRed = 1;
+}
+
+// Match initialization state broadcast to all clients
+message StartDataClient {
+  repeated StartPlayerInfo players = 1;
+}
+
+// Player connection state
+message PlayerState {
+  bool connected = 1;
+  bool isRed = 2;
+}
+
+// Dynamic state of an individual unit on the arena
+message TroopState {
+  int32 id = 1;
+  int32 type = 2; // Index in TYPE_LIST (0: soldier, 1: archer, 2: tank, 3: bomber, 4: car)
+  bool isRed = 3;
+  float x = 4;
+  float y = 5;
+  float hp = 6;
+  bool attacking = 7;
+  float attackCooldown = 8;
+  int32 neighboorKind = 9; // 0: none, 1: point, 2: troop, 3: tower
+  int32 neighboorId = 10;
+  float neighboorX = 11;
+  float neighboorY = 12;
+  float noTargetTimer = 13;
+  int32 lastNeighboorId = 14;
+}
+
+// Defensive turret state
+message TowerState {
+  int32 id = 1;
+  bool isRed = 2;
+  float x = 3;
+  float y = 4;
+  float hp = 5;
+  float attackCooldown = 6;
+}
+
+// Hidden per-team troop spawn gauges
+message ManaState {
+  float soldier = 1;
+  float archer = 2;
+  float tank = 3;
+  float bomber = 4;
+  float car = 5;
+}
+
+// Full game snapshot for save/load synchronization
+message State {
+  repeated PlayerState players = 1;
+  repeated TroopState troops = 2;
+  repeated TowerState towers = 3;
+  float time = 4;
+  bool suddenDeath = 5;
+  int32 nextTroopId = 6;
+  ManaState redMana = 7;
+  ManaState blueMana = 8;
+}

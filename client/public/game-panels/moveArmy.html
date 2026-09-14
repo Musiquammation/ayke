@@ -1,0 +1,81 @@
+<div x-data="data" class="move-army-setup">
+	<style>
+		.move-army-setup {
+			display: flex;
+			flex-direction: column;
+			gap: 1.5vh;
+			font-family: sans-serif;
+			color: #ffffff;
+		}
+
+		.move-army-setup .team-selection {
+			display: flex;
+			align-items: center;
+			gap: 1vw;
+		}
+
+		.move-army-setup .team-button {
+			padding: 0.8vh 1.5vw;
+			border: 2px solid #444;
+			border-radius: 6px;
+			background-color: #222;
+			color: #fff;
+			font-weight: bold;
+			cursor: pointer;
+			transition: all 0.2s ease;
+		}
+
+		.move-army-setup .team-button:hover {
+			border-color: #888;
+		}
+
+		.move-army-setup .team-button.selected {
+			border-color: #ffd700;
+			background-color: #333;
+		}
+
+		.move-army-setup .team-button.red.selected {
+			background-color: #aa2222;
+			border-color: #ff6666;
+		}
+
+		.move-army-setup .team-button.blue.selected {
+			background-color: #2255aa;
+			border-color: #66aaed;
+		}
+	</style>
+
+	<div class="team-selection">
+		<span>Preferred Team:</span>
+
+		<!-- Team option: Random / Any -->
+		<button
+			type="button"
+			class="team-button"
+			@pointerup="preferTeam = 0"
+			:class="{ selected: preferTeam === 0 }"
+		>
+			Random
+		</button>
+
+		<!-- Team option: Red -->
+		<button
+			type="button"
+			class="team-button red"
+			@pointerup="preferTeam = 1"
+			:class="{ selected: preferTeam === 1 }"
+		>
+			Red
+		</button>
+
+		<!-- Team option: Blue -->
+		<button
+			type="button"
+			class="team-button blue"
+			@pointerup="preferTeam = -1"
+			:class="{ selected: preferTeam === -1 }"
+		>
+			Blue
+		</button>
+	</div>
+</div>
