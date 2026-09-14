@@ -155,6 +155,10 @@ interface DeltaTarget {
 	dy: number;
 }
 
+interface CenterTarget {
+	type: 'center'
+}
+
 class Player {
 	static readonly GRAB_GRAVITY = 900;
 	static readonly SPEED = 1500;
@@ -181,7 +185,7 @@ class Player {
 	dir = 0;
 	pushDown = false;
 	score = 0;
-	target : FixedTarget | DeltaTarget | null = null;
+	target : FixedTarget | DeltaTarget | CenterTarget | null = null;
 	team: 'red' | 'blue' = 'red';
 
 	constructor(
@@ -272,6 +276,27 @@ class Player {
 		});
 	}
 
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			vx: this.vx,
+			vy: this.vy,
+			dir: this.dir,
+			alive: this.alive,
+			score: this.score,
+			pushDown: this.pushDown,
+
+			...(this.target?.type === 'fixed'
+				? { fixed: { x: this.target.x, y: this.target.y } }
+				: this.target?.type === 'delta'
+					? { delta: { dx: this.target.dx, dy: this.target.dy } }
+					: this.target?.type === 'center'
+						? { center: {} }
+						: { none: {} })
+		};
+	}
+
 
 	load(obj: Fields) {
 		this.x = obj.x;
@@ -282,6 +307,34 @@ class Player {
 		this.alive = obj.alive;
 		this.score = obj.score;
 		this.pushDown = obj.pushDown;
+
+		switch (obj.target) {
+			case 'fixed':
+				this.target = {
+					type: 'fixed',
+					x: obj.fixed.x,
+					y: obj.fixed.y
+				};
+				break;
+
+			case 'delta':
+				this.target = {
+					type: 'delta',
+					dx: obj.delta.dx,
+					dy: obj.delta.dy
+				};
+				break;
+
+			case 'center':
+				this.target = {
+					type: 'center'
+				};
+				break;
+
+			default:
+				this.target = null;
+				break;
+		}
 	}
 
 	isOOB() {
@@ -612,7 +665,11 @@ class TutorialData {
 				this.wakeUp = clock + 1.5;
 			}
 
-			return "You can't jump when holding the ball.\n Throw it with the mouse towards a mate or a GREEN bucket";
+			return (
+				"You can't jump when holding the ball.\n" +
+				"Throw it with the mouse towards a mate or a GREEN bucket\n"+
+				"(or press SPACE for automatic throw)"
+			);
 		}
 
 		if (this.step === 4) {
@@ -1271,13 +1328,31 @@ export class GMAirBasket extends GameMode {
 			const grabber = this.players[this.ball.grabber];
 			if (!grabber.isAlive()) {
 				this.ball.eject();
-			} else if (grabber.target && grabber.target.type === 'fixed') {
-				const dx = grabber.target.x - grabber.x;
-				const dy = grabber.target.y - grabber.y;
-				if (dx !== 0 || dy !== 0) {
+			} else if (grabber.target) {
+				if (grabber.target.type === 'fixed') {
+					const dx = grabber.target.x - grabber.x;
+					const dy = grabber.target.y - grabber.y;
+					if (dx !== 0 || dy !== 0) {
+						const {x, y} = getVectorToReachTarget(
+							dx,
+							dy,
+							Player.THROW,
+							Ball.GRAVITY
+						);
+						this.ball.vx = x;
+						this.ball.vy = y;
+						this.ball.removeGrabber();
+					}
+				
+				} else if (grabber.target.type === 'center') {
+					const ix = Math.trunc(grabber.x * 2/WIDTH );
+					const iy = Math.trunc(grabber.y * 2/HEIGHT);
+					const tx = Math.sign(ix) * Math.ceil(Math.abs(ix) / 2) * WIDTH;
+					const ty = Math.sign(iy) * Math.ceil(Math.abs(iy) / 2) * HEIGHT;
+					console.log(tx, ty, grabber.x, grabber.y);
 					const {x, y} = getVectorToReachTarget(
-						dx,
-						dy,
+						tx - grabber.x,
+						ty - grabber.y,
 						Player.THROW,
 						Ball.GRAVITY
 					);
@@ -1390,6 +1465,10 @@ export class GMAirBasket extends GameMode {
 			case 'throwOff':
 				player.target = null;
 				break;
+
+			case 'throwCenter':
+				player.target = {type: 'center'};
+				break;
 		}
 	}
 
@@ -1450,7 +1529,7 @@ export class GMAirBasket extends GameMode {
 		}
 
 		// Jump / Down
-		if (keyboard.first('up') || keyboard.first('jump')) {
+		if (keyboard.first('up')) {
 			inputs.push({jump: {}, action: 'jump'});
 		}
 
@@ -1468,6 +1547,12 @@ export class GMAirBasket extends GameMode {
 			inputs.push({throwTarget, action: 'throwTarget'});
 			
 		} else if (mouse.killed(0)) {
+			inputs.push({throwOff: {}, action: 'throwOff'});
+		}
+
+		if (keyboard.first('jump')) {
+			inputs.push({throwCenter: {}, action: 'throwCenter'});
+		} else if (keyboard.killed('jump')) {
 			inputs.push({throwOff: {}, action: 'throwOff'});
 		}
 
@@ -1842,7 +1927,7 @@ export class GMAirBasket extends GameMode {
 	override save(): Uint8Array {
 		const {State} = protocols.get();
 		const object: Fields = {
-			players: this.players,
+			players: this.players.map(p => p.save()),
 			prevBallGrabber: this.ball.prevGrabber,
 			buckets: this.buckets.map(b => ({
 				taken: b.team !== null,
