@@ -1,32 +1,40 @@
-<div x-data="data">
+<div x-data="data" class="popit-config-container">
 	<style>
+		.popit-config-container {
+			display: flex;
+			flex-direction: column;
+			gap: 1.5vh;
+			color: #ffffff;
+			font-family: system-ui, sans-serif;
+		}
+		.popit-option-group {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			background: rgba(255, 255, 255, 0.05);
+			padding: 1vh 1.5vw;
+			border-radius: 8px;
+		}
 		.skin-select-button {
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
-			width: 100%;
-			padding: 0.8vh 1vw;
-			background: #2c2c34;
+			background: #2a2a36;
 			border: 1px solid #444;
-			border-radius: 8px;
 			color: #fff;
+			padding: 0.8vh 1vw;
+			border-radius: 6px;
 			cursor: pointer;
-		}
-		.skin-select-current {
-			display: flex;
-			align-items: center;
-			gap: 0.5vw;
-		}
-		.skin-select-current img, .skin-select-option img {
-			width: 2vh;
-			height: 2vh;
+			min-width: 12vw;
 		}
 		.skin-select-options {
-			margin-top: 0.5vh;
+			position: absolute;
 			background: #1e1e24;
-			border: 1px solid #444;
-			border-radius: 8px;
-			overflow: hidden;
+			border: 1px solid #555;
+			border-radius: 6px;
+			margin-top: 0.5vh;
+			z-index: 100;
+			width: 12vw;
 		}
 		.skin-select-option {
 			display: flex;
@@ -36,15 +44,24 @@
 			cursor: pointer;
 		}
 		.skin-select-option:hover {
-			background: #3a3a46;
-		}
-		.skin-select-option.selected {
 			background: #34c759;
+		}
+		.team-btn {
+			padding: 0.8vh 1.2vw;
+			border-radius: 6px;
+			border: none;
+			background: #3a3a4c;
+			color: #fff;
+			cursor: pointer;
+		}
+		.team-btn.selected {
+			background: #007aff;
+			font-weight: bold;
 		}
 	</style>
 
-	<div>
-		<span>Board Skin:</span>
+	<div class="popit-option-group">
+		<span>Select Skin:</span>
 
 		<div
 			class="skin-select"
@@ -60,6 +77,8 @@
 					<img
 						:src="getIconPath(skin)"
 						:alt="SKINS[skin]"
+						width="24"
+						height="24"
 					>
 					<span x-text="SKINS[skin]"></span>
 				</div>
@@ -81,6 +100,8 @@
 						<img
 							:src="getIconPath(id)"
 							:alt="name"
+							width="20"
+							height="20"
 						>
 
 						<span x-text="name"></span>
@@ -90,24 +111,29 @@
 		</div>
 	</div>
 
-	<div>
-		<span>Preferred team:</span>
-		<button type="button"
-				@pointerup="preferTeam = 0"
-				:class="{ selected: preferTeam === 0 }">
-			None
-		</button>
+	<div class="popit-option-group">
+		<span>Preferred Team:</span>
+		<div>
+			<button type="button"
+					class="team-btn"
+					@pointerup="preferTeam = 0"
+					:class="{ selected: preferTeam === 0 }">
+				None
+			</button>
 
-		<button type="button"
-				@pointerup="preferTeam = 1"
-				:class="{ selected: preferTeam === 1 }">
-			Red
-		</button>
+			<button type="button"
+					class="team-btn"
+					@pointerup="preferTeam = 1"
+					:class="{ selected: preferTeam === 1 }">
+				Red
+			</button>
 
-		<button type="button"
-				@pointerup="preferTeam = -1"
-				:class="{ selected: preferTeam === -1 }">
-			Blue
-		</button>
+			<button type="button"
+					class="team-btn"
+					@pointerup="preferTeam = -1"
+					:class="{ selected: preferTeam === -1 }">
+				Blue
+			</button>
+		</div>
 	</div>
 </div>

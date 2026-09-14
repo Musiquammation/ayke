@@ -4,33 +4,28 @@ package game_popit;
 
 message Empty {}
 
-message CellState {
-	bool popped = 1;
-}
-
 message PlayerState {
-	float x = 1;
-	float y = 2;
-	bool connected = 3;
-	float alive = 4;
-	bool isRed = 5;
-	int32 score = 6;
-	string skin = 7;
+	bool connected = 1;
+	int32 score = 2;
+	string team = 3;
 }
 
 message State {
-	repeated CellState grid = 1;
-	int32 currentTurn = 2;
+	repeated bool grid = 1;
+	int32 currentTurnPlayer = 2;
 	int32 turnRow = 3;
-	int32 lastPoppedCol = 4;
-	bool hasPoppedThisTurn = 5;
-	double time = 6;
-	repeated PlayerState players = 7;
-	bool gameOver = 8;
-	int32 loserIndex = 9;
+	repeated int32 turnPoppedCols = 4;
+	float turnTimer = 5;
+	float globalTime = 6;
+	bool gameOver = 7;
+	int32 loserPlayer = 8;
+	int32 winnerPlayer = 9;
+	int32 redScore = 10;
+	int32 blueScore = 11;
+	repeated PlayerState players = 12;
 }
 
-message PopCell {
+message PopCellAction {
 	int32 row = 1;
 	int32 col = 2;
 }
@@ -38,7 +33,7 @@ message PopCell {
 message QInput {
 	double timestamp = 1;
 	oneof action {
-		PopCell pop = 2;
+		PopCellAction popCell = 2;
 		Empty endTurn = 3;
 	}
 }
