@@ -220,7 +220,7 @@ export const gamemods: Record<
 		client: GMLavaBall.createClient,
 		dom: GMLavaBall.generateClientDom,
 		textures: GMLavaBall.TEXTURES,
-		name: "Wood Sword",
+		name: "Lava ball",
 		tropheesPerPlayer: 3,
 		computerOnly: false,
 		skins: [],

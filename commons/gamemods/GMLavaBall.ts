@@ -6,7 +6,8 @@ import { collisions } from "../util/collisions";
 import { norm2 } from "../util/norm2";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
-import { ImageLoader, ImageLoaderFolder } from "../util/ImageLoader";
+import { ImageLoader } from "../util/ImageLoader";
+import { GameRandomGenerator } from "../util/GameRandomGenerator";
 
 const protocols = getProtocol('lavaBall', 'multiplayer');
 
@@ -15,86 +16,146 @@ interface PlayerInput {
 	pseudo: string | null;
 }
 
-// =====================================================================
-// CONSTANTS
-// All gameplay-relevant magic numbers requested by the design doc are
-// centralised here so they are easy to tune and to audit.
-// =====================================================================
-
-// -- Teams / players --------------------------------------------------
-const TOTAL_PLAYERS = 4;
-const PLAYERS_PER_TEAM = 2;
-
-// -- Level / camera -----------------------------------------------------
-const LEVEL_WIDTH = 1400;              // total horizontal play area (world units)
-const SCREEN_HEIGHT = 900;             // vertical size of the visible window
-const MAX_LEVEL_HEIGHT = 5000;         // a round instantly ends when yLevel reaches this
-
-// -- Ball physics --------------------------------------------------------
-const BALL_GRAVITY = 900;              // px/s^2, downward acceleration applied to the ball
-const PLAYER_THROW_SPEED = 950;        // initial speed (px/s) imparted to a thrown ball
-const BALL_RADIUS = 22;
-
-// -- Obstacles -------------------------------------------------------------
-const OBSTACLE_CHECK_INTERVAL = 0.85;  // seconds between "should I spawn an obstacle?" rolls
-const OBSTACLE_SPAWN_DELAY = 1;        // seconds a WaitingObstacle waits before actually spawning
-const OBSTACLE_SPAWN_CHANCE = 0.6;     // probability (per check) that an obstacle is queued
-const OBSTACLE_MIN_SIZE = 40;
-const OBSTACLE_MAX_SIZE = 110;
-const OBSTACLE_MAX_SPEED = 140;
-const OBSTACLE_MAX_ROTATION_SPEED = 2.5; // rad/s
-const OBSTACLE_DESPAWN_MARGIN = SCREEN_HEIGHT * 3; // how far below yLevel an obstacle is culled
-
-// -- Turn timing -----------------------------------------------------------
-const TURN_WAIT1 = 1;                  // idle phase before aiming
-const TURN_AIM = 3;                    // aiming phase duration
-const TURN_WAIT2 = 1;                  // idle phase after the throw
-const TURN_DURATION = TURN_WAIT1 + TURN_AIM + TURN_WAIT2; // = 5s total, kept for reference/UI
-const SLOWMO_MIN_SPEED = 0.2;          // game speed at the start of the aiming phase
-const SLOWMO_MAX_SPEED = 1;            // game speed reached by the end of the aiming phase
-const ROUND_END_DELAY = 3;             // seconds spent on the "round summary" screen
-
-// -- Scoring -----------------------------------------------------------------
-const LAST_STANDING_MULTIPLIER = 1.2;  // bonus multiplier for the sole survivor of a round
-const WIN_SCORE = 10000;               // first player to reach this total score wins the match
-const TOP_LEVEL_BONUS = 5000;          // instantly awarded to whoever reaches MAX_LEVEL_HEIGHT
-
-// Turn phase identifiers. Kept as small integers so they serialize cheaply
-// through protobuf (see TurnState.phase in lavaBall.proto).
-const enum TurnPhase {
-	Wait1 = 0,
-	Aim = 1,
-	Wait2 = 2,
-	RoundEnd = 3
-}
-
-const enum ObstacleKind {
-	Rect = 0,
-	Circle = 1
-}
-
-type Team = 'red' | 'blue';
+/* ============================================================================
+ * DESIGN NOTES (important assumptions taken to resolve ambiguities in spec)
+ * ----------------------------------------------------------------------------
+ * - World coordinate convention: Y INCREASES when going UP (not the usual
+ *   canvas convention). This matches the spec formulas directly:
+ *     yLevel = max(ball.y) over time  -> going "higher" means bigger y.
+ *     ball.y <= yLevel - SCREEN_HEIGHT/2 -> ball fell behind the camera.
+ *   Gravity therefore SUBTRACTS from vy every frame (vy -= GRAVITY*dt).
+ *   When drawing on the <canvas> (which is Y-down), we flip manually via
+ *   worldToScreen().
+ *
+ * - There is a SINGLE shared ball for the whole match. Players take turns
+ *   throwing it, trying to push it as high as possible. If a player's turn
+ *   ends in death (obstacle hit or falling off-screen), the ball is reset to
+ *   the last "checkpoint" (the last platform it safely rested on) so the
+ *   next player can continue the climb. The dying player is eliminated for
+ *   the rest of the round and banks points equal to the yLevel reached so far.
+ *
+ * - Score is ACCUMULATED across rounds (never reset to 0), matching the
+ *   requirement "preserving accumulated scores between rounds". The overall
+ *   game ends as soon as any player's accumulated score reaches
+ *   WIN_SCORE_LIMIT.
+ *
+ * - Platforms are procedurally generated ONCE by the server in createServ()
+ *   and sent to clients as init data (StartDataClient), exactly like
+ *   spawnX/spawnY in the reference example. They are NOT re-sent on every
+ *   save() since they never change during the match (this matches "les
+ *   données d'initialisation... ne doivent pas être recopiées à chaque
+ *   save"). Rounds reuse the same platform layout; only the ball, obstacles,
+ *   turn order and "eliminated" flags are reset between rounds.
+ *
+ * - Obstacles ARE fully dynamic runtime data (position/velocity/rotation
+ *   change every frame due to physics) so, unlike platforms, they MUST be
+ *   part of State and therefore fully synchronized through save()/load().
+ *
+ * - Rotating rectangle obstacles are collided against the ball using the
+ *   provided axis-aligned collisions.RectCircle() helper (no true OBB
+ *   rotation support was provided), which is an intentional simplification.
+ * ==========================================================================*/
 
 
-// =====================================================================
-// PROVIDED PHYSICS / RENDER HELPERS (copied verbatim from the design doc)
-// =====================================================================
+/* ============================================================================
+ * GAMEPLAY CONSTANTS
+ * All gameplay "magic numbers" requested by the spec are centralized here.
+ * ==========================================================================*/
+
+// --- World / camera ---------------------------------------------------------
+const LEVEL_WIDTH = 1000;              // Horizontal play area width (world units)
+const SCREEN_HEIGHT = 1200;            // Vertical size of the camera viewport
+const MAX_LEVEL_HEIGHT = 5000;         // Maximum height of a level (spec: "5000")
+
+// --- Ball physics ------------------------------------------------------------
+const BALL_GRAVITY = 1400;             // Gravity applied to the ball (world units/s^2)
+const BALL_RADIUS = 26;                // Ball collision radius
+const PLAYER_THROW_SPEED = 1650;       // Initial speed (N) used by getVectorToReachTarget
+
+// --- Turn timing ---------------------------------------------------------
+const TURN_WAIT_BEFORE = 1;            // Seconds of "do nothing" before aiming
+const TURN_AIM_DURATION = 3;           // Seconds during which the player may aim/throw
+const TURN_WAIT_AFTER = 1;             // Seconds of "do nothing" after the throw
+const TURN_TOTAL_DURATION = TURN_WAIT_BEFORE + TURN_AIM_DURATION + TURN_WAIT_AFTER; // 5s
+
+const SLOW_MOTION_MIN_SPEED = 0.2;     // Game speed multiplier at the deepest point of aiming
+
+// --- Turn phases (kept as plain numeric constants so they can be stored in State int32) ---
+const PHASE_WAIT_BEFORE = 0;
+const PHASE_AIMING = 1;
+const PHASE_WAIT_AFTER = 2;
+
+// --- Scoring ---------------------------------------------------------
+const LAST_SURVIVOR_MULTIPLIER = 1.2;  // Score multiplier for the last player standing
+const WIN_SCORE_LIMIT = 10000;         // First player to reach this total wins the whole game
+const TOP_OF_LEVEL_BONUS = 5000;       // Instant bonus for reaching MAX_LEVEL_HEIGHT
+
+// --- Rounds ---------------------------------------------------------
+const ROUND_END_DELAY = 3;             // Seconds shown as "round over" screen before next round
+
+// --- Obstacles ---------------------------------------------------------
+const OBSTACLE_CHECK_INTERVAL = 0.85;  // Server checks whether to queue a new obstacle every 0.85s
+const OBSTACLE_SPAWN_DELAY = 1;        // Delay between "waiting" obstacle selection and actual spawn
+const OBSTACLE_SPAWN_CHANCE = 0.65;    // Probability of actually spawning something on a given check
+const OBSTACLE_CLEANUP_MARGIN = SCREEN_HEIGHT; // Distance outside camera before an obstacle is removed
+
+const OBSTACLE_RECT_MIN_SIZE = 60;
+const OBSTACLE_RECT_MAX_SIZE = 140;
+const OBSTACLE_RECT_MIN_ANGULAR_VEL = -3;
+const OBSTACLE_RECT_MAX_ANGULAR_VEL = 3;
+
+const OBSTACLE_CIRCLE_MIN_RADIUS = 30;
+const OBSTACLE_CIRCLE_MAX_RADIUS = 70;
+
+const OBSTACLE_MIN_SPEED = 80;
+const OBSTACLE_MAX_SPEED = 260;
+
+// --- Level generation (platforms) ---------------------------------------------------------
+const PLATFORM_MIN_GAP = 180;          // Minimal vertical gap between two consecutive platforms
+const PLATFORM_MAX_GAP = 320;          // Maximal vertical gap between two consecutive platforms
+const PLATFORM_MIN_WIDTH = 140;
+const PLATFORM_MAX_WIDTH = 280;
+const PLATFORM_HEIGHT = 30;
+const PLATFORM_X_MARGIN = 60;          // Keeps platforms from touching the side walls
+const START_PLATFORM_WIDTH = 360;      // The very first platform is wide & centered, for fairness
+
+// --- Colors ---------------------------------------------------------
+const TEAM_COLORS = { red: '#ff4444', blue: '#4477ff' } as const;
+const OBSTACLE_COLOR = '#ff0000';      // "All obstacles must be drawn in red"
+const ELIMINATED_GREY = '#888888';
+
+
+/* ============================================================================
+ * PURE HELPER FUNCTIONS (math / physics, provided or derived from the spec)
+ * ==========================================================================*/
 
 /**
- * Computes the initial velocity vector required for a projectile
- * starting at the origin (0, 0) to reach the target position (X, Y)
- * with an initial speed of N and a constant gravitational acceleration g.
- *
- * Returns success = true when a valid ballistic trajectory exists.
- * When no valid trajectory can be found, returns a fallback vector
- * pointing approximately toward the target.
+ * Maps aiming-phase local time t in [0, TURN_AIM_DURATION] to a game speed
+ * multiplier in [SLOW_MOTION_MIN_SPEED, 1]. The curve starts and ends at 1
+ * (normal speed, smooth entry/exit) and dips down to SLOW_MOTION_MIN_SPEED
+ * exactly at the midpoint of the aiming phase, using a cosine for a smooth,
+ * non-instantaneous transition in both directions.
+ */
+function aimSpeedScale(t: number): number {
+	const clamped = Math.max(0, Math.min(TURN_AIM_DURATION, t));
+	const amplitude = (1 - SLOW_MOTION_MIN_SPEED) / 2; // 0.4
+	const mid = (1 + SLOW_MOTION_MIN_SPEED) / 2;        // 0.6
+	return mid + amplitude * Math.cos((2 * Math.PI * clamped) / TURN_AIM_DURATION);
+}
+
+/**
+ * Computes the initial velocity vector required for a projectile starting at
+ * the origin (0, 0) to reach the target position (X, Y) with initial speed N
+ * and constant gravitational acceleration g. Returns a fallback vector
+ * pointing roughly at the target when no valid ballistic solution exists.
+ * (Provided verbatim by the spec.)
  */
 function getVectorToReachTarget(
 	X: number,
 	Y: number,
 	N: number,
 	g: number
-): { x: number, y: number, success: boolean } {
+): { x: number; y: number; success: boolean } {
 	if (X === 0) {
 		return { x: 0, y: Y > 0 ? N : -N, success: false };
 	}
@@ -131,12 +192,11 @@ function getVectorToReachTarget(
 }
 
 /**
- * Draws an aiming trajectory (curve or straight fallback line) plus a
- * target marker, from (srcX, srcY) to (destX, destY).
- * `color` follows the same tri-state convention as the design doc:
- *  - true  => "self" style (black, thick)
- *  - false => "other/ghost" style (grey, thin)
- *  - string => custom color with an outline (used here for team colors)
+ * Draws the ballistic aiming trajectory from (srcX, srcY) to (destX, destY)
+ * in whatever coordinate space the caller uses (we always call this with
+ * SCREEN-space coordinates, see worldToScreen()). (Provided verbatim by the
+ * spec, parameterized on Player.THROW / Ball.GRAVITY renamed to local
+ * constants PLAYER_THROW_SPEED / BALL_GRAVITY.)
  */
 function drawPlayerToTarget(
 	ctx: CanvasRenderingContext2D,
@@ -170,7 +230,6 @@ function drawPlayerToTarget(
 		outline = true;
 	}
 
-	// Draw target circle
 	if (outline) {
 		ctx.beginPath();
 		ctx.arc(destX, destY, radius + 2, 0, Math.PI * 2);
@@ -189,14 +248,8 @@ function drawPlayerToTarget(
 		ctx.stroke();
 	}
 
-	const velocity = getVectorToReachTarget(
-		X,
-		Y,
-		Player.THROW,
-		Ball.GRAVITY
-	);
+	const velocity = getVectorToReachTarget(X, Y, PLAYER_THROW_SPEED, BALL_GRAVITY);
 
-	// Unable to calculate a valid trajectory
 	if (velocity.x === 0 || !velocity.success) {
 		const dx = destX - srcX;
 		const dy = destY - srcY;
@@ -206,8 +259,8 @@ function drawPlayerToTarget(
 			return;
 		}
 
-		const startX = srcX + dx / distance * 40;
-		const startY = srcY + dy / distance * 40;
+		const startX = srcX + (dx / distance) * 40;
+		const startY = srcY + (dy / distance) * 40;
 
 		ctx.beginPath();
 		ctx.moveTo(startX, startY);
@@ -234,7 +287,7 @@ function drawPlayerToTarget(
 
 	const vx = velocity.x;
 	const vy = velocity.y;
-	const g = Ball.GRAVITY;
+	const g = BALL_GRAVITY;
 
 	const T = X / vx;
 
@@ -246,21 +299,17 @@ function drawPlayerToTarget(
 	const points: { x: number; y: number }[] = [];
 
 	for (let i = 0; i <= steps; i++) {
-		const t = T * i / steps;
-
+		const t = (T * i) / steps;
 		const x = srcX + vx * t;
 		const y = srcY + vy * t + (g / 2) * t * t;
-
 		points.push({ x, y });
 	}
 
 	let startIndex = 0;
-
 	for (let i = 1; i < points.length; i++) {
 		const dx = points[i].x - srcX;
 		const dy = points[i].y - srcY;
 		const distance = Math.sqrt(dx * dx + dy * dy);
-
 		if (distance >= 40) {
 			startIndex = i;
 			break;
@@ -270,11 +319,9 @@ function drawPlayerToTarget(
 	const drawCurve = () => {
 		ctx.beginPath();
 		ctx.moveTo(points[startIndex].x, points[startIndex].y);
-
 		for (let i = startIndex + 1; i < points.length; i++) {
 			ctx.lineTo(points[i].x, points[i].y);
 		}
-
 		ctx.stroke();
 	};
 
@@ -290,215 +337,189 @@ function drawPlayerToTarget(
 }
 
 
-// =====================================================================
-// SLOW MOTION EASING
-// =====================================================================
+/* ============================================================================
+ * DATA TYPES
+ * ==========================================================================*/
 
-/**
- * Maps t in [0, TURN_AIM] to a game-speed multiplier in
- * [SLOWMO_MIN_SPEED, SLOWMO_MAX_SPEED], using a smoothstep curve so the
- * transition in and out of slow motion is progressive rather than an
- * instant jump. t = 0 is the very start of the aiming phase (slowest),
- * t = TURN_AIM is the moment the throw actually fires (back to normal).
- */
-function getAimSpeedMultiplier(t: number): number {
-	const clamped = Math.max(0, Math.min(TURN_AIM, t));
-	const ratio = clamped / TURN_AIM;
-	// Smoothstep: eases both ends of the transition (3t^2 - 2t^3).
-	const eased = ratio * ratio * (3 - 2 * ratio);
-	return SLOWMO_MIN_SPEED + (SLOWMO_MAX_SPEED - SLOWMO_MIN_SPEED) * eased;
+type ObstacleType = 'rect' | 'circle';
+
+/** A queued obstacle: parameters are already fully decided (for determinism)
+ *  but it only becomes a real, collidable Obstacle after `timeLeft` elapses. */
+interface WaitingObstacleData {
+	id: number;
+	type: ObstacleType;
+	x: number;
+	y: number;
+	vx: number;
+	vy: number;
+	angle: number;
+	angularVelocity: number;
+	affectedByGravity: boolean;
+	radius: number;
+	w: number;
+	h: number;
+	timeLeft: number;
 }
 
-
-// =====================================================================
-// WORLD OBJECTS
-// All of the classes below hold only SHARED, server-authoritative data.
-// Nothing here is client-only: everything must survive save()/load() so
-// that a load() mid-game never produces desynced/undefined behaviour.
-// =====================================================================
-
-/**
- * A hazard that moves through the level. Always drawn in red.
- * Rotation is purely cosmetic (collision uses an axis-aligned box).
- */
+/** A live, collidable obstacle. Always drawn in red. */
 class Obstacle {
 	constructor(
 		public id: number,
-		public kind: ObstacleKind,
+		public type: ObstacleType,
 		public x: number,
 		public y: number,
-		public w: number,       // width (rect) or radius (circle)
-		public h: number,       // height (rect only, unused for circle)
 		public vx: number,
 		public vy: number,
-		public rotation: number,
-		public rotationSpeed: number,
-		public gravityAffected: boolean
-	) {}
-
-	/** Advances the obstacle by dt seconds, scaled by the current game speed. */
-	move(dt: number, speedMultiplier: number) {
-		const sdt = dt * speedMultiplier;
-
-		if (this.gravityAffected) {
-			this.vy -= BALL_GRAVITY * sdt;
-		}
-
-		this.x += this.vx * sdt;
-		this.y += this.vy * sdt;
-		this.rotation += this.rotationSpeed * sdt;
-	}
-
-	/** Whether this obstacle has drifted far enough below play to be culled. */
-	isFarBelow(yLevel: number): boolean {
-		return this.y < yLevel - OBSTACLE_DESPAWN_MARGIN;
-	}
-
-	/** Tests collision against the ball (always treated as a circle). */
-	collidesWithBall(ball: Ball): boolean {
-		const ballCircle = { x: ball.x, y: ball.y, r: BALL_RADIUS };
-
-		if (this.kind === ObstacleKind.Rect) {
-			const rect = { x: this.x - this.w / 2, y: this.y - this.h / 2, w: this.w, h: this.h };
-			return collisions.RectCircle(rect, ballCircle);
-		}
-
-		const circle = { x: this.x, y: this.y, r: this.w };
-		return collisions.CircleCircle(circle, ballCircle);
-	}
-}
-
-/**
- * An obstacle that has been decided upon but is not yet visible/solid.
- * Must be shared (see mission doc) so a load() mid-delay doesn't lose it.
- */
-class WaitingObstacle {
-	constructor(
-		public kind: ObstacleKind,
-		public x: number,
-		public y: number,
+		public angle: number,
+		public angularVelocity: number,
+		public affectedByGravity: boolean,
+		public radius: number,
 		public w: number,
-		public h: number,
-		public vx: number,
-		public vy: number,
-		public gravityAffected: boolean,
-		public timer: number // seconds remaining before it actually spawns
+		public h: number
 	) {}
+
+	/** Advances physics for this obstacle by dt seconds (already speed-scaled). */
+	move(dt: number) {
+		if (this.affectedByGravity) {
+			this.vy -= BALL_GRAVITY * dt;
+		}
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+		this.angle += this.angularVelocity * dt;
+	}
+
+	/** True when this obstacle is far enough from the camera to be garbage-collected. */
+	isFarFrom(cameraY: number) {
+		return (
+			this.y < cameraY - SCREEN_HEIGHT / 2 - OBSTACLE_CLEANUP_MARGIN ||
+			this.y > cameraY + SCREEN_HEIGHT / 2 + OBSTACLE_CLEANUP_MARGIN ||
+			Math.abs(this.x) > LEVEL_WIDTH * 2
+		);
+	}
+
+	/**
+	 * Checks whether this (red, deadly) obstacle currently overlaps the ball.
+	 * NOTE: rotation is ignored for the collision test (only the provided
+	 * axis-aligned collisions.* helpers are available) - a documented
+	 * simplification.
+	 */
+	collidesWithBall(ballX: number, ballY: number, ballRadius: number): boolean {
+		if (this.type === 'circle') {
+			return collisions.CircleCircle(
+				{ x: this.x, y: this.y, r: this.radius },
+				{ x: ballX, y: ballY, r: ballRadius }
+			);
+		}
+
+		return collisions.RectCircle(
+			{ x: this.x - this.w / 2, y: this.y - this.h / 2, w: this.w, h: this.h },
+			{ x: ballX, y: ballY, r: ballRadius }
+		);
+	}
 }
 
-/** The single shared ball thrown in turn by whichever player is active. */
-class Ball {
-	static readonly GRAVITY = BALL_GRAVITY;
+/** A static platform the ball can rest on between throws. */
+interface Platform {
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
 
+/** The single shared ball. */
+class Ball {
 	x = 0;
 	y = 0;
 	vx = 0;
 	vy = 0;
+
+	/** True while flying (thrown, not resting on a platform / at start). */
 	inFlight = false;
-
-	/** Advances the ball by dt seconds and bounces it off the side walls. */
-	move(dt: number, speedMultiplier: number) {
-		if (!this.inFlight) {
-			return;
-		}
-
-		const sdt = dt * speedMultiplier;
-
-		this.vy -= Ball.GRAVITY * sdt;
-		this.x += this.vx * sdt;
-		this.y += this.vy * sdt;
-
-		const half = LEVEL_WIDTH / 2;
-		if (this.x < -half) {
-			this.x = -half;
-			this.vx = Math.abs(this.vx);
-		} else if (this.x > half) {
-			this.x = half;
-			this.vx = -Math.abs(this.vx);
-		}
-	}
-
-	/** Launches the ball from its current resting spot towards (targetX, targetY). */
-	throwTo(targetX: number, targetY: number) {
-		const rel = getVectorToReachTarget(
-			targetX - this.x,
-			targetY - this.y,
-			Player.THROW,
-			Ball.GRAVITY
-		);
-
-		this.vx = rel.x;
-		this.vy = rel.y;
-		this.inFlight = true;
-	}
-
-	/** Resets the ball to a resting position, ready to be thrown again. */
-	restAt(x: number, y: number) {
-		this.x = x;
-		this.y = y;
-		this.vx = 0;
-		this.vy = 0;
-		this.inFlight = false;
-	}
 
 	load(obj: Fields) {
 		this.x = obj.x;
 		this.y = obj.y;
 		this.vx = obj.vx;
 		this.vy = obj.vy;
-		this.inFlight = obj.inFlight;
 	}
 }
 
-/**
- * A single competitor. Holds ONLY shared/authoritative data: nothing
- * client-specific lives here (that belongs in ClientData).
- */
+/** Per-player persistent (shared) state. No client-only data here. */
 class Player {
-	static readonly THROW = PLAYER_THROW_SPEED;
-
-	team: Team = 'red';
+	isRed = true;
+	connected = true;
+	eliminated = false;
 	score = 0;
-	connected = true;             // must be tracked as shared state (see onDisconnection)
-	eliminatedThisRound = false;
 
-	// Last aim target sent by this player's client. Used by ALL clients to
-	// render the live trajectory preview while it is this player's turn.
+	/** Last aimed target, kept in State so every client can render it. */
 	aimX = 0;
 	aimY = 0;
+	aiming = false;
 
 	load(obj: Fields) {
-		this.team = obj.team === 1 ? 'blue' : 'red';
-		this.score = obj.score;
+		this.isRed = obj.isRed;
 		this.connected = obj.connected;
-		this.eliminatedThisRound = obj.eliminatedThisRound;
+		this.eliminated = obj.eliminated;
+		this.score = obj.score;
 		this.aimX = obj.aimX;
 		this.aimY = obj.aimY;
+		this.aiming = obj.aiming;
 	}
 }
 
 
-// =====================================================================
-// CLIENT-ONLY DATA
-// =====================================================================
+/* ============================================================================
+ * CAMERA (client-side helper, follows the shared yLevel)
+ * ==========================================================================*/
+
+class Camera {
+	/** Current vertical focus point, smoothly follows the authoritative yLevel. */
+	y = 0;
+
+	static readonly SCALE = 0.75;
+
+	update(targetY: number, dt: number) {
+		// Simple critically-damped-ish follow so the camera doesn't snap on
+		// every tiny yLevel change (e.g. when the ball is still low in flight).
+		const diff = targetY - this.y;
+		this.y += diff * Math.min(1, dt * 4);
+	}
+
+	teleport(targetY: number) {
+		this.y = targetY;
+	}
+
+	getCoords() {
+		return { x: 0, y: this.y };
+	}
+}
+
+
+/* ============================================================================
+ * CLIENT-ONLY DATA (never saved/loaded, never simulated - ClientData exists
+ * precisely so nothing here needs to survive a load()).
+ * ==========================================================================*/
 
 class ClientData {
 	firstFrame = true;
 
-	// Tracks the last aim position actually sent to the server, so
-	// collectInputs() only emits a packet when the pointer has moved.
-	lastSentAimX = Number.NaN;
-	lastSentAimY = Number.NaN;
+	/** Last sent aim target, used to avoid re-sending identical inputs. */
+	lastSentAimX: number | null = null;
+	lastSentAimY: number | null = null;
+
+	/** Platforms received once at init time (StartDataClient), never re-synced. */
+	platforms: Platform[] = [];
+
+	readonly camera = new Camera();
 
 	readonly html: HTMLDivElement;
 	readonly turnIndicator: HTMLDivElement;
-	readonly scorePanel: HTMLDivElement;
+	readonly scoreBoard: HTMLDivElement;
 	readonly timerLabel: HTMLDivElement;
 	readonly roundBanner: HTMLDivElement;
 
-	// Camera is always centered on (0, yLevel); no smoothing is required
-	// per the mission doc, so we just mirror the authoritative value.
-	cameraY = 0;
+	private readonly playerSlots: HTMLElement[] = [];
+	private readonly scoreSlots: HTMLDivElement[] = [];
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -507,8 +528,22 @@ class ClientData {
 		this.turnIndicator = document.createElement("div");
 		this.turnIndicator.classList.add("game-lavaBall-turn-indicator");
 
-		this.scorePanel = document.createElement("div");
-		this.scorePanel.classList.add("game-lavaBall-score-panel");
+		for (let i = 0; i < 4; i++) {
+			const slot = document.createElement("span");
+			slot.classList.add("game-lavaBall-turn-slot");
+			this.turnIndicator.appendChild(slot);
+			this.playerSlots.push(slot);
+		}
+
+		this.scoreBoard = document.createElement("div");
+		this.scoreBoard.classList.add("game-lavaBall-scoreboard");
+
+		for (let i = 0; i < 4; i++) {
+			const row = document.createElement("div");
+			row.classList.add("game-lavaBall-score-row");
+			this.scoreBoard.appendChild(row);
+			this.scoreSlots.push(row);
+		}
 
 		this.timerLabel = document.createElement("div");
 		this.timerLabel.classList.add("game-lavaBall-timer");
@@ -517,77 +552,176 @@ class ClientData {
 		this.roundBanner.classList.add("game-lavaBall-round-banner");
 
 		this.html.appendChild(this.turnIndicator);
-		this.html.appendChild(this.scorePanel);
+		this.html.appendChild(this.scoreBoard);
 		this.html.appendChild(this.timerLabel);
 		this.html.appendChild(this.roundBanner);
 	}
 
-	/** Refreshes the DOM overlay (turn indicator, scores, timer) every frame. */
-	update(game: GMLavaBall, playerIdx: number) {
-		this.cameraY = game.yLevel;
-
-		// Timer: show only the remaining whole/decimal seconds of the phase.
-		this.timerLabel.innerText = game.turnPhaseTimer.toFixed(1) + "s";
-
-		// Turn indicator: "1 2 3 4", self replaced by "M", colored by team,
-		// current player underlined, eliminated players greyed but keeping
-		// a visible trace of their team color.
-		this.turnIndicator.innerHTML = "";
+	/** Refreshes all DOM overlays from the authoritative game state. */
+	update(game: GMLavaBall, playerIdx: number, dt: number) {
+		// Turn indicator: "1 2 3 4", local player shown as "M", underline
+		// whoever is currently playing, grey-out eliminated players while
+		// keeping their team color visible via a colored underline/border.
 		for (let i = 0; i < game.players.length; i++) {
-			const p = game.players[i];
-			const span = document.createElement("span");
-			span.classList.add("game-lavaBall-turn-slot");
-			span.classList.add(p.team === 'red' ? "game-lavaBall-team-red" : "game-lavaBall-team-blue");
+			const player = game.players[i];
+			const slot = this.playerSlots[i];
+			const label = (i === playerIdx) ? "M" : String(i + 1);
 
-			if (p.eliminatedThisRound) {
-				span.classList.add("game-lavaBall-eliminated");
-			}
-			if (i === game.turnCurrentPlayer) {
-				span.classList.add("game-lavaBall-active-turn");
-			}
-
-			span.innerText = (i === playerIdx) ? "M" : String(i + 1);
-			this.turnIndicator.appendChild(span);
+			slot.textContent = label;
+			slot.classList.toggle('is-turn', i === game.currentPlayer);
+			slot.classList.toggle('is-eliminated', player.eliminated);
+			slot.classList.toggle('is-red', player.isRed);
+			slot.classList.toggle('is-blue', !player.isRed);
 		}
 
-		// Score panel, always in player order 1..4.
-		this.scorePanel.innerHTML = "";
+		// Score board, always in player order 1..4.
 		for (let i = 0; i < game.players.length; i++) {
-			const p = game.players[i];
-			const row = document.createElement("div");
-			row.classList.add("game-lavaBall-score-row");
-			row.classList.add(p.team === 'red' ? "game-lavaBall-team-red" : "game-lavaBall-team-blue");
-			row.innerText = `P${i + 1}: ${Math.floor(p.score)}`;
-			this.scorePanel.appendChild(row);
+			const player = game.players[i];
+			const row = this.scoreSlots[i];
+			row.textContent = `${i + 1}: ${Math.round(player.score)}`;
+			row.classList.toggle('is-red', player.isRed);
+			row.classList.toggle('is-blue', !player.isRed);
+			row.classList.toggle('is-eliminated', player.eliminated);
 		}
 
-		// Round-end banner.
-		if (game.turnPhase === TurnPhase.RoundEnd) {
-			this.roundBanner.innerText = `Round ${game.round} finished — next round starting...`;
-			this.roundBanner.style.display = "block";
-		} else {
-			this.roundBanner.style.display = "none";
-		}
+		// Timer: only the remaining whole seconds of the current turn.
+		const remaining = Math.max(0, TURN_TOTAL_DURATION - game.turnTimer);
+		this.timerLabel.textContent = game.roundEnding ? "" : String(Math.ceil(remaining));
+
+		// Round banner, shown only during the end-of-round pause.
+		this.roundBanner.textContent = game.roundEnding
+			? (game.gameOver ? "Game over!" : "Round over - next round starting...")
+			: "";
+		this.roundBanner.classList.toggle('visible', game.roundEnding);
+
+		// Camera smoothly follows the shared yLevel.
+		this.camera.update(game.yLevel, dt);
 	}
 }
 
 
-// =====================================================================
-// MINIMAL TUTORIAL STUB
-// =====================================================================
+/* ============================================================================
+ * TUTORIAL (very small, explains the throw mechanic)
+ * ==========================================================================*/
 
 class TutorialData {
+	private step = 0;
+
 	constructor(private readonly game: GMLavaBall) {}
 
 	frame(dt: number, clock: number) {
-		return ""; // No guided tutorial text for this game mode.
+		if (this.step === 0) {
+			return "Aim with your mouse/finger, then click/tap to throw the ball!";
+		}
+		return "";
 	}
 }
 
 
-// =====================================================================
-// PRE-GAME CLIENT DOM (produced by lavaBall.html via Alpine)
-// =====================================================================
+/* ============================================================================
+ * LEVEL GENERATION (procedural platforms)
+ * ==========================================================================*/
+
+/**
+ * Procedurally builds a vertical chain of platforms from y=0 up to
+ * MAX_LEVEL_HEIGHT. The first platform is wide and centered so every match
+ * starts fairly. This is called ONCE per match by the server (createServ);
+ * the resulting list is then shipped to clients as init data.
+ */
+function generatePlatforms(rng: GameRandomGenerator): Platform[] {
+	const platforms: Platform[] = [];
+
+	// Starting platform: always centered, extra wide for a safe first throw.
+	platforms.push({ x: 0, y: 0, w: START_PLATFORM_WIDTH, h: PLATFORM_HEIGHT });
+
+	let currentY = 0;
+	while (currentY < MAX_LEVEL_HEIGHT) {
+		currentY += PLATFORM_MIN_GAP + Math.random() * (PLATFORM_MAX_GAP - PLATFORM_MIN_GAP);
+		if (currentY >= MAX_LEVEL_HEIGHT) break;
+
+		const width = PLATFORM_MIN_WIDTH + Math.random() * (PLATFORM_MAX_WIDTH - PLATFORM_MIN_WIDTH);
+		const halfRange = LEVEL_WIDTH / 2 - PLATFORM_X_MARGIN - width / 2;
+		const x = (Math.random() * 2 - 1) * Math.max(0, halfRange);
+
+		platforms.push({ x, y: currentY, w: width, h: PLATFORM_HEIGHT });
+	}
+
+	// One final platform right at the top, to make "reaching 5000" tangible.
+	platforms.push({ x: 0, y: MAX_LEVEL_HEIGHT, w: START_PLATFORM_WIDTH, h: PLATFORM_HEIGHT });
+
+	return platforms;
+}
+
+/** Finds the highest platform at or below a given y (used to compute checkpoints). */
+function findPlatformBelow(platforms: Platform[], y: number): Platform {
+	let best = platforms[0];
+	for (const p of platforms) {
+		if (p.y <= y + 1 && p.y > best.y) {
+			best = p;
+		}
+	}
+	return best;
+}
+
+
+/* ============================================================================
+ * OBSTACLE GENERATION
+ * ==========================================================================*/
+
+/**
+ * Randomly builds the full description of a new obstacle, ready to be
+ * queued as a WaitingObstacleData. All randomness happens exactly once, at
+ * selection time, so the eventual spawn is fully deterministic given the
+ * data stored in State (no re-rolling on the client).
+ */
+function pickRandomObstacle(id: number, cameraY: number): WaitingObstacleData {
+	const type: ObstacleType = Math.random() < 0.5 ? 'rect' : 'circle';
+	const affectedByGravity = Math.random() < 0.5;
+
+	// Obstacles spawn outside the current screen: either above the visible
+	// area (falling / floating down into view) or from one of the two side
+	// walls (flying in horizontally).
+	const fromSide = Math.random() < 0.4;
+
+	let x: number, y: number, vx: number, vy: number;
+	const speed = OBSTACLE_MIN_SPEED + Math.random() * (OBSTACLE_MAX_SPEED - OBSTACLE_MIN_SPEED);
+
+	if (fromSide) {
+		const fromLeft = Math.random() < 0.5;
+		x = fromLeft ? -LEVEL_WIDTH / 2 - 100 : LEVEL_WIDTH / 2 + 100;
+		y = cameraY + (Math.random() * 2 - 1) * (SCREEN_HEIGHT / 2);
+		vx = fromLeft ? speed : -speed;
+		vy = affectedByGravity ? 0 : (Math.random() * 2 - 1) * speed * 0.5;
+	} else {
+		x = (Math.random() * 2 - 1) * (LEVEL_WIDTH / 2 - 80);
+		y = cameraY + SCREEN_HEIGHT / 2 + 120;
+		vx = (Math.random() * 2 - 1) * speed * 0.5;
+		vy = -speed * 0.5; // drifting down into view
+	}
+
+	const radius = OBSTACLE_CIRCLE_MIN_RADIUS + Math.random() * (OBSTACLE_CIRCLE_MAX_RADIUS - OBSTACLE_CIRCLE_MIN_RADIUS);
+	const size = OBSTACLE_RECT_MIN_SIZE + Math.random() * (OBSTACLE_RECT_MAX_SIZE - OBSTACLE_RECT_MIN_SIZE);
+	const angularVelocity = OBSTACLE_RECT_MIN_ANGULAR_VEL +
+		Math.random() * (OBSTACLE_RECT_MAX_ANGULAR_VEL - OBSTACLE_RECT_MIN_ANGULAR_VEL);
+
+	return {
+		id,
+		type,
+		x, y, vx, vy,
+		angle: Math.random() * Math.PI * 2,
+		angularVelocity: type === 'rect' ? angularVelocity : 0,
+		affectedByGravity,
+		radius,
+		w: size,
+		h: size * (0.5 + Math.random()),
+		timeLeft: OBSTACLE_SPAWN_DELAY
+	};
+}
+
+
+/* ============================================================================
+ * CLIENT DOM CONFIGURATION (example.html -> data object)
+ * ==========================================================================*/
 
 function generateClientDom() {
 	return {
@@ -603,56 +737,75 @@ function generateClientDom() {
 }
 
 
-// =====================================================================
-// GAME MODE
-// =====================================================================
+/* ============================================================================
+ * MAIN GAME MODE CLASS
+ * ==========================================================================*/
 
 export class GMLavaBall extends GameMode {
-	static readonly types = { Player, Ball, Obstacle, WaitingObstacle };
+	static readonly types = { Player, Ball, Obstacle };
 
 	static readonly DATA = {
 		LEVEL_WIDTH,
 		SCREEN_HEIGHT,
 		MAX_LEVEL_HEIGHT,
 		BALL_GRAVITY,
-		PLAYER_THROW_SPEED
+		BALL_RADIUS
 	};
 
+	static readonly generateClientDom = generateClientDom;
+
+	static readonly TEXTURES = {
+		'ball': "/assets/games/lavaBall/ball.png",
+		'platform': "/assets/games/lavaBall/platform.png",
+		'obstacle-rect': "/assets/games/lavaBall/obstacle_rect.png",
+		'obstacle-circle': "/assets/games/lavaBall/obstacle_circle.png",
+		'background': "/assets/games/lavaBall/background.png"
+	};
+
+	// --- Shared, saved state ---------------------------------------------------------
 	readonly players: Player[];
 	readonly ball = new Ball();
 
-	obstacles: Obstacle[] = [];
-	waitingObstacles: WaitingObstacle[] = [];
-	nextObstacleId = 0;
-	obstacleSpawnClock = 0;
-
+	/** Maximum ball.y ever reached during the CURRENT round. */
 	yLevel = 0;
-	round = 0;
-	gameFinished = false;
 
-	// Turn state machine.
-	turnCurrentPlayer = 0;
-	turnPhase: TurnPhase = TurnPhase.Wait1;
-	turnPhaseTimer = TURN_WAIT1;
+	/** yLevel recorded at the moment of the most recent elimination this round (used for the last-survivor bonus). */
+	lastEliminatedYLevel = 0;
 
-	// Amount awarded to each player during the CURRENT round (0 while still
-	// alive and undecided). Used to compute the "second place" bonus and to
-	// accumulate into Player.score once a round concludes.
-	private roundAward: number[] = [];
+	currentPlayer = 0;
+	turnPhase = PHASE_WAIT_BEFORE;
+	turnTimer = 0;
+
+	/** True once the current turn's ball has already been thrown (prevents double-throw / late auto-throw). */
+	private thrownThisTurn = false;
+
+	roundNumber = 0;
+	roundEnding = false;
+	roundEndTimer = 0;
+	roundStartPlayer = 0;
+
+	obstacles: Obstacle[] = [];
+	waitingObstacles: WaitingObstacleData[] = [];
+	obstacleSpawnTimer = 0;
+	nextObstacleId = 0;
+
+	gameOver = false;
+
+	/** Checkpoint the ball respawns to after an elimination (last safe platform). Not part of State: fully derivable from the platform list + yLevel is NOT enough, so we DO store it explicitly below. */
+	checkpointX = 0;
+	checkpointY = 0;
+
+	/** Init data only: never resaved (see design notes above). */
+	private platforms: Platform[] = [];
 
 	private constructor(total: number) {
 		super();
-
-		this.players = Array.from(
-			{ length: total },
-			() => new Player()
-		);
-		this.roundAward = Array.from({ length: total }, () => 0);
+		this.players = Array.from({ length: total }, () => new Player());
 	}
 
-	// -------------------------------------------------------------
-	// SETUP
-	// -------------------------------------------------------------
+	/* ==========================================================================
+	 * SERVER-SIDE MATCH SETUP
+	 * ========================================================================*/
 
 	static async createServ(
 		players: PlayerInput[],
@@ -660,7 +813,6 @@ export class GMLavaBall extends GameMode {
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	) {
 		const { StartData, StartDataClient } = protocols.get();
-
 		const game = new GMLavaBall(total);
 
 		function decode(i: number) {
@@ -670,47 +822,42 @@ export class GMLavaBall extends GameMode {
 			return generateClientDom();
 		}
 
+		// Resolve team preferences into a balanced 2v2 split, exactly like
+		// the reference example (phase 1: honor explicit preferences while
+		// capacity allows, phase 2: fill the rest alternating).
 		const prefs = game.players.map((_, i) => decode(i).preferTeam ?? 0);
-
-		// Balanced team assignment identical in spirit to the reference
-		// example: honour explicit preferences first, then fill evenly.
 		const maxPerTeam = Math.ceil(total / 2);
 		const assignedRed = new Array<boolean>(total);
-		let redCount = 0;
-		let blueCount = 0;
+		let redCount = 0, blueCount = 0;
 
 		for (let i = 0; i < total; i++) {
 			if (prefs[i] === 1 && redCount < maxPerTeam) {
-				assignedRed[i] = true;
-				redCount++;
+				assignedRed[i] = true; redCount++;
 			} else if (prefs[i] === -1 && blueCount < maxPerTeam) {
-				assignedRed[i] = false;
-				blueCount++;
+				assignedRed[i] = false; blueCount++;
 			}
 		}
-
 		for (let i = 0; i < total; i++) {
 			if (assignedRed[i] !== undefined) continue;
 			const putRed = redCount < blueCount || (redCount === blueCount && i % 2 === 0);
-			if (putRed && redCount < maxPerTeam) {
-				assignedRed[i] = true;
-				redCount++;
-			} else {
-				assignedRed[i] = false;
-				blueCount++;
-			}
+			if (putRed && redCount < maxPerTeam) { assignedRed[i] = true; redCount++; }
+			else { assignedRed[i] = false; blueCount++; }
 		}
 
 		for (let i = 0; i < total; i++) {
-			game.players[i].team = assignedRed[i] ? 'red' : 'blue';
+			game.players[i].isRed = assignedRed[i];
 		}
 
-		game.startRound();
+		// Procedurally generate the level ONCE. This is init data.
+		const rng = () => Math.random();
+		game.platforms = generatePlatforms(rng);
+
+		// Set up the very first round.
+		game.startNewRound(/*firstRound*/ true);
 
 		const data = StartDataClient.encode({
-			players: game.players.map(p => ({
-				team: p.team === 'red' ? 0 : 1
-			}))
+			players: game.players.map(p => ({ isRed: p.isRed })),
+			platforms: game.platforms
 		}).finish();
 
 		return { game, data };
@@ -722,21 +869,26 @@ export class GMLavaBall extends GameMode {
 		playerIdx: number
 	) {
 		const game = new GMLavaBall(total);
-		const { StartData, StartDataClient } = protocols.get();
+		const { StartDataClient } = protocols.get();
 		const clientData = new ClientData();
 
 		if (origin === 'server') {
-			const { players } = decodeFullMessage(StartDataClient.decode(data));
+			const { players, platforms } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) {
-				game.players[idx].team = p.team === 1 ? 'blue' : 'red';
+				game.players[idx].isRed = p.isRed;
 			}
+			clientData.platforms = platforms;
 		} else {
-			// origin === 'client': local preview before the server has spoken.
-			// Alternate teams as a reasonable default guess.
+			// Local single-machine testing fallback: 2v2 alternating teams.
 			for (let i = 0; i < total; i++) {
-				game.players[i].team = (i % 2 === 0) ? 'red' : 'blue';
+				game.players[i].isRed = (i % 2 === 0);
 			}
+			const rng = () => Math.random();
+			clientData.platforms = generatePlatforms(rng);
 		}
+
+		game.startNewRound(true);
+		clientData.camera.teleport(0);
 
 		return {
 			game,
@@ -746,396 +898,367 @@ export class GMLavaBall extends GameMode {
 		};
 	}
 
-	static readonly generateClientDom = generateClientDom;
+	/* ==========================================================================
+	 * ROUND / TURN MANAGEMENT (server-authoritative)
+	 * ========================================================================*/
 
-	static readonly TEXTURES = {
-		'ball': "/assets/games/lavaBall/ball.png",
-		'obstacle-rect': "/assets/games/lavaBall/obstacle_rect.png",
-		'obstacle-circle': "/assets/games/lavaBall/obstacle_circle.png",
-		'background': "/assets/games/lavaBall/background.png",
-		'platform': "/assets/games/lavaBall/platform.png"
-	};
+	/** Resets everything needed for a fresh round, keeping accumulated scores. */
+	private startNewRound(firstRound: boolean) {
+		this.roundNumber++;
+		this.yLevel = 0;
+		this.lastEliminatedYLevel = 0;
+		this.obstacles = [];
+		this.waitingObstacles = [];
+		this.obstacleSpawnTimer = 0;
+		this.roundEnding = false;
+		this.roundEndTimer = 0;
+
+		for (const p of this.players) {
+			p.eliminated = false;
+			p.aiming = false;
+		}
+
+		// Rotate who starts, for fairness across rounds.
+		this.roundStartPlayer = firstRound ? 0 : (this.roundStartPlayer + 1) % this.players.length;
+		this.currentPlayer = this.firstAlivePlayerFrom(this.roundStartPlayer);
+
+		this.resetBallToStart();
+		this.beginTurn();
+	}
+
+	/** Puts the ball back on the starting platform, at rest. */
+	private resetBallToStart() {
+		const start = this.platforms.length > 0 ? this.platforms[0] : { x: 0, y: 0, w: 0, h: 0 };
+		this.ball.x = start.x;
+		this.ball.y = start.y + start.h / 2 + BALL_RADIUS;
+		this.ball.vx = 0;
+		this.ball.vy = 0;
+		this.ball.inFlight = false;
+		this.checkpointX = this.ball.x;
+		this.checkpointY = this.ball.y;
+	}
+
+	/** Prepares the turn-timer/phase state for whoever is about to play. */
+	private beginTurn() {
+		this.turnPhase = PHASE_WAIT_BEFORE;
+		this.turnTimer = 0;
+		this.thrownThisTurn = false;
+		this.players[this.currentPlayer].aiming = false;
+	}
+
+	private firstAlivePlayerFrom(start: number): number {
+		for (let offset = 0; offset < this.players.length; offset++) {
+			const idx = (start + offset) % this.players.length;
+			if (!this.players[idx].eliminated) return idx;
+		}
+		return start;
+	}
+
+	/** Advances to the next non-eliminated player's turn. */
+	private advanceTurn() {
+		const next = this.firstAlivePlayerFrom((this.currentPlayer + 1) % this.players.length);
+		this.currentPlayer = next;
+		this.beginTurn();
+	}
+
+	private countAlive(): number {
+		return this.players.filter(p => !p.eliminated).length;
+	}
+
+	/* ==========================================================================
+	 * MAIN SIMULATION LOOP (server-authoritative)
+	 * ========================================================================*/
 
 	override init(): void {
-		// Round is already started by createServ(); nothing else to do here.
+		// Nothing extra: everything relevant is already initialized by
+		// createServ()/createClient() -> startNewRound().
 	}
 
 	override getBotIds(count: number): number[] {
 		return Array.from({ length: count }, () => 0);
 	}
 
-	// -------------------------------------------------------------
-	// ROUND MANAGEMENT
-	// -------------------------------------------------------------
-
-	/** Resets all round-local state and picks the first player to act. */
-	private startRound() {
-		this.round += 1;
-		this.yLevel = 0;
-		this.obstacles = [];
-		this.waitingObstacles = [];
-		this.nextObstacleId = 0;
-		this.obstacleSpawnClock = 0;
-		this.ball.restAt(0, 0);
-
-		for (let i = 0; i < this.players.length; i++) {
-			this.players[i].eliminatedThisRound = false;
-			this.roundAward[i] = 0;
-		}
-
-		this.turnCurrentPlayer = this.firstAlivePlayer();
-		this.turnPhase = TurnPhase.Wait1;
-		this.turnPhaseTimer = TURN_WAIT1;
-	}
-
-	private firstAlivePlayer(): number {
-		for (let i = 0; i < this.players.length; i++) {
-			if (!this.players[i].eliminatedThisRound) return i;
-		}
-		return 0;
-	}
-
-	private aliveIndices(): number[] {
-		const out: number[] = [];
-		for (let i = 0; i < this.players.length; i++) {
-			if (!this.players[i].eliminatedThisRound) out.push(i);
-		}
-		return out;
-	}
-
-	private nextAlivePlayer(after: number): number {
-		const n = this.players.length;
-		for (let step = 1; step <= n; step++) {
-			const idx = (after + step) % n;
-			if (!this.players[idx].eliminatedThisRound) return idx;
-		}
-		return after;
-	}
-
-	/** Eliminates a player, records their round award, and checks round-enders. */
-	private eliminatePlayer(idx: number) {
-		const player = this.players[idx];
-		if (player.eliminatedThisRound) return;
-
-		player.eliminatedThisRound = true;
-		this.roundAward[idx] = this.yLevel;
-
-		this.maybeEndRoundByElimination();
-	}
-
-	/** Ends the round instantly if only one competitor is left standing. */
-	private maybeEndRoundByElimination() {
-		const alive = this.aliveIndices();
-
-		if (alive.length === 1) {
-			const winner = alive[0];
-
-			// "yLevelOfTheSecondPlayer": the best award among everyone else,
-			// i.e. the last player eliminated before the winner.
-			let secondBest = 0;
-			for (let i = 0; i < this.players.length; i++) {
-				if (i !== winner) secondBest = Math.max(secondBest, this.roundAward[i]);
-			}
-
-			this.roundAward[winner] = secondBest * LAST_STANDING_MULTIPLIER;
-			this.endRound();
-		} else if (alive.length === 0) {
-			// Extremely unlikely (simultaneous elimination), but keep it safe.
-			this.endRound();
-		}
-	}
-
-	/** Ends the round because someone reached the top of the level. */
-	private endRoundByTopReached(winnerIdx: number) {
-		for (let i = 0; i < this.players.length; i++) {
-			if (i === winnerIdx) {
-				this.roundAward[i] = TOP_LEVEL_BONUS;
-			} else if (!this.players[i].eliminatedThisRound) {
-				// Non-eliminated players who did not reach the top get 0 this round.
-				this.roundAward[i] = 0;
-			}
-			this.players[i].eliminatedThisRound = true;
-		}
-		this.endRound();
-	}
-
-	/** Commits round awards into cumulative scores and moves to the RoundEnd phase. */
-	private endRound() {
-		for (let i = 0; i < this.players.length; i++) {
-			this.players[i].score += this.roundAward[i];
-		}
-
-		this.turnPhase = TurnPhase.RoundEnd;
-		this.turnPhaseTimer = ROUND_END_DELAY;
-
-		if (this.players.some(p => p.score >= WIN_SCORE)) {
-			this.gameFinished = true;
-		}
-	}
-
-	// -------------------------------------------------------------
-	// OBSTACLES
-	// -------------------------------------------------------------
-
-	private tickObstacleSpawner(dt: number, speedMultiplier: number) {
-		this.obstacleSpawnClock += dt * speedMultiplier;
-
-		while (this.obstacleSpawnClock >= OBSTACLE_CHECK_INTERVAL) {
-			this.obstacleSpawnClock -= OBSTACLE_CHECK_INTERVAL;
-
-			if (Math.random() < OBSTACLE_SPAWN_CHANCE) {
-				this.queueObstacle();
-			}
-		}
-
-		// Advance the delay of every queued obstacle, spawning it once ready.
-		const stillWaiting: WaitingObstacle[] = [];
-		for (const w of this.waitingObstacles) {
-			w.timer -= dt * speedMultiplier;
-			if (w.timer <= 0) {
-				this.spawnObstacle(w);
-			} else {
-				stillWaiting.push(w);
-			}
-		}
-		this.waitingObstacles = stillWaiting;
-	}
-
-	/** Decides the shape/position/motion of a future obstacle and queues it. */
-	private queueObstacle() {
-		const kind = Math.random() < 0.5 ? ObstacleKind.Rect : ObstacleKind.Circle;
-		const size = OBSTACLE_MIN_SIZE + Math.random() * (OBSTACLE_MAX_SIZE - OBSTACLE_MIN_SIZE);
-		const gravityAffected = Math.random() < 0.5;
-
-		// Obstacles always spawn outside the currently visible screen, above
-		// the top edge, at a random horizontal position.
-		const x = (Math.random() - 0.5) * LEVEL_WIDTH;
-		const y = this.yLevel + SCREEN_HEIGHT / 2 + size;
-
-		const vx = (Math.random() - 0.5) * 2 * OBSTACLE_MAX_SPEED;
-		const vy = gravityAffected ? 0 : (Math.random() - 0.5) * 2 * OBSTACLE_MAX_SPEED;
-		const rotationSpeed = (Math.random() - 0.5) * 2 * OBSTACLE_MAX_ROTATION_SPEED;
-
-		this.waitingObstacles.push(new WaitingObstacle(
-			kind, x, y, size, size, vx, vy, gravityAffected, OBSTACLE_SPAWN_DELAY
-		));
-
-		// Rotation speed is stored on the WaitingObstacle's `h` slot is NOT
-		// reused here; instead we stash it via a closure-free trick: we just
-		// recompute it identically at spawn time using the same seed is not
-		// possible, so instead we simply carry it directly on spawn below.
-		this.pendingRotationSpeeds.set(this.waitingObstacles[this.waitingObstacles.length - 1], rotationSpeed);
-	}
-
-	// Rotation speed isn't part of the shared WaitingObstacle payload (the
-	// proto only stores what's needed to render/collide once spawned); we
-	// keep a small local map to carry it across the spawn delay. This map
-	// is purely a server-side convenience and never needs to be persisted:
-	// on load(), any still-waiting obstacle simply gets a fresh rotation
-	// speed, which is a harmless cosmetic difference.
-	private pendingRotationSpeeds = new WeakMap<WaitingObstacle, number>();
-
-	private spawnObstacle(w: WaitingObstacle) {
-		const rotationSpeed = this.pendingRotationSpeeds.get(w) ?? (Math.random() - 0.5) * 2 * OBSTACLE_MAX_ROTATION_SPEED;
-		this.pendingRotationSpeeds.delete(w);
-
-		this.obstacles.push(new Obstacle(
-			this.nextObstacleId++,
-			w.kind,
-			w.x,
-			w.y,
-			w.w,
-			w.h,
-			w.vx,
-			w.vy,
-			Math.random() * Math.PI * 2,
-			rotationSpeed,
-			w.gravityAffected
-		));
-	}
-
-	private tickObstacles(dt: number, speedMultiplier: number) {
-		const kept: Obstacle[] = [];
-		for (const o of this.obstacles) {
-			o.move(dt, speedMultiplier);
-			if (!o.isFarBelow(this.yLevel)) {
-				kept.push(o);
-			}
-		}
-		this.obstacles = kept;
-	}
-
-	// -------------------------------------------------------------
-	// MAIN LOOP
-	// -------------------------------------------------------------
-
-	override run(dt: number, produceFinish: boolean): FinishGame | null {
-		if (this.gameFinished) {
+	override run(
+		dt: number,
+		produceFinish: boolean,
+		rng: GameRandomGenerator | null
+	): FinishGame | null {
+		if (this.gameOver) {
 			return produceFinish ? this.produceFinish() : null;
 		}
 
-		switch (this.turnPhase) {
-			case TurnPhase.Wait1:
-				this.tickObstacleSpawner(dt, 1);
-				this.tickObstacles(dt, 1);
-				this.ball.move(dt, 1);
-				this.trackYLevel();
-
-				this.turnPhaseTimer -= dt;
-				if (this.turnPhaseTimer <= 0) {
-					this.turnPhase = TurnPhase.Aim;
-					this.turnPhaseTimer = TURN_AIM;
-				}
-				break;
-
-			case TurnPhase.Aim: {
-				// Elapsed time since the aim phase started, used for the
-				// progressive slow-motion easing.
-				const elapsed = TURN_AIM - this.turnPhaseTimer;
-				const speed = getAimSpeedMultiplier(elapsed);
-
-				this.tickObstacleSpawner(dt, speed);
-				this.tickObstacles(dt, speed);
-				this.ball.move(dt, speed);
-				this.trackYLevel();
-				this.checkCurrentPlayerDeath();
-
-				this.turnPhaseTimer -= dt;
-				if (this.turnPhaseTimer <= 0) {
-					this.fireThrow();
-					if (this.turnPhase === TurnPhase.Aim) {
-						// Not diverted into RoundEnd by the throw itself.
-						this.turnPhase = TurnPhase.Wait2;
-						this.turnPhaseTimer = TURN_WAIT2;
-					}
-				}
-				break;
+		if (this.roundEnding) {
+			// The end-of-round pause runs at normal, unscaled speed - it's a
+			// pure UI pause, no physics need to happen while it's shown.
+			this.roundEndTimer -= dt;
+			if (this.roundEndTimer <= 0) {
+				this.startNewRound(false);
 			}
-
-			case TurnPhase.Wait2:
-				this.tickObstacleSpawner(dt, 1);
-				this.tickObstacles(dt, 1);
-				this.ball.move(dt, 1);
-				this.trackYLevel();
-				this.checkCurrentPlayerDeath();
-				this.checkTopReached();
-
-				this.turnPhaseTimer -= dt;
-				// Even if the active player already died this turn, we still
-				// honour the full cooldown before moving on (per the mission
-				// doc: "the next turn must still begin only after the normal
-				// cooldown has elapsed").
-				if (this.turnPhaseTimer <= 0 && this.turnPhase === TurnPhase.Wait2) {
-					this.advanceTurn();
-				}
-				break;
-
-			case TurnPhase.RoundEnd:
-				this.turnPhaseTimer -= dt;
-				if (this.turnPhaseTimer <= 0) {
-					if (this.gameFinished) {
-						break;
-					}
-					this.startRound();
-				}
-				break;
+			return null;
 		}
 
-		if (produceFinish && this.gameFinished) {
+		// 1) Compute this frame's game-speed multiplier from the CURRENT
+		//    (pre-advance) turn phase/timer, exactly as it was during the
+		//    frame we are simulating.
+		const speedScale = this.computeSpeedScale();
+		const scaledDt = dt * speedScale;
+
+		// 2) Advance ball physics & obstacles using the slowed-down time.
+		this.updateBall(scaledDt);
+		if (rng) {
+			this.updateObstacles(scaledDt, rng);
+		}
+
+		// 3) Advance the turn timer using REAL time (the timer itself is
+		//    what defines the slow-motion window, so it can't be scaled).
+		this.turnTimer += dt;
+
+		// 4) Auto-throw if the aiming window just closed without an explicit throw.
+		if (this.turnPhase === PHASE_AIMING &&
+			this.turnTimer >= TURN_WAIT_BEFORE + TURN_AIM_DURATION) {
+			this.turnPhase = PHASE_WAIT_AFTER;
+			if (!this.thrownThisTurn) {
+				this.autoThrow();
+			}
+		} else if (this.turnPhase === PHASE_WAIT_BEFORE &&
+			this.turnTimer >= TURN_WAIT_BEFORE) {
+			this.turnPhase = PHASE_AIMING;
+		}
+
+		// 5) End of turn -> hand off to the next alive player.
+		if (this.turnTimer >= TURN_TOTAL_DURATION) {
+			this.advanceTurn();
+		}
+
+		// 6) Check win/round-end conditions triggered by what just happened.
+		this.checkRoundEndConditions();
+
+		if (this.gameOver && produceFinish) {
 			return this.produceFinish();
 		}
-
 		return null;
 	}
 
-	/** Keeps yLevel as the highest y ever reached by the ball. */
-	private trackYLevel() {
+	/** Returns the game speed multiplier that applies RIGHT NOW, based on turn phase. */
+	private computeSpeedScale(): number {
+		if (this.turnPhase !== PHASE_AIMING) return 1;
+		const localT = this.turnTimer - TURN_WAIT_BEFORE;
+		return aimSpeedScale(localT);
+	}
+
+	/** Physics step for the shared ball: gravity, wall bounce, platform landing, obstacle collision. */
+	private updateBall(dt: number) {
+		if (!this.ball.inFlight) return;
+
+		this.ball.vy -= BALL_GRAVITY * dt;
+		this.ball.x += this.ball.vx * dt;
+		this.ball.y += this.ball.vy * dt;
+
+		// Bounce off the side walls.
+		const limit = LEVEL_WIDTH / 2 - BALL_RADIUS;
+		if (this.ball.x < -limit) {
+			this.ball.x = -limit;
+			this.ball.vx = Math.abs(this.ball.vx);
+		} else if (this.ball.x > limit) {
+			this.ball.x = limit;
+			this.ball.vx = -Math.abs(this.ball.vx);
+		}
+
+		// Track the highest point ever reached this round.
 		if (this.ball.y > this.yLevel) {
 			this.yLevel = this.ball.y;
 		}
-	}
 
-	/** Checks whether the currently active player's ball has died this frame. */
-	private checkCurrentPlayerDeath() {
-		if (this.turnPhase === TurnPhase.RoundEnd) return;
-		const idx = this.turnCurrentPlayer;
-		if (this.players[idx].eliminatedThisRound) return;
-		if (!this.ball.inFlight) return;
+		// Landing on a platform (only while falling, from above).
+		if (this.ball.vy <= 0) {
+			for (const platform of this.platforms) {
+				const rect = { x: platform.x - platform.w / 2, y: platform.y - platform.h / 2, w: platform.w, h: platform.h };
+				const circle = { x: this.ball.x, y: this.ball.y, r: BALL_RADIUS };
+				const topOfPlatform = platform.y + platform.h / 2;
 
-		let dead = false;
+				if (collisions.RectCircle(rect, circle) && this.ball.y - BALL_RADIUS <= topOfPlatform) {
+					this.ball.y = topOfPlatform + BALL_RADIUS;
+					this.ball.vx = 0;
+					this.ball.vy = 0;
+					this.ball.inFlight = false;
 
-		// Left the screen vertically.
-		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT / 2) {
-			dead = true;
-		}
-
-		// Hit a red obstacle.
-		if (!dead) {
-			for (const o of this.obstacles) {
-				if (o.collidesWithBall(this.ball)) {
-					dead = true;
+					// This platform becomes the new checkpoint.
+					this.checkpointX = this.ball.x;
+					this.checkpointY = this.ball.y;
 					break;
 				}
 			}
 		}
 
-		if (dead) {
-			this.ball.inFlight = false;
-			this.eliminatePlayer(idx);
-		}
-	}
-
-	/** Checks whether the top of the level has just been reached. */
-	private checkTopReached() {
-		if (this.turnPhase === TurnPhase.RoundEnd) return;
-		if (this.yLevel >= MAX_LEVEL_HEIGHT) {
-			this.endRoundByTopReached(this.turnCurrentPlayer);
-		}
-	}
-
-	/** Fires the current player's throw using their last known aim target. */
-	private fireThrow() {
-		const idx = this.turnCurrentPlayer;
-		const player = this.players[idx];
-
-		if (!player.eliminatedThisRound) {
-			this.ball.restAt(this.ball.inFlight ? this.ball.x : this.ball.x, this.ball.inFlight ? this.ball.y : this.ball.y);
-			this.ball.throwTo(player.aimX, player.aimY);
-		}
-	}
-
-	/** Moves the turn state machine to the next living player. */
-	private advanceTurn() {
-		if (this.turnPhase === TurnPhase.RoundEnd) return; // already diverted
-
-		const alive = this.aliveIndices();
-		if (alive.length <= 1) {
-			// Round-ending conditions are handled by eliminatePlayer(); if we
-			// got here it means nobody was eliminated but the round is over
-			// for another reason (shouldn't normally happen). Be defensive.
+		// Reaching the very top of the level ends the round immediately.
+		if (this.ball.y >= MAX_LEVEL_HEIGHT) {
+			this.handleTopOfLevelReached();
 			return;
 		}
 
-		this.turnCurrentPlayer = this.nextAlivePlayer(this.turnCurrentPlayer);
-		this.turnPhase = TurnPhase.Wait1;
-		this.turnPhaseTimer = TURN_WAIT1;
-		this.ball.restAt(this.ball.x, this.ball.y);
+		// Obstacle collision (deadly).
+		for (const obstacle of this.obstacles) {
+			if (obstacle.collidesWithBall(this.ball.x, this.ball.y, BALL_RADIUS)) {
+				this.eliminateCurrentPlayer();
+				return;
+			}
+		}
+
+		// Falling behind the camera (off-screen below) is deadly too.
+		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT / 2) {
+			this.eliminateCurrentPlayer();
+		}
 	}
 
-	// -------------------------------------------------------------
-	// INPUT
-	// -------------------------------------------------------------
+	/** Removes the current player from the round and resets the ball to the last checkpoint. */
+	private eliminateCurrentPlayer() {
+		const player = this.players[this.currentPlayer];
+		if (player.eliminated) return; // safety guard
+
+		player.eliminated = true;
+		player.score += this.yLevel;
+		this.lastEliminatedYLevel = this.yLevel;
+
+		// The ball goes back to the last safe platform for the next player.
+		this.ball.x = this.checkpointX;
+		this.ball.y = this.checkpointY;
+		this.ball.vx = 0;
+		this.ball.vy = 0;
+		this.ball.inFlight = false;
+	}
+
+	/** Handles a player reaching the top of the level: they win the round instantly. */
+	private handleTopOfLevelReached() {
+		const winner = this.players[this.currentPlayer];
+		winner.score += TOP_OF_LEVEL_BONUS;
+		// All other still-alive players score 0 for this round (no change).
+		this.ball.inFlight = false;
+		this.triggerRoundEnd();
+	}
+
+	/** Queues/spawns obstacles and advances obstacle physics. */
+	private updateObstacles(dt: number, rng: GameRandomGenerator) {
+		const cameraY = this.yLevel; // obstacles spawn relative to the current highest point reached
+
+		this.obstacleSpawnTimer += dt;
+		if (this.obstacleSpawnTimer >= OBSTACLE_CHECK_INTERVAL) {
+			this.obstacleSpawnTimer -= OBSTACLE_CHECK_INTERVAL;
+			if (rng() < OBSTACLE_SPAWN_CHANCE) {
+				this.waitingObstacles.push(pickRandomObstacle(this.nextObstacleId++, cameraY));
+			}
+		}
+
+		// Promote waiting obstacles whose delay has elapsed.
+		const stillWaiting: WaitingObstacleData[] = [];
+		for (const w of this.waitingObstacles) {
+			w.timeLeft -= dt;
+			if (w.timeLeft <= 0) {
+				this.obstacles.push(new Obstacle(
+					w.id, w.type, w.x, w.y, w.vx, w.vy, w.angle,
+					w.angularVelocity, w.affectedByGravity, w.radius, w.w, w.h
+				));
+			} else {
+				stillWaiting.push(w);
+			}
+		}
+		this.waitingObstacles = stillWaiting;
+
+		// Move & clean up live obstacles.
+		for (const o of this.obstacles) {
+			o.move(dt);
+		}
+		this.obstacles = this.obstacles.filter(o => !o.isFarFrom(cameraY));
+	}
+
+	/** Throws the ball using the given world-space aim target and PLAYER_THROW_SPEED. */
+	private throwBall(targetX: number, targetY: number) {
+		const dx = targetX - this.ball.x;
+		const dy = targetY - this.ball.y;
+		const velocity = getVectorToReachTarget(dx, dy, PLAYER_THROW_SPEED, -BALL_GRAVITY);
+
+		this.ball.vx = velocity.x;
+		this.ball.vy = velocity.y;
+		this.ball.inFlight = true;
+		this.thrownThisTurn = true;
+		this.players[this.currentPlayer].aiming = false;
+	}
+
+	/** Called when the aiming window closes without an explicit throw input. */
+	private autoThrow() {
+		const player = this.players[this.currentPlayer];
+		// Default: throw straight up if the player never aimed at all.
+		const targetX = player.aiming ? player.aimX : this.ball.x;
+		const targetY = player.aiming ? player.aimY : this.ball.y + 1000;
+		this.throwBall(targetX, targetY);
+	}
+
+	/** Checks whether the current round (or the whole game) must end now. */
+	private checkRoundEndConditions() {
+		if (this.roundEnding || this.gameOver) return;
+
+		const alive = this.countAlive();
+		if (alive <= 1) {
+			// Find the lone survivor (if any) and award the last-survivor bonus.
+			const survivor = this.players.find(p => !p.eliminated);
+			if (survivor) {
+				survivor.score += LAST_SURVIVOR_MULTIPLIER * this.lastEliminatedYLevel;
+			}
+			this.triggerRoundEnd();
+			return;
+		}
+
+		for (const p of this.players) {
+			if (p.score >= WIN_SCORE_LIMIT) {
+				this.gameOver = true;
+				this.roundEnding = false;
+				return;
+			}
+		}
+	}
+
+	private triggerRoundEnd() {
+		for (const p of this.players) {
+			if (p.score >= WIN_SCORE_LIMIT) {
+				this.gameOver = true;
+				return;
+			}
+		}
+		this.roundEnding = true;
+		this.roundEndTimer = ROUND_END_DELAY;
+	}
+
+	/* ==========================================================================
+	 * INPUT HANDLING
+	 * ========================================================================*/
 
 	override runInput(playerIdx: number, input: Fields): void {
+		// Only the player whose turn it currently is may act. Everyone else's
+		// inputs are simply ignored (server-authoritative anti-cheat).
+		if (playerIdx !== this.currentPlayer) return;
+		if (this.turnPhase !== PHASE_AIMING) return;
+
 		const player = this.players[playerIdx];
 
 		switch (input.action) {
-			case 'aim':
-				// Only meaningful while it is this player's turn, but storing
-				// it unconditionally is harmless and keeps this function simple.
+			case 'aim': {
 				player.aimX = input.aim.x;
 				player.aimY = input.aim.y;
+				player.aiming = true;
 				break;
+			}
+
+			case 'throwBall': {
+				if (this.thrownThisTurn) break;
+				player.aimX = input.throwBall.x;
+				player.aimY = input.throwBall.y;
+				player.aiming = true;
+				this.throwBall(input.throwBall.x, input.throwBall.y);
+				this.turnPhase = PHASE_WAIT_AFTER;
+				// Jump the timer to the boundary of the aiming window so the
+				// remaining "wait after" cooldown still applies in full.
+				this.turnTimer = Math.max(this.turnTimer, TURN_WAIT_BEFORE + TURN_AIM_DURATION);
+				break;
+			}
 		}
 	}
 
@@ -1148,26 +1271,62 @@ export class GMLavaBall extends GameMode {
 		const data = _data as ClientData;
 		const inputs: Fields[] = [];
 
-		const coords = mouse.getCoords();
+		// Only the local player sends aim/throw inputs, and only while it is
+		// their turn (mirrors the server-side guard, purely to save bandwidth
+		// - the server re-validates everything anyway).
+		const isMyTurn = this.turnPhase === PHASE_AIMING;
+		if (!isMyTurn) return inputs;
 
-		// Only send the aim target when it actually changed, to avoid
-		// spamming the network with redundant packets.
-		if (coords.x !== data.lastSentAimX || coords.y !== data.lastSentAimY) {
-			data.lastSentAimX = coords.x;
-			data.lastSentAimY = coords.y;
+		let targetX: number | null = null;
+		let targetY: number | null = null;
+		let wantsThrow = false;
 
-			inputs.push({
-				action: 'aim',
-				aim: { x: coords.x, y: coords.y }
-			});
+		if (mobile) {
+			const joystick = mobile.getJoystick('aim');
+			if (joystick.x !== 0 || joystick.y !== 0) {
+				targetX = this.ball.x + joystick.x * 600;
+				targetY = this.ball.y + joystick.y * 600;
+			}
+			if (mobile.first('throw')) {
+				wantsThrow = true;
+			}
+		} else {
+			const coords = mouse.getCoords();
+			targetX = coords.x;
+			targetY = coords.y;
+			if (mouse.first(0)) {
+				wantsThrow = true;
+			}
+		}
+
+		if (targetX !== null && targetY !== null) {
+			// Only send an 'aim' update when the target actually changed, to
+			// avoid flooding the network with identical inputs every frame.
+			if (data.lastSentAimX !== targetX || data.lastSentAimY !== targetY) {
+				data.lastSentAimX = targetX;
+				data.lastSentAimY = targetY;
+				inputs.push({ action: 'aim', aim: { x: targetX, y: targetY } });
+			}
+
+			if (wantsThrow) {
+				inputs.push({ action: 'throwBall', throwBall: { x: targetX, y: targetY } });
+			}
 		}
 
 		return inputs;
 	}
 
-	// -------------------------------------------------------------
-	// RENDERING
-	// -------------------------------------------------------------
+	/* ==========================================================================
+	 * RENDERING (client-only)
+	 * ========================================================================*/
+
+	/** Converts world-space coordinates to on-canvas pixel coordinates, flipping the Y axis (world Y grows up, canvas Y grows down). */
+	private worldToScreen(x: number, y: number, camera: Camera): { x: number; y: number } {
+		return {
+			x: LEVEL_WIDTH / 2 + (x - camera.getCoords().x) * Camera.SCALE,
+			y: SCREEN_HEIGHT / 2 - (y - camera.getCoords().y) * Camera.SCALE
+		};
+	}
 
 	override draw(
 		ctx: CanvasRenderingContext2D,
@@ -1176,86 +1335,66 @@ export class GMLavaBall extends GameMode {
 		_imageLoader: ImageLoader
 	) {
 		ctx.imageSmoothingEnabled = false;
-
 		const imageLoader = _imageLoader.getFolder('lavaBall');
 		const data = _data as ClientData;
 
 		if (data.firstFrame) {
 			data.firstFrame = false;
+			data.camera.teleport(this.yLevel);
 		}
 
-		data.update(this, playerIdx);
+		data.update(this, playerIdx, 1 / 60);
+		const camera = data.camera;
 
-		const width = SCREEN_HEIGHT * 1.6; // approximate viewport width in world units
+		// Background.
 		ctx.fillStyle = "#1a1a2e";
-		ctx.fillRect(0, 0, width, SCREEN_HEIGHT);
+		ctx.fillRect(0, 0, LEVEL_WIDTH, SCREEN_HEIGHT);
 
-		// Camera is centered on (0, yLevel). World Y grows upward, canvas Y
-		// grows downward, so we flip the vertical axis on the way in.
-		ctx.save();
-		ctx.translate(width / 2, SCREEN_HEIGHT / 2);
-		ctx.scale(1, -1);
-		ctx.translate(0, -this.yLevel);
+		// Platforms.
+		ctx.fillStyle = "#8a5a34";
+		for (const p of data.platforms) {
+			const topLeft = this.worldToScreen(p.x - p.w / 2, p.y + p.h / 2, camera);
+			ctx.fillRect(topLeft.x, topLeft.y, p.w * Camera.SCALE, p.h * Camera.SCALE);
+		}
 
-		this.drawObstacles(ctx, imageLoader);
-		this.drawBall(ctx, imageLoader);
-		this.drawAimPreview(ctx, playerIdx);
-
-		ctx.restore();
-	}
-
-	private drawObstacles(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
-		ctx.fillStyle = "#ff0000"; // all obstacles are drawn in red
-
+		// Obstacles (always red).
+		ctx.fillStyle = OBSTACLE_COLOR;
 		for (const o of this.obstacles) {
+			const center = this.worldToScreen(o.x, o.y, camera);
 			ctx.save();
-			ctx.translate(o.x, o.y);
-			ctx.rotate(o.rotation);
-
-			if (o.kind === ObstacleKind.Rect) {
-				ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
-			} else {
+			ctx.translate(center.x, center.y);
+			// Screen Y is flipped relative to world Y, so we negate the angle
+			// to keep the visual rotation direction consistent.
+			ctx.rotate(-o.angle);
+			if (o.type === 'circle') {
 				ctx.beginPath();
-				ctx.arc(0, 0, o.w, 0, Math.PI * 2);
+				ctx.arc(0, 0, o.radius * Camera.SCALE, 0, Math.PI * 2);
 				ctx.fill();
+			} else {
+				ctx.fillRect(-o.w * Camera.SCALE / 2, -o.h * Camera.SCALE / 2, o.w * Camera.SCALE, o.h * Camera.SCALE);
 			}
-
 			ctx.restore();
 		}
-	}
 
-	private drawBall(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
-		ctx.fillStyle = "#ffdd00";
+		// Ball.
+		const ballScreen = this.worldToScreen(this.ball.x, this.ball.y, camera);
+		ctx.fillStyle = "#ffee55";
 		ctx.beginPath();
-		ctx.arc(this.ball.x, this.ball.y, BALL_RADIUS, 0, Math.PI * 2);
+		ctx.arc(ballScreen.x, ballScreen.y, BALL_RADIUS * Camera.SCALE, 0, Math.PI * 2);
 		ctx.fill();
+
+		// Aiming trajectory for whoever is currently playing.
+		const activePlayer = this.players[this.currentPlayer];
+		if (this.turnPhase === PHASE_AIMING && activePlayer.aiming) {
+			const targetScreen = this.worldToScreen(activePlayer.aimX, activePlayer.aimY, camera);
+			const teamColor = activePlayer.isRed ? TEAM_COLORS.red : TEAM_COLORS.blue;
+			drawPlayerToTarget(ctx, ballScreen.x, ballScreen.y, targetScreen.x, targetScreen.y, teamColor);
+		}
 	}
 
-	/** Draws the live aiming trajectory for whoever's turn it currently is. */
-	private drawAimPreview(ctx: CanvasRenderingContext2D, playerIdx: number) {
-		if (this.turnPhase !== TurnPhase.Aim) return;
-
-		const active = this.players[this.turnCurrentPlayer];
-		const isSelf = this.turnCurrentPlayer === playerIdx;
-		const color = active.team === 'red' ? "#ff4d4d" : "#4d8bff";
-
-		// Note: drawPlayerToTarget draws in the same (Y-up) coordinate
-		// space we've already set up via ctx transforms above, so we can
-		// feed world coordinates directly. Because the canvas Y axis is
-		// flipped, arcs/circles still render correctly (they're symmetric).
-		drawPlayerToTarget(
-			ctx,
-			this.ball.x,
-			this.ball.y,
-			active.aimX,
-			active.aimY,
-			isSelf ? true : color
-		);
-	}
-
-	// -------------------------------------------------------------
-	// PERSISTENCE
-	// -------------------------------------------------------------
+	/* ==========================================================================
+	 * MISC OVERRIDES
+	 * ========================================================================*/
 
 	override onDisconnection(id: number): void {
 		this.players[id].connected = false;
@@ -1266,54 +1405,42 @@ export class GMLavaBall extends GameMode {
 
 		const object: Fields = {
 			players: this.players.map(p => ({
-				team: p.team === 'red' ? 0 : 1,
-				score: p.score,
+				isRed: p.isRed,
 				connected: p.connected,
-				eliminatedThisRound: p.eliminatedThisRound,
+				eliminated: p.eliminated,
+				score: p.score,
 				aimX: p.aimX,
-				aimY: p.aimY
+				aimY: p.aimY,
+				aiming: p.aiming
 			})),
 			ball: {
 				x: this.ball.x,
 				y: this.ball.y,
 				vx: this.ball.vx,
-				vy: this.ball.vy,
-				inFlight: this.ball.inFlight
-			},
-			obstacles: this.obstacles.map(o => ({
-				id: o.id,
-				kind: o.kind,
-				x: o.x,
-				y: o.y,
-				w: o.w,
-				h: o.h,
-				vx: o.vx,
-				vy: o.vy,
-				rotation: o.rotation,
-				rotationSpeed: o.rotationSpeed,
-				gravityAffected: o.gravityAffected
-			})),
-			waitingObstacles: this.waitingObstacles.map(w => ({
-				kind: w.kind,
-				x: w.x,
-				y: w.y,
-				w: w.w,
-				h: w.h,
-				vx: w.vx,
-				vy: w.vy,
-				gravityAffected: w.gravityAffected,
-				timer: w.timer
-			})),
-			turn: {
-				currentPlayer: this.turnCurrentPlayer,
-				phase: this.turnPhase,
-				phaseTimer: this.turnPhaseTimer,
-				round: this.round
+				vy: this.ball.vy
 			},
 			yLevel: this.yLevel,
+			lastEliminatedYLevel: this.lastEliminatedYLevel,
+
+			currentPlayer: this.currentPlayer,
+			turnPhase: this.turnPhase,
+			turnTimer: this.turnTimer,
+
+			roundNumber: this.roundNumber,
+			roundEnding: this.roundEnding,
+			roundEndTimer: this.roundEndTimer,
+			roundStartPlayer: this.roundStartPlayer,
+
+			obstacles: this.obstacles.map(o => ({
+				id: o.id, type: o.type, x: o.x, y: o.y, vx: o.vx, vy: o.vy,
+				angle: o.angle, angularVelocity: o.angularVelocity,
+				affectedByGravity: o.affectedByGravity, radius: o.radius, w: o.w, h: o.h
+			})),
+			waitingObstacles: this.waitingObstacles,
+			obstacleSpawnTimer: this.obstacleSpawnTimer,
 			nextObstacleId: this.nextObstacleId,
-			obstacleSpawnClock: this.obstacleSpawnClock,
-			gameFinished: this.gameFinished
+
+			gameOver: this.gameOver
 		};
 
 		return State.encode(object).finish();
@@ -1328,35 +1455,42 @@ export class GMLavaBall extends GameMode {
 		}
 
 		this.ball.load(obj.ball);
-
-		this.obstacles = obj.obstacles.map((o: Fields) => new Obstacle(
-			o.id, o.kind, o.x, o.y, o.w, o.h, o.vx, o.vy, o.rotation, o.rotationSpeed, o.gravityAffected
-		));
-
-		this.waitingObstacles = obj.waitingObstacles.map((w: Fields) => new WaitingObstacle(
-			w.kind, w.x, w.y, w.w, w.h, w.vx, w.vy, w.gravityAffected, w.timer
-		));
-
-		this.turnCurrentPlayer = obj.turn.currentPlayer;
-		this.turnPhase = obj.turn.phase;
-		this.turnPhaseTimer = obj.turn.phaseTimer;
-		this.round = obj.turn.round;
+		this.ball.inFlight = (this.ball.vx !== 0 || this.ball.vy !== 0);
 
 		this.yLevel = obj.yLevel;
-		this.nextObstacleId = obj.nextObstacleId;
-		this.obstacleSpawnClock = obj.obstacleSpawnClock;
-		this.gameFinished = obj.gameFinished;
+		this.lastEliminatedYLevel = obj.lastEliminatedYLevel;
 
-		// roundAward isn't persisted (it's only meaningful transiently while
-		// resolving a round-ending elimination within a single frame), so we
-		// simply reinitialize it. It gets repopulated immediately as needed.
-		this.roundAward = this.players.map(() => 0);
-		this.pendingRotationSpeeds = new WeakMap();
+		this.currentPlayer = obj.currentPlayer;
+		this.turnPhase = obj.turnPhase;
+		this.turnTimer = obj.turnTimer;
+
+		this.roundNumber = obj.roundNumber;
+		this.roundEnding = obj.roundEnding;
+		this.roundEndTimer = obj.roundEndTimer;
+		this.roundStartPlayer = obj.roundStartPlayer;
+
+		this.obstacles = obj.obstacles.map((o: any) => new Obstacle(
+			o.id, o.type, o.x, o.y, o.vx, o.vy, o.angle,
+			o.angularVelocity, o.affectedByGravity, o.radius, o.w, o.h
+		));
+		this.waitingObstacles = obj.waitingObstacles;
+		this.obstacleSpawnTimer = obj.obstacleSpawnTimer;
+		this.nextObstacleId = obj.nextObstacleId;
+
+		this.gameOver = obj.gameOver;
+
+		// A load() can happen at any time (e.g. reconnection); we must
+		// re-derive a sane checkpoint since it isn't part of State. Falling
+		// back to the closest platform below the ball is a safe default.
+		const platformBelow = findPlatformBelow(this.platforms, this.ball.y);
+		this.checkpointX = this.ball.inFlight ? platformBelow.x : this.ball.x;
+		this.checkpointY = this.ball.inFlight
+			? platformBelow.y + platformBelow.h / 2 + BALL_RADIUS
+			: this.ball.y;
 	}
 
 	override getSize() {
-		const width = SCREEN_HEIGHT * 1.6;
-		return { width, height: SCREEN_HEIGHT };
+		return { width: LEVEL_WIDTH, height: SCREEN_HEIGHT };
 	}
 
 	override evalMouseCoords(
@@ -1365,24 +1499,36 @@ export class GMLavaBall extends GameMode {
 		playerIdx: number,
 		_clientData: any
 	) {
-		const width = SCREEN_HEIGHT * 1.6;
+		const clientData = _clientData as ClientData;
+		const camera = clientData.camera;
 
-		// Inverse of the draw() transform: translate to origin, undo the
-		// Y-flip, then undo the camera offset.
+		// Inverse of worldToScreen().
 		const ret = {
-			x: x - width / 2,
-			y: -(y - SCREEN_HEIGHT / 2) + this.yLevel
+			x: (x - LEVEL_WIDTH / 2) / Camera.SCALE + camera.getCoords().x,
+			y: -(y - SCREEN_HEIGHT / 2) / Camera.SCALE + camera.getCoords().y
 		};
 
 		return ret;
 	}
 
 	override getMobileDesc(): MobileDescriptor {
-		// Aiming is done via a raw pointer position (like the mouse), so no
-		// joysticks or buttons are required for this game mode.
 		return {
-			joysticks: {},
-			buttons: {}
+			joysticks: {
+				aim: {
+					x: 0, xp: 'left',
+					y: 0, yp: 'bottom',
+					size: 140,
+					color: '#ffffff88'
+				}
+			},
+			buttons: {
+				throw: {
+					x: 0, xp: 'right',
+					y: 0, yp: 'bottom',
+					size: 100,
+					color: '#ff4444cc'
+				}
+			}
 		};
 	}
 
@@ -1390,42 +1536,41 @@ export class GMLavaBall extends GameMode {
 		return new TutorialData(this);
 	}
 
-	// -------------------------------------------------------------
-	// FINISH
-	// -------------------------------------------------------------
+	/* ==========================================================================
+	 * FINISH GAME
+	 * ========================================================================*/
 
 	private produceFinish(): FinishGame {
-		const redIdx = this.players
-			.map((p, i) => i)
-			.filter(i => this.players[i].team === 'red')
-			.sort((a, b) => this.players[b].score - this.players[a].score);
+		const redIndices = this.players
+			.map((p, i) => ({ p, i }))
+			.filter(({ p }) => p.isRed)
+			.sort((a, b) => b.p.score - a.p.score)
+			.map(({ i }) => i);
 
-		const blueIdx = this.players
-			.map((p, i) => i)
-			.filter(i => this.players[i].team === 'blue')
-			.sort((a, b) => this.players[b].score - this.players[a].score);
+		const blueIndices = this.players
+			.map((p, i) => ({ p, i }))
+			.filter(({ p }) => !p.isRed)
+			.sort((a, b) => b.p.score - a.p.score)
+			.map(({ i }) => i);
 
-		const redTotal = redIdx.reduce((s, i) => s + this.players[i].score, 0);
-		const blueTotal = blueIdx.reduce((s, i) => s + this.players[i].score, 0);
+		const redScore = redIndices.reduce((sum, i) => sum + this.players[i].score, 0);
+		const blueScore = blueIndices.reduce((sum, i) => sum + this.players[i].score, 0);
 
-		let results: number[][];
+		const results = redScore >= blueScore
+			? [redIndices, blueIndices]
+			: [blueIndices, redIndices];
+
 		const teamEqualities: number[] = [];
-
-		if (redTotal >= blueTotal) {
-			results = [redIdx, blueIdx];
-		} else {
-			results = [blueIdx, redIdx];
-		}
-		if (redTotal === blueTotal) {
+		if (results.length === 2 && redScore === blueScore) {
 			teamEqualities.push(0);
 		}
 
-		// Player-level equalities: compare consecutive players in the
-		// flattened result order.
-		const flat = results.flat();
+		// Player-level ties are checked on adjacent positions of the
+		// flattened result order, per the spec's example.
+		const flatScores = results.flat().map(i => this.players[i].score);
 		const playerEqualities: number[] = [];
-		for (let i = 0; i < flat.length - 1; i++) {
-			if (this.players[flat[i]].score === this.players[flat[i + 1]].score) {
+		for (let i = 0; i < flatScores.length - 1; i++) {
+			if (flatScores[i] === flatScores[i + 1]) {
 				playerEqualities.push(i);
 			}
 		}

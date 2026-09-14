@@ -5,81 +5,102 @@ package game_lavaBall;
 message Empty {}
 
 
-// -----------------------------------------------------------------------
-// Shared authoritative state (mirrors GMLavaBall's fields one-to-one).
-// Everything that must survive a mid-game save()/load() lives here.
-// Initialisation-only data (team assignment) is NOT repeated here: it is
-// sent once via StartDataClient.
-// -----------------------------------------------------------------------
-
-message PlayerState {
-	int32 team = 1;                  // 0 = red, 1 = blue
-	float score = 2;                 // cumulative score across rounds
-	bool connected = 3;               // shared connection flag (see onDisconnection)
-	bool eliminatedThisRound = 4;     // true once this player is out for the current round
-	float aimX = 5;                   // last aim target sent by this player's client
-	float aimY = 6;
+// A static platform the ball can land on. Sent ONCE at match start via
+// StartDataClient (procedurally generated level layout), never resent
+// in State/save() since it never changes during the match.
+message Platform {
+	float x = 1;
+	float y = 2;
+	float w = 3;
+	float h = 4;
 }
 
-message BallState {
+
+// A live, collidable, red obstacle. Fully dynamic (physics change every
+// frame), so it MUST be part of State and synchronized on every save/load.
+message Obstacle {
+	int32 id = 1;
+	string type = 2; // "rect" or "circle"
+	float x = 3;
+	float y = 4;
+	float vx = 5;
+	float vy = 6;
+	float angle = 7;
+	float angularVelocity = 8;
+	bool affectedByGravity = 9;
+	float radius = 10; // used when type == "circle"
+	float w = 11;      // used when type == "rect"
+	float h = 12;      // used when type == "rect"
+}
+
+
+// An obstacle whose parameters have already been randomly decided, but
+// which has not yet actually spawned (still within its OBSTACLE_SPAWN_DELAY
+// countdown). Must be synchronized so a load() cannot silently drop it.
+message WaitingObstacle {
+	int32 id = 1;
+	string type = 2;
+	float x = 3;
+	float y = 4;
+	float vx = 5;
+	float vy = 6;
+	float angle = 7;
+	float angularVelocity = 8;
+	bool affectedByGravity = 9;
+	float radius = 10;
+	float w = 11;
+	float h = 12;
+	float timeLeft = 13; // seconds remaining before it actually spawns
+}
+
+
+// The single shared ball thrown by whoever's turn it currently is.
+message Ball {
 	float x = 1;
 	float y = 2;
 	float vx = 3;
 	float vy = 4;
-	bool inFlight = 5;
 }
 
-message ObstacleState {
-	int32 id = 1;
-	int32 kind = 2;                  // 0 = rect, 1 = circle
-	float x = 3;
-	float y = 4;
-	float w = 5;                     // width (rect) or radius (circle)
-	float h = 6;                     // height (rect only)
-	float vx = 7;
-	float vy = 8;
-	float rotation = 9;
-	float rotationSpeed = 10;
-	bool gravityAffected = 11;
+
+// Fully shared, per-player state. No client-only fields here (see ClientData
+// in GMLavaBall.ts for anything that is allowed to be lost on a load()).
+message PlayerState {
+	bool isRed = 1;
+	bool connected = 2;
+	bool eliminated = 3;
+	float score = 4;
+	float aimX = 5;
+	float aimY = 6;
+	bool aiming = 7;
 }
 
-// A decided-but-not-yet-spawned obstacle. Must be shared: if the server
-// loads a save while an obstacle is "waiting", it must not be lost.
-message WaitingObstacleState {
-	int32 kind = 1;
-	float x = 2;
-	float y = 3;
-	float w = 4;
-	float h = 5;
-	float vx = 6;
-	float vy = 7;
-	bool gravityAffected = 8;
-	float timer = 9;                 // seconds remaining before it spawns
-}
 
-message TurnState {
-	int32 currentPlayer = 1;
-	int32 phase = 2;                 // 0=wait1, 1=aim, 2=wait2, 3=roundEnd
-	float phaseTimer = 3;            // seconds remaining in the current phase
-	int32 round = 4;
-}
-
+// Full authoritative game state, serialized by GMLavaBall.save()/load().
 message State {
 	repeated PlayerState players = 1;
-	BallState ball = 2;
-	repeated ObstacleState obstacles = 3;
-	repeated WaitingObstacleState waitingObstacles = 4;
-	TurnState turn = 5;
-	float yLevel = 6;                // highest ball.y ever reached this round
-	int32 nextObstacleId = 7;
-	float obstacleSpawnClock = 8;
-	bool gameFinished = 9;
+	Ball ball = 2;
+
+	float yLevel = 3;                 // max ball.y reached so far this round
+	float lastEliminatedYLevel = 4;   // yLevel recorded at the last elimination this round
+
+	int32 currentPlayer = 5;
+	int32 turnPhase = 6;              // 0 = wait before, 1 = aiming, 2 = wait after
+	float turnTimer = 7;              // elapsed seconds within the current 5s turn
+
+	int32 roundNumber = 8;
+	bool roundEnding = 9;
+	float roundEndTimer = 10;
+	int32 roundStartPlayer = 11;
+
+	repeated Obstacle obstacles = 12;
+	repeated WaitingObstacle waitingObstacles = 13;
+	float obstacleSpawnTimer = 14;
+	int32 nextObstacleId = 15;
+
+	bool gameOver = 16;
 }
 
-
-// -----------------------------------------------------------------------
-// Inputs
-// -----------------------------------------------------------------------
 
 message AimData {
 	float x = 1;
@@ -89,8 +110,9 @@ message AimData {
 message QInput {
 	double timestamp = 1;
 	oneof action {
-		Empty pass = 2;
-		AimData aim = 3;
+		Empty ping = 2;
+		AimData aim = 3;      // continuous update of the current aiming target
+		AimData throwBall = 4; // explicit release of the ball toward (x, y)
 	}
 }
 
@@ -111,18 +133,19 @@ message ClientMessage {
 }
 
 
-// -----------------------------------------------------------------------
-// Initialisation data (sent once, never re-saved)
-// -----------------------------------------------------------------------
-
+// Data sent by the client at match creation time (from example.html).
 message StartData {
-	int32 preferTeam = 1;            // -1 = blue, 0 = none, 1 = red
+	int32 preferTeam = 1; // 0 = none, 1 = red, -1 = blue
 }
+
 
 message StartPlayerInfo {
-	int32 team = 1;                  // 0 = red, 1 = blue
+	bool isRed = 1;
 }
 
+// Data sent by the server once, at match creation time: team assignment
+// plus the fully generated (procedural) level layout. Never resent later.
 message StartDataClient {
 	repeated StartPlayerInfo players = 1;
+	repeated Platform platforms = 2;
 }

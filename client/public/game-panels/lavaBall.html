@@ -1,43 +1,57 @@
 <div x-data="data">
 	<style>
-		.-lava-ball-setup-title {
-			font-weight: bold;
-			margin-bottom: 0.5em;
+		.lavaBall-setup-team {
+			display: flex;
+			gap: 0.5em;
+			margin-top: 0.5em;
 		}
 
-		.-lava-ball-setup-teams button {
-			margin-right: 0.5em;
+		.lavaBall-setup-team button {
+			padding: 0.4em 0.8em;
+			border-radius: 0.4em;
+			border: 2px solid transparent;
+			cursor: pointer;
+			background: #333;
+			color: white;
 		}
 
-		.-lava-ball-setup-teams button.selected {
-			font-weight: bold;
-			text-decoration: underline;
+		.lavaBall-setup-team button.selected {
+			border-color: white;
+		}
+
+		.lavaBall-setup-team button.team-red.selected {
+			background: #ff4444;
+		}
+
+		.lavaBall-setup-team button.team-blue.selected {
+			background: #4477ff;
 		}
 	</style>
 
-	<div class="-lava-ball-setup-title">
-		LavaBall — climb as high as you can, avoid the red obstacles!
-	</div>
-
-	<div class="-lava-ball-setup-teams">
+	<div>
 		<span>Preferred team:</span>
 
-		<button type="button"
-				@pointerup="preferTeam = 0"
-				:class="{ selected: preferTeam === 0 }">
-			None
-		</button>
+		<div class="lavaBall-setup-team">
+			<button type="button"
+					class="team-none"
+					@pointerup="preferTeam = 0"
+					:class="{ selected: preferTeam === 0 }">
+				None
+			</button>
 
-		<button type="button"
-				@pointerup="preferTeam = 1"
-				:class="{ selected: preferTeam === 1 }">
-			Red
-		</button>
+			<button type="button"
+					class="team-red"
+					@pointerup="preferTeam = 1"
+					:class="{ selected: preferTeam === 1 }">
+				Red
+			</button>
 
-		<button type="button"
-				@pointerup="preferTeam = -1"
-				:class="{ selected: preferTeam === -1 }">
-			Blue
-		</button>
+			<button type="button"
+					class="team-blue"
+					@pointerup="preferTeam = -1"
+					:class="{ selected: preferTeam === -1 }">
+				Blue
+			</button>
+		</div>
 	</div>
 </div>
