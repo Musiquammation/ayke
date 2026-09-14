@@ -405,6 +405,7 @@
 			window.SERVER_ADDRESS = "ws://localhost:8020";
 			window.PROTOCOL_FILE = "/protocols/game.proto";
 			window.PROTOCOLS_FOLDER = "/protocols/games/";
+			window.VERSION_CODE = -1;
 
 			document.addEventListener("DOMContentLoaded", async () => {
 				const { init } = await import("/src/index.ts");

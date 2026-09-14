@@ -2,6 +2,11 @@ syntax = "proto3";
 
 package game;
 
+
+message ServerVersion {
+	int32 versionCode = 1;
+}
+
 message Empty {}
 
 message ClientMessage {
