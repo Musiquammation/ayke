@@ -1,0 +1,43 @@
+<div x-data="data">
+	<style>
+		.-lava-ball-setup-title {
+			font-weight: bold;
+			margin-bottom: 0.5em;
+		}
+
+		.-lava-ball-setup-teams button {
+			margin-right: 0.5em;
+		}
+
+		.-lava-ball-setup-teams button.selected {
+			font-weight: bold;
+			text-decoration: underline;
+		}
+	</style>
+
+	<div class="-lava-ball-setup-title">
+		LavaBall — climb as high as you can, avoid the red obstacles!
+	</div>
+
+	<div class="-lava-ball-setup-teams">
+		<span>Preferred team:</span>
+
+		<button type="button"
+				@pointerup="preferTeam = 0"
+				:class="{ selected: preferTeam === 0 }">
+			None
+		</button>
+
+		<button type="button"
+				@pointerup="preferTeam = 1"
+				:class="{ selected: preferTeam === 1 }">
+			Red
+		</button>
+
+		<button type="button"
+				@pointerup="preferTeam = -1"
+				:class="{ selected: preferTeam === -1 }">
+			Blue
+		</button>
+	</div>
+</div>

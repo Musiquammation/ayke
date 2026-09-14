@@ -1,0 +1,113 @@
+/* Root overlay: fixed, non-interactive, sits above the game canvas. */
+.game-lavaBall-root {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+
+	width: 96vw;
+
+	font-family: sans-serif;
+	font-size: 2vh;
+	color: white;
+
+	pointer-events: none;
+}
+
+/* Turn indicator: "1 2 3 4" row, centered at the top of the screen. */
+.game-lavaBall-turn-indicator {
+	position: fixed;
+	top: 2vh;
+	left: 50%;
+	transform: translateX(-50%);
+
+	display: flex;
+	gap: 1.5vw;
+
+	font-size: 3vh;
+	font-weight: bold;
+}
+
+.game-lavaBall-turn-slot {
+	padding: 0.2vh 0.6vw;
+}
+
+/* Team colors: applied to both the turn indicator and the score panel so
+   players/teams are recognisable at a glance in both places. */
+.game-lavaBall-team-red {
+	color: #ff4d4d;
+}
+
+.game-lavaBall-team-blue {
+	color: #4d8bff;
+}
+
+/* Eliminated players are greyed out, but keep a faint colored underline so
+   their original team identity remains visually recognisable. */
+.game-lavaBall-eliminated {
+	color: #888888;
+	opacity: 0.6;
+}
+
+.game-lavaBall-eliminated.game-lavaBall-team-red {
+	border-bottom: 0.4vh solid #ff4d4d;
+}
+
+.game-lavaBall-eliminated.game-lavaBall-team-blue {
+	border-bottom: 0.4vh solid #4d8bff;
+}
+
+/* The player whose turn it currently is gets underlined. */
+.game-lavaBall-active-turn {
+	text-decoration: underline;
+	text-underline-offset: 0.4vh;
+}
+
+/* Score panel: fixed on the side of the screen, stays visible while the
+   camera scrolls vertically since it lives outside the game canvas. */
+.game-lavaBall-score-panel {
+	position: fixed;
+	top: 10vh;
+	right: 2vw;
+
+	display: flex;
+	flex-direction: column;
+	gap: 0.5vh;
+
+	font-size: 2.2vh;
+	text-align: right;
+}
+
+.game-lavaBall-score-row {
+	background: rgba(0, 0, 0, 0.35);
+	padding: 0.3vh 0.8vw;
+	border-radius: 0.6vh;
+}
+
+/* Turn timer: shows only the remaining seconds of the current phase. */
+.game-lavaBall-timer {
+	position: fixed;
+	top: 6vh;
+	left: 50%;
+	transform: translateX(-50%);
+
+	font-size: 2.4vh;
+	opacity: 0.85;
+}
+
+/* Round-end banner, shown during the short delay between rounds. */
+.game-lavaBall-round-banner {
+	position: fixed;
+	top: 40vh;
+	left: 50%;
+	transform: translateX(-50%);
+
+	background: rgba(0, 0, 0, 0.55);
+	padding: 1.5vh 2vw;
+	border-radius: 1vh;
+
+	font-size: 2.6vh;
+	text-align: center;
+
+	display: none;
+}

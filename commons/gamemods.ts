@@ -10,6 +10,7 @@ import { GMTurrets } from "./gamemods/GMTurrets";
 import { GMWoodSword } from "./gamemods/GMWoodSword";
 import { SoloGameMode } from "./SoloGameMode";
 import { GMMoveArmy } from "./gamemods/GMMoveArmy";
+import { GMLavaBall } from "./gamemods/GMLavaBall";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -18,6 +19,7 @@ import bots_superTicTacToe from "./bots/bots-superTicTacToe";
 import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
 import bots_woodSword from "./bots/bots-woodSword";
 import bots_moveArmy from "./bots/bots-moveArmy";
+import bots_lavaBall from "./bots/bots-lavaBall";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
@@ -210,6 +212,23 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_woodSword
+	},
+
+	lavaBall: {
+		type: 'multiplayer',
+		server: GMLavaBall.createServ,
+		client: GMLavaBall.createClient,
+		dom: GMLavaBall.generateClientDom,
+		textures: GMLavaBall.TEXTURES,
+		name: "Wood Sword",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 2,
+		nodes: bots_lavaBall
 	},
 
 	separator_solo: {

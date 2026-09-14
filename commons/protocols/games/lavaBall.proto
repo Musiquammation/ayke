@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package game_lavaBall;
+
+message Empty {}
+
+
+// -----------------------------------------------------------------------
+// Shared authoritative state (mirrors GMLavaBall's fields one-to-one).
+// Everything that must survive a mid-game save()/load() lives here.
+// Initialisation-only data (team assignment) is NOT repeated here: it is
+// sent once via StartDataClient.
+// -----------------------------------------------------------------------
+
+message PlayerState {
+	int32 team = 1;                  // 0 = red, 1 = blue
+	float score = 2;                 // cumulative score across rounds
+	bool connected = 3;               // shared connection flag (see onDisconnection)
+	bool eliminatedThisRound = 4;     // true once this player is out for the current round
+	float aimX = 5;                   // last aim target sent by this player's client
+	float aimY = 6;
+}
+
+message BallState {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+	bool inFlight = 5;
+}
+
+message ObstacleState {
+	int32 id = 1;
+	int32 kind = 2;                  // 0 = rect, 1 = circle
+	float x = 3;
+	float y = 4;
+	float w = 5;                     // width (rect) or radius (circle)
+	float h = 6;                     // height (rect only)
+	float vx = 7;
+	float vy = 8;
+	float rotation = 9;
+	float rotationSpeed = 10;
+	bool gravityAffected = 11;
+}
+
+// A decided-but-not-yet-spawned obstacle. Must be shared: if the server
+// loads a save while an obstacle is "waiting", it must not be lost.
+message WaitingObstacleState {
+	int32 kind = 1;
+	float x = 2;
+	float y = 3;
+	float w = 4;
+	float h = 5;
+	float vx = 6;
+	float vy = 7;
+	bool gravityAffected = 8;
+	float timer = 9;                 // seconds remaining before it spawns
+}
+
+message TurnState {
+	int32 currentPlayer = 1;
+	int32 phase = 2;                 // 0=wait1, 1=aim, 2=wait2, 3=roundEnd
+	float phaseTimer = 3;            // seconds remaining in the current phase
+	int32 round = 4;
+}
+
+message State {
+	repeated PlayerState players = 1;
+	BallState ball = 2;
+	repeated ObstacleState obstacles = 3;
+	repeated WaitingObstacleState waitingObstacles = 4;
+	TurnState turn = 5;
+	float yLevel = 6;                // highest ball.y ever reached this round
+	int32 nextObstacleId = 7;
+	float obstacleSpawnClock = 8;
+	bool gameFinished = 9;
+}
+
+
+// -----------------------------------------------------------------------
+// Inputs
+// -----------------------------------------------------------------------
+
+message AimData {
+	float x = 1;
+	float y = 2;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		Empty pass = 2;
+		AimData aim = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+// -----------------------------------------------------------------------
+// Initialisation data (sent once, never re-saved)
+// -----------------------------------------------------------------------
+
+message StartData {
+	int32 preferTeam = 1;            // -1 = blue, 0 = none, 1 = red
+}
+
+message StartPlayerInfo {
+	int32 team = 1;                  // 0 = red, 1 = blue
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}
