@@ -865,11 +865,27 @@ export class GMRoarsOnGlass extends GameMode {
 		}
 		
 		// Draw Players
-		for (let p of this.players) {
-			if (!p.isAlive()) continue;
-			
-			ctx.fillStyle = p.team === 'red' ? '#ff4444' : '#44ff44';
+		for (let i = 0; i < this.players.length; i++) {
+			const p = this.players[i];
 
+			if (!p.isAlive()) continue;
+
+			const isLocalPlayer = i === playerIdx;
+			const playerColor = p.team === 'red' ? '#ff4444' : '#44ff44';
+
+			// Draw a subtle shadow underneath the player.
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+			this.drawRoundedRect(
+				ctx,
+				p.x + 8,
+				p.y + 8,
+				PLAYER_SIZE,
+				PLAYER_ROUND
+			);
+			ctx.fill();
+
+			// Draw the player's body.
+			ctx.fillStyle = playerColor;
 			this.drawRoundedRect(
 				ctx,
 				p.x,
@@ -877,13 +893,29 @@ export class GMRoarsOnGlass extends GameMode {
 				PLAYER_SIZE,
 				PLAYER_ROUND
 			);
-
 			ctx.fill();
 
-			// Visual indicator for roar
+			// Add a bright outline to make the local player immediately recognizable.
+			if (isLocalPlayer) {
+				ctx.strokeStyle = '#ffffff';
+				ctx.lineWidth = 14;
+				this.drawRoundedRect(
+					ctx,
+					p.x,
+					p.y,
+					PLAYER_SIZE,
+					PLAYER_ROUND
+				);
+				ctx.stroke();
+			}
+
+			// Visual indicator for an active roar.
 			if (p.roarTimer > 0) {
-				ctx.strokeStyle = "rgba(255, 255, 0, 0.5)";
-				ctx.lineWidth = 10;
+				ctx.strokeStyle = isLocalPlayer
+					? 'rgba(255, 255, 255, 0.85)'
+					: 'rgba(255, 255, 0, 0.5)';
+				ctx.lineWidth = isLocalPlayer ? 14 : 10;
+
 				ctx.beginPath();
 				ctx.arc(
 					p.x,
@@ -894,7 +926,6 @@ export class GMRoarsOnGlass extends GameMode {
 				);
 				ctx.stroke();
 			}
-
 		}
 		
 		ctx.restore();
