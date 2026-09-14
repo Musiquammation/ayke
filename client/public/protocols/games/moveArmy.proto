@@ -2,120 +2,172 @@ syntax = "proto3";
 
 package game_moveArmy;
 
-// Generic empty payload
 message Empty {}
 
-// Action sent when a player draws a line to cut links
-message CutLine {
-  float startX = 1;
-  float startY = 2;
-  float endX = 3;
-  float endY = 4;
+enum TroopType {
+	SOLDIER = 0;
+	ARCHER = 1;
+	TANK = 2;
+	BOMBER = 3;
+	CAR = 4;
 }
 
-// Action sent when a player creates or updates a unit's link target
-message ChangeNeighboor {
-  int32 troopId = 1;
-  int32 targetKind = 2; // 0: none, 1: point, 2: troop, 3: tower
-  int32 targetId = 3;
-  float targetX = 4;
-  float targetY = 5;
+message Point {
+	float x = 1;
+	float y = 2;
 }
 
-// Single player action wrapper
-message QInput {
-  double timestamp = 1;
-  oneof action {
-	CutLine cutLine = 2;
-	ChangeNeighboor changeNeighboor = 3;
-  }
-}
 
-// Input packet attributed to a specific player index
-message Input {
-  QInput data = 1;
-  float player = 2;
-}
+// -------------------------------------------------------------------------
+// Dynamic (per-save) state
+// -------------------------------------------------------------------------
 
-// Message broadcast by the server containing snapshot state and inputs
-message ServerMessage {
-  double timestamp = 1;
-  bytes state = 2;
-  repeated Input inputs = 3;
-}
-
-// Message sent from client to server containing accumulated inputs
-message ClientMessage {
-  double timestamp = 1;
-  repeated QInput inputs = 2;
-}
-
-// Initial configuration provided by the client when creating/joining
-message StartData {
-  int32 preferTeam = 1; // 0: none, 1: red, -1: blue
-}
-
-// Per-player static info at match start
-message StartPlayerInfo {
-  bool isRed = 1;
-}
-
-// Match initialization state broadcast to all clients
-message StartDataClient {
-  repeated StartPlayerInfo players = 1;
-}
-
-// Player connection state
-message PlayerState {
-  bool connected = 1;
-  bool isRed = 2;
-}
-
-// Dynamic state of an individual unit on the arena
 message TroopState {
-  int32 id = 1;
-  int32 type = 2; // Index in TYPE_LIST (0: soldier, 1: archer, 2: tank, 3: bomber, 4: car)
-  bool isRed = 3;
-  float x = 4;
-  float y = 5;
-  float hp = 6;
-  bool attacking = 7;
-  float attackCooldown = 8;
-  int32 neighboorKind = 9; // 0: none, 1: point, 2: troop, 3: tower
-  int32 neighboorId = 10;
-  float neighboorX = 11;
-  float neighboorY = 12;
-  float noTargetTimer = 13;
-  int32 lastNeighboorId = 14;
+	int32 id = 1;
+	TroopType type = 2;
+	bool isRed = 3;
+	float x = 4;
+	float y = 5;
+	float hp = 6;
+	bool attacking = 7;
+	float noTargetTimer = 8;
+	float attackCooldown = 9;
+	int32 lastNeighboorTroopId = 10; // -1 if none
+
+	// What this troop is currently moving towards / bound to.
+	oneof neighboor {
+		Empty neighboorNone = 11;
+		Point neighboorPoint = 12;
+		int32 neighboorTowerId = 13;
+		int32 neighboorTroopId = 14;
+	}
 }
 
-// Defensive turret state
 message TowerState {
-  int32 id = 1;
-  bool isRed = 2;
-  float x = 3;
-  float y = 4;
-  float hp = 5;
-  float attackCooldown = 6;
+	// Only HP is dynamic: id/x/y are initialization data, sent once via
+	// StartDataClient and never recopied here.
+	int32 id = 1;
+	float hp = 2;
 }
 
-// Hidden per-team troop spawn gauges
-message ManaState {
-  float soldier = 1;
-  float archer = 2;
-  float tank = 3;
-  float bomber = 4;
-  float car = 5;
+message ArrowState {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	float targetX = 6;
+	float targetY = 7;
+	float damage = 8;
+	bool isRed = 9;
+	int32 targetTroopId = 10; // -1 if none
+	int32 targetTowerId = 11; // -1 if none
 }
 
-// Full game snapshot for save/load synchronization
+message BombState {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	float targetX = 6;
+	float targetY = 7;
+	float damage = 8;
+	bool isRed = 9;
+	float radius = 10;
+}
+
+message ManaGauge {
+	float soldier = 1;
+	float archer = 2;
+	float tank = 3;
+	float bomber = 4;
+	float car = 5;
+}
+
+message PlayerState {
+	// Team is initialization data (see StartDataClient) and is intentionally
+	// NOT repeated here. Connection status DOES change mid-match, so it must
+	// be shared to avoid weird behaviour after a load().
+	bool connected = 1;
+}
+
 message State {
-  repeated PlayerState players = 1;
-  repeated TroopState troops = 2;
-  repeated TowerState towers = 3;
-  float time = 4;
-  bool suddenDeath = 5;
-  int32 nextTroopId = 6;
-  ManaState redMana = 7;
-  ManaState blueMana = 8;
+	float time = 1;
+	repeated PlayerState players = 2;
+	repeated TroopState troops = 3;
+	repeated TowerState towers = 4;
+	repeated ArrowState arrows = 5;
+	repeated BombState bombs = 6;
+	ManaGauge redMana = 7;
+	ManaGauge blueMana = 8;
+	int32 nextTroopId = 9;
+	int32 nextProjectileId = 10;
+}
+
+
+// -------------------------------------------------------------------------
+// Inputs
+// -------------------------------------------------------------------------
+
+message CutLineInput {
+	float startX = 1;
+	float startY = 2;
+	float endX = 3;
+	float endY = 4;
+}
+
+message ChangeNeighboorInput {
+	int32 troopId = 1;
+	oneof target {
+		Point targetPoint = 2;
+		int32 targetTowerId = 3;
+		int32 targetTroopId = 4;
+		Empty cancel = 5; // dragging back onto the same troop cancels its link
+	}
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		CutLineInput cutLine = 2;
+		ChangeNeighboorInput changeNeighboor = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+// -------------------------------------------------------------------------
+// Initialization-only data
+// -------------------------------------------------------------------------
+
+message StartData {
+	int32 preferTeam = 1; // 1 = red, -1 = blue, 0 = no preference
+}
+
+message TowerInitInfo {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	bool isRed = 4;
+}
+
+message StartDataClient {
+	repeated bool playersRed = 1; // team assignment per player index
+	repeated TowerInitInfo towers = 2; // static tower layout, sent once
 }

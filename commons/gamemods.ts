@@ -130,7 +130,7 @@ export const gamemods: Record<
 		name: "Move army",
 		tropheesPerPlayer: 20,
 		computerOnly: true,
-		skins: GMMoveArmy.SKINS_IDS,
+		skins: [],
 		collectibles: null,
 		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',

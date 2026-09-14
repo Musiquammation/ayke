@@ -6,7 +6,7 @@ import { collisions } from "../util/collisions";
 import { norm2 } from "../util/norm2";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
-import { ImageLoader } from "../util/ImageLoader";
+import { ImageLoader, ImageLoaderFolder } from "../util/ImageLoader";
 
 const protocols = getProtocol('moveArmy', 'multiplayer');
 
@@ -15,405 +15,673 @@ interface PlayerInput {
 	pseudo: string | null;
 }
 
-// =============================================================================
+// ============================================================================
 // CONSTANTS
-// All game-balance numbers live here so the whole mode can be tuned in one place.
-// =============================================================================
+// All tunable numbers live here so balance/design changes never require
+// hunting through the logic below.
+// ============================================================================
 
-// --- Arena geometry (portrait rectangle) --------------------------------------
-// Red team occupies the negative-Y half, Blue team the positive-Y half.
-const ARENA_WIDTH = 900;
-const ARENA_HEIGHT = 1600;
-const ARENA_HALF_W = ARENA_WIDTH / 2;
-const ARENA_HALF_H = ARENA_HEIGHT / 2;
+/** Portrait arena. Coordinates are centered: x/y in [-LIMIT, +LIMIT]. */
+const WIDTH = 900;
+const HEIGHT = 1600;
+const X_LIMIT = WIDTH / 2;
+const Y_LIMIT = HEIGHT / 2;
 
-// The arena is split into 5 horizontal bands. The two outer bands (one per team)
-// are "slow zones": troops standing there are slowed down and simply walk
-// forward instead of following their neighboor graph.
-const NORMAL_ZONE_HALF_HEIGHT = 550; // |y| < this => normal (fast) zone
-const SLOW_ZONE_SPEED_MULT = 0.5; // multiplier applied to troop speed while in a slow zone
+/** The arena is split into 5 horizontal bands. Band 0 (topmost, red side) and
+ *  band ZONE_COUNT-1 (bottommost, blue side) are "slow zones": troops standing
+ *  in them are slowed down regardless of their team. The 3 middle bands behave
+ *  identically to each other ("zone normale"). */
+const ZONE_COUNT = 5;
+const ZONE_HEIGHT = HEIGHT / ZONE_COUNT;
+const SLOW_ZONE_SPEED_MULTIPLIER = 0.5;
 
-// Troops spawn at the very edge of their own slow zone.
-const SPAWN_Y = ARENA_HALF_H - 20;
+/** Match timing. The match lasts MATCH_TOTAL_TIME seconds, and the last
+ *  SUDDEN_DEATH_DURATION seconds of it are sudden death (towers take extra
+ *  damage to force a conclusion). */
+const MATCH_TOTAL_TIME = 180; // 3 minutes
+const SUDDEN_DEATH_DURATION = 60; // last minute
+const SUDDEN_DEATH_DAMAGE_MULTIPLIER = 2;
 
-// --- Mana / auto-spawn system ---------------------------------------------------
-// Each team keeps one hidden "mana gauge" per troop type. The gauge grows over
-// time, and jumps up whenever a troop of that type dies. Once it crosses 1.0,
-// one unit is consumed and a fresh troop of that type is spawned for the team.
-const MANA_REGEN_PER_SECOND = 0.3; // passive gauge growth, per second
-const DEATH_MANA_GAIN = 0.7; // gauge bonus granted when a troop of that type dies
+/** Spawn-mana system. Each team keeps one gauge per troop type (never sent to
+ *  the client as a "visible" resource, but it IS part of the shared State so
+ *  a load() never desyncs it). The gauge fills over time and gets a bonus
+ *  whenever a troop of that type dies; once it crosses the threshold, 1 unit
+ *  is consumed and a troop of that type spawns automatically. */
+const SPAWN_MANA_RATE = 0.025; // gauge units gained per second
+const DEATH_MANA_BONUS = 0.9; // gauge units gained when a troop of this type dies
+const SPAWN_MANA_THRESHOLD = 1; // gauge threshold that triggers a spawn
 
-// --- Neighboor / targeting system ------------------------------------------------
-// If a troop has had no movement target for longer than this, it auto-links to
-// the closest friendly troop (never re-picking the ally it just lost).
-const TARGET_LOST_TIMEOUT = 1; // seconds
+/** AI "neighboor" (movement link) behaviour. */
+const TARGET_SEARCH_DELAY = 1; // seconds without a target before seeking a friendly troop to follow
+const MAX_CYCLE_CHECK_DEPTH = 64; // safety cap when walking neighboor chains for cycle detection
 
-// Radius (world units) used for hit-testing clicks/taps against troops & towers.
-const HIT_RADIUS = 34;
-
-// --- Timer ------------------------------------------------------------------
-const MAIN_DURATION = 180; // 3 minutes of normal play
-const SUDDEN_DEATH_DURATION = 60; // +1 minute sudden death if still tied
-
-// --- Towers -------------------------------------------------------------------
-const TOWER_HP = 1000;
+/** Towers. */
+const TOWER_COUNT_PER_TEAM = 3;
+const TOWER_HP = 400;
 const TOWER_RANGE = 260;
-const TOWER_DAMAGE = 40;
-const TOWER_ATTACK_INTERVAL = 0.35; // fast firing turret
+const TOWER_DAMAGE = 18;
+const TOWER_FIRE_RATE = 0.25; // seconds between shots (towers fire fast)
+const TOWER_RADIUS = 40;
+const TOWER_X_POSITIONS = [-X_LIMIT * 0.55, 0, X_LIMIT * 0.55];
+const TOWER_Y_OFFSET = Y_LIMIT * 0.6;
 
-// x positions of the 3 towers of each team (symmetrical, same for both teams)
-const TOWER_XS = [-300, 0, 300];
-// y position of the towers, deep in each team's own slow zone (their "base")
-const TOWER_RED_Y = -(ARENA_HALF_H - 150);
-const TOWER_BLUE_Y = (ARENA_HALF_H - 150);
+/** Troops. */
+const TROOP_RADIUS = 18;
+const ARROW_SPEED = 900;
+const ARROW_HIT_DISTANCE = 14;
+const BOMB_SPEED = 500;
+const BOMB_HIT_DISTANCE = 14;
+const BOMB_EXPLOSION_RADIUS = 90;
 
-// --- Troop types ----------------------------------------------------------------
-// Ordered list of every troop type identifier, used both as array index and as
-// the integer written into the protobuf `type` field.
-const TYPE_LIST = ['soldier', 'archer', 'tank', 'bomber', 'car'] as const;
-type TroopTypeName = typeof TYPE_LIST[number];
+/** Each troop type occupies a fixed X "lane". */
+type TroopTypeId = 'soldier' | 'archer' | 'tank' | 'bomber' | 'car';
+const TROOP_TYPE_IDS: TroopTypeId[] = ['soldier', 'archer', 'tank', 'bomber', 'car'];
 
-interface TroopStats {
-	hp: number;
-	dmg: number;
-	range: number; // attack range
-	atkInterval: number; // seconds between attacks
-	speed: number; // world units / second, in the normal zone
-	spawnMana: number; // mana threshold cost to auto-spawn one unit of this type
-	laneX: number; // fixed X coordinate for this troop type (same for both teams)
-	splashRadius?: number; // only used by TBomber, for area damage
-}
-
-// Each troop type has a fixed lane (x position), independent of team.
-const STATS: Record<TroopTypeName, TroopStats> = {
-	soldier: { hp: 100, dmg: 15, range: 55, atkInterval: 0.8, speed: 60, spawnMana: 12, laneX: -360 },
-	archer: { hp: 60, dmg: 10, range: 220, atkInterval: 1.0, speed: 55, spawnMana: 7, laneX: -160 },
-	tank: { hp: 400, dmg: 8, range: 60, atkInterval: 1.0, speed: 30, spawnMana: 3, laneX: 0 },
-	bomber: { hp: 80, dmg: 20, range: 190, atkInterval: 1.5, speed: 45, spawnMana: 4, laneX: 160, splashRadius: 70 },
-	car: { hp: 70, dmg: 9, range: 200, atkInterval: 0.9, speed: 140, spawnMana: 3, laneX: 360 },
+const TYPE_X_POSITION: Record<TroopTypeId, number> = {
+	soldier: -X_LIMIT * 0.6,
+	archer: -X_LIMIT * 0.3,
+	tank: 0,
+	bomber: X_LIMIT * 0.3,
+	car: X_LIMIT * 0.6
 };
 
-// =============================================================================
-// SHARED GEOMETRY HELPERS
-// =============================================================================
+const TROOP_TYPE_TO_ENUM: Record<TroopTypeId, number> = {
+	soldier: 0, archer: 1, tank: 2, bomber: 3, car: 4
+};
+const ENUM_TO_TROOP_TYPE: TroopTypeId[] = ['soldier', 'archer', 'tank', 'bomber', 'car'];
 
-/**
- * Returns true when the given Y coordinate is inside one of the two slow zones
- * (top for red, bottom for blue). Symmetrical around the center of the arena.
- */
-function isInSlowZone(y: number) {
-	return Math.abs(y) > NORMAL_ZONE_HALF_HEIGHT;
+
+// ============================================================================
+// SHARED (non-serialized-directly) helper types
+// ============================================================================
+
+/** What a troop is currently moving towards / bound to. Mirrors the
+ *  NeighboorTarget oneof from the proto, but as a small discriminated union
+ *  that's pleasant to use in TS logic. */
+type NeighboorTarget =
+	| { kind: 'point'; x: number; y: number }
+	| { kind: 'tower'; id: number }
+	| { kind: 'troop'; id: number };
+
+/** A resolved thing a troop can be in combat with. */
+type CombatTarget =
+	| { kind: 'troop'; id: number; x: number; y: number }
+	| { kind: 'tower'; id: number; x: number; y: number };
+
+interface Arrow {
+	id: number;
+	x: number; y: number;
+	vx: number; vy: number;
+	targetX: number; targetY: number;
+	damage: number;
+	team: 'red' | 'blue';
+	targetTroopId: number | null;
+	targetTowerId: number | null;
 }
 
-/**
- * Classic segment-segment intersection test (used for the "cut the links" mouse
- * gesture). Returns true if segment (p1,p2) crosses segment (p3,p4).
- */
+interface Bomb {
+	id: number;
+	x: number; y: number;
+	vx: number; vy: number;
+	targetX: number; targetY: number;
+	damage: number;
+	team: 'red' | 'blue';
+	radius: number;
+}
+
+
+// ============================================================================
+// GEOMETRY HELPERS
+// ============================================================================
+
+/** 2D cross product, used by segmentsIntersect. */
+function cross(ax: number, ay: number, bx: number, by: number): number {
+	return ax * by - ay * bx;
+}
+
+/** Standard segment/segment intersection test (proper intersection only),
+ *  used to know which troop-troop links a player's "cut" gesture severs. */
 function segmentsIntersect(
-	x1: number, y1: number, x2: number, y2: number,
-	x3: number, y3: number, x4: number, y4: number
-) {
-	const d1x = x2 - x1, d1y = y2 - y1;
-	const d2x = x4 - x3, d2y = y4 - y3;
+	ax: number, ay: number, bx: number, by: number,
+	cx: number, cy: number, dx: number, dy: number
+): boolean {
+	const d1 = cross(dx - cx, dy - cy, ax - cx, ay - cy);
+	const d2 = cross(dx - cx, dy - cy, bx - cx, by - cy);
+	const d3 = cross(bx - ax, by - ay, cx - ax, cy - ay);
+	const d4 = cross(bx - ax, by - ay, dx - ax, dy - ay);
 
-	const denom = d1x * d2y - d1y * d2x;
-	if (denom === 0) return false; // parallel (or degenerate) segments never cross
-
-	const t = ((x3 - x1) * d2y - (y3 - y1) * d2x) / denom;
-	const u = ((x3 - x1) * d1y - (y3 - y1) * d1x) / denom;
-
-	return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+	return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+		   ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
 }
 
-// A common shape shared by Troop and Tower so combat code can treat them alike.
-interface Attackable {
+
+// ============================================================================
+// TROOP HIERARCHY
+// ============================================================================
+
+/**
+ * Abstract base for all army units. Holds every piece of state that must be
+ * shared (and therefore saved/loaded), and implements the generic per-frame
+ * behaviour (movement, targeting, combat trigger). Subclasses only need to
+ * describe their stats and how they actually deal damage.
+ */
+abstract class Troop {
 	x: number;
 	y: number;
 	hp: number;
-	isRed: boolean;
-}
 
-type NeighboorKind = 'none' | 'point' | 'troop' | 'tower';
-
-// =============================================================================
-// TROOP (abstract base) + 5 concrete troop types
-// =============================================================================
-
-/**
- * Abstract base class for every unit that walks around the battlefield.
- * Handles the generic "find something in range and attack it, otherwise move
- * toward the neighboor target" state machine. Concrete subclasses only need to
- * describe their stats and how their attack applies damage (single target vs
- * splash), plus whether they can keep moving while attacking (TCar only).
- */
-abstract class Troop implements Attackable {
-	hp: number;
-
-	// Combat state
+	/** True while this troop is actively fighting something in range. Troops
+	 *  (except TCar) stop moving while attacking. */
 	attacking = false;
+
+	/** What this troop is currently trying to reach: a fixed point, a tower,
+	 *  or a friendly/enemy troop. Null means "no target yet". */
+	neighboor: NeighboorTarget | null = null;
+
+	/** How long (seconds) this troop has had no neighboor target. */
+	noTargetTimer = 0;
+
+	/** Countdown (seconds) until this troop can attack again. */
 	attackCooldown = 0;
 
-	// "Neighboor" graph state: what this troop is currently trying to reach.
-	neighboorKind: NeighboorKind = 'none';
-	neighboorId = -1; // used when neighboorKind is 'troop' or 'tower'
-	neighboorX = 0; // used when neighboorKind is 'point'
-	neighboorY = 0;
+	/** The troop we were last bound to (so we don't immediately re-bind to it
+	 *  the moment our link is cleared). Null if we've never been bound. */
+	lastNeighboorTroopId: number | null = null;
 
-	// How long we've had no valid target, and who we should avoid re-linking to.
-	noTargetTimer = 0;
-	lastNeighboorId = -1;
+	/** Static per-subclass initial mana value, see e.g. TSoldier.SPAWN_MANA.
+	 *  Declared here only so subclasses can override it; used through the
+	 *  TROOP_CLASSES / INITIAL_SPAWN_MANA lookup tables below. */
+	static readonly SPAWN_MANA: number = 0;
 
 	constructor(
 		public readonly id: number,
-		public readonly isRed: boolean,
-		public x: number,
-		public y: number
+		public readonly team: 'red' | 'blue',
+		x: number,
+		y: number
 	) {
-		this.hp = this.stats().hp;
+		this.x = x;
+		this.y = y;
+		this.hp = this.getMaxHp();
 	}
 
-	/** Static stats table entry for this concrete troop type. */
-	abstract stats(): TroopStats;
+	abstract getType(): TroopTypeId;
+	abstract getMaxHp(): number;
+	abstract getSpeed(): number;
+	abstract getAttackRange(): number;
+	abstract getAttackDamage(): number;
+	abstract getAttackRate(): number;
 
-	/** Index into TYPE_LIST, used for protobuf serialization. */
-	abstract get typeIndex(): number;
+	/** Applies this troop's attack to `target`, already-scaled `damage`. */
+	abstract performAttack(game: GMMoveArmy, target: CombatTarget, damage: number): void;
 
-	/** Only TCar can keep moving while it is mid-attack. */
-	abstract get canMoveWhileAttacking(): boolean;
+	/** Only TCar can move while attacking; everyone else plants their feet. */
+	canMoveWhileAttacking(): boolean {
+		return false;
+	}
 
-	/** Applies this troop's damage to `target` (single hit or area splash). */
-	abstract applyAttackEffect(game: GMMoveArmy, target: Attackable): void;
+	isAlive(): boolean {
+		return this.hp > 0;
+	}
+
+	takeDamage(amount: number) {
+		this.hp = Math.max(0, this.hp - amount);
+	}
+
+	/** Red pushes towards +y, blue pushes towards -y. */
+	getForwardDirection(): number {
+		return this.team === 'red' ? 1 : -1;
+	}
+
+	/** Which of the 5 horizontal bands this troop currently stands in. */
+	getZoneIndex(): number {
+		const clampedY = Math.max(-Y_LIMIT, Math.min(Y_LIMIT - 0.001, this.y));
+		return Math.floor((clampedY + Y_LIMIT) / ZONE_HEIGHT);
+	}
+
+	isInSlowZone(): boolean {
+		const idx = this.getZoneIndex();
+		return idx === 0 || idx === ZONE_COUNT - 1;
+	}
+
+	private getEffectiveSpeed(): number {
+		return this.isInSlowZone() ? this.getSpeed() * SLOW_ZONE_SPEED_MULTIPLIER : this.getSpeed();
+	}
+
+	/** Keeps the troop inside the arena bounds (used after movement/collisions). */
+	clampToArena() {
+		this.x = Math.max(-X_LIMIT + TROOP_RADIUS, Math.min(X_LIMIT - TROOP_RADIUS, this.x));
+		this.y = Math.max(-Y_LIMIT + TROOP_RADIUS, Math.min(Y_LIMIT - TROOP_RADIUS, this.y));
+	}
+
+	/** Forgets the current neighboor troop link, remembering it so we don't
+	 *  instantly re-select the same troop next time we search. */
+	clearNeighboor(_game: GMMoveArmy) {
+		if (this.neighboor?.kind === 'troop') {
+			this.lastNeighboorTroopId = this.neighboor.id;
+		}
+		this.neighboor = null;
+		this.noTargetTimer = 0;
+	}
 
 	/**
-	 * Per-frame update: first resolve combat (attack anything in range), then
-	 * resolve movement (following the neighboor graph, or just walking forward
-	 * while inside a slow zone).
+	 * Main per-frame update. Order of priorities:
+	 *   1. If an enemy (troop or tower) is within attack range: fight it.
+	 *   2. If in a slow zone: always push forward, but keep maintaining the
+	 *      neighboor graph for later use.
+	 *   3. If following a friendly troop that just started attacking: redirect
+	 *      onto whatever that friendly troop is attacking.
+	 *   4. Otherwise: move towards the resolved neighboor, or search for one,
+	 *      or just advance forward as a last resort.
 	 */
-	update(dt: number, game: GMMoveArmy) {
-		this.updateCombat(dt, game);
+	frame(game: GMMoveArmy, dt: number) {
+		if (!this.isAlive()) return;
 
-		// All troops except TCar freeze completely while they are attacking.
-		if (this.attacking && !this.canMoveWhileAttacking) {
-			return;
+		if (this.attackCooldown > 0) {
+			this.attackCooldown -= dt;
 		}
 
-		this.updateMovement(dt, game);
-	}
+		// --- 1. Opportunistic combat -------------------------------------
+		const combatTarget = game.findNearestEnemyInRange(this);
+		if (combatTarget) {
+			this.attacking = true;
 
-	/** Looks for the nearest enemy (troop or tower) within attack range and fights it. */
-	private updateCombat(dt: number, game: GMMoveArmy) {
-		const enemy = game.findNearestAttackable(this.x, this.y, this.stats().range, !this.isRed);
+			if (this.attackCooldown <= 0) {
+				const damage = this.getAttackDamage() * game.getDamageMultiplier();
+				this.performAttack(game, combatTarget, damage);
+				this.attackCooldown = this.getAttackRate();
+			}
 
-		if (!enemy) {
-			this.attacking = false;
-			return;
-		}
-
-		this.attacking = true;
-		this.attackCooldown -= dt;
-		if (this.attackCooldown <= 0) {
-			this.attackCooldown = this.stats().atkInterval;
-			this.applyAttackEffect(game, enemy);
-		}
-	}
-
-	/** Moves the troop toward its slow-zone forward direction or its neighboor target. */
-	private updateMovement(dt: number, game: GMMoveArmy) {
-		const inSlow = isInSlowZone(this.y);
-		const speedMult = inSlow ? SLOW_ZONE_SPEED_MULT : 1;
-
-		if (inSlow) {
-			// Inside a slow zone we ignore the neighboor graph entirely and simply
-			// march forward toward the middle of the arena. The neighboor link
-			// itself is preserved (not cleared) so the graph keeps being formed
-			// and will be used as soon as the troop reaches the normal zone.
-			const forwardDir = this.isRed ? 1 : -1;
-			this.y += forwardDir * this.stats().speed * speedMult * dt;
-			this.clampToArena();
-			return;
-		}
-
-		const targetPos = game.resolveNeighboorTarget(this);
-		if (!targetPos) {
-			// No valid target right now: count how long we've been "lost".
-			this.noTargetTimer += dt;
-			if (this.noTargetTimer > TARGET_LOST_TIMEOUT) {
-				game.linkToNearestAlly(this);
+			if (this.canMoveWhileAttacking()) {
+				this.moveTowardsNeighboor(game, dt);
 			}
 			return;
 		}
 
-		this.noTargetTimer = 0;
+		this.attacking = false;
 
-		const dx = targetPos.x - this.x;
-		const dy = targetPos.y - this.y;
-		const dist = Math.sqrt(norm2(dx, dy)) || 1;
-		const step = this.stats().speed * speedMult * dt;
-
-		if (step >= dist) {
-			this.x = targetPos.x;
-			this.y = targetPos.y;
-		} else {
-			this.x += (dx / dist) * step;
-			this.y += (dy / dist) * step;
+		// --- 2. Slow zone: always march forward ---------------------------
+		if (this.isInSlowZone()) {
+			this.updateNeighboorSearch(game, dt);
+			this.moveForward(dt);
+			return;
 		}
 
+		// --- 3. Redirect through an attacking friendly ---------------------
+		this.checkFriendlyRedirect(game);
+
+		// --- 4. Move towards neighboor, or search, or advance -------------
+		if (this.neighboor) {
+			this.moveTowardsNeighboor(game, dt);
+		} else {
+			this.noTargetTimer += dt;
+			if (this.noTargetTimer > TARGET_SEARCH_DELAY) {
+				const bound = this.tryBindNearestFriendly(game);
+				if (!bound) {
+					this.moveForward(dt);
+				}
+			}
+		}
+	}
+
+	/** Same target-searching logic used outside slow zones, but only used to
+	 *  MAINTAIN the graph while in a slow zone (movement itself always goes
+	 *  forward there, per the design). */
+	private updateNeighboorSearch(game: GMMoveArmy, dt: number) {
+		this.checkFriendlyRedirect(game);
+		if (!this.neighboor) {
+			this.noTargetTimer += dt;
+			if (this.noTargetTimer > TARGET_SEARCH_DELAY) {
+				this.tryBindNearestFriendly(game);
+			}
+		}
+	}
+
+	/** If we're following a friendly troop that has started fighting, stop
+	 *  trailing it and instead head towards whatever it's fighting — this
+	 *  makes troops "pile onto" a fight instead of queuing behind a
+	 *  stationary ally. */
+	private checkFriendlyRedirect(game: GMMoveArmy) {
+		if (!this.neighboor || this.neighboor.kind !== 'troop') return;
+
+		const followed = game.getTroopById(this.neighboor.id);
+		if (!followed || followed.team !== this.team || !followed.attacking) return;
+
+		const theirFight = game.findNearestEnemyInRange(followed);
+		if (theirFight) {
+			this.neighboor = theirFight.kind === 'tower'
+				? { kind: 'tower', id: theirFight.id }
+				: { kind: 'troop', id: theirFight.id };
+			this.noTargetTimer = 0;
+		}
+	}
+
+	/** Searches for the closest living friendly troop to attach our neighboor
+	 *  to, skipping the troop we were just following and any candidate that
+	 *  would close a cycle in the link graph. Returns true if bound. */
+	private tryBindNearestFriendly(game: GMMoveArmy): boolean {
+		let best: Troop | null = null;
+		let bestDist = Infinity;
+
+		for (const other of game.getFriendlyTroops(this.team)) {
+			if (
+				(this.team === 'red' && other.y < this.y) ||
+				(this.team === 'blue' && other.y > this.y) ||
+				other.id === this.id ||
+				!other.isAlive() ||
+				other.id === this.lastNeighboorTroopId ||
+				game.wouldCreateCycle(this.id, other.id)
+			) continue;
+
+			const d = norm2(other.x - this.x, other.y - this.y);
+			if (d < bestDist) {
+				bestDist = d;
+				best = other;
+			}
+		}
+
+		if (!best) return false;
+
+		this.neighboor = { kind: 'troop', id: best.id };
+		this.noTargetTimer = 0;
+		return true;
+	}
+
+	private moveForward(dt: number) {
+		this.y += this.getForwardDirection() * this.getEffectiveSpeed() * dt;
 		this.clampToArena();
 	}
 
-	/** Keeps the troop inside the physical arena bounds. */
-	private clampToArena() {
-		this.x = Math.max(-ARENA_HALF_W, Math.min(ARENA_HALF_W, this.x));
-		this.y = Math.max(-ARENA_HALF_H, Math.min(ARENA_HALF_H, this.y));
-	}
-}
+	private moveTowardsNeighboor(game: GMMoveArmy, dt: number) {
+		if (!this.neighboor) return;
 
-/** TSoldier: short range melee unit dealing damage to whatever is close to it. */
-class TSoldier extends Troop {
-	override stats() { return STATS.soldier; }
-	get typeIndex() { return 0; }
-	get canMoveWhileAttacking() { return false; }
-
-	applyAttackEffect(_game: GMMoveArmy, target: Attackable) {
-		target.hp -= this.stats().dmg;
-	}
-}
-
-/** TArcher: mid/long range single-target archer, shoots arrows at a distance. */
-class TArcher extends Troop {
-	override stats() { return STATS.archer; }
-	get typeIndex() { return 1; }
-	get canMoveWhileAttacking() { return false; }
-
-	applyAttackEffect(_game: GMMoveArmy, target: Attackable) {
-		target.hp -= this.stats().dmg;
-	}
-}
-
-/** TTank: tons of HP, weak damage, absorbs hits at the front line. */
-class TTank extends Troop {
-	override stats() { return STATS.tank; }
-	get typeIndex() { return 2; }
-	get canMoveWhileAttacking() { return false; }
-
-	applyAttackEffect(_game: GMMoveArmy, target: Attackable) {
-		target.hp -= this.stats().dmg;
-	}
-}
-
-/** TBomber: lobs bombs that explode in an area, damaging every nearby enemy. */
-class TBomber extends Troop {
-	override stats() { return STATS.bomber; }
-	get typeIndex() { return 3; }
-	get canMoveWhileAttacking() { return false; }
-
-	applyAttackEffect(game: GMMoveArmy, target: Attackable) {
-		// The bomb explodes centered on the primary target's position and hits
-		// every enemy (troop or tower) standing within the splash radius.
-		const radius = this.stats().splashRadius ?? 0;
-		const radiusSq = radius * radius;
-
-		for (const other of game.getAllAttackables(!this.isRed)) {
-			if (norm2(other.x - target.x, other.y - target.y) <= radiusSq) {
-				other.hp -= this.stats().dmg;
-			}
+		const pos = game.resolveNeighboorPosition(this.neighboor);
+		if (!pos) {
+			// The thing we were heading towards no longer exists (died/destroyed).
+			this.clearNeighboor(game);
+			return;
 		}
+
+		const dx = pos.x - this.x;
+		const dy = pos.y - this.y;
+		const dist = Math.sqrt(norm2(dx, dy));
+
+		// Stop a bit short so troops don't stack exactly on top of their target.
+		const stopDistance = TROOP_RADIUS * 2;
+		if (dist <= stopDistance) return;
+
+		const speed = this.getEffectiveSpeed();
+		this.x += (dx / dist) * speed * dt;
+		this.y += (dy / dist) * speed * dt;
+		this.clampToArena();
+	}
+
+	/** Serializes this troop's dynamic state into a plain protobuf-ready object. */
+	serialize(): Fields {
+		const base: Fields = {
+			id: this.id,
+			type: TROOP_TYPE_TO_ENUM[this.getType()],
+			isRed: this.team === 'red',
+			x: this.x,
+			y: this.y,
+			hp: this.hp,
+			attacking: this.attacking,
+			noTargetTimer: this.noTargetTimer,
+			attackCooldown: this.attackCooldown,
+			lastNeighboorTroopId: this.lastNeighboorTroopId ?? -1
+		};
+
+		if (!this.neighboor) {
+			base.neighboor = 'neighboorNone';
+			base.neighboorNone = {};
+		} else if (this.neighboor.kind === 'point') {
+			base.neighboor = 'neighboorPoint';
+			base.neighboorPoint = { x: this.neighboor.x, y: this.neighboor.y };
+		} else if (this.neighboor.kind === 'troop') {
+			base.neighboor = 'neighboorTroopId';
+			base.neighboorTroopId = this.neighboor.id;
+		} else {
+			base.neighboor = 'neighboorTowerId';
+			base.neighboorTowerId = this.neighboor.id;
+		}
+
+		return base;
 	}
 }
 
-/** TCar: fast-moving skirmisher that fires arrows like TArcher but never stops moving. */
+
+/** Melee unit: damages nearby enemies directly, high HP-ish, no projectile. */
+class TSoldier extends Troop {
+	static readonly SPAWN_MANA = 5;
+
+	getType(): TroopTypeId { return 'soldier'; }
+	getMaxHp() { return 120; }
+	getSpeed() { return 80; }
+	getAttackRange() { return 50; }
+	getAttackDamage() { return 20; }
+	getAttackRate() { return 0.8; }
+
+	performAttack(game: GMMoveArmy, target: CombatTarget, damage: number) {
+		game.applyDamageToTarget(target, damage, this.team);
+	}
+}
+
+/** Ranged unit: fires arrows at anything within a fairly large radius. */
+class TArcher extends Troop {
+	static readonly SPAWN_MANA = 0;
+
+	getType(): TroopTypeId { return 'archer'; }
+	getMaxHp() { return 70; }
+	getSpeed() { return 70; }
+	getAttackRange() { return 220; }
+	getAttackDamage() { return 14; }
+	getAttackRate() { return 1.0; }
+
+	performAttack(game: GMMoveArmy, target: CombatTarget, damage: number) {
+		game.spawnArrow(this.x, this.y, target, damage, this.team);
+	}
+}
+
+/** Heavy unit: huge HP pool, but a small range and low damage. */
+class TTank extends Troop {
+	static readonly SPAWN_MANA = 0;
+
+	getType(): TroopTypeId { return 'tank'; }
+	getMaxHp() { return 400; }
+	getSpeed() { return 40; }
+	getAttackRange() { return 70; }
+	getAttackDamage() { return 10; }
+	getAttackRate() { return 1.2; }
+
+	performAttack(game: GMMoveArmy, target: CombatTarget, damage: number) {
+		game.applyDamageToTarget(target, damage, this.team);
+	}
+}
+
+/** Support unit: lobs area-damage bombs at nearby enemies. */
+class TBomber extends Troop {
+	static readonly SPAWN_MANA = 0;
+
+	getType(): TroopTypeId { return 'bomber'; }
+	getMaxHp() { return 90; }
+	getSpeed() { return 60; }
+	getAttackRange() { return 180; }
+	getAttackDamage() { return 25; }
+	getAttackRate() { return 1.6; }
+
+	performAttack(game: GMMoveArmy, target: CombatTarget, damage: number) {
+		game.spawnBomb(this.x, this.y, target, damage, this.team, BOMB_EXPLOSION_RADIUS);
+	}
+}
+
+/** Fast skirmisher: shoots like an archer but never stops moving. */
 class TCar extends Troop {
-	override stats() { return STATS.car; }
-	get typeIndex() { return 4; }
-	get canMoveWhileAttacking() { return true; }
+	static readonly SPAWN_MANA = 0;
 
-	applyAttackEffect(_game: GMMoveArmy, target: Attackable) {
-		target.hp -= this.stats().dmg;
+	getType(): TroopTypeId { return 'car'; }
+	getMaxHp() { return 80; }
+	getSpeed() { return 160; }
+	getAttackRange() { return 200; }
+	getAttackDamage() { return 12; }
+	getAttackRate() { return 0.9; }
+
+	canMoveWhileAttacking() { return true; }
+
+	performAttack(game: GMMoveArmy, target: CombatTarget, damage: number) {
+		game.spawnArrow(this.x, this.y, target, damage, this.team);
 	}
 }
 
-const TYPE_CLASSES: Record<TroopTypeName, new (id: number, isRed: boolean, x: number, y: number) => Troop> = {
+
+const TROOP_CLASSES: Record<TroopTypeId, new (id: number, team: 'red' | 'blue', x: number, y: number) => Troop> = {
 	soldier: TSoldier,
 	archer: TArcher,
 	tank: TTank,
 	bomber: TBomber,
-	car: TCar,
+	car: TCar
 };
 
-// =============================================================================
+const INITIAL_SPAWN_MANA: Record<TroopTypeId, number> = {
+	soldier: TSoldier.SPAWN_MANA,
+	archer: TArcher.SPAWN_MANA,
+	tank: TTank.SPAWN_MANA,
+	bomber: TBomber.SPAWN_MANA,
+	car: TCar.SPAWN_MANA
+};
+
+function createTroop(type: TroopTypeId, id: number, team: 'red' | 'blue', x: number, y: number): Troop {
+	const Ctor = TROOP_CLASSES[type];
+	return new Ctor(id, team, x, y);
+}
+
+/** Rebuilds a Troop instance (correct subclass) from its saved State fields. */
+function deserializeTroop(obj: Fields): Troop {
+	const type = ENUM_TO_TROOP_TYPE[obj.type];
+	const troop = createTroop(type, obj.id, obj.isRed ? 'red' : 'blue', obj.x, obj.y);
+
+	troop.hp = obj.hp;
+	troop.attacking = obj.attacking;
+	troop.noTargetTimer = obj.noTargetTimer;
+	troop.attackCooldown = obj.attackCooldown;
+	troop.lastNeighboorTroopId = obj.lastNeighboorTroopId >= 0 ? obj.lastNeighboorTroopId : null;
+
+	switch (obj.neighboor) {
+		case 'neighboorPoint':
+			troop.neighboor = { kind: 'point', x: obj.neighboorPoint.x, y: obj.neighboorPoint.y };
+			break;
+		case 'neighboorTroopId':
+			troop.neighboor = { kind: 'troop', id: obj.neighboorTroopId };
+			break;
+		case 'neighboorTowerId':
+			troop.neighboor = { kind: 'tower', id: obj.neighboorTowerId };
+			break;
+		default:
+			troop.neighboor = null;
+	}
+
+	return troop;
+}
+
+
+// ============================================================================
 // TOWER
-// =============================================================================
+// ============================================================================
 
 /**
- * A defensive turret. Towers never move and never chase troops that go out of
- * range; they simply shoot fast, high-damage arrows at the nearest enemy troop
- * that dares to enter their radius. Destroying all 3 enemy towers wins the game.
+ * A defensive structure. Its x/y are initialization data (sent once via
+ * StartDataClient, per the "spawnX/spawnY" pattern) and never resaved — only
+ * its HP is dynamic and part of State.
  */
-class Tower implements Attackable {
+class Tower {
 	hp = TOWER_HP;
 	attackCooldown = 0;
 
 	constructor(
 		public readonly id: number,
-		public readonly isRed: boolean,
+		public readonly team: 'red' | 'blue',
 		public readonly x: number,
 		public readonly y: number
 	) {}
 
-	/** Fires at the closest living enemy troop within range, on a fast cooldown. */
-	update(dt: number, game: GMMoveArmy) {
-		if (this.hp <= 0) return; // destroyed towers stay silent
+	isAlive(): boolean {
+		return this.hp > 0;
+	}
 
-		const enemy = game.findNearestEnemyTroop(this.x, this.y, TOWER_RANGE, !this.isRed);
-		if (!enemy) return;
+	takeDamage(amount: number) {
+		this.hp = Math.max(0, this.hp - amount);
+	}
 
-		this.attackCooldown -= dt;
-		if (this.attackCooldown <= 0) {
-			this.attackCooldown = TOWER_ATTACK_INTERVAL;
-			enemy.hp -= TOWER_DAMAGE;
+	/** Towers auto-fire fast, high-damage arrows at the closest enemy troop in range. */
+	frame(game: GMMoveArmy, dt: number) {
+		if (!this.isAlive()) return;
+		if (this.attackCooldown > 0) this.attackCooldown -= dt;
+
+		const target = game.findNearestEnemyTroopInRange(this.x, this.y, TOWER_RANGE, this.team);
+		if (target && this.attackCooldown <= 0) {
+			const damage = TOWER_DAMAGE * game.getDamageMultiplier();
+			game.spawnArrow(this.x, this.y, target, damage, this.team);
+			this.attackCooldown = TOWER_FIRE_RATE;
 		}
 	}
 }
 
-// =============================================================================
+
+// ============================================================================
 // PLAYER
-// This game mode has no per-player avatar on the field: players only observe
-// the battle and issue "cut link" / "change neighboor" orders for their team.
-// =============================================================================
+// Holds ONLY shared/serializable data. No client-only fields here.
+// ============================================================================
 
 class Player {
-	connected = true;
-	isRed = true;
+	/** Assigned once at match creation, like spawnX/spawnY elsewhere: this is
+	 *  initialization data, intentionally NOT re-sent via save()/load(). */
+	team: 'red' | 'blue' = 'red';
 
-	load(obj: Fields) {
-		this.connected = obj.connected;
-		this.isRed = obj.isRed;
+	/** This DOES need to be part of the shared State, since it can change at
+	 *  any point mid-match and losing it on a load() would be confusing. */
+	connected = true;
+
+	initTeam(team: 'red' | 'blue') {
+		this.team = team;
 	}
 }
 
-// =============================================================================
-// CLIENT-ONLY DATA (never serialized into the shared game state)
-// =============================================================================
+
+// ============================================================================
+// CLIENT-ONLY DATA
+// Everything here is display/interaction state; none of it is simulation
+// state, so none of it may leak into Troop/Tower/GMMoveArmy/Player.
+// ============================================================================
 
 class ClientData {
 	firstFrame = true;
+
+	/** This client's own team, learned once from StartDataClient. */
+	myTeam: 'red' | 'blue' = 'red';
+
+	/** Last known world-space pointer position (mouse or first touch). */
 	mouseX = 0;
 	mouseY = 0;
+	lastPointerX = 0;
+	lastPointerY = 0;
 
-	// Index of the local player, captured once at createClient() time so
-	// collectInputs() can know which team ("red"/"blue") belongs to us.
-	localPlayerIdx = 0;
-
-	// Drag-gesture state for the "cut links" / "create link" mouse interaction.
+	/** Drag/gesture state for the cut-links / re-link interaction. */
 	dragMode: 'cut' | 'link' | null = null;
+	dragTroopId: number | null = null;
 	dragStartX = 0;
 	dragStartY = 0;
 	dragCurrentX = 0;
 	dragCurrentY = 0;
-	draggedTroopId = -1;
+
+	/** Emulated "first/killed" tracking for touch, since IMobileController
+	 *  only exposes the raw current digit list. */
+	prevDigitId: number | null = null;
+
+	/** Troop currently under the pointer, used for the hover highlight. */
+	hoveredTroopId: number | null = null;
 
 	readonly html: HTMLDivElement;
 	readonly time: HTMLDivElement;
+	readonly towerRow: HTMLDivElement;
+	readonly towerBars: HTMLDivElement[] = [];
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -422,7 +690,25 @@ class ClientData {
 		this.time = document.createElement("div");
 		this.time.classList.add("game-moveArmy-time");
 
+		this.towerRow = document.createElement("div");
+		this.towerRow.classList.add("game-moveArmy-tower-row");
+
+		for (let i = 0; i < TOWER_COUNT_PER_TEAM * 2; i++) {
+			const isRed = i < TOWER_COUNT_PER_TEAM;
+			const wrapper = document.createElement("div");
+			wrapper.classList.add("game-moveArmy-tower-hp");
+
+			const fill = document.createElement("div");
+			fill.classList.add("game-moveArmy-tower-hp-fill");
+			fill.classList.add(isRed ? "game-moveArmy-tower-hp-fill-red" : "game-moveArmy-tower-hp-fill-blue");
+
+			wrapper.appendChild(fill);
+			this.towerRow.appendChild(wrapper);
+			this.towerBars.push(fill);
+		}
+
 		this.html.appendChild(this.time);
+		this.html.appendChild(this.towerRow);
 	}
 
 	static showTime(time: number) {
@@ -431,11 +717,29 @@ class ClientData {
 		return `${minutes}:${String(seconds).padStart(2, "0")}`;
 	}
 
-	update(game: GMMoveArmy) {
-		this.time.innerText =
-			(game.suddenDeath ? "SUDDEN DEATH " : "") + ClientData.showTime(game.time);
+	/** Refreshes the overlay DOM and recomputes which troop (if any) is hovered. */
+	update(game: GMMoveArmy, _playerIdx: number) {
+		this.time.innerText = ClientData.showTime(game.time);
+
+		for (const [i, tower] of game.towers.entries()) {
+			const ratio = Math.max(0, tower.hp / TOWER_HP);
+			this.towerBars[i].style.width = `${ratio * 100}%`;
+		}
+
+		// Find the closest troop to the pointer, within a small hover radius.
+		let best: Troop | null = null;
+		let bestDist = (TROOP_RADIUS * 1.5) ** 2;
+		for (const troop of game.troops) {
+			const d = norm2(troop.x - this.mouseX, troop.y - this.mouseY);
+			if (d < bestDist) {
+				bestDist = d;
+				best = troop;
+			}
+		}
+		this.hoveredTroopId = best?.id ?? null;
 	}
 }
+
 
 class TutorialData {
 	private step = 0;
@@ -444,15 +748,12 @@ class TutorialData {
 
 	frame(_dt: number, _clock: number) {
 		if (this.step === 0) {
-			return "Drag from a troop to redirect it. Draw a line across arrows to cut them.";
+			return "Drag from a soldier to link it to a target. Drag across links to cut them.";
 		}
 		return "";
 	}
 }
 
-// =============================================================================
-// CLIENT START-DATA FORM (example.html "x-data")
-// =============================================================================
 
 function generateClientDom() {
 	return {
@@ -461,52 +762,117 @@ function generateClientDom() {
 		produce() {
 			const { StartData } = protocols.get();
 			return StartData.encode({
-				preferTeam: this.preferTeam,
+				preferTeam: this.preferTeam
 			}).finish();
-		},
+		}
 	};
 }
 
-// =============================================================================
+
+// ============================================================================
 // GAME MODE
-// =============================================================================
+// ============================================================================
 
 export class GMMoveArmy extends GameMode {
 	static readonly types = { Player, Troop, Tower };
 
 	static readonly DATA = {
-		ARENA_WIDTH,
-		ARENA_HEIGHT,
-		NORMAL_ZONE_HALF_HEIGHT,
-		TOWER_XS,
-		TOWER_RED_Y,
-		TOWER_BLUE_Y,
-		STATS,
+		WIDTH, HEIGHT, X_LIMIT, Y_LIMIT,
+		ZONE_COUNT, ZONE_HEIGHT,
+		TOWER_RADIUS, TROOP_RADIUS
 	};
 
 	readonly players: Player[];
+	troops: Troop[] = [];
+	towers: Tower[] = [];
+	arrows: Arrow[] = [];
+	bombs: Bomb[] = [];
 
-	// Live troops, keyed by their unique id for O(1) lookup.
-	readonly troops = new Map<number, Troop>();
-	readonly towers: Tower[] = [];
+	/** Per-team, per-type spawn gauges. Never shown to the client directly. */
+	manaGauges: Record<'red' | 'blue', Record<TroopTypeId, number>> = {
+		red: { soldier: 0, archer: 0, tank: 0, bomber: 0, car: 0 },
+		blue: { soldier: 0, archer: 0, tank: 0, bomber: 0, car: 0 }
+	};
 
-	nextTroopId = 0;
+	time = MATCH_TOTAL_TIME;
 
-	time = MAIN_DURATION;
-	suddenDeath = false;
-
-	// Hidden per-team, per-type mana gauges (never sent to the client HUD).
-	redMana: Record<TroopTypeName, number> = { soldier: 0, archer: 0, tank: 0, bomber: 0, car: 0 };
-	blueMana: Record<TroopTypeName, number> = { soldier: 0, archer: 0, tank: 0, bomber: 0, car: 0 };
+	private nextTroopId = 0;
+	private nextProjectileId = 0;
 
 	private constructor(total: number) {
 		super();
 		this.players = Array.from({ length: total }, () => new Player());
 	}
 
-	// -------------------------------------------------------------------------
-	// SETUP
-	// -------------------------------------------------------------------------
+	// -- Team assignment (shared by createServ and the local createClient fallback) --
+
+	private static assignTeams(preferences: number[]): boolean[] {
+		const total = preferences.length;
+		const maxPerTeam = Math.ceil(total / 2);
+		const assigned = new Array<boolean | undefined>(total);
+		let redCount = 0;
+		let blueCount = 0;
+
+		// Phase 1: honor explicit preferences while there's room.
+		for (let i = 0; i < total; i++) {
+			if (preferences[i] === 1 && redCount < maxPerTeam) {
+				assigned[i] = true;
+				redCount++;
+			} else if (preferences[i] === -1 && blueCount < maxPerTeam) {
+				assigned[i] = false;
+				blueCount++;
+			}
+		}
+
+		// Phase 2: fill remaining slots, keeping team sizes balanced.
+		for (let i = 0; i < total; i++) {
+			if (assigned[i] !== undefined) continue;
+			const isRed = redCount < blueCount || (redCount === blueCount && i % 2 === 0);
+			if (isRed && redCount < maxPerTeam) {
+				assigned[i] = true;
+				redCount++;
+			} else {
+				assigned[i] = false;
+				blueCount++;
+			}
+		}
+
+		return assigned as boolean[];
+	}
+
+	private createTowers() {
+		let id = 0;
+		for (const team of ['red', 'blue'] as const) {
+			const y = team === 'red' ? -TOWER_Y_OFFSET : TOWER_Y_OFFSET;
+			for (const x of TOWER_X_POSITIONS) {
+				this.towers.push(new Tower(id++, team, x, y));
+			}
+		}
+	}
+
+	/** Sets each team's gauges to their starting values (TSoldier.SPAWN_MANA
+	 *  etc.), immediately spawning whichever troops that implies (e.g. a
+	 *  starting gauge of 12 spawns 12 soldiers right away). */
+	private initializeInitialArmies() {
+		for (const team of ['red', 'blue'] as const) {
+			for (const type of TROOP_TYPE_IDS) {
+				this.manaGauges[team][type] = INITIAL_SPAWN_MANA[type];
+				if (this.manaGauges[team][type] >= SPAWN_MANA_THRESHOLD) {
+					this.manaGauges[team][type] -= SPAWN_MANA_THRESHOLD;
+					this.spawnTroop(team, type);
+				}
+			}
+		}
+	}
+
+	private spawnTroop(team: 'red' | 'blue', type: TroopTypeId) {
+		const x = TYPE_X_POSITION[type];
+		const y = team === 'red'
+			? -Y_LIMIT + TROOP_RADIUS * 2
+			: Y_LIMIT - TROOP_RADIUS * 2;
+
+		this.troops.push(createTroop(type, this.nextTroopId++, team, x, y));
+	}
 
 	static async createServ(
 		players: PlayerInput[],
@@ -516,43 +882,25 @@ export class GMMoveArmy extends GameMode {
 		const { StartData, StartDataClient } = protocols.get();
 		const game = new GMMoveArmy(total);
 
-		function decode(i: number) {
-			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return { preferTeam: 0 };
-		}
-
-		const prefs = game.players.map((_, i) => decode(i).preferTeam ?? 0);
-
-		// Balance the 4 players into two teams of 2, honoring preferences first.
-		const maxPerTeam = Math.ceil(total / 2);
-		const assignedRed = new Array<boolean>(total);
-		let redCount = 0;
-		let blueCount = 0;
-
-		for (let i = 0; i < total; i++) {
-			if (prefs[i] === 1 && redCount < maxPerTeam) {
-				assignedRed[i] = true;
-				redCount++;
-			} else if (prefs[i] === -1 && blueCount < maxPerTeam) {
-				assignedRed[i] = false;
-				blueCount++;
+		const preferences = Array.from({ length: total }, (_, i) => {
+			if (i < players.length) {
+				const decoded = decodeFullMessage(StartData.decode(players[i].data));
+				return decoded.preferTeam ?? 0;
 			}
-		}
-		for (let i = 0; i < total; i++) {
-			if (assignedRed[i] !== undefined) continue;
-			const putRed = redCount < blueCount || (redCount === blueCount && i % 2 === 0);
-			if (putRed && redCount < maxPerTeam) { assignedRed[i] = true; redCount++; }
-			else { assignedRed[i] = false; blueCount++; }
+			return 0;
+		});
+
+		const assignedRed = GMMoveArmy.assignTeams(preferences);
+		for (const [i, player] of game.players.entries()) {
+			player.initTeam(assignedRed[i] ? 'red' : 'blue');
 		}
 
-		for (const [i, p] of game.players.entries()) {
-			p.isRed = assignedRed[i];
-		}
-
-		game.setupTowers();
+		game.createTowers();
+		game.initializeInitialArmies();
 
 		const data = StartDataClient.encode({
-			players: game.players.map((p) => ({ isRed: p.isRed })),
+			playersRed: assignedRed,
+			towers: game.towers.map(t => ({ id: t.id, x: t.x, y: t.y, isRed: t.team === 'red' }))
 		}).finish();
 
 		return { game, data };
@@ -564,581 +912,755 @@ export class GMMoveArmy extends GameMode {
 		playerIdx: number
 	) {
 		const game = new GMMoveArmy(total);
-		const { StartData, StartDataClient } = protocols.get();
+		const { StartDataClient } = protocols.get();
 		const clientData = new ClientData();
-		clientData.localPlayerIdx = playerIdx;
 
 		if (origin === 'server') {
-			const { players } = decodeFullMessage(StartDataClient.decode(data));
-			for (const [idx, p] of players.entries()) {
-				game.players[idx].isRed = p.isRed;
+			const { playersRed, towers } = decodeFullMessage(StartDataClient.decode(data));
+
+			for (const [i, player] of game.players.entries()) {
+				player.initTeam(playersRed[i] ? 'red' : 'blue');
 			}
-		} else { // origin === 'client', local preview / bot match
-			decodeFullMessage(StartData.decode(data));
-			for (const [idx, p] of game.players.entries()) {
-				p.isRed = idx % 2 === 0;
+
+			for (const t of towers) {
+				game.towers.push(new Tower(t.id, t.isRed ? 'red' : 'blue', t.x, t.y));
 			}
+
+			// Troops are fully dynamic; they arrive with the first State load(),
+			// spawning any locally here would desync from the server.
+		} else { // origin === 'client': local fallback before any server exists
+			const assignedRed = GMMoveArmy.assignTeams(new Array(total).fill(0));
+			for (const [i, player] of game.players.entries()) {
+				player.initTeam(assignedRed[i] ? 'red' : 'blue');
+			}
+			game.createTowers();
+			game.initializeInitialArmies();
 		}
 
-		game.setupTowers();
+		clientData.myTeam = game.players[playerIdx].team;
 
 		return {
 			game,
 			data: clientData,
 			html: clientData.html,
-			skins: {},
+			skins: {}
 		};
 	}
 
 	static readonly generateClientDom = generateClientDom;
 
-	static readonly SKINS = { 'default': "Default" };
-	static readonly SKINS_IDS = Object.keys(GMMoveArmy.SKINS);
-
 	static readonly TEXTURES = {
-		'arrow': "/assets/games/moveArmy/arrow.png",
-		'tower-red': "/assets/games/moveArmy/tower_red.png",
-		'tower-blue': "/assets/games/moveArmy/tower_blue.png",
-		'troop-soldier': "/assets/games/moveArmy/troop_soldier.png",
-		'troop-archer': "/assets/games/moveArmy/troop_archer.png",
-		'troop-tank': "/assets/games/moveArmy/troop_tank.png",
-		'troop-bomber': "/assets/games/moveArmy/troop_bomber.png",
-		'troop-car': "/assets/games/moveArmy/troop_car.png",
+		'tower-red': '/assets/games/moveArmy/tower_red.png',
+		'tower-blue': '/assets/games/moveArmy/tower_blue.png',
+		'troop-soldier-red': '/assets/games/moveArmy/troop_soldier_red.png',
+		'troop-soldier-blue': '/assets/games/moveArmy/troop_soldier_blue.png',
+		'troop-archer-red': '/assets/games/moveArmy/troop_archer_red.png',
+		'troop-archer-blue': '/assets/games/moveArmy/troop_archer_blue.png',
+		'troop-tank-red': '/assets/games/moveArmy/troop_tank_red.png',
+		'troop-tank-blue': '/assets/games/moveArmy/troop_tank_blue.png',
+		'troop-bomber-red': '/assets/games/moveArmy/troop_bomber_red.png',
+		'troop-bomber-blue': '/assets/games/moveArmy/troop_bomber_blue.png',
+		'troop-car-red': '/assets/games/moveArmy/troop_car_red.png',
+		'troop-car-blue': '/assets/games/moveArmy/troop_car_blue.png',
+		'arrow': '/assets/games/moveArmy/arrow.png',
+		'bomb': '/assets/games/moveArmy/bomb.png'
 	};
 
-	/** Places the 3 towers of each team at their fixed, symmetrical positions. */
-	private setupTowers() {
-		let id = 0;
-		for (const x of TOWER_XS) {
-			this.towers.push(new Tower(id++, true, x, TOWER_RED_Y));
-		}
-		for (const x of TOWER_XS) {
-			this.towers.push(new Tower(id++, false, x, TOWER_BLUE_Y));
-		}
-	}
-
-	override init(): void {
-		// Nothing extra: towers are already set up in setupTowers(), troops
-		// start appearing automatically once the mana gauges fill up.
-	}
+	override init(): void {}
 
 	override getBotIds(count: number): number[] {
 		return Array.from({ length: count }, () => 0);
 	}
 
-	// -------------------------------------------------------------------------
-	// MAIN SIMULATION LOOP
-	// -------------------------------------------------------------------------
+	// -- Lookup helpers -------------------------------------------------------
 
-	override run(dt: number, produceFinish: boolean): FinishGame | null {
-		this.time -= dt;
+	getTroopById(id: number): Troop | null {
+		return this.troops.find(t => t.id === id) ?? null;
+	}
 
-		this.updateManaAndAutoSpawn(dt);
+	getTowerById(id: number): Tower | null {
+		return this.towers.find(t => t.id === id) ?? null;
+	}
 
-		for (const troop of this.troops.values()) {
-			troop.update(dt, this);
+	getFriendlyTroops(team: 'red' | 'blue'): Troop[] {
+		return this.troops.filter(t => t.team === team);
+	}
+
+	/** Damage is doubled during the last minute (sudden death) to force a winner. */
+	getDamageMultiplier(): number {
+		return this.time <= SUDDEN_DEATH_DURATION ? SUDDEN_DEATH_DAMAGE_MULTIPLIER : 1;
+	}
+
+	resolveNeighboorPosition(target: NeighboorTarget): { x: number; y: number } | null {
+		switch (target.kind) {
+			case 'point':
+				return { x: target.x, y: target.y };
+			case 'troop': {
+				const t = this.getTroopById(target.id);
+				return t && t.isAlive() ? { x: t.x, y: t.y } : null;
+			}
+			case 'tower': {
+				const t = this.getTowerById(target.id);
+				return t && t.isAlive() ? { x: t.x, y: t.y } : null;
+			}
 		}
-		for (const tower of this.towers) {
-			tower.update(dt, this);
+	}
+
+	/** Walks the neighboor chain starting at `toId`; returns true if it ever
+	 *  reaches `fromId`, meaning adding the fromId -> toId edge would create a
+	 *  cycle in the link graph. */
+	wouldCreateCycle(fromId: number, toId: number): boolean {
+		let currentId: number | null = toId;
+		let depth = 0;
+		const visited = new Set<number>();
+
+		while (currentId !== null && depth < MAX_CYCLE_CHECK_DEPTH) {
+			if (currentId === fromId) return true;
+			if (visited.has(currentId)) return true; // pre-existing cycle, bail out safely
+			visited.add(currentId);
+
+			const troop = this.getTroopById(currentId);
+			if (!troop || !troop.neighboor || troop.neighboor.kind !== 'troop') break;
+
+			currentId = troop.neighboor.id;
+			depth++;
 		}
 
-		this.removeDeadTroops();
+		return false;
+	}
 
-		const redTowersAlive = this.towers.some(t => t.isRed && t.hp > 0);
-		const blueTowersAlive = this.towers.some(t => !t.isRed && t.hp > 0);
+	findNearestEnemyInRange(troop: Troop): CombatTarget | null {
+		const range2 = troop.getAttackRange() ** 2;
+		let best: CombatTarget | null = null;
+		let bestDist = Infinity;
 
-		let finished = !redTowersAlive || !blueTowersAlive;
-
-		if (this.time <= 0) {
-			if (!this.suddenDeath) {
-				// Main time is over but nobody has been fully defeated: enter
-				// a sudden-death overtime instead of ending the match right away.
-				this.suddenDeath = true;
-				this.time = SUDDEN_DEATH_DURATION;
-			} else {
-				finished = true;
-				this.time = 0;
+		for (const other of this.troops) {
+			if (!other.isAlive() || other.team === troop.team) continue;
+			const d = norm2(other.x - troop.x, other.y - troop.y);
+			if (d <= range2 && d < bestDist) {
+				bestDist = d;
+				best = { kind: 'troop', id: other.id, x: other.x, y: other.y };
 			}
 		}
 
-		if (produceFinish && finished) {
-			return this.produceFinish();
+		for (const tower of this.towers) {
+			if (!tower.isAlive() || tower.team === troop.team) continue;
+			const d = norm2(tower.x - troop.x, tower.y - troop.y);
+			if (d <= range2 && d < bestDist) {
+				bestDist = d;
+				best = { kind: 'tower', id: tower.id, x: tower.x, y: tower.y };
+			}
+		}
+
+		return best;
+	}
+
+	findNearestEnemyTroopInRange(x: number, y: number, range: number, team: 'red' | 'blue'): CombatTarget | null {
+		const range2 = range * range;
+		let best: CombatTarget | null = null;
+		let bestDist = Infinity;
+
+		for (const troop of this.troops) {
+			if (!troop.isAlive() || troop.team === team) continue;
+			const d = norm2(troop.x - x, troop.y - y);
+			if (d <= range2 && d < bestDist) {
+				bestDist = d;
+				best = { kind: 'troop', id: troop.id, x: troop.x, y: troop.y };
+			}
+		}
+
+		return best;
+	}
+
+	applyDamageToTarget(target: CombatTarget, damage: number, _attackerTeam: 'red' | 'blue') {
+		if (target.kind === 'troop') {
+			const troop = this.getTroopById(target.id);
+			if (troop && troop.isAlive()) {
+				troop.takeDamage(damage);
+				if (!troop.isAlive()) this.onTroopDeath(troop);
+			}
+		} else {
+			const tower = this.getTowerById(target.id);
+			if (tower && tower.isAlive()) tower.takeDamage(damage);
+		}
+	}
+
+	/** Grants the death mana bonus and unlinks anyone who was following this
+	 *  troop, so they immediately start searching for a new target. */
+	private onTroopDeath(troop: Troop) {
+		this.manaGauges[troop.team][troop.getType()] += DEATH_MANA_BONUS;
+
+		for (const other of this.troops) {
+			if (other.neighboor?.kind === 'troop' && other.neighboor.id === troop.id) {
+				other.clearNeighboor(this);
+			}
+		}
+	}
+
+	spawnArrow(x: number, y: number, target: CombatTarget, damage: number, team: 'red' | 'blue') {
+		const dx = target.x - x;
+		const dy = target.y - y;
+		const dist = Math.sqrt(norm2(dx, dy)) || 1;
+
+		this.arrows.push({
+			id: this.nextProjectileId++,
+			x, y,
+			vx: (dx / dist) * ARROW_SPEED,
+			vy: (dy / dist) * ARROW_SPEED,
+			targetX: target.x,
+			targetY: target.y,
+			damage,
+			team,
+			targetTroopId: target.kind === 'troop' ? target.id : null,
+			targetTowerId: target.kind === 'tower' ? target.id : null
+		});
+	}
+
+	spawnBomb(x: number, y: number, target: CombatTarget, damage: number, team: 'red' | 'blue', radius: number) {
+		const dx = target.x - x;
+		const dy = target.y - y;
+		const dist = Math.sqrt(norm2(dx, dy)) || 1;
+
+		this.bombs.push({
+			id: this.nextProjectileId++,
+			x, y,
+			vx: (dx / dist) * BOMB_SPEED,
+			vy: (dy / dist) * BOMB_SPEED,
+			targetX: target.x,
+			targetY: target.y,
+			damage,
+			team,
+			radius
+		});
+	}
+
+	private updateManaGauges(dt: number) {
+		for (const team of ['red', 'blue'] as const) {
+			const gauge = this.manaGauges[team];
+			for (const type of TROOP_TYPE_IDS) {
+				gauge[type] += SPAWN_MANA_RATE * dt;
+				if (gauge[type] >= SPAWN_MANA_THRESHOLD) {
+					gauge[type] -= SPAWN_MANA_THRESHOLD;
+					this.spawnTroop(team, type);
+				}
+			}
+		}
+	}
+
+	private updateArrows(dt: number) {
+		const remaining: Arrow[] = [];
+
+		for (const arrow of this.arrows) {
+			arrow.x += arrow.vx * dt;
+			arrow.y += arrow.vy * dt;
+
+			const distToTarget = Math.sqrt(norm2(arrow.targetX - arrow.x, arrow.targetY - arrow.y));
+			const outOfBounds = Math.abs(arrow.x) > X_LIMIT * 1.2 || Math.abs(arrow.y) > Y_LIMIT * 1.2;
+
+			if (distToTarget < ARROW_HIT_DISTANCE) {
+				if (arrow.targetTroopId !== null) {
+					const troop = this.getTroopById(arrow.targetTroopId);
+					if (troop && troop.isAlive()) {
+						troop.takeDamage(arrow.damage);
+						if (!troop.isAlive()) this.onTroopDeath(troop);
+					}
+				} else if (arrow.targetTowerId !== null) {
+					const tower = this.getTowerById(arrow.targetTowerId);
+					if (tower) tower.takeDamage(arrow.damage);
+				}
+			} else if (!outOfBounds) {
+				remaining.push(arrow);
+			}
+		}
+
+		this.arrows = remaining;
+	}
+
+	private updateBombs(dt: number) {
+		const remaining: Bomb[] = [];
+
+		for (const bomb of this.bombs) {
+			bomb.x += bomb.vx * dt;
+			bomb.y += bomb.vy * dt;
+
+			const distToTarget = Math.sqrt(norm2(bomb.targetX - bomb.x, bomb.targetY - bomb.y));
+			if (distToTarget < BOMB_HIT_DISTANCE) {
+				this.explodeBomb(bomb);
+			} else {
+				remaining.push(bomb);
+			}
+		}
+
+		this.bombs = remaining;
+	}
+
+	private explodeBomb(bomb: Bomb) {
+		const r2 = bomb.radius * bomb.radius;
+
+		for (const troop of this.troops) {
+			if (troop.team === bomb.team || !troop.isAlive()) continue;
+			if (norm2(troop.x - bomb.targetX, troop.y - bomb.targetY) <= r2) {
+				troop.takeDamage(bomb.damage);
+				if (!troop.isAlive()) this.onTroopDeath(troop);
+			}
+		}
+
+		for (const tower of this.towers) {
+			if (tower.team === bomb.team || !tower.isAlive()) continue;
+			if (norm2(tower.x - bomb.targetX, tower.y - bomb.targetY) <= r2) {
+				tower.takeDamage(bomb.damage);
+			}
+		}
+	}
+
+	/** Adapted from the reference PlayerCollisions code: pairwise circle-circle
+	 *  separation so troops don't overlap. Troops that are planted while
+	 *  attacking hold their ground; only free-moving troops get pushed. */
+	private handleTroopCollisions(): void {
+		const minDist = TROOP_RADIUS * 2;
+
+		for (let i = 0; i < this.troops.length; i++) {
+			const a = this.troops[i];
+			if (!a.isAlive()) continue;
+
+			for (let j = i + 1; j < this.troops.length; j++) {
+				const b = this.troops[j];
+				if (!b.isAlive()) continue;
+
+				const dx = b.x - a.x;
+				const dy = b.y - a.y;
+				const dist2 = norm2(dx, dy);
+
+				if (dist2 >= minDist * minDist || dist2 === 0) continue;
+
+				const dist = Math.sqrt(dist2);
+				const nx = dx / dist;
+				const ny = dy / dist;
+				const penetration = minDist - dist;
+				const correction = penetration / 2;
+
+				const aFixed = a.attacking && !a.canMoveWhileAttacking();
+				const bFixed = b.attacking && !b.canMoveWhileAttacking();
+
+				if (!aFixed) {
+					a.x -= nx * correction;
+					a.y -= ny * correction;
+				}
+				if (!bFixed) {
+					b.x += nx * correction;
+					b.y += ny * correction;
+				}
+
+				a.clampToArena();
+				b.clampToArena();
+			}
+		}
+	}
+
+	/** True once either team has lost all of its towers (instant win). */
+	private checkEarlyFinish(): boolean {
+		const redAlive = this.towers.some(t => t.team === 'red' && t.isAlive());
+		const blueAlive = this.towers.some(t => t.team === 'blue' && t.isAlive());
+		return !redAlive || !blueAlive;
+	}
+
+	override run(dt: number, produceFinish: boolean): FinishGame | null {
+		this.time = Math.max(0, this.time - dt);
+		const timeUp = this.time <= 0;
+
+		this.updateManaGauges(dt);
+
+		for (const troop of this.troops) {
+			troop.frame(this, dt);
+		}
+		this.handleTroopCollisions();
+
+		for (const tower of this.towers) {
+			tower.frame(this, dt);
+		}
+
+		this.updateArrows(dt);
+		this.updateBombs(dt);
+
+		this.troops = this.troops.filter(t => t.isAlive());
+
+		if (timeUp || this.checkEarlyFinish()) {
+			if (produceFinish) {
+				return this.produceFinish();
+			}
 		}
 
 		return null;
 	}
 
-	/** Grows each team's per-type mana gauge and auto-spawns troops when it overflows. */
-	private updateManaAndAutoSpawn(dt: number) {
-		for (const isRed of [true, false]) {
-			const gauges = isRed ? this.redMana : this.blueMana;
-			for (const type of TYPE_LIST) {
-				gauges[type] += MANA_REGEN_PER_SECOND * dt;
-				if (gauges[type] >= 1) {
-					gauges[type] -= 1;
-					this.spawnTroop(type, isRed);
-				}
-			}
-		}
-	}
-
-	/** Creates a brand new troop of the given type, at its fixed lane, in its team's spawn row. */
-	private spawnTroop(type: TroopTypeName, isRed: boolean) {
-		const stats = STATS[type];
-		const x = stats.laneX;
-		const y = isRed ? -SPAWN_Y : SPAWN_Y;
-
-		const Ctor = TYPE_CLASSES[type];
-		const troop = new Ctor(this.nextTroopId++, isRed, x, y);
-		this.troops.set(troop.id, troop);
-	}
-
-	/** Removes troops with 0 or less HP, crediting their team's mana gauge for that type. */
-	private removeDeadTroops() {
-		for (const [id, troop] of this.troops) {
-			if (troop.hp > 0) continue;
-
-			const gauges = troop.isRed ? this.redMana : this.blueMana;
-			const type = TYPE_LIST[troop.typeIndex];
-			gauges[type] += DEATH_MANA_GAIN;
-
-			this.troops.delete(id);
-			// Any troop that was following this one will notice it's gone on its
-			// next update (resolveNeighboorTarget lazily detects missing targets).
-		}
-	}
-
-	// -------------------------------------------------------------------------
-	// TARGETING / NEIGHBOOR GRAPH HELPERS (used by Troop and by input handling)
-	// -------------------------------------------------------------------------
-
-	/** Finds the nearest living troop or tower of the given team within `range`. */
-	findNearestAttackable(x: number, y: number, range: number, isRed: boolean): Attackable | null {
-		let best: Attackable | null = null;
-		let bestDistSq = range * range;
-
-		for (const troop of this.troops.values()) {
-			if (troop.isRed !== isRed) continue;
-			const d = norm2(troop.x - x, troop.y - y);
-			if (d <= bestDistSq) { best = troop; bestDistSq = d; }
-		}
-		for (const tower of this.towers) {
-			if (tower.isRed !== isRed || tower.hp <= 0) continue;
-			const d = norm2(tower.x - x, tower.y - y);
-			if (d <= bestDistSq) { best = tower; bestDistSq = d; }
-		}
-
-		return best;
-	}
-
-	/** Same as above, but towers only ever target troops (never enemy towers). */
-	findNearestEnemyTroop(x: number, y: number, range: number, isRed: boolean): Troop | null {
-		let best: Troop | null = null;
-		let bestDistSq = range * range;
-
-		for (const troop of this.troops.values()) {
-			if (troop.isRed !== isRed) continue;
-			const d = norm2(troop.x - x, troop.y - y);
-			if (d <= bestDistSq) { best = troop; bestDistSq = d; }
-		}
-
-		return best;
-	}
-
-	/** Every attackable unit (troops + living towers) belonging to one team. Used for splash damage. */
-	getAllAttackables(isRed: boolean): Attackable[] {
-		const list: Attackable[] = [];
-		for (const troop of this.troops.values()) {
-			if (troop.isRed === isRed) list.push(troop);
-		}
-		for (const tower of this.towers) {
-			if (tower.isRed === isRed && tower.hp > 0) list.push(tower);
-		}
-		return list;
-	}
-
-	/**
-	 * Resolves the world position a troop's current neighboor target points to.
-	 * Has the side effect of clearing the neighboor (falling back to 'none')
-	 * when the target has become invalid (dead/destroyed), or when the target
-	 * is a friendly troop that just started attacking (per the design rule:
-	 * "if our target is a friendly troop and it starts attacking, we stop
-	 * following it instead").
-	 */
-	resolveNeighboorTarget(troop: Troop): { x: number; y: number } | null {
-		switch (troop.neighboorKind) {
-			case 'none':
-				return null;
-
-			case 'point':
-				return { x: troop.neighboorX, y: troop.neighboorY };
-
-			case 'troop': {
-				const target = this.troops.get(troop.neighboorId);
-				if (!target) {
-					this.clearNeighboor(troop);
-					return null;
-				}
-				if (target.isRed === troop.isRed && target.attacking) {
-					// Our guide ally stopped to fight: detach so we can react on our own.
-					this.clearNeighboor(troop);
-					return null;
-				}
-				return { x: target.x, y: target.y };
-			}
-
-			case 'tower': {
-				const tower = this.towers.find(t => t.id === troop.neighboorId && t.isRed === troop.isRed === false || t.id === troop.neighboorId);
-				if (!tower || tower.hp <= 0) {
-					this.clearNeighboor(troop);
-					return null;
-				}
-				return { x: tower.x, y: tower.y };
-			}
-		}
-	}
-
-	/** Clears a troop's neighboor link, remembering it so we don't immediately re-pick it. */
-	private clearNeighboor(troop: Troop) {
-		troop.lastNeighboorId = troop.neighboorKind === 'troop' ? troop.neighboorId : -1;
-		troop.neighboorKind = 'none';
-		troop.neighboorId = -1;
-		troop.noTargetTimer = 0;
-	}
-
-	/** Links a lost troop to its nearest living ally, excluding the one it just lost. */
-	linkToNearestAlly(troop: Troop) {
-		let best: Troop | null = null;
-		let bestDistSq = Infinity;
-
-		for (const other of this.troops.values()) {
-			if (other === troop) continue;
-			if (other.isRed !== troop.isRed) continue;
-			if (other.id === troop.lastNeighboorId) continue;
-
-			const d = norm2(other.x - troop.x, other.y - troop.y);
-			if (d < bestDistSq) { best = other; bestDistSq = d; }
-		}
-
-		if (best) {
-			troop.neighboorKind = 'troop';
-			troop.neighboorId = best.id;
-			troop.noTargetTimer = 0;
-		}
-	}
-
-	/**
-	 * Cuts every displayed neighboor arrow that crosses the (startX,startY)-(endX,endY)
-	 * segment drawn by the player. Works on both teams' links (no ownership check
-	 * here — only creating/editing a link is restricted to your own team).
-	 */
-	cutLinks(startX: number, startY: number, endX: number, endY: number) {
-		for (const troop of this.troops.values()) {
-			if (troop.neighboorKind === 'none') continue;
-
-			const pos = this.resolveNeighboorTarget(troop);
-			if (!pos) continue; // link auto-cleared while resolving (e.g. dead target)
-
-			if (segmentsIntersect(troop.x, troop.y, pos.x, pos.y, startX, startY, endX, endY)) {
-				this.clearNeighboor(troop);
-			}
-		}
-	}
-
-	/** Finds a troop of a given team (or any team if omitted) near a world point. Used for hit-testing clicks. */
-	findTroopNear(x: number, y: number, radius: number, isRed?: boolean): Troop | null {
-		const radiusSq = radius * radius;
-		let best: Troop | null = null;
-		let bestDistSq = radiusSq;
-
-		for (const troop of this.troops.values()) {
-			if (isRed !== undefined && troop.isRed !== isRed) continue;
-			const d = norm2(troop.x - x, troop.y - y);
-			if (d <= bestDistSq) { best = troop; bestDistSq = d; }
-		}
-		return best;
-	}
-
-	/** Finds a tower near a world point. Used for hit-testing clicks. */
-	findTowerNear(x: number, y: number, radius: number): Tower | null {
-		const radiusSq = radius * radius;
-		let best: Tower | null = null;
-		let bestDistSq = radiusSq;
-
-		for (const tower of this.towers) {
-			const d = norm2(tower.x - x, tower.y - y);
-			if (d <= bestDistSq) { best = tower; bestDistSq = d; }
-		}
-		return best;
-	}
-
-	// -------------------------------------------------------------------------
-	// INPUT
-	// -------------------------------------------------------------------------
-
 	override runInput(playerIdx: number, input: Fields): void {
 		const player = this.players[playerIdx];
 
 		switch (input.action) {
-			case 'cutLine': {
-				const { startX, startY, endX, endY } = input.cutLine;
-				this.cutLinks(startX, startY, endX, endY);
+			case 'cutLine':
+				this.handleCutLine(player, input.cutLine);
 				break;
-			}
 
-			case 'changeNeighboor': {
-				const { troopId, targetKind, targetId, targetX, targetY } = input.changeNeighboor;
-				const troop = this.troops.get(troopId);
-
-				// A player may only redirect troops belonging to their own team.
-				if (!troop || troop.isRed !== player.isRed) break;
-
-				switch (targetKind) {
-					case 0: // dropped back onto itself => cancel the link entirely
-						this.clearNeighboor(troop);
-						break;
-					case 1: // dropped on empty ground => point target
-						troop.neighboorKind = 'point';
-						troop.neighboorX = targetX;
-						troop.neighboorY = targetY;
-						troop.noTargetTimer = 0;
-						break;
-					case 2: // dropped on a troop => follow that troop
-						troop.neighboorKind = 'troop';
-						troop.neighboorId = targetId;
-						troop.noTargetTimer = 0;
-						break;
-					case 3: // dropped on a tower => march toward that tower
-						troop.neighboorKind = 'tower';
-						troop.neighboorId = targetId;
-						troop.noTargetTimer = 0;
-						break;
-				}
+			case 'changeNeighboor':
+				this.handleChangeNeighboor(player, input.changeNeighboor);
 				break;
+		}
+	}
+
+	/** Cuts every link (of any team — cutting isn't restricted, only creating
+	 *  new links is) that crosses the given segment. */
+	private handleCutLine(_player: Player, data: Fields) {
+		const { startX, startY, endX, endY } = data;
+
+		for (const troop of this.troops) {
+			if (!troop.neighboor || troop.neighboor.kind !== 'troop') continue;
+
+			const pos = this.resolveNeighboorPosition(troop.neighboor);
+			if (!pos) continue;
+
+			if (segmentsIntersect(startX, startY, endX, endY, troop.x, troop.y, pos.x, pos.y)) {
+				troop.clearNeighboor(this);
 			}
 		}
 	}
 
-	override collectInputs(
-		keyboard: IKeyboardController,
-		mouse: IMouseController,
-		mobile: IMobileController | null,
-		_data: any
-	) {
-		const data = _data as ClientData;
-		const inputs: Fields[] = [];
+	/** Re-links a troop the player commands. Only the owning team may do this. */
+	private handleChangeNeighboor(player: Player, data: Fields) {
+		const troop = this.getTroopById(data.troopId);
+		if (!troop || troop.team !== player.team) return;
 
-		const localTeamRed = this.players[data.localPlayerIdx]?.isRed ?? true;
+		switch (data.target?.case) {
+			case 'cancel':
+				troop.clearNeighboor(this);
+				return;
 
-		// --- Drag start: decide between "cut" mode and "link" mode ------------
-		if (mouse.first(0)) {
-			const start = mouse.getCoords();
-			data.dragStartX = start.x;
-			data.dragStartY = start.y;
-			data.dragCurrentX = start.x;
-			data.dragCurrentY = start.y;
+			case 'targetPoint':
+				troop.neighboor = { kind: 'point', x: data.target.targetPoint.x, y: data.target.targetPoint.y };
+				break;
 
-			const touchedTroop = this.findTroopNear(start.x, start.y, HIT_RADIUS, localTeamRed);
-			if (touchedTroop) {
-				data.dragMode = 'link';
-				data.draggedTroopId = touchedTroop.id;
-			} else {
-				data.dragMode = 'cut';
-				data.draggedTroopId = -1;
+			case 'targetTroopId': {
+				const targetId = data.target.targetTroopId;
+				if (targetId === troop.id || this.wouldCreateCycle(troop.id, targetId)) return;
+				troop.neighboor = { kind: 'troop', id: targetId };
+				break;
+			}
+
+			case 'targetTowerId':
+				troop.neighboor = { kind: 'tower', id: data.target.targetTowerId };
+				break;
+
+			default:
+				return;
+		}
+
+		troop.noTargetTimer = 0;
+	}
+
+	// -- Input collection -------------------------------------------------
+
+	private hitTestTroop(x: number, y: number): Troop | null {
+		for (const troop of this.troops) {
+			if (!troop.isAlive()) continue;
+			if (norm2(troop.x - x, troop.y - y) <= TROOP_RADIUS * TROOP_RADIUS) return troop;
+		}
+		return null;
+	}
+
+	private hitTestTower(x: number, y: number): Tower | null {
+		for (const tower of this.towers) {
+			if (!tower.isAlive()) continue;
+			if (norm2(tower.x - x, tower.y - y) <= TOWER_RADIUS * TOWER_RADIUS) return tower;
+		}
+		return null;
+	}
+
+	/** Unifies mouse and (emulated) single-touch pointer handling, since
+	 *  IMobileController only exposes the raw current digit list rather than
+	 *  first/press/killed helpers like the mouse controller does. */
+	private getPointerState(mouse: IMouseController, mobile: IMobileController | null, data: ClientData) {
+		if (mouse.press(0) || mouse.first(0) || mouse.killed(0)) {
+			const coords = mouse.getCoords();
+			return { x: coords.x, y: coords.y, first: mouse.first(0), press: mouse.press(0), killed: mouse.killed(0) };
+		}
+
+		if (mobile) {
+			const digits = mobile.getDigits();
+			const digit = digits[0] ?? null;
+
+			const wasDown = data.prevDigitId !== null;
+			const isDown = digit !== null;
+			const first = isDown && !wasDown;
+			const killedNow = !isDown && wasDown;
+
+			data.prevDigitId = isDown ? digit!.id : null;
+
+			if (isDown) {
+				return { x: digit!.x, y: digit!.y, first, press: true, killed: false };
+			}
+			if (killedNow) {
+				return { x: data.lastPointerX, y: data.lastPointerY, first: false, press: false, killed: true };
 			}
 		}
 
-		// --- Drag continuation: keep the live preview line up to date --------
-		if (data.dragMode && mouse.press(0)) {
-			const current = mouse.getCoords();
-			data.dragCurrentX = current.x;
-			data.dragCurrentY = current.y;
+		return null;
+	}
+
+	override collectInputs(
+		_keyboard: IKeyboardController,
+		mouse: IMouseController,
+		mobile: IMobileController | null,
+		_data: any
+	): Fields[] {
+		const data = _data as ClientData;
+		const inputs: Fields[] = [];
+		const pointer = this.getPointerState(mouse, mobile, data);
+		if (!pointer) return inputs;
+
+		data.mouseX = pointer.x;
+		data.mouseY = pointer.y;
+		data.lastPointerX = pointer.x;
+		data.lastPointerY = pointer.y;
+
+		if (pointer.first) {
+			const hitTroop = this.hitTestTroop(pointer.x, pointer.y);
+			if (hitTroop && hitTroop.team === data.myTeam) {
+				data.dragMode = 'link';
+				data.dragTroopId = hitTroop.id;
+			} else {
+				data.dragMode = 'cut';
+				data.dragTroopId = null;
+			}
+			data.dragStartX = pointer.x;
+			data.dragStartY = pointer.y;
+			data.dragCurrentX = pointer.x;
+			data.dragCurrentY = pointer.y;
 		}
 
-		// --- Drag end: emit the actual game input ------------------------------
-		if (data.dragMode && mouse.killed(0)) {
-			const end = mouse.getCoords();
+		if (pointer.press && data.dragMode) {
+			data.dragCurrentX = pointer.x;
+			data.dragCurrentY = pointer.y;
+		}
 
+		if (pointer.killed && data.dragMode) {
 			if (data.dragMode === 'cut') {
 				inputs.push({
 					action: 'cutLine',
 					cutLine: {
-						startX: data.dragStartX,
-						startY: data.dragStartY,
-						endX: end.x,
-						endY: end.y,
-					},
+						startX: data.dragStartX, startY: data.dragStartY,
+						endX: pointer.x, endY: pointer.y
+					}
 				});
-			} else if (data.dragMode === 'link' && data.draggedTroopId >= 0) {
-				const selfTroop = this.troops.get(data.draggedTroopId);
+			} else if (data.dragMode === 'link' && data.dragTroopId !== null) {
+				const targetTroop = this.hitTestTroop(pointer.x, pointer.y);
+				const targetTower = this.hitTestTower(pointer.x, pointer.y);
 
-				let targetKind = 1; // default: dropped on empty ground
-				let targetId = -1;
-
-				if (selfTroop && norm2(end.x - selfTroop.x, end.y - selfTroop.y) <= HIT_RADIUS * HIT_RADIUS) {
-					targetKind = 0; // dropped back on itself => cancel
+				let target: Fields;
+				if (targetTroop && targetTroop.id === data.dragTroopId) {
+					target = { case: 'cancel', cancel: {} };
+				} else if (targetTroop) {
+					target = { case: 'targetTroopId', targetTroopId: targetTroop.id };
+				} else if (targetTower) {
+					target = { case: 'targetTowerId', targetTowerId: targetTower.id };
 				} else {
-					const targetTroop = this.findTroopNear(end.x, end.y, HIT_RADIUS);
-					const targetTower = targetTroop ? null : this.findTowerNear(end.x, end.y, HIT_RADIUS);
-
-					if (targetTroop) { targetKind = 2; targetId = targetTroop.id; }
-					else if (targetTower) { targetKind = 3; targetId = targetTower.id; }
+					target = { case: 'targetPoint', targetPoint: { x: pointer.x, y: pointer.y } };
 				}
 
 				inputs.push({
 					action: 'changeNeighboor',
-					changeNeighboor: {
-						troopId: data.draggedTroopId,
-						targetKind,
-						targetId,
-						targetX: end.x,
-						targetY: end.y,
-					},
+					changeNeighboor: { troopId: data.dragTroopId, target }
 				});
 			}
 
 			data.dragMode = null;
-			data.draggedTroopId = -1;
+			data.dragTroopId = null;
 		}
 
 		return inputs;
 	}
 
-	// -------------------------------------------------------------------------
-	// DRAWING
-	// -------------------------------------------------------------------------
+	// -- Drawing ------------------------------------------------------------
 
-	/** Draws the 3 background bands (red slow zone / normal zone / blue slow zone). */
+	private drawBackground(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
+		ctx.fillStyle = "#2b2b2b";
+		ctx.fillRect(-X_LIMIT, -Y_LIMIT, WIDTH, HEIGHT);
+	}
+
+	/** Tints the two slow zones (red top / blue bottom) so their effect is legible. */
 	private drawZones(ctx: CanvasRenderingContext2D) {
-		ctx.fillStyle = "#2b2f3a";
-		ctx.fillRect(-ARENA_HALF_W, -ARENA_HALF_H, ARENA_WIDTH, ARENA_HEIGHT);
-
-		ctx.fillStyle = "rgba(255,60,60,0.12)";
-		ctx.fillRect(-ARENA_HALF_W, -ARENA_HALF_H, ARENA_WIDTH, ARENA_HALF_H - NORMAL_ZONE_HALF_HEIGHT);
-
-		ctx.fillStyle = "rgba(60,110,255,0.12)";
-		ctx.fillRect(-ARENA_HALF_W, NORMAL_ZONE_HALF_HEIGHT, ARENA_WIDTH, ARENA_HALF_H - NORMAL_ZONE_HALF_HEIGHT);
+		for (let i = 0; i < ZONE_COUNT; i++) {
+			const top = -Y_LIMIT + i * ZONE_HEIGHT;
+			const isSlow = i === 0 || i === ZONE_COUNT - 1;
+			ctx.fillStyle = isSlow
+				? (i === 0 ? 'rgba(255,0,68,0.10)' : 'rgba(0,68,255,0.10)')
+				: 'rgba(255,255,255,0.02)';
+			ctx.fillRect(-X_LIMIT, top, WIDTH, ZONE_HEIGHT);
+		}
 	}
 
-	/** Draws a small HP bar above any damaged unit. Full-HP units show nothing. */
 	private drawHpBar(ctx: CanvasRenderingContext2D, x: number, y: number, hp: number, maxHp: number, width: number) {
-		if (hp >= maxHp) return; // only show once damage has been taken
-
 		const ratio = Math.max(0, hp / maxHp);
-		const barY = y - 34;
+		const height = 6;
 
-		ctx.fillStyle = "#000";
-		ctx.fillRect(x - width / 2, barY, width, 6);
+		ctx.fillStyle = '#222';
+		ctx.fillRect(x - width / 2, y, width, height);
 
-		ctx.fillStyle = ratio > 0.4 ? "#4caf50" : "#e53935";
-		ctx.fillRect(x - width / 2, barY, width * ratio, 6);
+		ctx.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.2 ? '#ffb300' : '#e53935';
+		ctx.fillRect(x - width / 2, y, width * ratio, height);
 	}
 
-	/** Draws every tower, always showing its HP bar (towers always display HP). */
-	private drawTowers(ctx: CanvasRenderingContext2D) {
-		for (const tower of this.towers) {
-			ctx.fillStyle = tower.hp <= 0 ? "#555" : (tower.isRed ? "#c0392b" : "#2980b9");
-			ctx.fillRect(tower.x - 28, tower.y - 28, 56, 56);
+	private drawArrowShape(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, color: string, width: number) {
+		ctx.save();
+		ctx.strokeStyle = color;
+		ctx.fillStyle = color;
+		ctx.lineWidth = width;
 
-			// Towers always show HP, regardless of whether they've been hit.
-			const ratio = Math.max(0, tower.hp / TOWER_HP);
-			const barY = tower.y - 44;
-			ctx.fillStyle = "#000";
-			ctx.fillRect(tower.x - 30, barY, 60, 8);
-			ctx.fillStyle = ratio > 0.4 ? "#4caf50" : "#e53935";
-			ctx.fillRect(tower.x - 30, barY, 60 * ratio, 8);
-		}
+		ctx.beginPath();
+		ctx.moveTo(x1, y1);
+		ctx.lineTo(x2, y2);
+		ctx.stroke();
+
+		const angle = Math.atan2(y2 - y1, x2 - x1);
+		const headLength = 10;
+		ctx.beginPath();
+		ctx.moveTo(x2, y2);
+		ctx.lineTo(x2 - headLength * Math.cos(angle - Math.PI / 6), y2 - headLength * Math.sin(angle - Math.PI / 6));
+		ctx.lineTo(x2 - headLength * Math.cos(angle + Math.PI / 6), y2 - headLength * Math.sin(angle + Math.PI / 6));
+		ctx.closePath();
+		ctx.fill();
+		ctx.restore();
 	}
 
-	/** Draws all troops as colored circles, with HP bars only if damaged. */
-	private drawTroops(ctx: CanvasRenderingContext2D) {
-		for (const troop of this.troops.values()) {
-			const stats = STATS[TYPE_LIST[troop.typeIndex]];
-			ctx.beginPath();
-			ctx.fillStyle = troop.isRed ? "#e74c3c" : "#3498db";
-			ctx.arc(troop.x, troop.y, 16, 0, Math.PI * 2);
-			ctx.fill();
-
-			if (troop.attacking) {
-				ctx.strokeStyle = "#fff";
-				ctx.lineWidth = 2;
-				ctx.stroke();
-			}
-
-			this.drawHpBar(ctx, troop.x, troop.y, troop.hp, stats.hp, 34);
-		}
-	}
-
-	/** Draws thin colored arrows for every active neighboor link, plus the live drag preview. */
+	/** Draws every neighboor link as a thin team-colored arrow; links that the
+	 *  current in-progress "cut" gesture crosses are drawn thicker. */
 	private drawLinks(ctx: CanvasRenderingContext2D, data: ClientData) {
-		for (const troop of this.troops.values()) {
-			if (troop.neighboorKind === 'none') continue;
+		const cutting = data.dragMode === 'cut';
 
-			let tx: number, ty: number;
-			if (troop.neighboorKind === 'point') {
-				tx = troop.neighboorX; ty = troop.neighboorY;
-			} else if (troop.neighboorKind === 'troop') {
-				const t = this.troops.get(troop.neighboorId);
-				if (!t) continue;
-				tx = t.x; ty = t.y;
-			} else {
-				const t = this.towers.find(tw => tw.id === troop.neighboorId);
-				if (!t) continue;
-				tx = t.x; ty = t.y;
+		for (const troop of this.troops) {
+			if (!troop.neighboor) continue;
+			const pos = this.resolveNeighboorPosition(troop.neighboor);
+			if (!pos) continue;
+
+			const color = troop.team === 'red' ? '#ff0044' : '#0044ff';
+			let width = 1.5;
+
+			if (cutting) {
+				const crosses = segmentsIntersect(
+					data.dragStartX, data.dragStartY, data.dragCurrentX, data.dragCurrentY,
+					troop.x, troop.y, pos.x, pos.y
+				);
+				if (crosses) width = 4;
 			}
 
-			ctx.strokeStyle = troop.isRed ? "#e74c3c" : "#3498db";
-			ctx.lineWidth = 1.5;
-			ctx.beginPath();
-			ctx.moveTo(troop.x, troop.y);
-			ctx.lineTo(tx, ty);
-			ctx.stroke();
+			this.drawArrowShape(ctx, troop.x, troop.y, pos.x, pos.y, color, width);
+		}
+	}
+
+	private drawTowers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
+		for (const tower of this.towers) {
+			const texture = imageLoader.get(tower.team === 'red' ? 'tower-red' : 'tower-blue');
+
+			ctx.save();
+			if (!tower.isAlive()) ctx.globalAlpha = 0.35;
+			ctx.drawImage(texture, tower.x - TOWER_RADIUS, tower.y - TOWER_RADIUS, TOWER_RADIUS * 2, TOWER_RADIUS * 2);
+			ctx.restore();
+
+			// Tower HP is always shown, per the design.
+			this.drawHpBar(ctx, tower.x, tower.y - TOWER_RADIUS - 10, tower.hp, TOWER_HP, 50);
+		}
+	}
+
+	private drawTroops(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, data: ClientData) {
+		for (const troop of this.troops) {
+			const texture = imageLoader.get(`troop-${troop.getType()}-${troop.team}`);
+
+			const isHighlighted = troop.id === data.hoveredTroopId || troop.id === data.dragTroopId;
+			if (isHighlighted) {
+				ctx.save();
+				ctx.strokeStyle = '#ffffff';
+				ctx.lineWidth = 3;
+				ctx.beginPath();
+				ctx.arc(troop.x, troop.y, TROOP_RADIUS + 5, 0, Math.PI * 2);
+				ctx.stroke();
+				ctx.restore();
+			}
+
+			ctx.drawImage(texture, troop.x - TROOP_RADIUS, troop.y - TROOP_RADIUS, TROOP_RADIUS * 2, TROOP_RADIUS * 2);
+
+			// Only show a troop's HP bar once it has actually taken damage.
+			if (troop.hp < troop.getMaxHp()) {
+				this.drawHpBar(ctx, troop.x, troop.y - TROOP_RADIUS - 8, troop.hp, troop.getMaxHp(), 30);
+			}
+		}
+	}
+
+	private drawProjectiles(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
+		const arrowTexture = imageLoader.get('arrow');
+		for (const arrow of this.arrows) {
+			ctx.save();
+			ctx.translate(arrow.x, arrow.y);
+			ctx.rotate(Math.atan2(arrow.vy, arrow.vx));
+			ctx.drawImage(arrowTexture, -12, -4, 24, 8);
+			ctx.restore();
 		}
 
-		// Live preview of the current mouse drag gesture (cut line or new link).
-		if (data.dragMode) {
-			ctx.strokeStyle = data.dragMode === 'cut' ? "#ffffff" : "#f1c40f";
-			ctx.lineWidth = data.dragMode === 'cut' ? 2 : 3;
-			ctx.setLineDash(data.dragMode === 'cut' ? [6, 6] : []);
+		const bombTexture = imageLoader.get('bomb');
+		for (const bomb of this.bombs) {
+			ctx.drawImage(bombTexture, bomb.x - 10, bomb.y - 10, 20, 20);
+		}
+	}
+
+	private drawDragPreview(ctx: CanvasRenderingContext2D, data: ClientData) {
+		if (!data.dragMode) return;
+
+		if (data.dragMode === 'cut') {
+			ctx.save();
+			ctx.strokeStyle = '#ffffff';
+			ctx.lineWidth = 2;
+			ctx.setLineDash([6, 6]);
 			ctx.beginPath();
 			ctx.moveTo(data.dragStartX, data.dragStartY);
 			ctx.lineTo(data.dragCurrentX, data.dragCurrentY);
 			ctx.stroke();
-			ctx.setLineDash([]);
+			ctx.restore();
+		} else if (data.dragMode === 'link' && data.dragTroopId !== null) {
+			const troop = this.getTroopById(data.dragTroopId);
+			if (troop) {
+				this.drawArrowShape(ctx, troop.x, troop.y, data.dragCurrentX, data.dragCurrentY, '#ffffff', 2);
+			}
 		}
 	}
 
 	override draw(
 		ctx: CanvasRenderingContext2D,
-		_playerIdx: number,
+		playerIdx: number,
 		_data: any,
 		_imageLoader: ImageLoader
 	) {
 		ctx.imageSmoothingEnabled = false;
+		const imageLoader = _imageLoader.getFolder('moveArmy');
 		const data = _data as ClientData;
 
 		if (data.firstFrame) {
 			data.firstFrame = false;
 		}
 
-		data.update(this);
+		data.update(this, playerIdx);
 
-		// The whole portrait arena is always fully visible: no camera transform
-		// is needed, we simply draw directly in world/arena coordinates, centered.
+		// Centered coordinate system: (0,0) is the middle of the arena, matching
+		// "red = negative Y, blue = positive Y" from the design.
 		ctx.save();
-		ctx.translate(ARENA_HALF_W, ARENA_HALF_H);
+		ctx.translate(X_LIMIT, Y_LIMIT);
 
+		this.drawBackground(ctx, imageLoader);
 		this.drawZones(ctx);
 		this.drawLinks(ctx, data);
-		this.drawTowers(ctx);
-		this.drawTroops(ctx);
+		this.drawTowers(ctx, imageLoader);
+		this.drawTroops(ctx, imageLoader, data);
+		this.drawProjectiles(ctx, imageLoader);
+		this.drawDragPreview(ctx, data);
 
 		ctx.restore();
 	}
-
-	// -------------------------------------------------------------------------
-	// LIFECYCLE / SERIALIZATION
-	// -------------------------------------------------------------------------
 
 	override onDisconnection(id: number): void {
 		this.players[id].connected = false;
@@ -1148,36 +1670,26 @@ export class GMMoveArmy extends GameMode {
 		const { State } = protocols.get();
 
 		const object: Fields = {
-			players: this.players.map(p => ({ connected: p.connected, isRed: p.isRed })),
-			troops: [...this.troops.values()].map(t => ({
-				id: t.id,
-				type: t.typeIndex,
-				isRed: t.isRed,
-				x: t.x,
-				y: t.y,
-				hp: t.hp,
-				attacking: t.attacking,
-				attackCooldown: t.attackCooldown,
-				neighboorKind: NEIGHBOOR_KIND_TO_INT[t.neighboorKind],
-				neighboorId: t.neighboorId,
-				neighboorX: t.neighboorX,
-				neighboorY: t.neighboorY,
-				noTargetTimer: t.noTargetTimer,
-				lastNeighboorId: t.lastNeighboorId,
-			})),
-			towers: this.towers.map(t => ({
-				id: t.id,
-				isRed: t.isRed,
-				x: t.x,
-				y: t.y,
-				hp: t.hp,
-				attackCooldown: t.attackCooldown,
-			})),
 			time: this.time,
-			suddenDeath: this.suddenDeath,
+			players: this.players.map(p => ({ connected: p.connected })),
+			troops: this.troops.map(t => t.serialize()),
+			towers: this.towers.map(t => ({ id: t.id, hp: t.hp })),
+			arrows: this.arrows.map(a => ({
+				id: a.id, x: a.x, y: a.y, vx: a.vx, vy: a.vy,
+				targetX: a.targetX, targetY: a.targetY, damage: a.damage,
+				isRed: a.team === 'red',
+				targetTroopId: a.targetTroopId ?? -1,
+				targetTowerId: a.targetTowerId ?? -1
+			})),
+			bombs: this.bombs.map(b => ({
+				id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy,
+				targetX: b.targetX, targetY: b.targetY, damage: b.damage,
+				isRed: b.team === 'red', radius: b.radius
+			})),
+			redMana: this.manaGauges.red,
+			blueMana: this.manaGauges.blue,
 			nextTroopId: this.nextTroopId,
-			redMana: this.redMana,
-			blueMana: this.blueMana,
+			nextProjectileId: this.nextProjectileId
 		};
 
 		return State.encode(object).finish();
@@ -1187,44 +1699,41 @@ export class GMMoveArmy extends GameMode {
 		const { State } = protocols.get();
 		const obj = decodeFullMessage(State.decode(data));
 
-		for (const [i, p] of obj.players.entries()) {
-			this.players[i].load(p);
-		}
-
-		this.troops.clear();
-		for (const t of obj.troops) {
-			const typeName = TYPE_LIST[t.type];
-			const Ctor = TYPE_CLASSES[typeName];
-			const troop = new Ctor(t.id, t.isRed, t.x, t.y);
-			troop.hp = t.hp;
-			troop.attacking = t.attacking;
-			troop.attackCooldown = t.attackCooldown;
-			troop.neighboorKind = INT_TO_NEIGHBOOR_KIND[t.neighboorKind];
-			troop.neighboorId = t.neighboorId;
-			troop.neighboorX = t.neighboorX;
-			troop.neighboorY = t.neighboorY;
-			troop.noTargetTimer = t.noTargetTimer;
-			troop.lastNeighboorId = t.lastNeighboorId;
-			this.troops.set(troop.id, troop);
-		}
-
-		this.towers.length = 0;
-		for (const t of obj.towers) {
-			const tower = new Tower(t.id, t.isRed, t.x, t.y);
-			tower.hp = t.hp;
-			tower.attackCooldown = t.attackCooldown;
-			this.towers.push(tower);
-		}
-
 		this.time = obj.time;
-		this.suddenDeath = obj.suddenDeath;
+
+		for (const [i, p] of this.players.entries()) {
+			p.connected = obj.players[i]?.connected ?? false;
+		}
+
+		this.troops = obj.troops.map((t: Fields) => deserializeTroop(t));
+
+		for (const [i, tower] of this.towers.entries()) {
+			const saved = obj.towers[i];
+			if (saved) tower.hp = saved.hp;
+		}
+
+		this.arrows = obj.arrows.map((a: Fields) => ({
+			id: a.id, x: a.x, y: a.y, vx: a.vx, vy: a.vy,
+			targetX: a.targetX, targetY: a.targetY, damage: a.damage,
+			team: a.isRed ? 'red' : 'blue',
+			targetTroopId: a.targetTroopId >= 0 ? a.targetTroopId : null,
+			targetTowerId: a.targetTowerId >= 0 ? a.targetTowerId : null
+		}));
+
+		this.bombs = obj.bombs.map((b: Fields) => ({
+			id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy,
+			targetX: b.targetX, targetY: b.targetY, damage: b.damage,
+			team: b.isRed ? 'red' : 'blue', radius: b.radius
+		}));
+
+		this.manaGauges.red = obj.redMana;
+		this.manaGauges.blue = obj.blueMana;
 		this.nextTroopId = obj.nextTroopId;
-		this.redMana = obj.redMana;
-		this.blueMana = obj.blueMana;
+		this.nextProjectileId = obj.nextProjectileId;
 	}
 
 	override getSize() {
-		return { width: ARENA_WIDTH, height: ARENA_HEIGHT };
+		return { width: WIDTH, height: HEIGHT };
 	}
 
 	override evalMouseCoords(
@@ -1234,20 +1743,15 @@ export class GMMoveArmy extends GameMode {
 		_clientData: any
 	) {
 		const clientData = _clientData as ClientData;
-
-		// No camera transform is applied when drawing (see draw()), so screen
-		// coordinates map directly to world coordinates once re-centered.
-		const ret = { x: x - ARENA_HALF_W, y: y - ARENA_HALF_H };
-
+		const ret = { x: x - X_LIMIT, y: y - Y_LIMIT };
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;
-
 		return ret;
 	}
 
 	override getMobileDesc(): MobileDescriptor {
-		// No joysticks or buttons: all interaction happens through drag gestures
-		// (touch is routed through the same mouse-like controller).
+		// No joysticks/buttons: all interaction happens through direct drag
+		// gestures on the battlefield itself (mouse or touch alike).
 		return { joysticks: {}, buttons: {} };
 	}
 
@@ -1255,43 +1759,36 @@ export class GMMoveArmy extends GameMode {
 		return new TutorialData(this);
 	}
 
-	/** Builds the FinishGame result once the match is over. */
+	/** Ranks the two teams by how many of their towers are still standing.
+	 *  Players within the same team are always tied with each other (2v2). */
 	private produceFinish(): FinishGame {
-		const redAlive = this.towers.filter(t => t.isRed && t.hp > 0).length;
-		const blueAlive = this.towers.filter(t => !t.isRed && t.hp > 0).length;
-		const redHp = this.towers.filter(t => t.isRed).reduce((s, t) => s + Math.max(0, t.hp), 0);
-		const blueHp = this.towers.filter(t => !t.isRed).reduce((s, t) => s + Math.max(0, t.hp), 0);
+		const redStanding = this.towers.filter(t => t.team === 'red' && t.isAlive()).length;
+		const blueStanding = this.towers.filter(t => t.team === 'blue' && t.isAlive()).length;
 
-		const redPlayers = this.players.map((p, i) => i).filter(i => this.players[i].isRed);
-		const bluePlayers = this.players.map((p, i) => i).filter(i => !this.players[i].isRed);
+		const redPlayers = this.players.map((_, idx) => idx).filter(idx => this.players[idx].team === 'red');
+		const bluePlayers = this.players.map((_, idx) => idx).filter(idx => this.players[idx].team === 'blue');
 
 		let results: number[][];
 		const teamEqualities: number[] = [];
 
-		if (redAlive === blueAlive && redHp === blueHp) {
-			// Perfect tie between the two teams.
+		if (redStanding === blueStanding) {
 			results = [redPlayers, bluePlayers];
 			teamEqualities.push(0);
+		} else if (redStanding > blueStanding) {
+			results = [redPlayers, bluePlayers];
 		} else {
-			const redWins = redAlive !== blueAlive ? redAlive > blueAlive : redHp > blueHp;
-			results = redWins ? [redPlayers, bluePlayers] : [bluePlayers, redPlayers];
+			results = [bluePlayers, redPlayers];
 		}
 
-		// Players within the same team are always tied with each other.
 		const playerEqualities: number[] = [];
-		let offset = 0;
+		let cursor = 0;
 		for (const team of results) {
 			for (let i = 0; i < team.length - 1; i++) {
-				playerEqualities.push(offset + i);
+				playerEqualities.push(cursor + i);
 			}
-			offset += team.length;
+			cursor += team.length;
 		}
 
 		return { results, teamEqualities, playerEqualities };
 	}
 }
-
-// Maps between the string NeighboorKind used in game logic and the small
-// integer used on the wire (protobuf has no native string-enum for this).
-const NEIGHBOOR_KIND_TO_INT: Record<NeighboorKind, number> = { none: 0, point: 1, troop: 2, tower: 3 };
-const INT_TO_NEIGHBOOR_KIND: NeighboorKind[] = ['none', 'point', 'troop', 'tower'];
