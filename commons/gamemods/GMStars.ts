@@ -564,24 +564,39 @@ class Player {
 }
 
 // =====================================================================================
-// CAMERA (simple follow-camera, no zones needed for this side-scrolling mode)
+// CAMERA
+//
+// The camera represents the visible game area rather than the size of the map.
+// The viewport is fixed at 1600x900 and follows the player while remaining inside
+// the map boundaries.
 // =====================================================================================
 class Camera {
+	static readonly WIDTH = 1600;
+	static readonly HEIGHT = 900;
+
 	x = 0;
 	y = 0;
-	static readonly SCALE = 1;
 
-	update(px: number, py: number) {
+	update(px: number, py: number, mapWidth: number, mapHeight: number) {
+		// Center the camera on the player.
 		this.x = px;
 		this.y = py;
+
+		// Keep the camera inside the map boundaries.
+		const halfWidth = Camera.WIDTH / 2;
+		const halfHeight = Camera.HEIGHT / 2;
+
+		this.x = Math.max(halfWidth, Math.min(mapWidth - halfWidth, this.x));
+		this.y = Math.max(halfHeight, Math.min(mapHeight - halfHeight, this.y));
 	}
 
-	teleport(px: number, py: number) {
-		this.x = px;
-		this.y = py;
+	teleport(px: number, py: number, mapWidth: number, mapHeight: number) {
+		this.update(px, py, mapWidth, mapHeight);
 	}
 
-	getCoords() { return { x: this.x, y: this.y }; }
+	getCoords() {
+		return { x: this.x, y: this.y };
+	}
 }
 
 // =====================================================================================
@@ -636,11 +651,22 @@ class ClientData {
 
 		const player = game.players[playerIdx];
 		if (this.clientWasDead && player.isAlive()) {
-			this.camera.teleport(player.x, player.y);
+			this.camera.teleport(
+				player.x,
+				player.y,
+				game.map.pixelWidth,
+				game.map.pixelHeight
+			);
 		}
+
 		this.clientWasDead = !player.isAlive();
 
-		this.camera.update(player.x, player.y);
+		this.camera.update(
+			player.x,
+			player.y,
+			game.map.pixelWidth,
+			game.map.pixelHeight
+		);
 	}
 }
 
@@ -1404,9 +1430,14 @@ export class GMStars extends GameMode {
 		ctx.fillRect(0, 0, this.map.pixelWidth, this.map.pixelHeight);
 
 		const cameraCoords = data.camera.getCoords();
+
 		ctx.save();
-		ctx.translate(this.map.pixelWidth / 2 * 0, 0);
-		ctx.translate(-cameraCoords.x + ctx.canvas.width / 2, -cameraCoords.y + ctx.canvas.height / 2);
+
+		// Center the camera viewport on the followed world position.
+		ctx.translate(
+			Camera.WIDTH / 2 - cameraCoords.x,
+			Camera.HEIGHT / 2 - cameraCoords.y
+		);
 
 		this.drawMap(ctx, imageLoader);
 		this.drawEntities(ctx, imageLoader);
@@ -1485,16 +1516,26 @@ export class GMStars extends GameMode {
 	}
 
 	override getSize() {
-		return { width: this.map.pixelWidth, height: this.map.pixelHeight };
+		// The game viewport is fixed and independent from the map dimensions.
+		return {
+			width: Camera.WIDTH,
+			height: Camera.HEIGHT
+		};
 	}
 
 	override evalMouseCoords(x: number, y: number, playerIdx: number, _clientData: any) {
 		const clientData = _clientData as ClientData;
 		const cameraCoords = clientData.camera.getCoords();
 
-		const ret = { x: x + cameraCoords.x, y: y + cameraCoords.y };
+		// Convert viewport coordinates into world coordinates.
+		const ret = {
+			x: x + cameraCoords.x - Camera.WIDTH / 2,
+			y: y + cameraCoords.y - Camera.HEIGHT / 2
+		};
+
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;
+
 		return ret;
 	}
 
