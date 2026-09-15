@@ -3,7 +3,6 @@ import { Fields } from "../Fields";
 import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
-import { norm2 } from "../util/norm2";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
@@ -412,8 +411,8 @@ class Obstacle {
 			);
 		}
 
-		return collisions.RectCircle(
-			{ x: this.x - this.w / 2, y: this.y - this.h / 2, w: this.w, h: this.h },
+		return collisions.RotatedRectCircle(
+			{ x: this.x, y: this.y, w: this.w, h: this.h, angle: this.angle },
 			{ x: ballX, y: ballY, r: ballRadius }
 		);
 	}
@@ -1378,7 +1377,7 @@ export class GMLavaBall extends GameMode {
 		for (const o of this.obstacles) {
 			ctx.save();
 			ctx.translate(o.x, o.y);
-			ctx.rotate(o.angle);
+			ctx.rotate(-o.angle);
 
 			if (o.type === 'circle') {
 				ctx.beginPath();
