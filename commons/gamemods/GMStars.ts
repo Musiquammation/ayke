@@ -83,6 +83,7 @@ const MUSHROOM_SPEED = 220; // only the mushroom actively walks
 // Stars (the collectible, scored objective — not to confuse with "Star power")
 const STAR_SIZE = 40;
 const STAR_POP_VELOCITY = -650; // stars pop up like a jump when they spawn
+const STAR_POP_HORIZONTAL_VELOCITY = 300; // initial horizontal speed, away from the nearest player
 const STAR_JUMP = 550;
 
 // Victory condition
@@ -206,7 +207,10 @@ class GameMap {
 				let t = TileType.EMPTY;
 				if (ch === 'G') t = TileType.GROUND;
 				else if (ch === 'B') t = TileType.BRICK;
-				else if (ch === 'I') { t = TileType.ITEM_BOX; this.itemBoxCoords.push({ col: c, row: r }); }
+				else if (ch === 'I') {
+					t = TileType.ITEM_BOX;
+					this.itemBoxCoords.push({ col: c, row: r });
+				}
 				row.push(t);
 			}
 			this.tiles.push(row);
@@ -224,7 +228,12 @@ class GameMap {
 	}
 
 	tileRect(col: number, row: number) {
-		return { x: col * TILE, y: row * TILE, w: TILE, h: TILE };
+		return {
+			x: col * TILE + TILE / 2,
+			y: row * TILE + TILE / 2,
+			w: TILE,
+			h: TILE
+		};
 	}
 }
 
@@ -560,7 +569,12 @@ class Player {
 	}
 
 	rect() {
-		return { x: this.x, y: this.y, w: this.width, h: this.height };
+		return {
+			x: this.x,
+			y: this.y,
+			w: this.width,
+			h: this.height
+		};
 	}
 
 	load(obj: Fields) {
@@ -604,10 +618,9 @@ class Camera {
 
 		// Keep the camera inside the map boundaries.
 		const halfWidth = Camera.WIDTH / 2;
-		const halfHeight = Camera.HEIGHT / 2;
 
 		this.x = Math.max(halfWidth, Math.min(mapWidth - halfWidth, this.x));
-		this.y = Math.max(halfHeight, Math.min(mapHeight - halfHeight, this.y));
+		this.y = mapHeight - Camera.HEIGHT/2;
 	}
 
 	teleport(px: number, py: number, mapWidth: number, mapHeight: number) {
@@ -626,7 +639,6 @@ class ClientData {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
-	skins: string[] = [];
 
 	readonly html: HTMLDivElement;
 	readonly starBoard: HTMLDivElement;
@@ -704,33 +716,16 @@ class TutorialData {
 
 function generateClientDom(unlockedSkins: string[]) {
 	return {
-		skin: Object.keys(GMStars.SKINS)[0],
 		mapId: 0,
-		SKINS: GMStars.SKINS,
 		unlockedSkins: unlockedSkins,
 
 		produce() {
 			const { StartData } = protocols.get();
 			return StartData.encode({
-				skin: this.skin,
 				mapId: this.mapId
 			}).finish();
-		},
-
-		hasSkin(skin: string) {
-			return this.unlockedSkins.includes(skin);
-		},
-
-		getSkinIconPath
+		}
 	};
-}
-
-function getSkinTexturePath(id: string) {
-	return `/assets/games/stars/skins/${id}/grid.png`;
-}
-
-function getSkinIconPath(id: string) {
-	return window.IMG_ROOT_PATH + `/assets/games/stars/skins/${id}/icon.png`;
 }
 
 // =====================================================================================
@@ -800,7 +795,7 @@ export class GMStars extends GameMode {
 	static async createServ(
 		players: PlayerInput[],
 		total: number,
-		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
+		_hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	) {
 		const { StartData, StartDataClient } = protocols.get();
 		const game = new GMStars(total);
@@ -813,14 +808,11 @@ export class GMStars extends GameMode {
 		const playerInfos = await Promise.all(
 			game.players.map(async (p, i) => {
 				const d = decode(i);
-				let skin: string;
-				const pseudo = i < players.length ? players[i].pseudo : null;
-				if (pseudo !== null && GMStars.SKINS_IDS.includes(d.skin)) {
-					skin = (await hasSkin('stars', d.skin, pseudo)) ? (d.skin as string) : GMStars.SKINS_IDS[0];
-				} else {
-					skin = GMStars.SKINS_IDS[0];
-				}
-				return { player: p, index: i, skin, mapId: d.mapId ?? 0 };
+				return {
+					player: p,
+					index: i,
+					mapId: d.mapId ?? 0
+				};
 			})
 		);
 
@@ -833,16 +825,19 @@ export class GMStars extends GameMode {
 		const spacing = game.map.pixelWidth / (total + 1);
 		for (const [i, p] of game.players.entries()) {
 			const spawnX = spacing * (i + 1);
+
 			// Find the ground row under this column to sit the player on top of it.
 			const col = Math.floor(spawnX / TILE);
 			let row = game.map.rows - 1;
 			while (row > 0 && !game.map.isSolid(col, row)) row--;
+
 			p.initSpawn(spawnX, row * TILE - SMALL_H);
 		}
 
 		const data = StartDataClient.encode({
-			players: game.players.map((p, idx) => ({
-				x: p.spawnX, y: p.spawnY, skin: playerInfos[idx].skin
+			players: game.players.map(p => ({
+				x: p.spawnX,
+				y: p.spawnY
 			})),
 			mapId
 		}).finish();
@@ -858,40 +853,29 @@ export class GMStars extends GameMode {
 		const game = new GMStars(total);
 		const { StartData, StartDataClient } = protocols.get();
 		const clientData = new ClientData();
-		let skins: { [k: string]: string };
+		const textures: { [k: string]: string } = {};
 
 		if (origin === 'server') {
 			const { players, mapId } = decodeFullMessage(StartDataClient.decode(data));
 			game.setupMap(mapId ?? 0);
 
-			const skinSet = new Set<string>();
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y);
-				clientData.skins.push(p.skin);
-				skinSet.add(p.skin);
 			}
-			skins = Object.fromEntries([...skinSet].map(key => ['skin-' + key, getSkinTexturePath(key)]));
 		} else {
-			const { skin, mapId } = decodeFullMessage(StartData.decode(data));
+			const { mapId } = decodeFullMessage(StartData.decode(data));
 			game.setupMap(mapId ?? 0);
 
 			const spacing = game.map.pixelWidth / (total + 1);
 			for (const [i, p] of game.players.entries()) {
 				p.initSpawn(spacing * (i + 1), 0);
 			}
-
-			clientData.skins = Array.from({ length: game.players.length }, () => GMStars.SKINS_IDS[0]);
-			clientData.skins[0] = skin;
-			skins = {};
 		}
 
-		return { game, data: clientData, html: clientData.html, skins };
+		return { game, data: clientData, html: clientData.html, skins: textures };
 	}
 
 	static readonly generateClientDom = generateClientDom;
-
-	static readonly SKINS = { 'default': "Default" };
-	static readonly SKINS_IDS = Object.keys(GMStars.SKINS);
 
 	static readonly TEXTURES = {
 		'ground': "/assets/games/stars/ground.svg",
@@ -902,11 +886,16 @@ export class GMStars extends GameMode {
 		'fire-flower': "/assets/games/stars/fire-flower.svg",
 		'ice-flower': "/assets/games/stars/ice-flower.svg",
 		'blue-shell-item': "/assets/games/stars/blue-shell-item.svg",
+
+		'player-small-idle': "/assets/games/stars/player-small-idle.svg",
+		'player-small-walking': "/assets/games/stars/player-small-walking.svg",
+		'player-big-idle': "/assets/games/stars/player-big-idle.svg",
+		'player-big-walking': "/assets/games/stars/player-big-walking.svg",
 		'player-shell-form': "/assets/games/stars/player-shell-form.svg",
+
 		'star': "/assets/games/stars/star.svg",
 		'fireball': "/assets/games/stars/fireball.svg",
-		'iceball': "/assets/games/stars/iceball.svg",
-		'skin-default': getSkinTexturePath('default')
+		'iceball': "/assets/games/stars/iceball.svg"
 	};
 
 	override init(): void { }
@@ -960,13 +949,16 @@ export class GMStars extends GameMode {
 		box.cooldown = ITEM_BOX_COOLDOWN;
 
 		const x = box.col * TILE + TILE / 2;
+
 		// Normally the item pops out above the box; a ground-pound charge that
 		// smashes through from above instead drops the item out the bottom.
-		const y = fromAbove ? (box.row + 1) * TILE + ITEM_SIZE / 2 : box.row * TILE - ITEM_SIZE / 2;
+		const y = fromAbove
+			? (box.row + 1) * TILE + ITEM_SIZE / 2
+			: box.row * TILE - ITEM_SIZE / 2;
 
 		this.items.push(new ItemDrop(x, y, box.pendingItem, 1));
 
-		// Pre-roll the *next* item now, in advance, sharing it via save/load but
+		// Pre-roll the next item now, in advance, sharing it via save/load but
 		// never exposing it to the client until it is actually dispensed.
 		box.rollNextItem(this.rng);
 	}
@@ -979,11 +971,54 @@ export class GMStars extends GameMode {
 
 		this.starSpawnTimer = STAR_SPAWN_INTERVAL;
 
-		// Spawn at the pre-rolled position, always popping upward like a jump.
-		this.stars.push(new StarPickup(this.nextStarX, this.nextStarY, 0, STAR_POP_VELOCITY));
+		// Spawn at the pre-rolled position. The horizontal velocity points away
+		// from the nearest living player, while the vertical velocity makes the
+		// star pop upward.
+		const vx = this.getStarEscapeVelocity(this.nextStarX);
+
+		this.stars.push(new StarPickup(
+			this.nextStarX,
+			this.nextStarY,
+			vx,
+			STAR_POP_VELOCITY
+		));
 
 		// Immediately roll the following spawn point so it can be shared with clients.
 		this.rollNextStarSpawn();
+	}
+
+	/**
+	 * Returns the initial horizontal star velocity directed away from the nearest
+	 * living player.
+	 */
+	private getStarEscapeVelocity(starX: number) {
+		let nearestPlayer: Player | null = null;
+		let nearestDistance = Infinity;
+
+		for (const player of this.players) {
+			if (!player.isAlive()) continue;
+
+			// Account for horizontal wrapping when measuring the distance.
+			const directDistance = Math.abs(player.x - starX);
+			const wrappedDistance = this.map.pixelWidth - directDistance;
+			const distance = Math.min(directDistance, wrappedDistance);
+
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearestPlayer = player;
+			}
+		}
+
+		if (!nearestPlayer) return 0;
+
+		const dx = starX - nearestPlayer.x;
+
+		// The star moves away from the player. If both positions coincide,
+		// there is no meaningful direction, so choose a deterministic direction.
+		if (dx > 0) return STAR_POP_HORIZONTAL_VELOCITY;
+		if (dx < 0) return -STAR_POP_HORIZONTAL_VELOCITY;
+
+		return STAR_POP_HORIZONTAL_VELOCITY;
 	}
 
 	// --- Items / stars / projectiles physics --------------------------------------
@@ -1015,6 +1050,7 @@ export class GMStars extends GameMode {
 
 		if (player.isFrozen()) {
 			player.freezeTimer -= dt;
+
 			// Frozen players don't move at all, but still obey gravity so they don't float.
 			this.applyGravityAndVertical(player, dt);
 			return;
@@ -1107,13 +1143,25 @@ export class GMStars extends GameMode {
 		}
 
 		player.vy = GROUND_POUND_SPEED;
+
+		const previousY = player.y;
 		const nextY = player.y + player.vy * dt;
-		const vRes = resolveMapVertical(player.x, player.y, nextY, player.width, player.height, player.vy, this.map);
+
+		// Check the crossing before the vertical collision resolution clamps the player.
+		this.checkItemBoxHit(player, previousY, nextY, true);
+
+		const vRes = resolveMapVertical(
+			player.x,
+			player.y,
+			nextY,
+			player.width,
+			player.height,
+			player.vy,
+			this.map
+		);
+
 		player.y = vRes.y;
 		player.grounded = vRes.grounded;
-
-		// Check for landing on top of an item box mid-slam (breaks it from above).
-		this.checkItemBoxHit(player, true);
 
 		if (vRes.grounded) {
 			player.isGroundPounding = false;
@@ -1138,14 +1186,26 @@ export class GMStars extends GameMode {
 			: GRAVITY;
 
 		player.vy += gravity * dt;
+
+		const previousY = player.y;
 		const nextY = player.y + player.vy * dt;
-		const vRes = resolveMapVertical(player.x, player.y, nextY, player.width, player.height, player.vy, this.map);
+
+		this.checkItemBoxHit(player, previousY, nextY, false);
+
+		const vRes = resolveMapVertical(
+			player.x,
+			player.y,
+			nextY,
+			player.width,
+			player.height,
+			player.vy,
+			this.map
+		);
+
 		player.y = vRes.y;
 		player.vy = vRes.vy;
 		player.grounded = vRes.grounded;
-
-		this.checkItemBoxHit(player, false);
-
+		
 		// Falling into the void: respawn after a delay, dropping 3 stars on the spot.
 		if (player.y > this.map.pixelHeight + X_LIMIT_MARGIN) {
 			this.spawnVoidStars(player.x, this.map.pixelHeight - TILE);
@@ -1154,19 +1214,56 @@ export class GMStars extends GameMode {
 	}
 
 	/** Checks whether the player's head (jumping) or feet (ground pound) hit an item box. */
-	private checkItemBoxHit(player: Player, fromGroundPound: boolean) {
+	private checkItemBoxHit(
+		player: Player,
+		previousY: number,
+		nextY: number,
+		fromGroundPound: boolean
+	) {
+		const playerHalfW = player.width / 2;
+		const playerHalfH = player.height / 2;
+
 		for (const box of this.itemBoxes) {
 			if (box.used) continue;
-			const rect = this.map.tileRect(box.col, box.row);
-			if (!collisions.RectRect(rect, player.rect())) continue;
+
+			const boxLeft = box.col * TILE;
+			const boxRight = boxLeft + TILE;
+			const boxTop = box.row * TILE;
+			const boxBottom = boxTop + TILE;
+
+			// Horizontal overlap between the player's hitbox and the box.
+			const playerLeft = player.x - playerHalfW;
+			const playerRight = player.x + playerHalfW;
+
+			if (playerRight <= boxLeft || playerLeft >= boxRight)
+				continue;
 
 			if (fromGroundPound) {
-				// Ground pound smashes it from above: item drops out the bottom.
-				this.triggerItemBox(box, true);
-			} else if (player.vy < 0) {
-				// Jumping up into it from below: item pops out the top, as in classic Mario.
-				this.triggerItemBox(box, false);
-				player.vy = 0;
+				// The player is moving downward.
+				// Detect whether their feet crossed the top of the box.
+				const previousBottom = previousY + playerHalfH;
+				const nextBottom = nextY + playerHalfH;
+
+				if (
+					previousBottom <= boxTop &&
+					nextBottom >= boxTop
+				) {
+					this.triggerItemBox(box, true);
+					continue;
+				}
+			} else {
+				// The player is moving upward.
+				// Detect whether their head crossed the bottom of the box.
+				const previousTop = previousY - playerHalfH;
+				const nextTop = nextY - playerHalfH;
+
+				if (
+					previousTop >= boxBottom &&
+					nextTop <= boxBottom
+				) {
+					this.triggerItemBox(box, false);
+					player.vy = 0;
+				}
 			}
 		}
 	}
@@ -1187,6 +1284,7 @@ export class GMStars extends GameMode {
 
 			for (let j = 0; j < this.players.length; j++) {
 				if (i === j) continue;
+
 				const b = this.players[j];
 				if (!b.isAlive()) continue;
 				if (!collisions.RectRect(a.rect(), b.rect())) continue;
@@ -1220,13 +1318,25 @@ export class GMStars extends GameMode {
 			if (!player.isAlive()) continue;
 
 			this.items = this.items.filter(item => {
-				if (!collisions.RectRect(player.rect(), { x: item.x, y: item.y, w: ITEM_SIZE, h: ITEM_SIZE })) return true;
+				if (!collisions.RectRect(
+					player.rect(),
+					{ x: item.x, y: item.y, w: ITEM_SIZE, h: ITEM_SIZE }
+				)) {
+					return true;
+				}
+
 				this.applyItem(player, item.type);
 				return false; // consumed
 			});
 
 			this.stars = this.stars.filter(star => {
-				if (!collisions.RectRect(player.rect(), { x: star.x, y: star.y, w: STAR_SIZE, h: STAR_SIZE })) return true;
+				if (!collisions.RectRect(
+					player.rect(),
+					{ x: star.x, y: star.y, w: STAR_SIZE, h: STAR_SIZE }
+				)) {
+					return true;
+				}
+
 				player.stars += 1;
 				return false; // collected
 			});
@@ -1242,12 +1352,15 @@ export class GMStars extends GameMode {
 			case ItemType.MUSHROOM:
 				// Plain growth mushroom: no special power, just the size increase above.
 				break;
+
 			case ItemType.FIRE_FLOWER:
 				player.power = PowerState.FIRE;
 				break;
+
 			case ItemType.ICE_FLOWER:
 				player.power = PowerState.ICE;
 				break;
+
 			case ItemType.BLUE_SHELL:
 				player.power = PowerState.BLUE_SHELL;
 				break;
@@ -1260,7 +1373,13 @@ export class GMStars extends GameMode {
 		this.projectiles = this.projectiles.filter(proj => {
 			for (const player of this.players) {
 				if (!player.isAlive() || proj.owner === this.players.indexOf(player)) continue;
-				if (!collisions.RectRect(player.rect(), { x: proj.x, y: proj.y, w: PROJECTILE_SIZE, h: PROJECTILE_SIZE })) continue;
+
+				if (!collisions.RectRect(
+					player.rect(),
+					{ x: proj.x, y: proj.y, w: PROJECTILE_SIZE, h: PROJECTILE_SIZE }
+				)) {
+					continue;
+				}
 
 				if (proj.kind === 'fire') {
 					player.loseStars(FIREBALL_DAMAGE);
@@ -1268,8 +1387,10 @@ export class GMStars extends GameMode {
 					// Iceballs deal no star damage, they only freeze the victim.
 					player.freezeTimer = FREEZE_TIME;
 				}
+
 				return false; // projectile consumed on hit
 			}
+
 			return true;
 		});
 	}
@@ -1287,35 +1408,45 @@ export class GMStars extends GameMode {
 				player.holdingRight = true;
 				if (!player.isShellForm) player.direction = 1;
 				break;
+
 			case 'stopRight':
 				player.holdingRight = false;
 				break;
+
 			case 'left':
 				player.holdingLeft = true;
 				if (!player.isShellForm) player.direction = -1;
 				break;
+
 			case 'stopLeft':
 				player.holdingLeft = false;
 				break;
+
 			case 'run':
 				player.holdingRun = true;
 				break;
+
 			case 'stopRun':
 				player.holdingRun = false;
 				break;
+
 			case 'down':
 				player.holdingDown = true;
 				break;
+
 			case 'stopDown':
 				player.holdingDown = false;
 				break;
+
 			case 'jump':
 				// Jumping stays available even while curled up as a shell.
 				player.wantsJump = true;
 				break;
+
 			case 'stopJump':
 				player.wantsJump = false;
 				break;
+
 			case 'throwItem':
 				this.throwProjectile(playerIdx);
 				break;
@@ -1326,13 +1457,27 @@ export class GMStars extends GameMode {
 	private throwProjectile(playerIdx: number) {
 		const player = this.players[playerIdx];
 		if (!player.isAlive() || player.isFrozen()) return;
+
 		if (player.power !== PowerState.FIRE && player.power !== PowerState.ICE) return;
 
-		const kind: 'fire' | 'ice' = player.power === PowerState.FIRE ? 'fire' : 'ice';
-		const speed = kind === 'fire' ? FIREBALL_SPEED : ICEBALL_SPEED;
-		const spawnX = player.x + player.direction * (player.width / 2 + PROJECTILE_SIZE);
+		const kind: 'fire' | 'ice' =
+			player.power === PowerState.FIRE ? 'fire' : 'ice';
 
-		this.projectiles.push(new Projectile(spawnX, player.y, speed * player.direction, -200, kind, playerIdx));
+		const speed = kind === 'fire'
+			? FIREBALL_SPEED
+			: ICEBALL_SPEED;
+
+		const spawnX =
+			player.x + player.direction * (player.width / 2 + PROJECTILE_SIZE);
+
+		this.projectiles.push(new Projectile(
+			spawnX,
+			player.y,
+			speed * player.direction,
+			-200,
+			kind,
+			playerIdx
+		));
 	}
 
 	override collectInputs(
@@ -1343,10 +1488,12 @@ export class GMStars extends GameMode {
 	) {
 		const data = _data as ClientData;
 		const throwTarget = mouse.getCoords();
+
 		data.mouseX = throwTarget.x;
 		data.mouseY = throwTarget.y;
 
 		const inputs: Fields[] = [];
+
 		function action(key: string) {
 			inputs.push({ action: key, [key]: {} });
 		}
@@ -1382,51 +1529,110 @@ export class GMStars extends GameMode {
 				if (t === TileType.EMPTY) continue;
 
 				let tex: any;
-				if (t === TileType.GROUND) tex = imageLoader.get('ground');
-				else if (t === TileType.BRICK) tex = imageLoader.get('brick');
-				else if (t === TileType.ITEM_BOX) {
+
+				if (t === TileType.GROUND) {
+					tex = imageLoader.get('ground');
+				} else if (t === TileType.BRICK) {
+					tex = imageLoader.get('brick');
+				} else if (t === TileType.ITEM_BOX) {
 					const box = this.itemBoxes.find(b => b.col === c && b.row === r);
 					tex = imageLoader.get(box?.used ? 'item-box-used' : 'item-box');
 				}
 
-				if (tex) ctx.drawImage(tex, c * TILE, r * TILE, TILE, TILE);
+				if (tex) {
+					ctx.drawImage(tex, c * TILE, r * TILE, TILE, TILE);
+				}
 			}
 		}
 	}
 
 	private drawEntities(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
 		for (const item of this.items) {
-			const key = ['mushroom', 'fire-flower', 'ice-flower', 'blue-shell-item'][item.type];
+			const key = [
+				'mushroom',
+				'fire-flower',
+				'ice-flower',
+				'blue-shell-item'
+			][item.type];
+
 			const tex = imageLoader.get(key);
-			ctx.drawImage(tex, item.x - ITEM_SIZE / 2, item.y - ITEM_SIZE / 2, ITEM_SIZE, ITEM_SIZE);
+
+			ctx.drawImage(
+				tex,
+				item.x - ITEM_SIZE / 2,
+				item.y - ITEM_SIZE / 2,
+				ITEM_SIZE,
+				ITEM_SIZE
+			);
 		}
 
 		for (const star of this.stars) {
 			const tex = imageLoader.get('star');
-			ctx.drawImage(tex, star.x - STAR_SIZE / 2, star.y - STAR_SIZE / 2, STAR_SIZE, STAR_SIZE);
+
+			ctx.drawImage(
+				tex,
+				star.x - STAR_SIZE / 2,
+				star.y - STAR_SIZE / 2,
+				STAR_SIZE,
+				STAR_SIZE
+			);
 		}
 
 		for (const proj of this.projectiles) {
-			const tex = imageLoader.get(proj.kind === 'fire' ? 'fireball' : 'iceball');
-			ctx.drawImage(tex, proj.x - PROJECTILE_SIZE / 2, proj.y - PROJECTILE_SIZE / 2, PROJECTILE_SIZE, PROJECTILE_SIZE);
+			const tex = imageLoader.get(
+				proj.kind === 'fire' ? 'fireball' : 'iceball'
+			);
+
+			ctx.drawImage(
+				tex,
+				proj.x - PROJECTILE_SIZE / 2,
+				proj.y - PROJECTILE_SIZE / 2,
+				PROJECTILE_SIZE,
+				PROJECTILE_SIZE
+			);
 		}
 	}
 
-	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, skins: string[]) {
-		for (const [idx, player] of this.players.entries()) {
+	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
+		for (const player of this.players) {
 			if (!player.isAlive()) continue;
 
-			const w = player.width, h = player.height;
+			const w = player.width;
+			const h = player.height;
+
 			ctx.save();
 			ctx.translate(player.x, player.y);
-			if (player.direction < 0) ctx.scale(-1, 1);
 
-			const tex = player.isShellForm
-				? imageLoader.get('player-shell-form')
-				: imageLoader.get('skin-' + (skins[idx] ?? 'default'));
+			if (player.direction < 0) {
+				ctx.scale(-1, 1);
+			}
 
-			if (player.isFrozen()) ctx.globalAlpha = 0.6;
-			ctx.drawImage(tex, -w / 2, -h / 2, w, h);
+			let textureKey: string;
+
+			if (player.isShellForm) {
+				textureKey = 'player-shell-form';
+			} else {
+				const size = player.big ? 'big' : 'small';
+				const walking = Math.abs(player.vx) > 1;
+				const animation = walking ? 'walking' : 'idle';
+
+				textureKey = `player-${size}-${animation}`;
+			}
+
+			const tex = imageLoader.get(textureKey);
+
+			if (player.isFrozen()) {
+				ctx.globalAlpha = 0.6;
+			}
+
+			ctx.drawImage(
+				tex,
+				-w / 2,
+				-h / 2,
+				w,
+				h
+			);
+
 			ctx.restore();
 			ctx.globalAlpha = 1;
 		}
@@ -1450,7 +1656,12 @@ export class GMStars extends GameMode {
 		data.update(this, playerIdx);
 
 		ctx.fillStyle = "#5c94fc";
-		ctx.fillRect(0, 0, this.map.pixelWidth, this.map.pixelHeight);
+		ctx.fillRect(
+			0,
+			0,
+			Camera.WIDTH,
+			Camera.HEIGHT
+		);
 
 		const cameraCoords = data.camera.getCoords();
 
@@ -1464,7 +1675,7 @@ export class GMStars extends GameMode {
 
 		this.drawMap(ctx, imageLoader);
 		this.drawEntities(ctx, imageLoader);
-		this.drawPlayers(ctx, imageLoader, data.skins);
+		this.drawPlayers(ctx, imageLoader);
 
 		ctx.restore();
 	}
@@ -1480,23 +1691,62 @@ export class GMStars extends GameMode {
 
 	override save(): Uint8Array {
 		const { State } = protocols.get();
+
 		const object: Fields = {
 			seed: this.rng.seed,
+
 			players: this.players.map(p => ({
-				x: p.x, y: p.y, vx: p.vx, vy: p.vy,
-				direction: p.direction, power: p.power, big: p.big,
-				connected: p.connected, stars: p.stars, aliveTimer: p.aliveTimer,
-				spawnX: p.spawnX, spawnY: p.spawnY,
-				isShellForm: p.isShellForm, shellRunTimer: p.shellRunTimer,
-				isGroundPounding: p.isGroundPounding, groundPoundDelay: p.groundPoundDelay,
-				freezeTimer: p.freezeTimer, running: p.holdingRun
+				x: p.x,
+				y: p.y,
+				vx: p.vx,
+				vy: p.vy,
+				direction: p.direction,
+				power: p.power,
+				big: p.big,
+				connected: p.connected,
+				stars: p.stars,
+				aliveTimer: p.aliveTimer,
+				spawnX: p.spawnX,
+				spawnY: p.spawnY,
+				isShellForm: p.isShellForm,
+				shellRunTimer: p.shellRunTimer,
+				isGroundPounding: p.isGroundPounding,
+				groundPoundDelay: p.groundPoundDelay,
+				freezeTimer: p.freezeTimer,
+				running: p.holdingRun
 			})),
-			stars: this.stars.map(s => ({ x: s.x, y: s.y, vx: s.vx, vy: s.vy })),
-			items: this.items.map(i => ({ x: i.x, y: i.y, vx: i.vx, vy: i.vy, type: i.type, direction: i.direction })),
+
+			stars: this.stars.map(s => ({
+				x: s.x,
+				y: s.y,
+				vx: s.vx,
+				vy: s.vy
+			})),
+
+			items: this.items.map(i => ({
+				x: i.x,
+				y: i.y,
+				vx: i.vx,
+				vy: i.vy,
+				type: i.type,
+				direction: i.direction
+			})),
+
 			projectiles: this.projectiles.map(p => ({
-				x: p.x, y: p.y, vx: p.vx, vy: p.vy, kind: p.kind === 'ice' ? 1 : 0, owner: p.owner
+				x: p.x,
+				y: p.y,
+				vx: p.vx,
+				vy: p.vy,
+				kind: p.kind === 'ice' ? 1 : 0,
+				owner: p.owner
 			})),
-			itemBoxes: this.itemBoxes.map(b => ({ used: b.used, cooldown: b.cooldown, pendingItem: b.pendingItem })),
+
+			itemBoxes: this.itemBoxes.map(b => ({
+				used: b.used,
+				cooldown: b.cooldown,
+				pendingItem: b.pendingItem
+			})),
+
 			nextStarX: this.nextStarX,
 			nextStarY: this.nextStarY,
 			starSpawnTimer: this.starSpawnTimer
@@ -1511,7 +1761,9 @@ export class GMStars extends GameMode {
 
 		this.rng = new RNG(obj.seed);
 
-		obj.players.forEach((p: Fields, idx: number) => this.players[idx].load(p));
+		obj.players.forEach((p: Fields, idx: number) => {
+			this.players[idx].load(p);
+		});
 
 		this.stars = obj.stars.map((s: Fields) => {
 			const star = new StarPickup(0, 0, 0, 0);
@@ -1520,18 +1772,34 @@ export class GMStars extends GameMode {
 		});
 
 		this.items = obj.items.map((i: Fields) => {
-			const item = new ItemDrop(0, 0, ItemType.MUSHROOM, 1);
+			const item = new ItemDrop(
+				0,
+				0,
+				ItemType.MUSHROOM,
+				1
+			);
+
 			item.load(i);
 			return item;
 		});
 
 		this.projectiles = obj.projectiles.map((p: Fields) => {
-			const proj = new Projectile(0, 0, 0, 0, 'fire', 0);
+			const proj = new Projectile(
+				0,
+				0,
+				0,
+				0,
+				'fire',
+				0
+			);
+
 			proj.load(p);
 			return proj;
 		});
 
-		obj.itemBoxes.forEach((b: Fields, idx: number) => this.itemBoxes[idx]?.load(b));
+		obj.itemBoxes.forEach((b: Fields, idx: number) => {
+			this.itemBoxes[idx]?.load(b);
+		});
 
 		this.nextStarX = obj.nextStarX;
 		this.nextStarY = obj.nextStarY;
@@ -1546,7 +1814,12 @@ export class GMStars extends GameMode {
 		};
 	}
 
-	override evalMouseCoords(x: number, y: number, playerIdx: number, _clientData: any) {
+	override evalMouseCoords(
+		x: number,
+		y: number,
+		playerIdx: number,
+		_clientData: any
+	) {
 		const clientData = _clientData as ClientData;
 		const cameraCoords = clientData.camera.getCoords();
 
@@ -1566,12 +1839,54 @@ export class GMStars extends GameMode {
 		return {
 			joysticks: {},
 			buttons: {
-				left: { x: 10, xp: 'left', y: 10, yp: 'bottom', size: 70, color: '#ffffff88' },
-				right: { x: 90, xp: 'left', y: 10, yp: 'bottom', size: 70, color: '#ffffff88' },
-				jump: { x: 10, xp: 'right', y: 10, yp: 'bottom', size: 80, color: '#ffcc00aa' },
-				run: { x: 100, xp: 'right', y: 10, yp: 'bottom', size: 60, color: '#ff5555aa' },
-				down: { x: 50, xp: 'left', y: 100, yp: 'bottom', size: 60, color: '#88aaffaa' },
-				throw: { x: 190, xp: 'right', y: 10, yp: 'bottom', size: 60, color: '#66ff66aa' }
+				left: {
+					x: 10,
+					xp: 'left',
+					y: 10,
+					yp: 'bottom',
+					size: 70,
+					color: '#ffffff88'
+				},
+				right: {
+					x: 90,
+					xp: 'left',
+					y: 10,
+					yp: 'bottom',
+					size: 70,
+					color: '#ffffff88'
+				},
+				jump: {
+					x: 10,
+					xp: 'right',
+					y: 10,
+					yp: 'bottom',
+					size: 80,
+					color: '#ffcc00aa'
+				},
+				run: {
+					x: 100,
+					xp: 'right',
+					y: 10,
+					yp: 'bottom',
+					size: 60,
+					color: '#ff5555aa'
+				},
+				down: {
+					x: 50,
+					xp: 'left',
+					y: 100,
+					yp: 'bottom',
+					size: 60,
+					color: '#88aaffaa'
+				},
+				throw: {
+					x: 190,
+					xp: 'right',
+					y: 10,
+					yp: 'bottom',
+					size: 60,
+					color: '#66ff66aa'
+				}
 			}
 		};
 	}
@@ -1594,8 +1909,11 @@ export class GMStars extends GameMode {
 
 		// Detect ties between consecutive teams (same star count) for the ranking display.
 		const teamEqualities: number[] = [];
+
 		for (let i = 0; i < order.length - 1; i++) {
-			if (order[i].stars === order[i + 1].stars) teamEqualities.push(i);
+			if (order[i].stars === order[i + 1].stars) {
+				teamEqualities.push(i);
+			}
 		}
 
 		return {
