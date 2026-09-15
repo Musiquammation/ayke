@@ -27,7 +27,12 @@ message PlayerState {
 
 	float freezeTimer = 15;
 
-	bool holdingRun = 16;
+	bool holdingLeft = 16;
+	bool holdingRight = 17;
+	bool holdingRun = 18;
+	bool holdingDown = 19;
+	bool wantsJump = 20;
+	bool grounded = 21;
 }
 
 message StarState {

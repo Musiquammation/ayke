@@ -593,7 +593,13 @@ class Player {
 		this.isGroundPounding = obj.isGroundPounding;
 		this.groundPoundDelay = obj.groundPoundDelay;
 		this.freezeTimer = obj.freezeTimer;
-		this.holdingRun = obj.running;
+		
+		this.holdingLeft = obj.holdingLeft;
+		this.holdingRight = obj.holdingRight;
+		this.holdingRun = obj.holdingRun;
+		this.holdingDown = obj.holdingDown;
+		this.wantsJump = obj.wantsJump;
+		this.grounded = obj.grounded;
 	}
 }
 
@@ -1695,26 +1701,7 @@ export class GMStars extends GameMode {
 		const object: Fields = {
 			seed: this.rng.seed,
 
-			players: this.players.map(p => ({
-				x: p.x,
-				y: p.y,
-				vx: p.vx,
-				vy: p.vy,
-				direction: p.direction,
-				power: p.power,
-				big: p.big,
-				connected: p.connected,
-				stars: p.stars,
-				aliveTimer: p.aliveTimer,
-				spawnX: p.spawnX,
-				spawnY: p.spawnY,
-				isShellForm: p.isShellForm,
-				shellRunTimer: p.shellRunTimer,
-				isGroundPounding: p.isGroundPounding,
-				groundPoundDelay: p.groundPoundDelay,
-				freezeTimer: p.freezeTimer,
-				running: p.holdingRun
-			})),
+			players: this.players,
 
 			stars: this.stars.map(s => ({
 				x: s.x,
