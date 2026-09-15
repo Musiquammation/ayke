@@ -66,6 +66,7 @@ const TOWER_X_POSITIONS = [-X_LIMIT * 0.55, 0, X_LIMIT * 0.55];
 const TOWER_Y_OFFSET = Y_LIMIT * 0.8;
 
 /** Troops. */
+const TROOP_ENEMY_RADIUS = 500;
 const TROOP_RADIUS = 18;
 const ARROW_SPEED = 900;
 const ARROW_HIT_DISTANCE = 14;
@@ -280,7 +281,11 @@ abstract class Troop {
 			this.attackCooldown -= dt;
 		}
 
-		// --- 1. Opportunistic combat -------------------------------------
+		// --- 1. Redirect through an attacking friendly ---------------------
+		this.checkFriendlyRedirect(game);
+
+
+		// --- 2. Opportunistic combat -------------------------------------
 		const combatTarget = game.findNearestEnemyInRange(this);
 		if (combatTarget) {
 			this.attacking = true;
@@ -291,23 +296,20 @@ abstract class Troop {
 				this.attackCooldown = this.getAttackRate();
 			}
 
-			if (this.canMoveWhileAttacking()) {
+			// if (this.canMoveWhileAttacking()) {
 				this.moveTowardsNeighboor(game, dt);
-			}
+			// }
 			return;
 		}
 
 		this.attacking = false;
 
-		// --- 2. Slow zone: always march forward ---------------------------
+		// --- 3. Slow zone: always march forward ---------------------------
 		if (this.isInSlowZone()) {
 			this.updateNeighboorSearch(game, dt);
 			this.moveForward(dt);
 			return;
 		}
-
-		// --- 3. Redirect through an attacking friendly ---------------------
-		this.checkFriendlyRedirect(game);
 
 		// --- 4. Move towards neighboor, or search, or advance -------------
 		if (this.neighboor) {
@@ -315,7 +317,7 @@ abstract class Troop {
 		} else {
 			this.noTargetTimer += dt;
 			if (this.noTargetTimer > TARGET_SEARCH_DELAY) {
-				const bound = this.tryBindNearestFriendly(game);
+				const bound = this.searchNeighboor(game);
 				if (!bound) {
 					this.moveForward(dt);
 				}
@@ -331,7 +333,7 @@ abstract class Troop {
 		if (!this.neighboor) {
 			this.noTargetTimer += dt;
 			if (this.noTargetTimer > TARGET_SEARCH_DELAY) {
-				this.tryBindNearestFriendly(game);
+				this.searchNeighboor(game);
 			}
 		}
 	}
@@ -346,44 +348,94 @@ abstract class Troop {
 		const followed = game.getTroopById(this.neighboor.id);
 		if (!followed || followed.team !== this.team || !followed.attacking) return;
 
-		const theirFight = game.findNearestEnemyInRange(followed);
-		if (theirFight) {
-			this.neighboor = theirFight.kind === 'tower'
-				? { kind: 'tower', id: theirFight.id }
-				: { kind: 'troop', id: theirFight.id };
-			this.noTargetTimer = 0;
+		if (followed.neighboor) {
+			this.searchNeighboor(game);
 		}
 	}
 
 	/** Searches for the closest living friendly troop to attach our neighboor
 	 *  to, skipping the troop we were just following and any candidate that
 	 *  would close a cycle in the link graph. Returns true if bound. */
-	private tryBindNearestFriendly(game: GMMoveArmy): boolean {
-		let best: Troop | null = null;
-		let bestDist = Infinity;
+	private searchNeighboor(game: GMMoveArmy): boolean {
+		// Search best opponent troop in TROOP_ENEMY_RADIUS
+		{
+			let best: Troop | null = null;
+			let bestDist2 = TROOP_ENEMY_RADIUS * TROOP_ENEMY_RADIUS;
 
-		for (const other of game.getFriendlyTroops(this.team)) {
-			if (
-				(this.team === 'red' && other.y < this.y) ||
-				(this.team === 'blue' && other.y > this.y) ||
-				other.id === this.id ||
-				!other.isAlive() ||
-				other.id === this.lastNeighboorTroopId ||
-				game.wouldCreateCycle(this.id, other.id)
-			) continue;
+			for (const other of game.getEnemyTroops(this.team)) {
+				if (
+					other.id === this.id ||
+					!other.isAlive() ||
+					other.id === this.lastNeighboorTroopId ||
+					game.wouldCreateCycle(this.id, other.id)
+				) continue;
 
-			const d = norm2(other.x - this.x, other.y - this.y);
-			if (d < bestDist) {
-				bestDist = d;
-				best = other;
+				const d = norm2(other.x - this.x, other.y - this.y);
+				if (d < bestDist2) {
+					bestDist2 = d;
+					best = other;
+				}
+			}
+
+			if (best) {
+				this.neighboor = { kind: 'troop', id: best.id };
+				this.noTargetTimer = 0;
+				return true;
 			}
 		}
 
-		if (!best) return false;
+		// Search best friendly troop in front of us
+		{
+			let best: Troop | null = null;
+			let bestDist = Infinity;
+	
+			for (const other of game.getFriendlyTroops(this.team)) {
+				if (
+					(this.team === 'red' && other.y < this.y) ||
+					(this.team === 'blue' && other.y > this.y) ||
+					other.id === this.id ||
+					!other.isAlive() ||
+					other.id === this.lastNeighboorTroopId ||
+					game.wouldCreateCycle(this.id, other.id)
+				) continue;
+	
+				const d = norm2(other.x - this.x, other.y - this.y);
+				if (d < bestDist) {
+					bestDist = d;
+					best = other;
+				}
+			}
+	
+			if (best) {
+				this.neighboor = { kind: 'troop', id: best.id };
+				this.noTargetTimer = 0;
+				return true;
+			}
+		}
 
-		this.neighboor = { kind: 'troop', id: best.id };
-		this.noTargetTimer = 0;
-		return true;
+
+		// Search nearest tower
+		/*{
+			let best: Tower | null = null;
+			let bestDist = Infinity;
+
+			for (const tower of game.towers) {
+				if (!tower.isAlive() || tower.team === this.team) continue;
+
+				const d = norm2(tower.x - this.x, tower.y - this.y);
+				if (d < bestDist) {
+					bestDist = d;
+					best = tower;
+				}
+			}
+
+			if (best) {
+				this.neighboor = { kind: 'tower', id: best.id };
+				this.noTargetTimer = 0;
+			}
+		}*/
+
+		return false;
 	}
 
 	private moveForward(dt: number) {
@@ -991,6 +1043,12 @@ export class GMMoveArmy extends GameMode {
 	getFriendlyTroops(team: 'red' | 'blue'): Troop[] {
 		return this.troops.filter(t => t.team === team);
 	}
+
+	getEnemyTroops(team: 'red' | 'blue'): Troop[] {
+		return this.troops.filter(t => t.team !== team);
+	}
+
+
 
 	/** Damage is doubled during the last minute (sudden death) to force a winner. */
 	getDamageMultiplier(): number {
