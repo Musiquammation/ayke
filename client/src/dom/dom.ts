@@ -13,6 +13,7 @@ import { SoloGameHandler } from "../handlers/SoloGameHandler";
 import { waitSkinsResponsePromise } from "../messages/recvMessage";
 import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 import { FinishGame } from "../../../commons/GameMode";
+import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 
 
 declare global {
@@ -922,12 +923,12 @@ class HomeComponent {
 	coins = "(?)";
 	globalRank = "(?)";
 
-	readonly connectedUsersInfo = {
+	private connectedUsersInfo: ConnectedUsersInfo = {
 		total: 0,
 		gamemods: Object.fromEntries(
 			Object.entries(gamemods)
 				.filter(([, i]) => i.type === 'multiplayer')
-				.map(([gamemode]) => [gamemode, 0])
+				.map(([gamemode]) => [gamemode, -1])
 		)
 	};
 
@@ -998,9 +999,16 @@ class HomeComponent {
 		this.globalRank = String(d.globalRank);
 	}
 
-
-	getConnectedUsers(gamemode: string) {
-		return this.connectedUsersInfo.gamemods[gamemode];
+	setConnectedUsersInfo(info: ConnectedUsersInfo) {
+		for (const _span of document.querySelectorAll(".connectedUsersIndicator")) {
+			const span = _span as HTMLElement;
+			const k = info.gamemods[span.dataset.key as string];
+			if (k === undefined) {
+				span.innerText = ""
+			} else {
+				span.innerText = "🟢 " + k;
+			}
+		}
 	}
 }
 

@@ -65,8 +65,8 @@
 											:class="{ 'play-disabled': isDisabled(game.key) }"
 											@pointerup="playGame(game.key)"
 											>
-											<span x-text="getConnectedUsers(game.key)"></span>
-											<!-- <span x-text="game.name"></span> -->
+											<span x-text="game.name"></span>
+											<span class="connectedUsersIndicator" :data-key="game.key"></span>
 
 											<img class="pixel-image" :src="getImageSrc(game.key)">
 										</div>

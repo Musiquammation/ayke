@@ -465,7 +465,15 @@ button.selected {
 	pointer-events: none;
 }
 
-.home-play > div > div > div > span::after {
+
+.home-play > div > div > div > span.connectedUsersIndicator {
+	left: 12px;
+	text-align: left;	
+	color: var(--color-success);
+	right: auto;
+}
+
+.home-play > div > div > div > :nth-child(1)::after {
 	content: "";
 
 	position: absolute;
@@ -483,7 +491,7 @@ button.selected {
 	transition: transform 0.25s ease;
 }
 
-.home-play > div > div > div:hover > span::after {
+.home-play > div > div > div:hover > :nth-child(1)::after {
 	transform: scaleX(1);
 }
 
@@ -522,6 +530,7 @@ button.selected {
 .home-play > div > div > div.play-disabled:hover > img {
 	filter: grayscale(1);
 }
+
 
 
 
