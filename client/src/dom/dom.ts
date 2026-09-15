@@ -1066,7 +1066,9 @@ class LeaderboardComponent {
 	page: number = 0;
 
 	// Exposing imported gamemods for the UI dropdown
-	gamemods = gamemods;
+	gamemods = Object.fromEntries(
+		Object.entries(gamemods).filter(([, gamemod]) => gamemod.type === 'multiplayer')
+	);;
 
 	/**
 	 * Requests the latest leaderboard slice from the server based on current filters.

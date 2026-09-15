@@ -29,9 +29,6 @@ class ConnectedUsersInfoHandler {
 		} else {
 			this.subscribers.delete(connection);
 		}
-
-		console.log(this.subscribers.size);
-
 	}
 
 	addUser() {
