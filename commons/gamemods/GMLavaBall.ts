@@ -93,10 +93,12 @@ const TOP_OF_LEVEL_BONUS = 5000;       // Instant bonus for reaching MAX_LEVEL_H
 const ROUND_END_DELAY = 3;             // Seconds shown as "round over" screen before next round
 
 // --- Obstacles ---------------------------------------------------------
-const OBSTACLE_CHECK_INTERVAL = 0.85;  // Server checks whether to queue a new obstacle every 0.85s
-const OBSTACLE_SPAWN_DELAY = 1;        // Delay between "waiting" obstacle selection and actual spawn
+const OBSTACLE_CHECK_INTERVAL = 0.65;  // Server checks whether to queue a new obstacle every 0.85s
+const OBSTACLE_SPAWN_DELAY = 0.5;      // Delay between "waiting" obstacle selection and actual spawn
 const OBSTACLE_SPAWN_CHANCE = 0.65;    // Probability of actually spawning something on a given check
+const OBSTACLE_SPAWN_YRANGE = 800;
 const OBSTACLE_CLEANUP_MARGIN = SCREEN_HEIGHT; // Distance outside camera before an obstacle is removed
+const OBSTACLE_GRAVITY = BALL_GRAVITY/3;
 
 const OBSTACLE_RECT_MIN_SIZE = 60;
 const OBSTACLE_RECT_MAX_SIZE = 140;
@@ -108,6 +110,7 @@ const OBSTACLE_CIRCLE_MAX_RADIUS = 70;
 
 const OBSTACLE_MIN_SPEED = 80;
 const OBSTACLE_MAX_SPEED = 260;
+
 
 // --- Level generation (platforms) ---------------------------------------------------------
 const PLATFORM_MIN_GAP = 180;          // Minimal vertical gap between two consecutive platforms
@@ -136,7 +139,7 @@ const ELIMINATED_GREY = '#888888';
  * non-instantaneous transition in both directions.
  */
 function aimSpeedScale(t: number): number {
-	if (t < SLOW_MOTION_MIN_SPEED) {
+	if (t < TURN_AIM_DURATION) {
 		return SLOW_MOTION_MIN_SPEED;
 	}
 
@@ -381,7 +384,7 @@ class Obstacle {
 	/** Advances physics for this obstacle by dt seconds (already speed-scaled). */
 	move(dt: number) {
 		if (this.affectedByGravity) {
-			this.vy -= BALL_GRAVITY * dt;
+			this.vy -= OBSTACLE_GRAVITY * dt;
 		}
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
@@ -664,47 +667,77 @@ function findPlatformBelow(platforms: Platform[], y: number): Platform {
 /* ============================================================================
  * OBSTACLE GENERATION
  * ==========================================================================*/
-
 /**
  * Randomly builds the full description of a new obstacle, ready to be
- * queued as a WaitingObstacleData. All randomness happens exactly once, at
- * selection time, so the eventual spawn is fully deterministic given the
- * data stored in State (no re-rolling on the client).
+ * queued as a WaitingObstacleData.
+ *
+ * All randomness happens exactly once, at selection time, so the eventual
+ * spawn is fully deterministic given the data stored in State
+ * (no re-rolling on the client).
  */
-function pickRandomObstacle(id: number, cameraY: number): WaitingObstacleData {
+function pickRandomObstacle(id: number, yLevel: number): WaitingObstacleData {
 	const type: ObstacleType = Math.random() < 0.5 ? 'rect' : 'circle';
 	const affectedByGravity = Math.random() < 0.5;
 
-	// Obstacles spawn outside the current screen: either above the visible
-	// area (falling / floating down into view) or from one of the two side
-	// walls (flying in horizontally).
-	const fromSide = Math.random() < 0.4;
+	let x: number;
+	let y: number;
+	let vx: number;
+	let vy: number;
 
-	let x: number, y: number, vx: number, vy: number;
-	const speed = OBSTACLE_MIN_SPEED + Math.random() * (OBSTACLE_MAX_SPEED - OBSTACLE_MIN_SPEED);
+	const speed =
+		OBSTACLE_MIN_SPEED +
+		Math.random() * (OBSTACLE_MAX_SPEED - OBSTACLE_MIN_SPEED);
 
-	if (fromSide) {
+	{
+		// Choose whether the obstacle enters from the left or the right.
 		const fromLeft = Math.random() < 0.5;
-		x = fromLeft ? -LEVEL_WIDTH / 2 - 100 : LEVEL_WIDTH / 2 + 100;
-		y = cameraY + (Math.random() * 2 - 1) * (SCREEN_HEIGHT / 2);
+
+		// Spawn slightly outside the visible horizontal area.
+		// x = 0 is assumed to be the horizontal center of the screen.
+		const spawnOffset = 120;
+
+		x = fromLeft
+			? -LEVEL_WIDTH / 2 - spawnOffset
+			: LEVEL_WIDTH / 2 + spawnOffset;
+
+		// Spawn at a random vertical position within the visible screen.
+		y = yLevel + (Math.random() + .3) * OBSTACLE_SPAWN_YRANGE;
+
+		// Make the obstacle always move toward the screen.
+		// Left side  -> positive vx
+		// Right side -> negative vx
 		vx = fromLeft ? speed : -speed;
-		vy = affectedByGravity ? 0 : (Math.random() * 2 - 1) * speed * 0.5;
-	} else {
-		x = (Math.random() * 2 - 1) * (LEVEL_WIDTH / 2 - 80);
-		y = cameraY + SCREEN_HEIGHT / 2 + 120;
-		vx = (Math.random() * 2 - 1) * speed * 0.5;
-		vy = -speed * 0.5; // drifting down into view
+
+		// Gravity controls the vertical movement when enabled.
+		// Otherwise, give the obstacle a small random vertical velocity.
+		vy = affectedByGravity
+			? 0
+			: (Math.random() * 2 - 1) * speed * 0.5;
 	}
 
-	const radius = OBSTACLE_CIRCLE_MIN_RADIUS + Math.random() * (OBSTACLE_CIRCLE_MAX_RADIUS - OBSTACLE_CIRCLE_MIN_RADIUS);
-	const size = OBSTACLE_RECT_MIN_SIZE + Math.random() * (OBSTACLE_RECT_MAX_SIZE - OBSTACLE_RECT_MIN_SIZE);
-	const angularVelocity = OBSTACLE_RECT_MIN_ANGULAR_VEL +
-		Math.random() * (OBSTACLE_RECT_MAX_ANGULAR_VEL - OBSTACLE_RECT_MIN_ANGULAR_VEL);
+	const radius =
+		OBSTACLE_CIRCLE_MIN_RADIUS +
+		Math.random() *
+			(OBSTACLE_CIRCLE_MAX_RADIUS - OBSTACLE_CIRCLE_MIN_RADIUS);
+
+	const size =
+		OBSTACLE_RECT_MIN_SIZE +
+		Math.random() *
+			(OBSTACLE_RECT_MAX_SIZE - OBSTACLE_RECT_MIN_SIZE);
+
+	const angularVelocity =
+		OBSTACLE_RECT_MIN_ANGULAR_VEL +
+		Math.random() *
+			(OBSTACLE_RECT_MAX_ANGULAR_VEL -
+				OBSTACLE_RECT_MIN_ANGULAR_VEL);
 
 	return {
 		id,
 		type,
-		x, y, vx, vy,
+		x,
+		y,
+		vx,
+		vy,
 		angle: Math.random() * Math.PI * 2,
 		angularVelocity: type === 'rect' ? angularVelocity : 0,
 		affectedByGravity,
@@ -1052,7 +1085,7 @@ export class GMLavaBall extends GameMode {
 		this.ball.y += this.ball.vy * dt;
 
 		// Bounce off the side walls.
-		const limit = LEVEL_WIDTH / 2 - BALL_RADIUS;
+		const limit = (LEVEL_WIDTH/2 - BALL_RADIUS) / Camera.SCALE;
 		if (this.ball.x < -limit) {
 			this.ball.x = -limit;
 			this.ball.vx = Math.abs(this.ball.vx);
@@ -1102,7 +1135,7 @@ export class GMLavaBall extends GameMode {
 		}
 
 		// Falling behind the camera (off-screen below) is deadly too.
-		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT) {
+		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT * Camera.SCALE) {
 			this.eliminateCurrentPlayer();
 		}
 	}
@@ -1135,13 +1168,11 @@ export class GMLavaBall extends GameMode {
 
 	/** Queues/spawns obstacles and advances obstacle physics. */
 	private updateObstacles(dt: number, rng: GameRandomGenerator) {
-		const cameraY = this.yLevel; // obstacles spawn relative to the current highest point reached
-
 		this.obstacleSpawnTimer += dt;
 		if (this.obstacleSpawnTimer >= OBSTACLE_CHECK_INTERVAL) {
 			this.obstacleSpawnTimer -= OBSTACLE_CHECK_INTERVAL;
 			if (rng() < OBSTACLE_SPAWN_CHANCE) {
-				this.waitingObstacles.push(pickRandomObstacle(this.nextObstacleId++, cameraY));
+				this.waitingObstacles.push(pickRandomObstacle(this.nextObstacleId++, this.yLevel));
 			}
 		}
 
@@ -1164,7 +1195,7 @@ export class GMLavaBall extends GameMode {
 		for (const o of this.obstacles) {
 			o.move(dt);
 		}
-		this.obstacles = this.obstacles.filter(o => !o.isFarFrom(cameraY));
+		this.obstacles = this.obstacles.filter(o => !o.isFarFrom(this.yLevel));
 	}
 
 	/** Throws the ball using the given world-space aim target and PLAYER_THROW_SPEED. */
