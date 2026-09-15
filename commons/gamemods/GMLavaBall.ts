@@ -68,7 +68,7 @@ const SCREEN_HEIGHT = 1200;            // Vertical size of the camera viewport
 const MAX_LEVEL_HEIGHT = 5000;         // Maximum height of a level (spec: "5000")
 
 // --- Ball physics ------------------------------------------------------------
-const BALL_GRAVITY = 1400;             // Gravity applied to the ball (world units/s^2)
+const BALL_GRAVITY = 1200;             // Gravity applied to the ball (world units/s^2)
 const BALL_RADIUS = 26;                // Ball collision radius
 const PLAYER_THROW_SPEED = 1650;       // Initial speed (N) used by getVectorToReachTarget
 
@@ -78,7 +78,7 @@ const TURN_AIM_DURATION = 3;           // Seconds during which the player may ai
 const TURN_WAIT_AFTER = 1;             // Seconds of "do nothing" after the throw
 const TURN_TOTAL_DURATION = TURN_WAIT_BEFORE + TURN_AIM_DURATION + TURN_WAIT_AFTER; // 5s
 
-const SLOW_MOTION_MIN_SPEED = 0.2;     // Game speed multiplier at the deepest point of aiming
+const SLOW_MOTION_MIN_SPEED = 0.1;     // Game speed multiplier at the deepest point of aiming
 
 // --- Turn phases (kept as plain numeric constants so they can be stored in State int32) ---
 const PHASE_WAIT_BEFORE = 0;
@@ -137,10 +137,11 @@ const ELIMINATED_GREY = '#888888';
  * non-instantaneous transition in both directions.
  */
 function aimSpeedScale(t: number): number {
-	const clamped = Math.max(0, Math.min(TURN_AIM_DURATION, t));
-	const amplitude = (1 - SLOW_MOTION_MIN_SPEED) / 2; // 0.4
-	const mid = (1 + SLOW_MOTION_MIN_SPEED) / 2;        // 0.6
-	return mid + amplitude * Math.cos((2 * Math.PI * clamped) / TURN_AIM_DURATION);
+	if (t < SLOW_MOTION_MIN_SPEED) {
+		return SLOW_MOTION_MIN_SPEED;
+	}
+
+	return 1;
 }
 
 /**
@@ -506,9 +507,6 @@ class ClientData {
 	/** Last sent aim target, used to avoid re-sending identical inputs. */
 	lastSentAimX: number | null = null;
 	lastSentAimY: number | null = null;
-
-	/** Platforms received once at init time (StartDataClient), never re-synced. */
-	platforms: Platform[] = [];
 
 	readonly camera = new Camera();
 
@@ -877,14 +875,14 @@ export class GMLavaBall extends GameMode {
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].isRed = p.isRed;
 			}
-			clientData.platforms = platforms;
+			game.platforms = platforms;
 		} else {
 			// Local single-machine testing fallback: 2v2 alternating teams.
 			for (let i = 0; i < total; i++) {
 				game.players[i].isRed = (i % 2 === 0);
 			}
 			const rng = () => Math.random();
-			clientData.platforms = generatePlatforms(rng);
+			game.platforms = generatePlatforms(rng);
 		}
 
 		game.startNewRound(true);
@@ -1072,7 +1070,7 @@ export class GMLavaBall extends GameMode {
 		// Landing on a platform (only while falling, from above).
 		if (this.ball.vy <= 0) {
 			for (const platform of this.platforms) {
-				const rect = { x: platform.x - platform.w / 2, y: platform.y - platform.h / 2, w: platform.w, h: platform.h };
+				const rect = { x: platform.x, y: platform.y - platform.h / 2, w: platform.w, h: platform.h };
 				const circle = { x: this.ball.x, y: this.ball.y, r: BALL_RADIUS };
 				const topOfPlatform = platform.y + platform.h / 2;
 
@@ -1105,7 +1103,7 @@ export class GMLavaBall extends GameMode {
 		}
 
 		// Falling behind the camera (off-screen below) is deadly too.
-		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT / 2) {
+		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT) {
 			this.eliminateCurrentPlayer();
 		}
 	}
@@ -1345,51 +1343,83 @@ export class GMLavaBall extends GameMode {
 
 		data.update(this, playerIdx, 1 / 60);
 		const camera = data.camera;
+		const cameraCoords = camera.getCoords();
+
+		// Draw everything in world coordinates.
+		// The canvas origin is moved to the center of the screen,
+		// then the Y axis is flipped to match the world coordinate system.
+		ctx.save();
+		ctx.translate(LEVEL_WIDTH / 2, SCREEN_HEIGHT / 2);
+		ctx.scale(Camera.SCALE, -Camera.SCALE);
+		ctx.translate(-cameraCoords.x, -cameraCoords.y);
 
 		// Background.
 		ctx.fillStyle = "#1a1a2e";
-		ctx.fillRect(0, 0, LEVEL_WIDTH, SCREEN_HEIGHT);
+		ctx.fillRect(
+			cameraCoords.x - LEVEL_WIDTH / (2 * Camera.SCALE),
+			cameraCoords.y - SCREEN_HEIGHT / (2 * Camera.SCALE),
+			LEVEL_WIDTH / Camera.SCALE,
+			SCREEN_HEIGHT / Camera.SCALE
+		);
 
 		// Platforms.
 		ctx.fillStyle = "#8a5a34";
-		for (const p of data.platforms) {
-			const topLeft = this.worldToScreen(p.x - p.w / 2, p.y + p.h / 2, camera);
-			ctx.fillRect(topLeft.x, topLeft.y, p.w * Camera.SCALE, p.h * Camera.SCALE);
+		for (const p of this.platforms) {
+			ctx.fillRect(
+				p.x - p.w / 2,
+				p.y - p.h / 2,
+				p.w,
+				p.h
+			);
 		}
 
-		// Obstacles (always red).
+		// Obstacles.
 		ctx.fillStyle = OBSTACLE_COLOR;
 		for (const o of this.obstacles) {
-			const center = this.worldToScreen(o.x, o.y, camera);
 			ctx.save();
-			ctx.translate(center.x, center.y);
-			// Screen Y is flipped relative to world Y, so we negate the angle
-			// to keep the visual rotation direction consistent.
-			ctx.rotate(-o.angle);
+			ctx.translate(o.x, o.y);
+			ctx.rotate(o.angle);
+
 			if (o.type === 'circle') {
 				ctx.beginPath();
-				ctx.arc(0, 0, o.radius * Camera.SCALE, 0, Math.PI * 2);
+				ctx.arc(0, 0, o.radius, 0, Math.PI * 2);
 				ctx.fill();
 			} else {
-				ctx.fillRect(-o.w * Camera.SCALE / 2, -o.h * Camera.SCALE / 2, o.w * Camera.SCALE, o.h * Camera.SCALE);
+				ctx.fillRect(
+					-o.w / 2,
+					-o.h / 2,
+					o.w,
+					o.h
+				);
 			}
+
 			ctx.restore();
 		}
 
 		// Ball.
-		const ballScreen = this.worldToScreen(this.ball.x, this.ball.y, camera);
 		ctx.fillStyle = "#ffee55";
 		ctx.beginPath();
-		ctx.arc(ballScreen.x, ballScreen.y, BALL_RADIUS * Camera.SCALE, 0, Math.PI * 2);
+		ctx.arc(this.ball.x, this.ball.y, BALL_RADIUS, 0, Math.PI * 2);
 		ctx.fill();
 
 		// Aiming trajectory for whoever is currently playing.
 		const activePlayer = this.players[this.currentPlayer];
 		if (this.turnPhase === PHASE_AIMING && activePlayer.aiming) {
-			const targetScreen = this.worldToScreen(activePlayer.aimX, activePlayer.aimY, camera);
-			const teamColor = activePlayer.isRed ? TEAM_COLORS.red : TEAM_COLORS.blue;
-			drawPlayerToTarget(ctx, ballScreen.x, ballScreen.y, targetScreen.x, targetScreen.y, teamColor);
+			const teamColor = activePlayer.isRed
+				? TEAM_COLORS.red
+				: TEAM_COLORS.blue;
+
+			drawPlayerToTarget(
+				ctx,
+				this.ball.x,
+				this.ball.y,
+				activePlayer.aimX,
+				activePlayer.aimY,
+				teamColor
+			);
 		}
+
+		ctx.restore();
 	}
 
 	/* ==========================================================================
