@@ -1,0 +1,92 @@
+<div x-data="data">
+    <div class="game-stars-setup-section">
+        <span>Skin:</span>
+
+        <div
+            class="game-stars-skin-select"
+            x-data="{ open: false }"
+            @click.outside="open = false"
+        >
+            <button
+                type="button"
+                class="game-stars-skin-select-button"
+                @click="open = !open"
+            >
+                <div class="game-stars-skin-select-current">
+                    <img
+                        :src="getSkinIconPath(skin)"
+                        :alt="SKINS[skin]"
+                    >
+                    <span x-text="SKINS[skin]"></span>
+                </div>
+
+                <span
+                    class="game-stars-skin-select-arrow"
+                    x-text="open ? '▲' : '▼'"
+                ></span>
+            </button>
+
+            <div
+                class="game-stars-skin-select-options"
+                x-show="open"
+                x-transition
+            >
+                <template
+                    x-for="(name, id) in SKINS"
+                    :key="id"
+                >
+                    <div
+                        class="game-stars-skin-select-option"
+                        :class="{
+                            selected: skin === id,
+                            disabled: !hasSkin(id)
+                        }"
+                        @click="
+                            if (hasSkin(id)) {
+                                skin = id;
+                                open = false;
+                            }
+                        "
+                    >
+                        <img
+                            :src="getSkinIconPath(id)"
+                            :alt="name"
+                        >
+
+                        <span x-text="name"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-stars-setup-section">
+        <span>Map:</span>
+
+        <div class="game-stars-map-select">
+            <button
+                type="button"
+                :class="{ selected: mapId === 0 }"
+                @pointerup="mapId = 0"
+            >
+                Classic Plains
+            </button>
+
+            <button
+                type="button"
+                :class="{ selected: mapId === 1 }"
+                @pointerup="mapId = 1"
+            >
+                Sky Gaps
+            </button>
+
+            <button
+                type="button"
+                :class="{ selected: mapId === 2 }"
+                @pointerup="mapId = 2"
+            >
+                Castle Run
+            </button>
+        </div>
+    </div>
+</div>

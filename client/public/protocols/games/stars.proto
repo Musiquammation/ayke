@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package game_stars;
+
+message Empty {}
+
+message PlayerState {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+
+	int32 direction = 5;
+	int32 power = 6;
+
+	bool big = 7;
+	bool connected = 8;
+	int32 stars = 9;
+
+	float aliveTimer = 10;
+
+	bool isShellForm = 11;
+	float shellRunTimer = 12;
+
+	bool isGroundPounding = 13;
+	float groundPoundDelay = 14;
+
+	float freezeTimer = 15;
+
+	bool holdingRun = 16;
+}
+
+message StarState {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+}
+
+message ItemState {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+
+	int32 type = 5;
+	int32 direction = 6;
+}
+
+message ProjectileState {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+
+	int32 kind = 5;
+	int32 owner = 6;
+}
+
+message ItemBoxState {
+	bool used = 1;
+	float cooldown = 2;
+	int32 pendingItem = 3;
+}
+
+message State {
+	// Deterministic random generator state.
+	uint32 seed = 1;
+
+	// Complete mutable player state.
+	repeated PlayerState players = 2;
+
+	// Dynamic entities.
+	repeated StarState stars = 3;
+	repeated ItemState items = 4;
+	repeated ProjectileState projectiles = 5;
+
+	// Dynamic state of every static item box.
+	repeated ItemBoxState itemBoxes = 6;
+
+	// The next star spawn is pre-rolled and must survive a save/load.
+	float nextStarX = 7;
+	float nextStarY = 8;
+	float starSpawnTimer = 9;
+}
+
+message QInput {
+	double timestamp = 1;
+
+	oneof action {
+		Empty right = 2;
+		Empty stopRight = 3;
+
+		Empty left = 4;
+		Empty stopLeft = 5;
+
+		Empty run = 6;
+		Empty stopRun = 7;
+
+		Empty down = 8;
+		Empty stopDown = 9;
+
+		Empty jump = 10;
+		Empty stopJump = 11;
+
+		Empty throwItem = 12;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	string skin = 1;
+	int32 mapId = 2;
+}
+
+message StartPlayerInfo {
+	float x = 1;
+	float y = 2;
+	string skin = 3;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+	int32 mapId = 2;
+}

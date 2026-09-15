@@ -11,6 +11,7 @@ import { GMWoodSword } from "./gamemods/GMWoodSword";
 import { SoloGameMode } from "./SoloGameMode";
 import { GMMoveArmy } from "./gamemods/GMMoveArmy";
 import { GMPopit } from "./gamemods/GMPopit";
+import { GMStars } from "./gamemods/GMStars";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -20,6 +21,7 @@ import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
 import bots_woodSword from "./bots/bots-woodSword";
 import bots_moveArmy from "./bots/bots-moveArmy";
 import bots_popit from "./bots/bots-popit";
+import bots_stars from "./bots/bots-stars";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
@@ -229,6 +231,23 @@ export const gamemods: Record<
 		iconExtension: 'svg',
 		defaultPlayerCount: 2,
 		nodes: bots_popit
+	},
+
+	stars: {
+		type: 'multiplayer',
+		server: GMStars.createServ,
+		client: GMStars.createClient,
+		dom: GMStars.generateClientDom,
+		textures: GMStars.TEXTURES,
+		name: "Stars",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'svg',
+		defaultPlayerCount: 4,
+		nodes: bots_stars
 	},
 
 	separator_solo: {

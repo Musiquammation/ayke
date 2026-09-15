@@ -1,0 +1,47 @@
+/* Root HUD container displayed over the game canvas. */
+.game-stars-root {
+	position: fixed;
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	justify-content: center;
+
+	width: 96vw;
+
+	font-family: sans-serif;
+	font-size: 2vh;
+
+	pointer-events: none;
+}
+
+/* Main score/ranking panel. */
+.game-stars-starboard {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5vh;
+
+	min-width: 18vw;
+
+	padding: 1vh 1vw;
+
+	background: rgba(0, 0, 0, 0.55);
+	border-radius: 1vh;
+
+	color: white;
+}
+
+/* One player's entry in the ranking. */
+.game-stars-star-row {
+	padding: 0.4vh 0.6vw;
+
+	border-radius: 0.5vh;
+
+	white-space: nowrap;
+}
+
+/* Highlight applied to the local player's row. */
+.game-stars-star-row-self {
+	background: rgba(255, 215, 0, 0.35);
+	font-weight: bold;
+}
