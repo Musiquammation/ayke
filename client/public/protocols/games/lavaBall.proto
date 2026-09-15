@@ -60,6 +60,7 @@ message Ball {
 	float y = 2;
 	float vx = 3;
 	float vy = 4;
+	bool inFlight = 5;
 }
 
 
@@ -73,6 +74,7 @@ message PlayerState {
 	float aimX = 5;
 	float aimY = 6;
 	bool aiming = 7;
+	bool askThrow = 8;
 }
 
 

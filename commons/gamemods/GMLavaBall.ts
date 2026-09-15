@@ -444,6 +444,7 @@ class Ball {
 		this.y = obj.y;
 		this.vx = obj.vx;
 		this.vy = obj.vy;
+		this.inFlight = obj.inFlight;
 	}
 }
 
@@ -458,6 +459,7 @@ class Player {
 	aimX = 0;
 	aimY = 0;
 	aiming = false;
+	askThrow = false;
 
 	load(obj: Fields) {
 		this.isRed = obj.isRed;
@@ -467,6 +469,7 @@ class Player {
 		this.aimX = obj.aimX;
 		this.aimY = obj.aimY;
 		this.aiming = obj.aiming;
+		this.askThrow = obj.askThrow;
 	}
 }
 
@@ -974,6 +977,7 @@ export class GMLavaBall extends GameMode {
 		this.turnTimer = 0;
 		this.thrownThisTurn = false;
 		this.players[this.currentPlayer].aiming = false;
+		this.players[this.currentPlayer].askThrow = false;
 	}
 
 	private firstAlivePlayerFrom(start: number): number {
@@ -1039,6 +1043,17 @@ export class GMLavaBall extends GameMode {
 			this.updateObstacles(scaledDt, rng);
 		}
 
+		// Throw ball
+		const currentPlayer = this.players[this.currentPlayer];
+		if (currentPlayer.askThrow) {
+			this.throwBall(currentPlayer.aimX, currentPlayer.aimY);
+			this.turnPhase = PHASE_WAIT_AFTER;
+			// Jump the timer to the boundary of the aiming window so the
+			// remaining "wait after" cooldown still applies in full.
+			this.turnTimer = Math.max(this.turnTimer, TURN_WAIT_BEFORE + TURN_AIM_DURATION);
+			currentPlayer.askThrow = false;
+		}
+
 		// 3) Advance the turn timer using REAL time (the timer itself is
 		//    what defines the slow-motion window, so it can't be scaled).
 		this.turnTimer += dt;
@@ -1102,14 +1117,15 @@ export class GMLavaBall extends GameMode {
 		// Landing on a platform (only while falling, from above).
 		if (this.ball.vy <= 0) {
 			for (const platform of this.platforms) {
-				const rect = { x: platform.x, y: platform.y - platform.h / 2, w: platform.w, h: platform.h };
+				const rect = { x: platform.x, y: platform.y, w: platform.w, h: platform.h };
 				const circle = { x: this.ball.x, y: this.ball.y, r: BALL_RADIUS };
 				const topOfPlatform = platform.y + platform.h / 2;
 
-				if (collisions.RectCircle(rect, circle) && this.ball.y - BALL_RADIUS <= topOfPlatform) {
+				if (collisions.RectCircle(rect, circle)) {
 					this.ball.y = topOfPlatform + BALL_RADIUS;
 					this.ball.vx = 0;
 					this.ball.vy = 0;
+					console.log("ground");
 					this.ball.inFlight = false;
 
 					// This platform becomes the new checkpoint.
@@ -1154,6 +1170,7 @@ export class GMLavaBall extends GameMode {
 		this.ball.y = this.checkpointY;
 		this.ball.vx = 0;
 		this.ball.vy = 0;
+		console.log("eliminate");
 		this.ball.inFlight = false;
 	}
 
@@ -1206,9 +1223,11 @@ export class GMLavaBall extends GameMode {
 
 		this.ball.vx = velocity.x;
 		this.ball.vy = velocity.y;
+		console.log("launch", velocity.y);
 		this.ball.inFlight = true;
 		this.thrownThisTurn = true;
 		this.players[this.currentPlayer].aiming = false;
+		this.players[this.currentPlayer].askThrow = false;
 	}
 
 	/** Called when the aiming window closes without an explicit throw input. */
@@ -1280,11 +1299,7 @@ export class GMLavaBall extends GameMode {
 				player.aimX = input.throwBall.x;
 				player.aimY = input.throwBall.y;
 				player.aiming = true;
-				this.throwBall(input.throwBall.x, input.throwBall.y);
-				this.turnPhase = PHASE_WAIT_AFTER;
-				// Jump the timer to the boundary of the aiming window so the
-				// remaining "wait after" cooldown still applies in full.
-				this.turnTimer = Math.max(this.turnTimer, TURN_WAIT_BEFORE + TURN_AIM_DURATION);
+				player.askThrow = true;
 				break;
 			}
 		}
@@ -1393,7 +1408,7 @@ export class GMLavaBall extends GameMode {
 		);
 
 		// Platforms.
-		ctx.fillStyle = "#8a5a34";
+		ctx.fillStyle = "#fff";
 		for (const p of this.platforms) {
 			ctx.fillRect(
 				p.x - p.w / 2,
@@ -1462,6 +1477,7 @@ export class GMLavaBall extends GameMode {
 
 	override save(): Uint8Array {
 		const { State } = protocols.get();
+		console.log("save", this.ball.vy, this.ball.inFlight);
 
 		const object: Fields = {
 			players: this.players.map(p => ({
@@ -1471,13 +1487,15 @@ export class GMLavaBall extends GameMode {
 				score: p.score,
 				aimX: p.aimX,
 				aimY: p.aimY,
-				aiming: p.aiming
+				aiming: p.aiming,
+				askThrow: p.askThrow
 			})),
 			ball: {
 				x: this.ball.x,
 				y: this.ball.y,
 				vx: this.ball.vx,
-				vy: this.ball.vy
+				vy: this.ball.vy,
+				inFlight: this.ball.inFlight
 			},
 			yLevel: this.yLevel,
 			lastEliminatedYLevel: this.lastEliminatedYLevel,
@@ -1515,7 +1533,7 @@ export class GMLavaBall extends GameMode {
 		}
 
 		this.ball.load(obj.ball);
-		this.ball.inFlight = (this.ball.vx !== 0 || this.ball.vy !== 0);
+		console.log("load", this.ball.vy, this.ball.inFlight);
 
 		this.yLevel = obj.yLevel;
 		this.lastEliminatedYLevel = obj.lastEliminatedYLevel;
