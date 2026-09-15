@@ -22,8 +22,8 @@ interface PlayerInput {
 // ============================================================================
 
 /** Portrait arena. Coordinates are centered: x/y in [-LIMIT, +LIMIT]. */
-const WIDTH = 1800;
-const HEIGHT = 3600;
+const WIDTH = 1200;
+const HEIGHT = 2400;
 const X_LIMIT = WIDTH / 2;
 const Y_LIMIT = HEIGHT / 2;
 
@@ -956,20 +956,20 @@ export class GMMoveArmy extends GameMode {
 	static readonly generateClientDom = generateClientDom;
 
 	static readonly TEXTURES = {
-		'tower-red': '/assets/games/moveArmy/tower_red.png',
-		'tower-blue': '/assets/games/moveArmy/tower_blue.png',
-		'troop-soldier-red': '/assets/games/moveArmy/troop_soldier_red.png',
-		'troop-soldier-blue': '/assets/games/moveArmy/troop_soldier_blue.png',
-		'troop-archer-red': '/assets/games/moveArmy/troop_archer_red.png',
-		'troop-archer-blue': '/assets/games/moveArmy/troop_archer_blue.png',
-		'troop-tank-red': '/assets/games/moveArmy/troop_tank_red.png',
-		'troop-tank-blue': '/assets/games/moveArmy/troop_tank_blue.png',
-		'troop-bomber-red': '/assets/games/moveArmy/troop_bomber_red.png',
-		'troop-bomber-blue': '/assets/games/moveArmy/troop_bomber_blue.png',
-		'troop-car-red': '/assets/games/moveArmy/troop_car_red.png',
-		'troop-car-blue': '/assets/games/moveArmy/troop_car_blue.png',
-		'arrow': '/assets/games/moveArmy/arrow.png',
-		'bomb': '/assets/games/moveArmy/bomb.png'
+		'tower-red': '/assets/games/moveArmy/tower-red.svg',
+		'tower-blue': '/assets/games/moveArmy/tower-blue.svg',
+		'troop-soldier-red': '/assets/games/moveArmy/troop-soldier-red.svg',
+		'troop-soldier-blue': '/assets/games/moveArmy/troop-soldier-blue.svg',
+		'troop-archer-red': '/assets/games/moveArmy/troop-archer-red.svg',
+		'troop-archer-blue': '/assets/games/moveArmy/troop-archer-blue.svg',
+		'troop-tank-red': '/assets/games/moveArmy/troop-tank-red.svg',
+		'troop-tank-blue': '/assets/games/moveArmy/troop-tank-blue.svg',
+		'troop-bomber-red': '/assets/games/moveArmy/troop-bomber-red.svg',
+		'troop-bomber-blue': '/assets/games/moveArmy/troop-bomber-blue.svg',
+		'troop-car-red': '/assets/games/moveArmy/troop-car-red.svg',
+		'troop-car-blue': '/assets/games/moveArmy/troop-car-blue.svg',
+		'arrow': '/assets/games/moveArmy/arrow.svg',
+		'bomb': '/assets/games/moveArmy/bomb.svg'
 	};
 
 	override init(): void {}
