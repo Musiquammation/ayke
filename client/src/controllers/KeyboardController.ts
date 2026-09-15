@@ -6,6 +6,7 @@ const KEYS = [
 	'right',
 	'jump',
 	'shift',
+	'throw',
 	'0',
 	'1',
 	'2',
@@ -32,6 +33,9 @@ const COMBINAISONS: Record<string, Key> = {
 	KeyS: 'down',
 	Space: 'jump',
 	ShiftLeft: 'shift',
+
+	KeyE: 'throw',
+
 
 	Digit0: '0',
 	Digit1: '1',

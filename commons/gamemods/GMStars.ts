@@ -22,6 +22,7 @@ interface PlayerInput {
 const TILE = 80; // size of a single map tile, in pixels
 
 const GRAVITY = 2200;
+const JUMP_HOLD_GRAVITY = 900; // reduced gravity while the jump button is held during ascent
 
 // Player physics
 const ACCEL = 2400; // horizontal acceleration while a direction key is held
@@ -82,7 +83,7 @@ const MUSHROOM_SPEED = 220; // only the mushroom actively walks
 // Stars (the collectible, scored objective — not to confuse with "Star power")
 const STAR_SIZE = 40;
 const STAR_POP_VELOCITY = -650; // stars pop up like a jump when they spawn
-const BOUNCE_DAMPING = 0.6; // energy kept when a star bounces off ground/walls
+const STAR_JUMP = 550;
 
 // Victory condition
 const STARS_TO_WIN = 10;
@@ -301,6 +302,8 @@ class ItemDrop {
 			} else {
 				this.x = nextX;
 			}
+
+			this.x = wrapHorizontal(this.x, ITEM_SIZE, map);
 		}
 
 		const nextY = this.y + this.vy * dt;
@@ -337,17 +340,19 @@ class StarPickup {
 
 		const nextX = this.x + this.vx * dt;
 		if (collidesMapHorizontal(nextX, this.y, STAR_SIZE, STAR_SIZE, map)) {
-			this.vx = -this.vx * BOUNCE_DAMPING;
+			this.vx = -this.vx;
 		} else {
 			this.x = nextX;
 		}
+
+		this.x = wrapHorizontal(this.x, STAR_SIZE, map);
 
 		const nextY = this.y + this.vy * dt;
 		const vRes = resolveMapVertical(this.x, this.y, nextY, STAR_SIZE, STAR_SIZE, this.vy, map);
 		this.y = vRes.y;
 		if (vRes.grounded && this.vy > 0) {
 			// Bounce off the ground, losing a bit of energy each time.
-			this.vy = -this.vy * BOUNCE_DAMPING;
+			this.vy = -STAR_JUMP;
 		} else {
 			this.vy = vRes.vy;
 		}
@@ -389,15 +394,15 @@ class Projectile {
 		}
 
 		const nextX = this.x + this.vx * dt;
-		if (collidesMapHorizontal(nextX, this.y, PROJECTILE_SIZE, PROJECTILE_SIZE, map)) {
-			this.vx = 0; // dies on wall impact (handled by caller removing it)
-		} else {
+		if (!collidesMapHorizontal(nextX, this.y, PROJECTILE_SIZE, PROJECTILE_SIZE, map)) {
 			this.x = nextX;
 		}
+
+		this.x = wrapHorizontal(this.x, PROJECTILE_SIZE, map);
 	}
 
 	isDead(map: GameMap) {
-		return this.vx === 0 || this.y > map.pixelHeight + X_LIMIT_MARGIN;
+		return this.y > map.pixelHeight + X_LIMIT_MARGIN;
 	}
 
 	load(obj: Fields) {
@@ -427,6 +432,21 @@ function collidesMapHorizontal(x: number, y: number, w: number, h: number, map: 
 			if (map.isSolid(c, r)) return true;
 
 	return false;
+}
+
+/**
+ * Teleports an object to the opposite side when it completely leaves the map horizontally.
+ */
+function wrapHorizontal(x: number, width: number, map: GameMap): number {
+	const halfWidth = width / 2;
+
+	if (x + halfWidth < 0)
+		return map.pixelWidth + halfWidth;
+
+	if (x - halfWidth > map.pixelWidth)
+		return -halfWidth;
+
+	return x;
 }
 
 /**
@@ -874,19 +894,18 @@ export class GMStars extends GameMode {
 	static readonly SKINS_IDS = Object.keys(GMStars.SKINS);
 
 	static readonly TEXTURES = {
-		'ground': "/assets/games/stars/ground.png",
-		'brick': "/assets/games/stars/brick.png",
-		'item-box': "/assets/games/stars/item-box.png",
-		'item-box-used': "/assets/games/stars/item-box-used.png",
-		'mushroom': "/assets/games/stars/mushroom.png",
-		'fire-flower': "/assets/games/stars/fire-flower.png",
-		'ice-flower': "/assets/games/stars/ice-flower.png",
-		'blue-shell-item': "/assets/games/stars/blue-shell-item.png",
-		'player-shell-form': "/assets/games/stars/player-shell-form.png",
-		'star': "/assets/games/stars/star.png",
-		'fireball': "/assets/games/stars/fireball.png",
-		'iceball': "/assets/games/stars/iceball.png",
-		'background': "/assets/games/stars/background.png",
+		'ground': "/assets/games/stars/ground.svg",
+		'brick': "/assets/games/stars/brick.svg",
+		'item-box': "/assets/games/stars/item-box.svg",
+		'item-box-used': "/assets/games/stars/item-box-used.svg",
+		'mushroom': "/assets/games/stars/mushroom.svg",
+		'fire-flower': "/assets/games/stars/fire-flower.svg",
+		'ice-flower': "/assets/games/stars/ice-flower.svg",
+		'blue-shell-item': "/assets/games/stars/blue-shell-item.svg",
+		'player-shell-form': "/assets/games/stars/player-shell-form.svg",
+		'star': "/assets/games/stars/star.svg",
+		'fireball': "/assets/games/stars/fireball.svg",
+		'iceball': "/assets/games/stars/iceball.svg",
 		'skin-default': getSkinTexturePath('default')
 	};
 
@@ -1063,7 +1082,7 @@ export class GMStars extends GameMode {
 		this.applyGravityAndVertical(player, dt);
 	}
 
-	/** Blue shell form: rolls forward, can't be steered, bounces off walls, can jump. */
+	/** Blue shell form: rolls forward, can't be steered, wraps horizontally, can jump. */
 	private updateShellForm(player: Player, dt: number) {
 		if (player.wantsJump && player.grounded) {
 			player.vy = JUMP_VELOCITY;
@@ -1071,13 +1090,11 @@ export class GMStars extends GameMode {
 		}
 
 		const nextX = player.x + player.vx * dt;
-		if (collidesMapHorizontal(nextX, player.y, player.width, player.height, this.map)) {
-			// Bounce off the wall: reverse direction automatically.
-			player.direction *= -1;
-			player.vx = SHELL_SPEED * player.direction;
-		} else {
+		if (!collidesMapHorizontal(nextX, player.y, player.width, player.height, this.map)) {
 			player.x = nextX;
 		}
+
+		player.x = wrapHorizontal(player.x, player.width, this.map);
 
 		this.applyGravityAndVertical(player, dt);
 	}
@@ -1106,15 +1123,21 @@ export class GMStars extends GameMode {
 
 	private moveHorizontal(player: Player, dt: number) {
 		const nextX = player.x + player.vx * dt;
-		if (collidesMapHorizontal(nextX, player.y, player.width, player.height, this.map)) {
-			player.vx = 0;
-		} else {
+
+		if (!collidesMapHorizontal(nextX, player.y, player.width, player.height, this.map)) {
 			player.x = nextX;
 		}
+
+		player.x = wrapHorizontal(player.x, player.width, this.map);
 	}
 
 	private applyGravityAndVertical(player: Player, dt: number) {
-		player.vy += GRAVITY * dt;
+		// Reduce gravity while the jump button is held during upward movement.
+		const gravity = player.wantsJump && player.vy < 0
+			? JUMP_HOLD_GRAVITY
+			: GRAVITY;
+
+		player.vy += gravity * dt;
 		const nextY = player.y + player.vy * dt;
 		const vRes = resolveMapVertical(player.x, player.y, nextY, player.width, player.height, player.vy, this.map);
 		player.y = vRes.y;
