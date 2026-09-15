@@ -101,6 +101,7 @@ message State {
 	int32 nextObstacleId = 15;
 
 	bool gameOver = 16;
+	bool thrownThisTurn = 17;
 }
 
 

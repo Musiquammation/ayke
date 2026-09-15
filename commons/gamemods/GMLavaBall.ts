@@ -1508,6 +1508,7 @@ export class GMLavaBall extends GameMode {
 			roundEnding: this.roundEnding,
 			roundEndTimer: this.roundEndTimer,
 			roundStartPlayer: this.roundStartPlayer,
+			thrownThisTurn: this.thrownThisTurn,
 
 			obstacles: this.obstacles.map(o => ({
 				id: o.id, type: o.type, x: o.x, y: o.y, vx: o.vx, vy: o.vy,
@@ -1546,6 +1547,7 @@ export class GMLavaBall extends GameMode {
 		this.roundEnding = obj.roundEnding;
 		this.roundEndTimer = obj.roundEndTimer;
 		this.roundStartPlayer = obj.roundStartPlayer;
+		this.thrownThisTurn = obj.thrownThisTurn;
 
 		this.obstacles = obj.obstacles.map((o: any) => new Obstacle(
 			o.id, o.type, o.x, o.y, o.vx, o.vy, o.angle,
