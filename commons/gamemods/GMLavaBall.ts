@@ -114,7 +114,7 @@ const OBSTACLE_MAX_SPEED = 260;
 
 // --- Level generation (platforms) ---------------------------------------------------------
 const PLATFORM_MIN_GAP = 180;          // Minimal vertical gap between two consecutive platforms
-const PLATFORM_MAX_GAP = 320;          // Maximal vertical gap between two consecutive platforms
+const PLATFORM_MAX_GAP = 520;          // Maximal vertical gap between two consecutive platforms
 const PLATFORM_MIN_WIDTH = 140;
 const PLATFORM_MAX_WIDTH = 280;
 const PLATFORM_HEIGHT = 30;
@@ -829,7 +829,7 @@ export class GMLavaBall extends GameMode {
 	checkpointY = 0;
 
 	/** Init data only: never resaved (see design notes above). */
-	private platforms: Platform[] = [];
+	platforms: Platform[] = [];
 
 	private constructor(total: number) {
 		super();
@@ -1125,7 +1125,6 @@ export class GMLavaBall extends GameMode {
 					this.ball.y = topOfPlatform + BALL_RADIUS;
 					this.ball.vx = 0;
 					this.ball.vy = 0;
-					console.log("ground");
 					this.ball.inFlight = false;
 
 					// This platform becomes the new checkpoint.
@@ -1170,7 +1169,6 @@ export class GMLavaBall extends GameMode {
 		this.ball.y = this.checkpointY;
 		this.ball.vx = 0;
 		this.ball.vy = 0;
-		console.log("eliminate");
 		this.ball.inFlight = false;
 	}
 
@@ -1223,7 +1221,6 @@ export class GMLavaBall extends GameMode {
 
 		this.ball.vx = velocity.x;
 		this.ball.vy = velocity.y;
-		console.log("launch", velocity.y);
 		this.ball.inFlight = true;
 		this.thrownThisTurn = true;
 		this.players[this.currentPlayer].aiming = false;
@@ -1477,8 +1474,6 @@ export class GMLavaBall extends GameMode {
 
 	override save(): Uint8Array {
 		const { State } = protocols.get();
-		console.log("save", this.ball.vy, this.ball.inFlight);
-
 		const object: Fields = {
 			players: this.players.map(p => ({
 				isRed: p.isRed,
@@ -1534,8 +1529,6 @@ export class GMLavaBall extends GameMode {
 		}
 
 		this.ball.load(obj.ball);
-		console.log("load", this.ball.vy, this.ball.inFlight);
-
 		this.yLevel = obj.yLevel;
 		this.lastEliminatedYLevel = obj.lastEliminatedYLevel;
 
