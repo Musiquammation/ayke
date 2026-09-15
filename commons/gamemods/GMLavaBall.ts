@@ -676,7 +676,7 @@ function findPlatformBelow(platforms: Platform[], y: number): Platform {
  * (no re-rolling on the client).
  */
 function pickRandomObstacle(id: number, yLevel: number): WaitingObstacleData {
-	const type: ObstacleType = Math.random() < 0.5 ? 'rect' : 'circle';
+	const type: ObstacleType = Math.random() < 0.7 ? 'rect' : 'circle';
 	const affectedByGravity = Math.random() < 0.5;
 
 	let x: number;
