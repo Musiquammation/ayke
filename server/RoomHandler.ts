@@ -121,9 +121,31 @@ export class Room {
 	}
 
 	disconnect(idx: number) {
-		if (this.players[idx].connection) {
-			this.gamemode.onDisconnection(idx);
-			this.players[idx].connection = null;
+		const player = this.players[idx];
+
+		if (!player.connection)
+			return;
+
+		this.gamemode.onDisconnection(idx);
+		player.connection = null;
+
+		// No human player remains connected: stop the room.
+		if (this.players.every(p => p.connection === null)) {
+			this.stop();
+		}
+	}
+
+	private stop() {
+		if (this.isFinished())
+			return;
+
+		this.finished = true;
+		this.onfinish();
+
+		for (const p of this.players) {
+			if (p.connection) {
+				p.connection.roomInfo = null;
+			}
 		}
 	}
 
