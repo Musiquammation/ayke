@@ -1,0 +1,173 @@
+syntax = "proto3";
+
+package game_moveArmy;
+
+message Empty {}
+
+enum TroopType {
+	SOLDIER = 0;
+	ARCHER = 1;
+	TANK = 2;
+	BOMBER = 3;
+	CAR = 4;
+}
+
+message Point {
+	float x = 1;
+	float y = 2;
+}
+
+
+// -------------------------------------------------------------------------
+// Dynamic (per-save) state
+// -------------------------------------------------------------------------
+
+message TroopState {
+	int32 id = 1;
+	TroopType type = 2;
+	bool isRed = 3;
+	float x = 4;
+	float y = 5;
+	float hp = 6;
+	bool attacking = 7;
+	float noTargetTimer = 8;
+	float attackCooldown = 9;
+	int32 lastNeighboorTroopId = 10; // -1 if none
+
+	// What this troop is currently moving towards / bound to.
+	oneof neighboor {
+		Empty neighboorNone = 11;
+		Point neighboorPoint = 12;
+		int32 neighboorTowerId = 13;
+		int32 neighboorTroopId = 14;
+	}
+}
+
+message TowerState {
+	// Only HP is dynamic: id/x/y are initialization data, sent once via
+	// StartDataClient and never recopied here.
+	int32 id = 1;
+	float hp = 2;
+}
+
+message ArrowState {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	float targetX = 6;
+	float targetY = 7;
+	float damage = 8;
+	bool isRed = 9;
+	int32 targetTroopId = 10; // -1 if none
+	int32 targetTowerId = 11; // -1 if none
+}
+
+message BombState {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	float targetX = 6;
+	float targetY = 7;
+	float damage = 8;
+	bool isRed = 9;
+	float radius = 10;
+}
+
+message ManaGauge {
+	float soldier = 1;
+	float archer = 2;
+	float tank = 3;
+	float bomber = 4;
+	float car = 5;
+}
+
+message PlayerState {
+	// Team is initialization data (see StartDataClient) and is intentionally
+	// NOT repeated here. Connection status DOES change mid-match, so it must
+	// be shared to avoid weird behaviour after a load().
+	bool connected = 1;
+}
+
+message State {
+	float time = 1;
+	repeated PlayerState players = 2;
+	repeated TroopState troops = 3;
+	repeated TowerState towers = 4;
+	repeated ArrowState arrows = 5;
+	repeated BombState bombs = 6;
+	ManaGauge redMana = 7;
+	ManaGauge blueMana = 8;
+	int32 nextTroopId = 9;
+	int32 nextProjectileId = 10;
+}
+
+
+// -------------------------------------------------------------------------
+// Inputs
+// -------------------------------------------------------------------------
+
+message CutLineInput {
+	float startX = 1;
+	float startY = 2;
+	float endX = 3;
+	float endY = 4;
+}
+
+message ChangeNeighboorInput {
+	int32 troopId = 1;
+	oneof target {
+		Point targetPoint = 2;
+		int32 targetTowerId = 3;
+		int32 targetTroopId = 4;
+		Empty cancel = 5; // dragging back onto the same troop cancels its link
+	}
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		CutLineInput cutLine = 2;
+		ChangeNeighboorInput changeNeighboor = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+// -------------------------------------------------------------------------
+// Initialization-only data
+// -------------------------------------------------------------------------
+
+message StartData {
+	int32 preferTeam = 1; // 1 = red, -1 = blue, 0 = no preference
+}
+
+message TowerInitInfo {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	bool isRed = 4;
+}
+
+message StartDataClient {
+	repeated bool playersRed = 1; // team assignment per player index
+	repeated TowerInitInfo towers = 2; // static tower layout, sent once
+}

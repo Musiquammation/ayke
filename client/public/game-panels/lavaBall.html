@@ -1,0 +1,28 @@
+<div x-data="data">
+	<div>
+		<span>Preferred team:</span>
+
+		<div class="lavaBall-setup-team">
+			<button type="button"
+					class="team-none"
+					@pointerup="preferTeam = 0"
+					:class="{ selected: preferTeam === 0 }">
+				None
+			</button>
+
+			<button type="button"
+					class="team-red"
+					@pointerup="preferTeam = 1"
+					:class="{ selected: preferTeam === 1 }">
+				Red
+			</button>
+
+			<button type="button"
+					class="team-blue"
+					@pointerup="preferTeam = -1"
+					:class="{ selected: preferTeam === -1 }">
+				Blue
+			</button>
+		</div>
+	</div>
+</div>

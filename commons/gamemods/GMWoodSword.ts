@@ -1,6 +1,6 @@
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import {
 	IKeyboardController,
@@ -44,7 +44,7 @@ const HEIGHT = 1080;
  *
  * Swords stop moving when their front reaches this radius.
  */
-const TRUNK_RADIUS = 150;
+const TRUNK_RADIUS = 200;
 
 /*
  * Initial X position of a newly thrown sword.
@@ -52,7 +52,7 @@ const TRUNK_RADIUS = 150;
  * Red swords start on the left and travel towards the right.
  * Blue swords start on the right and travel towards the left.
  */
-const SWORD_SPAWN = 650;
+const SWORD_SPAWN = 700;
 
 /*
  * Constant horizontal speed of moving swords.
@@ -114,161 +114,183 @@ const SWORDS_STREAM = [
  */
 const TRUNK_STREAM = [
 	[
-		{ speed: 1, timestamp: 0 },
-		{ speed: 5, timestamp: 0.5 },
-		{ speed: -2, timestamp: 2 },
-		{ speed: 3, timestamp: 3.5 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: 5, timestamp: 0 },
+		{ speed: 2, timestamp: 5 },
+		{ speed: -2, timestamp: 10 },
+		{ speed: 3, timestamp: 15 },
+		{ speed: -1, timestamp: 20 },
+		{ speed: 0, timestamp: 25 }
 	],
 	[
-		{ speed: -1, timestamp: 0 },
-		{ speed: -5, timestamp: 0.4 },
-		{ speed: 2, timestamp: 1.8 },
-		{ speed: -3, timestamp: 3 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: -5, timestamp: 0 },
+		{ speed: -2, timestamp: 5 },
+		{ speed: 2, timestamp: 10 },
+		{ speed: -3, timestamp: 15 },
+		{ speed: 1, timestamp: 20 },
+		{ speed: 0, timestamp: 25 }
 	],
 	[
-		{ speed: 1.5, timestamp: 0 },
-		{ speed: 6, timestamp: 0.6 },
-		{ speed: 4, timestamp: 1.5 },
-		{ speed: -3, timestamp: 2.8 },
-		{ speed: 2, timestamp: 4 },
-		{ speed: -8, timestamp: 5.5 },
-		{ speed: 0, timestamp: 8 }
+		{ speed: 6, timestamp: 0 },
+		{ speed: 3, timestamp: 5 },
+		{ speed: -2, timestamp: 10 },
+		{ speed: 2, timestamp: 15 },
+		{ speed: -3, timestamp: 20 },
+		{ speed: 1, timestamp: 25 },
+		{ speed: 0, timestamp: 30 }
 	],
 	[
-		{ speed: -1.5, timestamp: 0 },
-		{ speed: -6, timestamp: 0.5 },
-		{ speed: -2, timestamp: 1.5 },
-		{ speed: 4, timestamp: 2.5 },
-		{ speed: -1, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -6, timestamp: 0 },
+		{ speed: -3, timestamp: 5 },
+		{ speed: 2, timestamp: 10 },
+		{ speed: -2, timestamp: 15 },
+		{ speed: 3, timestamp: 20 },
+		{ speed: -1, timestamp: 25 },
+		{ speed: 0, timestamp: 30 }
 	],
 	[
-		{ speed: 0.5, timestamp: 0 },
-		{ speed: 7, timestamp: 0.35 },
-		{ speed: -4, timestamp: 1.5 },
-		{ speed: 5, timestamp: 2.5 },
-		{ speed: -2, timestamp: 3.5 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: 5, timestamp: 0 },
+		{ speed: 1, timestamp: 5 },
+		{ speed: -3, timestamp: 11 },
+		{ speed: 2, timestamp: 16 },
+		{ speed: -2, timestamp: 21 },
+		{ speed: 1, timestamp: 26 },
+		{ speed: 0, timestamp: 31 }
 	],
 	[
-		{ speed: -0.5, timestamp: 0 },
-		{ speed: -7, timestamp: 0.4 },
-		{ speed: 3, timestamp: 1.3 },
-		{ speed: -5, timestamp: 2.4 },
-		{ speed: 2, timestamp: 3.8 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: -5, timestamp: 0 },
+		{ speed: -1, timestamp: 5 },
+		{ speed: 3, timestamp: 11 },
+		{ speed: -2, timestamp: 16 },
+		{ speed: 2, timestamp: 21 },
+		{ speed: -1, timestamp: 26 },
+		{ speed: 0, timestamp: 31 }
 	],
 	[
-		{ speed: 2, timestamp: 0 },
-		{ speed: 8, timestamp: 0.5 },
-		{ speed: 6, timestamp: 1.2 },
-		{ speed: -4, timestamp: 2.5 },
-		{ speed: -6, timestamp: 3.2 },
-		{ speed: 3, timestamp: 4.2 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 7, timestamp: 0 },
+		{ speed: 3, timestamp: 5 },
+		{ speed: 1, timestamp: 11 },
+		{ speed: -3, timestamp: 16 },
+		{ speed: -1, timestamp: 21 },
+		{ speed: 2, timestamp: 26 },
+		{ speed: -2, timestamp: 31 },
+		{ speed: 0, timestamp: 36 }
 	],
 	[
-		{ speed: -2, timestamp: 0 },
-		{ speed: -8, timestamp: 0.45 },
-		{ speed: -5, timestamp: 1.2 },
-		{ speed: 4, timestamp: 2.3 },
-		{ speed: 7, timestamp: 3 },
-		{ speed: -2, timestamp: 4.2 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -7, timestamp: 0 },
+		{ speed: -3, timestamp: 5 },
+		{ speed: -1, timestamp: 11 },
+		{ speed: 3, timestamp: 16 },
+		{ speed: 1, timestamp: 21 },
+		{ speed: -2, timestamp: 26 },
+		{ speed: 2, timestamp: 31 },
+		{ speed: 0, timestamp: 36 }
 	],
 	[
-		{ speed: 1, timestamp: 0 },
-		{ speed: 5, timestamp: 0.3 },
-		{ speed: -5, timestamp: 1.2 },
-		{ speed: 6, timestamp: 2 },
-		{ speed: -4, timestamp: 3 },
-		{ speed: 3, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 5, timestamp: 0 },
+		{ speed: 2, timestamp: 5 },
+		{ speed: -3, timestamp: 10 },
+		{ speed: 1, timestamp: 15 },
+		{ speed: -2, timestamp: 20 },
+		{ speed: 3, timestamp: 25 },
+		{ speed: -1, timestamp: 30 },
+		{ speed: 0, timestamp: 35 }
 	],
 	[
-		{ speed: -1, timestamp: 0 },
-		{ speed: -5, timestamp: 0.35 },
-		{ speed: 5, timestamp: 1.3 },
-		{ speed: -6, timestamp: 2.1 },
-		{ speed: 4, timestamp: 3 },
-		{ speed: -3, timestamp: 4.1 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -5, timestamp: 0 },
+		{ speed: -2, timestamp: 5 },
+		{ speed: 3, timestamp: 10 },
+		{ speed: -1, timestamp: 15 },
+		{ speed: 2, timestamp: 20 },
+		{ speed: -3, timestamp: 25 },
+		{ speed: 1, timestamp: 30 },
+		{ speed: 0, timestamp: 35 }
 	],
 	[
-		{ speed: 1, timestamp: 0 },
-		{ speed: 9, timestamp: 0.5 },
-		{ speed: 2, timestamp: 1.5 },
-		{ speed: -7, timestamp: 2.5 },
-		{ speed: 5, timestamp: 3.5 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: 6, timestamp: 0 },
+		{ speed: 2, timestamp: 5 },
+		{ speed: -2, timestamp: 11 },
+		{ speed: 3, timestamp: 16 },
+		{ speed: -1, timestamp: 21 },
+		{ speed: 2, timestamp: 26 },
+		{ speed: -2, timestamp: 31 },
+		{ speed: 0, timestamp: 36 }
 	],
 	[
-		{ speed: -1, timestamp: 0 },
-		{ speed: -9, timestamp: 0.45 },
-		{ speed: -2, timestamp: 1.5 },
-		{ speed: 7, timestamp: 2.5 },
-		{ speed: -5, timestamp: 3.5 },
-		{ speed: 0, timestamp: 5 }
+		{ speed: -6, timestamp: 0 },
+		{ speed: -2, timestamp: 5 },
+		{ speed: 2, timestamp: 11 },
+		{ speed: -3, timestamp: 16 },
+		{ speed: 1, timestamp: 21 },
+		{ speed: -2, timestamp: 26 },
+		{ speed: 2, timestamp: 31 },
+		{ speed: 0, timestamp: 36 }
 	],
 	[
-		{ speed: 2, timestamp: 0 },
-		{ speed: 6, timestamp: 0.4 },
-		{ speed: -1, timestamp: 1.2 },
-		{ speed: -6, timestamp: 2 },
-		{ speed: 4, timestamp: 3 },
-		{ speed: 2, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 5, timestamp: 0 },
+		{ speed: 1, timestamp: 5 },
+		{ speed: -2, timestamp: 10 },
+		{ speed: 3, timestamp: 15 },
+		{ speed: -3, timestamp: 20 },
+		{ speed: 2, timestamp: 25 },
+		{ speed: -1, timestamp: 30 },
+		{ speed: 0, timestamp: 35 }
 	],
 	[
-		{ speed: -2, timestamp: 0 },
-		{ speed: -6, timestamp: 0.4 },
-		{ speed: 1, timestamp: 1.2 },
-		{ speed: 6, timestamp: 2 },
-		{ speed: -4, timestamp: 3 },
-		{ speed: -2, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -5, timestamp: 0 },
+		{ speed: -1, timestamp: 5 },
+		{ speed: 2, timestamp: 10 },
+		{ speed: -3, timestamp: 15 },
+		{ speed: 3, timestamp: 20 },
+		{ speed: -2, timestamp: 25 },
+		{ speed: 1, timestamp: 30 },
+		{ speed: 0, timestamp: 35 }
 	],
 	[
-		{ speed: 0.5, timestamp: 0 },
-		{ speed: 8, timestamp: 0.3 },
-		{ speed: -3, timestamp: 1 },
-		{ speed: 6, timestamp: 1.8 },
-		{ speed: -6, timestamp: 2.8 },
-		{ speed: 4, timestamp: 3.8 },
-		{ speed: -2, timestamp: 4.6 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 6, timestamp: 0 },
+		{ speed: 2, timestamp: 5 },
+		{ speed: -1, timestamp: 10 },
+		{ speed: 3, timestamp: 15 },
+		{ speed: -2, timestamp: 20 },
+		{ speed: 2, timestamp: 25 },
+		{ speed: -3, timestamp: 30 },
+		{ speed: 1, timestamp: 35 },
+		{ speed: 0, timestamp: 40 }
 	],
 	[
-		{ speed: -0.5, timestamp: 0 },
-		{ speed: -8, timestamp: 0.3 },
-		{ speed: 3, timestamp: 1 },
-		{ speed: -6, timestamp: 1.8 },
-		{ speed: 6, timestamp: 2.8 },
-		{ speed: -4, timestamp: 3.8 },
-		{ speed: 8, timestamp: 4.6 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: -6, timestamp: 0 },
+		{ speed: -2, timestamp: 5 },
+		{ speed: 1, timestamp: 10 },
+		{ speed: -3, timestamp: 15 },
+		{ speed: 2, timestamp: 20 },
+		{ speed: -2, timestamp: 25 },
+		{ speed: 3, timestamp: 30 },
+		{ speed: -1, timestamp: 35 },
+		{ speed: 0, timestamp: 40 }
 	],
 	[
-		{ speed: 1, timestamp: 0 },
-		{ speed: 10, timestamp: 0.5 },
-		{ speed: 8, timestamp: 1.2 },
-		{ speed: 5, timestamp: 2 },
-		{ speed: -5, timestamp: 3 },
-		{ speed: -2, timestamp: 4 },
-		{ speed: 0, timestamp: 5.5 }
+		{ speed: 7, timestamp: 0 },
+		{ speed: 4, timestamp: 5 },
+		{ speed: 2, timestamp: 10 },
+		{ speed: -2, timestamp: 15 },
+		{ speed: -3, timestamp: 20 },
+		{ speed: 1, timestamp: 25 },
+		{ speed: -2, timestamp: 30 },
+		{ speed: 2, timestamp: 35 },
+		{ speed: 0, timestamp: 40 }
 	],
 	[
-		{ speed: -1, timestamp: 0 },
-		{ speed: -10, timestamp: 0.5 },
-		{ speed: -8, timestamp: 1.2 },
-		{ speed: -5, timestamp: 2 },
-		{ speed: 5, timestamp: 3 },
-		{ speed: 0.4, timestamp: 4 },
-		{ speed: 0, timestamp: 5.1 }
+		{ speed: -7, timestamp: 0 },
+		{ speed: -4, timestamp: 5 },
+		{ speed: -2, timestamp: 10 },
+		{ speed: 2, timestamp: 15 },
+		{ speed: 3, timestamp: 20 },
+		{ speed: -1, timestamp: 25 },
+		{ speed: 2, timestamp: 30 },
+		{ speed: -2, timestamp: 35 },
+		{ speed: 0, timestamp: 40 }
 	]
 ];
+
 /*
  * Represents a sword that has reached the trunk and is now attached
  * to it.
@@ -562,6 +584,14 @@ class TutorialData {
  * become attached to the trunk.
  */
 export class GMWoodSword extends GameMode {
+	static readonly DATA = {
+		SWORD_SPEED,
+		SWORD_SPAWN,
+		TRUNK_RADIUS,
+		SWORD_HITBOX_ANGLE,
+		ROUND_TIME
+	};
+
 	/*
 	 * Tell the generic game framework which data type represents
 	 * a player.
@@ -688,8 +718,9 @@ export class GMWoodSword extends GameMode {
 	 * the initial spawn positions and team assignments.
 	 */
 	static createClient(
-		data: Uint8Array | null,
-		total: number
+		{data, origin}: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number
 	) {
 		const game = new GMWoodSword(total);
 		const { StartDataClient } = protocols.get();
@@ -697,7 +728,7 @@ export class GMWoodSword extends GameMode {
 
 		let skins: { [k: string]: string } = {};
 
-		if (data) {
+		if (origin === 'server') {
 			/*
 			 * Decode the server-provided initialization message.
 			 */
@@ -1092,16 +1123,17 @@ export class GMWoodSword extends GameMode {
 					this.clingingSwords = [];
 					this.movingSwords = [];
 
+					// Use rng() to get a float between 0 and 1
+					this.streamId = Math.floor((rng as any)() * TRUNK_STREAM.length);
+					this.swordId = Math.floor((rng as any)() * SWORDS_STREAM.length);
+
 					/*
 					* Reset the trunk to its initial state.
 					*/
 					this.trunkAngle = 0;
-					this.trunkSpeed = 0;
+					this.trunkSpeed = TRUNK_STREAM[this.streamId][0].speed;
 					this.trunkStreamTime = 0;
 
-					// Use rng() to get a float between 0 and 1
-					this.streamId = Math.floor((rng as any)() * TRUNK_STREAM.length);
-					this.swordId = Math.floor((rng as any)() * SWORDS_STREAM.length);
 
 					/*
 					 * Refill both players' sword supplies using the selected sword stream.
@@ -1255,15 +1287,19 @@ export class GMWoodSword extends GameMode {
 		// have at least one sword available to throw.
 		const player = this.players[playerIdx];
 
-		if (player.swordsLeft > 0) {
+		for (const player of this.players) {
+			if (player.swordsLeft <= 0) continue;
+
 			ctx.save();
-			// Position the sword at the player's spawn point.
-			ctx.translate(player.team === 'red' ? -SWORD_SPAWN : +SWORD_SPAWN, 0);
+
+			ctx.translate(
+				player.team === 'red' ? -SWORD_SPAWN : +SWORD_SPAWN,
+				0
+			);
 
 			const tex = imageLoader.get(`sword-${player.team}`);
 
 			if (tex) {
-				// Orient the sword towards the trunk.
 				ctx.rotate(player.team === "red" ? Math.PI : 0);
 
 				ctx.drawImage(
@@ -1271,12 +1307,16 @@ export class GMWoodSword extends GameMode {
 					-SWORD_LENGTH,
 					-SWORD_THICKNESS,
 					SWORD_LENGTH,
-					SWORD_THICKNESS*2
+					SWORD_THICKNESS * 2
 				);
 			}
 
 			ctx.restore();
 		}
+
+
+
+
 
 		/*
 		 * ================================================================

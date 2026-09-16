@@ -1,6 +1,6 @@
 import { ActionNode } from "./Bot";
 import { Collectible } from "./Collectible";
-import { GameMode } from "./GameMode";
+import { GameMode, MultiplayerClientEntry } from "./GameMode";
 import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMRoarsOnGlass } from "./gamemods/GMRoarsOnGlass";
 import { GMSuperTicTacToe } from "./gamemods/GMSuperTicTacToe";
@@ -9,6 +9,9 @@ import { GMTestSolo } from "./gamemods/GMTestSolo";
 import { GMTurrets } from "./gamemods/GMTurrets";
 import { GMWoodSword } from "./gamemods/GMWoodSword";
 import { SoloGameMode } from "./SoloGameMode";
+import { GMMoveArmy } from "./gamemods/GMMoveArmy";
+import { GMPopit } from "./gamemods/GMPopit";
+import { GMLavaBall } from "./gamemods/GMLavaBall";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -16,6 +19,9 @@ import bots_turrets from "./bots/bots-turrets";
 import bots_superTicTacToe from "./bots/bots-superTicTacToe";
 import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
 import bots_woodSword from "./bots/bots-woodSword";
+import bots_moveArmy from "./bots/bots-moveArmy";
+import bots_popit from "./bots/bots-popit";
+import bots_lavaBall from "./bots/bots-lavaBall";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
@@ -35,7 +41,7 @@ interface MultiplayerFactory {
 		total: number,
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	): Promise<{ game: GameMode, data: Uint8Array }>,
-	client(entry: Uint8Array | null, total: number, playerIdx: number): {
+	client(entry: MultiplayerClientEntry, total: number, playerIdx: number): {
 		game: GameMode,
 		data: any,
 		html: HTMLDivElement | null,
@@ -191,6 +197,62 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_woodSword
+	},
+
+	popit: {
+		type: 'multiplayer',
+		server: GMPopit.createServ,
+		client: GMPopit.createClient,
+		dom: GMPopit.generateClientDom,
+		textures: GMPopit.TEXTURES,
+		name: "Pop it",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 2,
+		nodes: bots_popit
+	},
+	
+	lavaBall: {
+		type: 'multiplayer',
+		server: GMLavaBall.createServ,
+		client: GMLavaBall.createClient,
+		dom: GMLavaBall.generateClientDom,
+		textures: GMLavaBall.TEXTURES,
+		name: "Lava ball",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_lavaBall
+	},
+
+	separator_comingSoon: {
+		type: 'ui-separator',
+		category: "Coming soon..."
+	},
+
+	moveArmy: {
+		type: 'multiplayer',
+		server: GMMoveArmy.createServ,
+		client: GMMoveArmy.createClient,
+		dom: GMMoveArmy.generateClientDom,
+		textures: GMMoveArmy.TEXTURES,
+		name: "Move army",
+		tropheesPerPlayer: 0,
+		computerOnly: true,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_moveArmy
 	},
 
 	separator_solo: {

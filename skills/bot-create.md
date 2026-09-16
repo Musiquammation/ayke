@@ -14,8 +14,8 @@ Use foo.md do read strategy and understand how the game works.
 import { Fields } from "../../commons/Fields";
 import { GMExample } from "../../commons/gamemods/GMExample";
 import { getBestInArray } from "../../commons/util/getBestInArray";
-import { appendBots, botActionNodeHelper } from "../Bot";
-import { getLogger } from "../Logger";
+import { botActionNodeHelper, describeBot } from "../Bot";
+import { getLogger } from "../ILogger";
 
 const logger = getLogger('bots-example');
 // logger.setLevel('debug');
@@ -51,7 +51,7 @@ const root = (function() {
 	return all([method]);
 })();
 
-export default export default describeBot(
+export default describeBot(
 	[{root, data: dataConstructor}]
 );
 

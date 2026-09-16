@@ -4,6 +4,16 @@ package game_airbasket;
 
 message Empty {}
 
+message PlayerTargetFixed {
+	float x = 1;
+	float y = 2;
+}
+
+message PlayerTargetDelta {
+	float dx = 1;
+	float dy = 2;
+}
+
 message Player {
 	float x = 1;
 	float y = 2;
@@ -13,6 +23,12 @@ message Player {
 	float alive = 6;
 	int32 score = 7;
 	bool pushDown = 8;
+	oneof target {
+		PlayerTargetFixed fixed = 9;
+		PlayerTargetDelta delta = 10;
+		Empty center = 11;
+		Empty none = 12;
+	}
 }
 
 message FreeBall {
@@ -65,6 +81,7 @@ message QInput {
 		Throw throwTarget = 8;
 		Throw throwDir = 9;
 		Empty throwOff = 10;
+		Empty throwCenter = 11;
 	}
 }
 
