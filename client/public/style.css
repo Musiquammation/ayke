@@ -107,6 +107,10 @@ body {
 	overflow-y: auto;
 }
 
+ust {
+	font-weight: bold;
+	text-decoration: underline;	
+}
 
 img.pixel-image {
 	image-rendering: pixelated;
@@ -1531,4 +1535,12 @@ canvas {
 
 .collectible-node button:hover {
 	filter: brightness(1.15);
+}
+
+
+/* ============================================================
+   Changelog
+   ============================================================ */
+#changelog-page li {
+	margin-bottom: .28em;
 }

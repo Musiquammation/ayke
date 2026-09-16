@@ -245,7 +245,7 @@ export const gamemods: Record<
 		dom: GMMoveArmy.generateClientDom,
 		textures: GMMoveArmy.TEXTURES,
 		name: "Move army",
-		tropheesPerPlayer: 20,
+		tropheesPerPlayer: 0,
 		computerOnly: true,
 		skins: [],
 		collectibles: null,

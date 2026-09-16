@@ -1,4 +1,6 @@
+import { marked } from "marked";
 import Alpine from "alpinejs";
+
 import { gamemods, getGmFactory, getMultiGmFactory, getSoloGmFactory } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
 import { sendMessage } from "../messages/sendMessage";
@@ -14,6 +16,7 @@ import { waitSkinsResponsePromise } from "../messages/recvMessage";
 import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 import { FinishGame } from "../../../commons/GameMode";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
+import { CHANGELOGS } from "./changelogs";
 
 
 declare global {
@@ -108,6 +111,7 @@ type PanelComponent = (
 	LocalPlayComponent |
 	LeaderboardComponent |
 	SoloLeaderboardComponent |
+	ChangelogsComponent |
 	null
 );
 
@@ -327,6 +331,13 @@ class MainComponent {
 		this.panel = panel;
 		this.currentPage = "solo-leaderboard";
 		panel.fetchRecords();
+		pushUrlStack(this);
+	}
+
+	openChangelog() {
+		const panel = new ChangelogsComponent();
+		this.panel = panel;
+		this.currentPage = "changelog";
 		pushUrlStack(this);
 	}
 
@@ -1246,6 +1257,43 @@ class SoloLeaderboardComponent {
 		this.entries = d.entries;
 	}
 }
+
+class ChangelogsComponent {
+	// --- Fragment-savable marker: gamemode + page fully describe this panel. ---
+	static readonly fragmentName = "changelog";
+
+	saveFragment(): Record<string, string> {
+		return {};
+	}
+
+	static openFragment(_: Record<string, string>) {
+		const panel = new ChangelogsComponent();
+		return panel;
+	}
+	readonly changelogs = CHANGELOGS;
+
+	formatDate(timestamp: number): string {
+		const language = "en" /*navigator.language*/;
+		const formatted = new Intl.DateTimeFormat(language, {
+			weekday: "long",
+			day: "numeric",
+			month: "long",
+			hour: "numeric",
+			minute: "2-digit",
+		}).format(new Date(timestamp));
+
+		return formatted;
+	}
+
+	showLine(line: string) {
+		return marked.parseInline(line);
+	}
+
+}
+
+
+
+
 
 /* -------------------------------------------------------------------------------------------
  * Fragment registry: maps a URL fragment name (e.g. "leaderboard") to the page string and the
