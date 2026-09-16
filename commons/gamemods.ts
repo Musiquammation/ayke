@@ -227,7 +227,7 @@ export const gamemods: Record<
 		collectibles: null,
 		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
-		defaultPlayerCount: 2,
+		defaultPlayerCount: 4,
 		nodes: bots_lavaBall
 	},
 
