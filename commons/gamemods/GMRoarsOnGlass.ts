@@ -588,7 +588,6 @@ export class GMRoarsOnGlass extends GameMode {
 								r: ROAR_RADIUS
 							}
 						)) {
-							console.log("coll", p.team);
 							const dx = e.x - p.x;
 							const dy = e.y - p.y;
 							const invNorm = PUSH_SPEED / Math.sqrt(dx * dx + dy * dy);

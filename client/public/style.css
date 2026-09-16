@@ -343,6 +343,23 @@ button.selected {
    Play section
    ============================================================ */
 
+#game-ping {
+	display: block;
+	position: absolute;
+	right: 0.5em;
+	bottom: 0.3em;
+	text-align: right;
+	color: green;
+	background-color: #000a;
+	font-family: 'Courier New', Courier, monospace;
+	font-size: 1.5vmin;
+}
+
+#game-ping.disconnected {
+	color: red;
+	font-size: 3vmin;
+}
+
 .home-play {
 	display: flex;
 	flex-direction: column;

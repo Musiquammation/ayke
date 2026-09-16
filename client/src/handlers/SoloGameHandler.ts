@@ -58,6 +58,8 @@ export class SoloGameHandler {
 		} else {
 			this.allowsMobile = false;
 		}
+
+		document.getElementById("game-ping")!.innerText = "";
 	}
 
 	async start() {

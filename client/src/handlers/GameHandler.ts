@@ -20,6 +20,9 @@ canvas.oncontextmenu = e => {
 	e.preventDefault();
 };
 
+const PING_LIMIT = 2000;
+const pingElement = document.getElementById("game-ping")!;
+
 
 function resizeCanvas() {
 	const dpr = window.devicePixelRatio || 1;
@@ -65,6 +68,11 @@ class GameHandler {
 	private readonly gameHeight: number;
 	private prevDraw: number | null = null;
 	private readonly allowsMobile;
+	
+	private lastReceive = getNow();
+	private pingSum = 0;
+	private pingCount = 0;
+	private lastPingUpdate = getNow();
 
 	constructor(
 		private readonly gamemodeId: string,
@@ -85,9 +93,37 @@ class GameHandler {
 		} else {
 			this.allowsMobile = false;
 		}
+
+		pingElement.textContent = "";
+	}
+
+	private updatePing() {
+		const now = getNow();
+
+		// Measure the time since the previous server message.
+		this.pingSum += now - this.lastReceive;
+		this.pingCount++;
+
+		this.lastReceive = now;
+
+		// Update the displayed ping once per second.
+		if (now - this.lastPingUpdate >= 1000) {
+			const averagePing = this.pingCount > 0
+				? this.pingSum / this.pingCount
+				: 0;
+
+			pingElement.textContent = averagePing.toFixed(1).padStart(4, "0");
+			pingElement.classList.remove('disconnected');
+
+
+			this.pingSum = 0;
+			this.pingCount = 0;
+			this.lastPingUpdate = now;
+		}
 	}
 
 	receive(gdata: Uint8Array) {
+		this.updatePing();
 		const msg = decodeFullMessage(this.protocols.ServerMessage.decode(gdata));
 		this.gamemode.load(msg.state);
 		const now = getNow();
@@ -165,8 +201,15 @@ class GameHandler {
 	}
 
 	frame() {
-		// Collect inputs
 		const now = getNow();
+		// Check ping
+		if (now - this.lastReceive >= PING_LIMIT) {
+			pingElement.textContent = "(disconnected)";
+			pingElement.classList.add('disconnected');
+		}
+		
+		
+		// Collect inputs
 		const newInputs = this.gamemode.collectInputs(
 			keyboardController,
 			mouseController,

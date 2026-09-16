@@ -100,6 +100,8 @@ export class LocalGameHandler {
 		}
 
 		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
+
+		document.getElementById("game-ping")!.textContent = "";
 	}
 
 	async start() {
