@@ -10162,6 +10162,111 @@ var collisions;
 		return distSq <= radiusSum * radiusSum;
 	}
 	_collisions.CircleCircle = CircleCircle;
+	function RotatedRectCircle(rect, circle) {
+		const dx = circle.x - rect.x;
+		const dy = circle.y - rect.y;
+		const cos = Math.cos(-rect.angle);
+		const sin = Math.sin(-rect.angle);
+		const localX = dx * cos - dy * sin;
+		const localY = dx * sin + dy * cos;
+		const halfW = rect.w / 2;
+		const halfH = rect.h / 2;
+		const distX = Math.abs(localX);
+		const distY = Math.abs(localY);
+		if (distX > halfW + circle.r) return false;
+		if (distY > halfH + circle.r) return false;
+		if (distX <= halfW) return true;
+		if (distY <= halfH) return true;
+		const cornerDx = distX - halfW;
+		const cornerDy = distY - halfH;
+		return cornerDx * cornerDx + cornerDy * cornerDy <= circle.r * circle.r;
+	}
+	_collisions.RotatedRectCircle = RotatedRectCircle;
+	function RotatedRectRotatedRect(a, b) {
+		const aCos = Math.cos(a.angle);
+		const aSin = Math.sin(a.angle);
+		const bCos = Math.cos(b.angle);
+		const bSin = Math.sin(b.angle);
+		const axes = [
+			{
+				x: aCos,
+				y: aSin
+			},
+			{
+				x: -aSin,
+				y: aCos
+			},
+			{
+				x: bCos,
+				y: bSin
+			},
+			{
+				x: -bSin,
+				y: bCos
+			}
+		];
+		for (let i = 0; i < axes.length; i++) {
+			const axis = axes[i];
+			if (Math.abs((b.x - a.x) * axis.x + (b.y - a.y) * axis.y) > a.w / 2 * Math.abs(aCos * axis.x + aSin * axis.y) + a.h / 2 * Math.abs(-aSin * axis.x + aCos * axis.y) + (b.w / 2 * Math.abs(bCos * axis.x + bSin * axis.y) + b.h / 2 * Math.abs(-bSin * axis.x + bCos * axis.y))) return false;
+		}
+		return true;
+	}
+	_collisions.RotatedRectRotatedRect = RotatedRectRotatedRect;
+	function RotatedRectRect(rotated, rect) {
+		return RotatedRectRotatedRect(rotated, {
+			x: rect.x,
+			y: rect.y,
+			w: rect.w,
+			h: rect.h,
+			angle: 0
+		});
+	}
+	_collisions.RotatedRectRect = RotatedRectRect;
+	function RotatedRectRoundedRect(rotated, rounded) {
+		const innerW = Math.max(0, rounded.w / 2 - rounded.radius);
+		const innerH = Math.max(0, rounded.h / 2 - rounded.radius);
+		if (innerW > 0) {
+			if (RotatedRectRect(rotated, {
+				x: rounded.x,
+				y: rounded.y,
+				w: innerW * 2,
+				h: rounded.h
+			})) return true;
+		}
+		if (innerH > 0) {
+			if (RotatedRectRect(rotated, {
+				x: rounded.x,
+				y: rounded.y,
+				w: rounded.w,
+				h: innerH * 2
+			})) return true;
+		}
+		const corners = [
+			{
+				x: rounded.x - innerW,
+				y: rounded.y - innerH,
+				r: rounded.radius
+			},
+			{
+				x: rounded.x + innerW,
+				y: rounded.y - innerH,
+				r: rounded.radius
+			},
+			{
+				x: rounded.x - innerW,
+				y: rounded.y + innerH,
+				r: rounded.radius
+			},
+			{
+				x: rounded.x + innerW,
+				y: rounded.y + innerH,
+				r: rounded.radius
+			}
+		];
+		for (let i = 0; i < 4; i++) if (RotatedRectCircle(rotated, corners[i])) return true;
+		return false;
+	}
+	_collisions.RotatedRectRoundedRect = RotatedRectRoundedRect;
 })(collisions || (collisions = {}));
 //#endregion
 //#region commons/util/decodeFullMessage.ts
@@ -10182,12 +10287,12 @@ function isMessage(value) {
 }
 //#endregion
 //#region commons/gamemods/GMAirBasket.ts
-var protocols$5 = getProtocol("airbasket", "multiplayer");
+var protocols$8 = getProtocol("airbasket", "multiplayer");
 var GRAVITY$1 = 1100;
-var WIDTH$4 = 2400;
-var HEIGHT$4 = 1350;
-var X_LIMIT = WIDTH$4 * 2.5;
-var Y_LIMIT = HEIGHT$4 * 1.5;
+var WIDTH$6 = 2400;
+var HEIGHT$6 = 1350;
+var X_LIMIT$1 = WIDTH$6 * 2.5;
+var Y_LIMIT$1 = HEIGHT$6 * 1.5;
 var TIMES = [
 	180,
 	60,
@@ -10233,10 +10338,10 @@ var BUCKET_POSITIONS = [
 	[1, 1],
 	[2, 1]
 ];
-var MINIMAP_X$1 = WIDTH$4 * .79;
-var MINIMAP_Y$1 = HEIGHT$4 * .01;
+var MINIMAP_X$1 = WIDTH$6 * .79;
+var MINIMAP_Y$1 = HEIGHT$6 * .01;
 var MINIMAP_RATIO$1 = .2;
-var Ball = class Ball {
+var Ball$1 = class Ball$1 {
 	static RADIUS = 70;
 	static SPAWN_JUMP = 20;
 	static GRAVITY = 500;
@@ -10244,12 +10349,12 @@ var Ball = class Ball {
 	x = 0;
 	y = 0;
 	vx = 0;
-	vy = -Ball.SPAWN_JUMP;
+	vy = -Ball$1.SPAWN_JUMP;
 	grabber = -1;
 	prevGrabber = -1;
 	move(dt) {
 		if (this.grabber >= 0) return;
-		this.vy += Ball.GRAVITY * dt;
+		this.vy += Ball$1.GRAVITY * dt;
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 		if (this.isOOB()) this.reset();
@@ -10258,7 +10363,7 @@ var Ball = class Ball {
 		this.x = 0;
 		this.y = 0;
 		this.vx = 0;
-		this.vy = -Ball.SPAWN_JUMP;
+		this.vy = -Ball$1.SPAWN_JUMP;
 		this.prevGrabber = -1;
 		this.removeGrabber();
 	}
@@ -10273,7 +10378,7 @@ var Ball = class Ball {
 		this.prevGrabber = obj.prevBallGrabber;
 	}
 	isOOB() {
-		return this.x < -6e3 + Ball.RADIUS / 2 || this.x > X_LIMIT - Ball.RADIUS / 2 || this.y < -2025 + Ball.RADIUS / 2 || this.y > Y_LIMIT - Ball.RADIUS / 2;
+		return this.x < -6e3 + Ball$1.RADIUS / 2 || this.x > X_LIMIT$1 - Ball$1.RADIUS / 2 || this.y < -2025 + Ball$1.RADIUS / 2 || this.y > Y_LIMIT$1 - Ball$1.RADIUS / 2;
 	}
 	removeGrabber() {
 		if (this.grabber < 0) return;
@@ -10283,16 +10388,16 @@ var Ball = class Ball {
 	eject() {
 		this.removeGrabber();
 		if (this.y <= -1350) this.vy = 0;
-		else this.vy = -Ball.EJECT;
-		if (this.x < -2400) this.vx = Ball.EJECT;
-		if (this.x > WIDTH$4) this.vx = -Ball.EJECT;
-		if (this.x > X_LIMIT - Ball.RADIUS / 2) this.x = X_LIMIT - Ball.RADIUS / 2;
-		else if (this.x < -6e3 + Ball.RADIUS / 2) this.x = -6e3 + Ball.RADIUS / 2;
-		if (this.y > Y_LIMIT - Ball.RADIUS / 2) this.y = Y_LIMIT - Ball.RADIUS / 2;
-		else if (this.y < -2025 + Ball.RADIUS / 2) this.y = -2025 + Ball.RADIUS / 2;
+		else this.vy = -Ball$1.EJECT;
+		if (this.x < -2400) this.vx = Ball$1.EJECT;
+		if (this.x > WIDTH$6) this.vx = -Ball$1.EJECT;
+		if (this.x > X_LIMIT$1 - Ball$1.RADIUS / 2) this.x = X_LIMIT$1 - Ball$1.RADIUS / 2;
+		else if (this.x < -6e3 + Ball$1.RADIUS / 2) this.x = -6e3 + Ball$1.RADIUS / 2;
+		if (this.y > Y_LIMIT$1 - Ball$1.RADIUS / 2) this.y = Y_LIMIT$1 - Ball$1.RADIUS / 2;
+		else if (this.y < -2025 + Ball$1.RADIUS / 2) this.y = -2025 + Ball$1.RADIUS / 2;
 	}
 };
-var Player$5 = class Player$5 {
+var Player$8 = class Player$8 {
 	x;
 	y;
 	static GRAB_GRAVITY = 900;
@@ -10315,7 +10420,7 @@ var Player$5 = class Player$5 {
 	connected = true;
 	alive = -1;
 	vx = 0;
-	vy = -Player$5.SPAWN_JUMP;
+	vy = -Player$8.SPAWN_JUMP;
 	dir = 0;
 	pushDown = false;
 	score = 0;
@@ -10344,50 +10449,69 @@ var Player$5 = class Player$5 {
 		}
 		if (this.dir === 0) {
 			if (this.vx > 0) {
-				this.vx -= Player$5.SOFT_DECELERATION * dt;
+				this.vx -= Player$8.SOFT_DECELERATION * dt;
 				if (this.vx < 0) this.vx = 0;
 			} else if (this.vx < 0) {
-				this.vx += Player$5.SOFT_DECELERATION * dt;
+				this.vx += Player$8.SOFT_DECELERATION * dt;
 				if (this.vx > 0) this.vx = 0;
 			}
 		} else if (this.dir > 0) {
 			if (this.vx < 0) {
-				this.vx += Player$5.QUICK_DECELERATION * dt;
+				this.vx += Player$8.QUICK_DECELERATION * dt;
 				if (this.vx > 0) this.vx = 0;
-			} else if (this.vx < Player$5.SPEED) {
-				this.vx += Player$5.ACCELERATION * dt;
-				if (this.vx > Player$5.SPEED) this.vx = Player$5.SPEED;
-			} else if (this.vx > Player$5.SPEED) {
-				this.vx -= Player$5.MIN_DECELERATION * dt;
-				if (this.vx < Player$5.SPEED) this.vx = Player$5.SPAWN_JUMP;
+			} else if (this.vx < Player$8.SPEED) {
+				this.vx += Player$8.ACCELERATION * dt;
+				if (this.vx > Player$8.SPEED) this.vx = Player$8.SPEED;
+			} else if (this.vx > Player$8.SPEED) {
+				this.vx -= Player$8.MIN_DECELERATION * dt;
+				if (this.vx < Player$8.SPEED) this.vx = Player$8.SPAWN_JUMP;
 			}
 		} else if (this.vx > 0) {
-			this.vx -= Player$5.QUICK_DECELERATION * dt;
+			this.vx -= Player$8.QUICK_DECELERATION * dt;
 			if (this.vx < 0) this.vx = 0;
-		} else if (this.vx > -Player$5.SPEED) {
-			this.vx -= Player$5.ACCELERATION * dt;
-			if (this.vx < -Player$5.SPEED) this.vx = -Player$5.SPEED;
-		} else if (this.vx < -Player$5.SPEED) {
-			this.vx += Player$5.MIN_DECELERATION * dt;
-			if (this.vx > -Player$5.SPEED) this.vx = -Player$5.SPAWN_JUMP;
+		} else if (this.vx > -Player$8.SPEED) {
+			this.vx -= Player$8.ACCELERATION * dt;
+			if (this.vx < -Player$8.SPEED) this.vx = -Player$8.SPEED;
+		} else if (this.vx < -Player$8.SPEED) {
+			this.vx += Player$8.MIN_DECELERATION * dt;
+			if (this.vx > -Player$8.SPEED) this.vx = -Player$8.SPAWN_JUMP;
 		}
-		this.vy += (grabber ? Player$5.GRAB_GRAVITY : GRAVITY$1) * dt;
+		this.vy += (grabber ? Player$8.GRAB_GRAVITY : GRAVITY$1) * dt;
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
-		if (this.pushDown) this.y += Player$5.PUSH_DOWN * dt;
+		if (this.pushDown) this.y += Player$8.PUSH_DOWN * dt;
 		if (this.isOOB()) this.die();
 	}
 	touchsBall(ball) {
 		return collisions.RectCircle({
 			x: this.x,
 			y: this.y,
-			w: Player$5.WIDTH,
-			h: Player$5.HEIGHT
+			w: Player$8.WIDTH,
+			h: Player$8.HEIGHT
 		}, {
 			x: ball.x,
 			y: ball.y,
-			r: Ball.RADIUS
+			r: Ball$1.RADIUS
 		});
+	}
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			vx: this.vx,
+			vy: this.vy,
+			dir: this.dir,
+			alive: this.alive,
+			score: this.score,
+			pushDown: this.pushDown,
+			...this.target?.type === "fixed" ? { fixed: {
+				x: this.target.x,
+				y: this.target.y
+			} } : this.target?.type === "delta" ? { delta: {
+				dx: this.target.dx,
+				dy: this.target.dy
+			} } : this.target?.type === "center" ? { center: {} } : { none: {} }
+		};
 	}
 	load(obj) {
 		this.x = obj.x;
@@ -10398,14 +10522,34 @@ var Player$5 = class Player$5 {
 		this.alive = obj.alive;
 		this.score = obj.score;
 		this.pushDown = obj.pushDown;
+		switch (obj.target) {
+			case "fixed":
+				this.target = {
+					type: "fixed",
+					x: obj.fixed.x,
+					y: obj.fixed.y
+				};
+				break;
+			case "delta":
+				this.target = {
+					type: "delta",
+					dx: obj.delta.dx,
+					dy: obj.delta.dy
+				};
+				break;
+			case "center":
+				this.target = { type: "center" };
+				break;
+			default: this.target = null;
+		}
 	}
 	isOOB() {
-		return this.x < -6e3 + Player$5.WIDTH / 2 || this.x > X_LIMIT - Player$5.WIDTH / 2 || this.y < -2025 + Player$5.HEIGHT / 2 || this.y > Y_LIMIT - Player$5.HEIGHT / 2;
+		return this.x < -6e3 + Player$8.WIDTH / 2 || this.x > X_LIMIT$1 - Player$8.WIDTH / 2 || this.y < -2025 + Player$8.HEIGHT / 2 || this.y > Y_LIMIT$1 - Player$8.HEIGHT / 2;
 	}
 	die() {
 		this.vx = 0;
-		this.vy = -Player$5.SPAWN_JUMP;
-		this.alive = Player$5.COOLDOWN;
+		this.vy = -Player$8.SPAWN_JUMP;
+		this.alive = Player$8.COOLDOWN;
 	}
 };
 var Bucket = class {
@@ -10418,7 +10562,7 @@ var Bucket = class {
 		this.y = y;
 	}
 };
-var Camera$1 = class Camera$1 {
+var Camera$3 = class Camera$3 {
 	x = 0;
 	y = 0;
 	static SCALE = .8;
@@ -10441,13 +10585,13 @@ var Camera$1 = class Camera$1 {
 	* Calculates the center coordinates of the zone the player is currently in.
 	*/
 	getZoneCenter(px, py) {
-		let zx = Math.round(px / WIDTH$4);
-		let zy = Math.round(py / HEIGHT$4);
+		let zx = Math.round(px / WIDTH$6);
+		let zy = Math.round(py / HEIGHT$6);
 		zx = Math.max(-2, Math.min(2, zx));
 		zy = Math.max(-1, Math.min(1, zy));
 		return {
-			cx: zx * WIDTH$4,
-			cy: zy * HEIGHT$4
+			cx: zx * WIDTH$6,
+			cy: zy * HEIGHT$6
 		};
 	}
 	/**
@@ -10468,12 +10612,12 @@ var Camera$1 = class Camera$1 {
 		}
 		if (this.isTransitioning) {
 			this.t += dt;
-			if (this.t >= Camera$1.DURATION) {
+			if (this.t >= Camera$3.DURATION) {
 				this.isTransitioning = false;
 				this.x = this.targetX;
 				this.y = this.targetY;
 			} else {
-				const progress = this.easing(this.t / Camera$1.DURATION);
+				const progress = this.easing(this.t / Camera$3.DURATION);
 				this.x = this.startX + (this.targetX - this.startX) * progress;
 				this.y = this.startY + (this.targetY - this.startY) * progress;
 			}
@@ -10502,7 +10646,7 @@ var Camera$1 = class Camera$1 {
 		};
 	}
 };
-var ClientData$6 = class ClientData$6 {
+var ClientData$9 = class ClientData$9 {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
@@ -10512,7 +10656,7 @@ var ClientData$6 = class ClientData$6 {
 	period;
 	redScore;
 	blueScore;
-	camera = new Camera$1();
+	camera = new Camera$3();
 	clientWasDead = true;
 	lastDirs = {};
 	constructor() {
@@ -10544,8 +10688,8 @@ var ClientData$6 = class ClientData$6 {
 		return `${Math.floor(time / 60)}:${(time % 60).toFixed(1).padStart(4, "0")}`;
 	}
 	update(game, playerIdx) {
-		this.time.innerText = ClientData$6.showTime(game.time);
-		this.period.innerText = ClientData$6.PERIODS[game.timeStep];
+		this.time.innerText = ClientData$9.showTime(game.time);
+		this.period.innerText = ClientData$9.PERIODS[game.timeStep];
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
 		const player = game.players[playerIdx];
@@ -10574,7 +10718,7 @@ var ClientData$6 = class ClientData$6 {
 		];
 	}
 };
-var TutorialData$4 = class {
+var TutorialData$7 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -10591,7 +10735,7 @@ var TutorialData$4 = class {
 			this.game.ball.vy = 0;
 			this.game.ball.prevGrabber = -1;
 			if (this.game.ball.grabber === 0) this.step = 2;
-			if (player.x >= -1200 && player.x <= WIDTH$4 / 2 && player.y >= -675 && player.y <= HEIGHT$4 / 2) this.step = 1;
+			if (player.x >= -1200 && player.x <= WIDTH$6 / 2 && player.y >= -675 && player.y <= HEIGHT$6 / 2) this.step = 1;
 			return "Go towards the ball (jump to do not fall)";
 		}
 		if (this.step === 1) {
@@ -10608,7 +10752,7 @@ var TutorialData$4 = class {
 				this.step = 4;
 				this.wakeUp = clock + 1.5;
 			}
-			return "You can't jump when holding the ball.\n Throw it with the mouse towards a mate or a GREEN bucket";
+			return "You can't jump when holding the ball.\nThrow it with the mouse towards a mate or a GREEN bucket\n(or press SPACE for automatic throw)";
 		}
 		if (this.step === 4) {
 			if (clock >= this.wakeUp) {
@@ -10634,14 +10778,14 @@ var TutorialData$4 = class {
 		return [3].includes(this.step);
 	}
 };
-function generateClientDom$6(unlockedSkins) {
+function generateClientDom$9(unlockedSkins) {
 	return {
 		skin: Object.keys(GMAirBasket.SKINS)[0],
 		preferTeam: 0,
 		SKINS: GMAirBasket.SKINS,
 		unlockedSkins,
 		produce() {
-			const { StartData } = protocols$5.get();
+			const { StartData } = protocols$8.get();
 			return StartData.encode({
 				skin: this.skin,
 				preferTeam: this.preferTeam
@@ -10650,7 +10794,7 @@ function generateClientDom$6(unlockedSkins) {
 		hasSkin(skin) {
 			return this.unlockedSkins.includes(skin);
 		},
-		getIconPath
+		getIconPath: getIconPath$1
 	};
 }
 function lighten(hex, factor) {
@@ -10671,7 +10815,7 @@ function applyCollisions(players) {
 		if (!p1.isAlive() || !p2.isAlive()) continue;
 		const dx = p1.x - p2.x;
 		const dy = p1.y - p2.y;
-		if (Math.abs(dx) < Player$5.WIDTH && Math.abs(dy) < Player$5.HEIGHT) {
+		if (Math.abs(dx) < Player$8.WIDTH && Math.abs(dy) < Player$8.HEIGHT) {
 			const dist = Math.sqrt(dx * dx + dy * dy);
 			let nx = 0;
 			let ny = 0;
@@ -10682,14 +10826,14 @@ function applyCollisions(players) {
 				nx = dx / dist;
 				ny = dy / dist;
 			}
-			p1.vx += nx * Player$5.BOUNCE_X;
-			p1.vy += ny * Player$5.BOUNCE_Y;
-			p2.vx -= nx * Player$5.BOUNCE_X;
-			p2.vy -= ny * Player$5.BOUNCE_Y;
+			p1.vx += nx * Player$8.BOUNCE_X;
+			p1.vy += ny * Player$8.BOUNCE_Y;
+			p2.vx -= nx * Player$8.BOUNCE_X;
+			p2.vy -= ny * Player$8.BOUNCE_Y;
 		}
 	}
 }
-function getVectorToReachTarget(X, Y, N, g) {
+function getVectorToReachTarget$1(X, Y, N, g) {
 	if (X === 0) return {
 		x: 0,
 		y: Y > 0 ? N : -N,
@@ -10719,7 +10863,7 @@ function getVectorToReachTarget(X, Y, N, g) {
 		success: true
 	};
 }
-function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
+function drawPlayerToTarget$1(ctx, srcX, srcY, destX, destY, color) {
 	const X = destX - srcX;
 	const Y = destY - srcY;
 	let radius;
@@ -10757,7 +10901,7 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
 		ctx.stroke();
 	}
-	const velocity = getVectorToReachTarget(X, Y, Player$5.THROW, Ball.GRAVITY);
+	const velocity = getVectorToReachTarget$1(X, Y, Player$8.THROW, Ball$1.GRAVITY);
 	if (velocity.x === 0 || !velocity.success) {
 		const dx = destX - srcX;
 		const dy = destY - srcY;
@@ -10783,7 +10927,7 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 	}
 	const vx = velocity.x;
 	const vy = velocity.y;
-	const g = Ball.GRAVITY;
+	const g = Ball$1.GRAVITY;
 	const T = X / vx;
 	if (T <= 0) return;
 	const steps = 50;
@@ -10824,23 +10968,24 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 function getTexturePath(id) {
 	return `/assets/games/airbasket/skins/${id}/grid.png`;
 }
-function getIconPath(id) {
+function getIconPath$1(id) {
 	return window.IMG_ROOT_PATH + `/assets/games/airbasket/skins/${id}/icon.png`;
 }
 var GMAirBasket = class GMAirBasket extends GameMode {
 	static types = {
-		Player: Player$5,
-		Bucket
+		Player: Player$8,
+		Bucket,
+		Ball: Ball$1
 	};
 	static DATA = {
 		GRAVITY: GRAVITY$1,
-		WIDTH: WIDTH$4,
-		HEIGHT: HEIGHT$4,
-		X_LIMIT,
-		Y_LIMIT
+		WIDTH: WIDTH$6,
+		HEIGHT: HEIGHT$6,
+		X_LIMIT: X_LIMIT$1,
+		Y_LIMIT: Y_LIMIT$1
 	};
 	players;
-	ball = new Ball();
+	ball = new Ball$1();
 	buckets;
 	redScore = 0;
 	blueScore = 0;
@@ -10851,15 +10996,15 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	internalFrameTick = 0;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$5(0, 0));
-		this.buckets = BUCKET_POSITIONS.map(([x, y]) => new Bucket(x * WIDTH$4, y * HEIGHT$4));
+		this.players = Array.from({ length: total }, () => new Player$8(0, 0));
+		this.buckets = BUCKET_POSITIONS.map(([x, y]) => new Bucket(x * WIDTH$6, y * HEIGHT$6));
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$5.get();
+		const { StartData, StartDataClient } = protocols$8.get();
 		const game = new GMAirBasket(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom$6([]);
+			return generateClientDom$9([]);
 		}
 		const playerInfos = await Promise.all(game.players.map(async (p, i) => {
 			const d = decode(i);
@@ -10903,7 +11048,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		}
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = assigned[i];
-			p.initSpawn(redTeam ? -4800 : WIDTH$4 * 2, 0, redTeam ? "red" : "blue");
+			p.initSpawn(redTeam ? -4800 : WIDTH$6 * 2, 0, redTeam ? "red" : "blue");
 		}
 		return {
 			game,
@@ -10915,27 +11060,29 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			})) }).finish()
 		};
 	}
-	static createClient(data, total) {
+	static createClient({ data, origin }, total) {
 		const game = new GMAirBasket(total);
-		const { StartDataClient } = protocols$5.get();
-		const clientData = new ClientData$6();
-		let skins;
-		if (data) {
+		const { StartData, StartDataClient } = protocols$8.get();
+		const clientData = new ClientData$9();
+		const skinSet = /* @__PURE__ */ new Set();
+		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
-			const skinSet = /* @__PURE__ */ new Set();
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
 				clientData.skins.push(p.skin);
 				skinSet.add(p.skin);
 			}
-			console.log(skinSet);
-			skins = Object.fromEntries([...skinSet].map((key) => ["skin-" + key, getTexturePath(key)]));
 		} else {
-			game.players[0].initSpawn(-4800, 0, "red");
-			game.players[1].initSpawn(4800, 0, "blue");
+			const { skin, preferTeam } = decodeFullMessage(StartData.decode(data));
+			const modResult = preferTeam >= 0 ? 0 : 1;
+			for (let i = 0; i < game.players.length; i++) if (i % 2 === modResult) game.players[i].initSpawn(-4800, 0, "red");
+			else game.players[i].initSpawn(4800, 0, "blue");
 			clientData.skins = Array.from({ length: game.players.length }, () => GMAirBasket.SKINS_IDS[0]);
-			skins = {};
+			clientData.skins[0] = skin;
+			skinSet.add(skin);
 		}
+		console.log(skinSet);
+		const skins = Object.fromEntries([...skinSet].map((key) => ["skin-" + key, getTexturePath(key)]));
 		return {
 			game,
 			data: clientData,
@@ -10943,7 +11090,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			skins
 		};
 	}
-	static generateClientDom = generateClientDom$6;
+	static generateClientDom = generateClientDom$9;
 	static SKINS = {
 		joe: "Joe",
 		luck: "Luck",
@@ -10968,8 +11115,8 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		const rect = {
 			x: player.x,
 			y: player.y,
-			w: Player$5.WIDTH,
-			h: Player$5.HEIGHT
+			w: Player$8.WIDTH,
+			h: Player$8.HEIGHT
 		};
 		for (const bucket of this.buckets) {
 			if (bucket.team !== null) continue;
@@ -10986,7 +11133,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		const circle = {
 			x: this.ball.x,
 			y: this.ball.y,
-			r: Ball.RADIUS
+			r: Ball$1.RADIUS
 		};
 		for (const bucket of this.buckets) {
 			if (bucket.team !== null) continue;
@@ -11030,11 +11177,23 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		if (this.ball.grabber >= 0) {
 			const grabber = this.players[this.ball.grabber];
 			if (!grabber.isAlive()) this.ball.eject();
-			else if (grabber.target && grabber.target.type === "fixed") {
-				const dx = grabber.target.x - grabber.x;
-				const dy = grabber.target.y - grabber.y;
-				if (dx !== 0 || dy !== 0) {
-					const { x, y } = getVectorToReachTarget(dx, dy, Player$5.THROW, Ball.GRAVITY);
+			else if (grabber.target) {
+				if (grabber.target.type === "fixed") {
+					const dx = grabber.target.x - grabber.x;
+					const dy = grabber.target.y - grabber.y;
+					if (dx !== 0 || dy !== 0) {
+						const { x, y } = getVectorToReachTarget$1(dx, dy, Player$8.THROW, Ball$1.GRAVITY);
+						this.ball.vx = x;
+						this.ball.vy = y;
+						this.ball.removeGrabber();
+					}
+				} else if (grabber.target.type === "center") {
+					const ix = Math.trunc(grabber.x * 2 / WIDTH$6);
+					const iy = Math.trunc(grabber.y * 2 / HEIGHT$6);
+					const tx = Math.sign(ix) * Math.ceil(Math.abs(ix) / 2) * WIDTH$6;
+					const ty = Math.sign(iy) * Math.ceil(Math.abs(iy) / 2) * HEIGHT$6;
+					console.log(tx, ty, grabber.x, grabber.y);
+					const { x, y } = getVectorToReachTarget$1(tx - grabber.x, ty - grabber.y, Player$8.THROW, Ball$1.GRAVITY);
 					this.ball.vx = x;
 					this.ball.vy = y;
 					this.ball.removeGrabber();
@@ -11082,7 +11241,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 				player.dir = 0;
 				break;
 			case "jump":
-				if (this.ball.grabber !== playerIdx) player.vy = -Player$5.JUMP;
+				if (this.ball.grabber !== playerIdx) player.vy = -Player$8.JUMP;
 				break;
 			case "downOn":
 				player.pushDown = true;
@@ -11104,7 +11263,10 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 					dy: input.throwTarget.y
 				};
 				break;
-			case "throwOff": player.target = null;
+			case "throwOff":
+				player.target = null;
+				break;
+			case "throwCenter": player.target = { type: "center" };
 		}
 	}
 	collectInputs(keyboard, mouse, mobile, _data) {
@@ -11142,7 +11304,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		const inputs = [];
 		const moveInput = getMoveInput();
 		if (moveInput) inputs.push(moveInput);
-		if (keyboard.first("up") || keyboard.first("jump")) inputs.push({
+		if (keyboard.first("up")) inputs.push({
 			jump: {},
 			action: "jump"
 		});
@@ -11162,19 +11324,27 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			throwOff: {},
 			action: "throwOff"
 		});
+		if (keyboard.first("jump")) inputs.push({
+			throwCenter: {},
+			action: "throwCenter"
+		});
+		else if (keyboard.killed("jump")) inputs.push({
+			throwOff: {},
+			action: "throwOff"
+		});
 		return inputs;
 	}
 	getBallDrawCoords() {
 		return {
-			x: this.ball.x - Ball.RADIUS / 2,
-			y: this.ball.y - Ball.RADIUS / 2
+			x: this.ball.x - Ball$1.RADIUS / 2,
+			y: this.ball.y - Ball$1.RADIUS / 2
 		};
 	}
 	drawMinimap(ctx, playerIdx) {
-		const mapWidth = WIDTH$4 * 5;
-		const mapHeight = HEIGHT$4 * 3;
-		const MINIMAP_WIDTH = WIDTH$4 * MINIMAP_RATIO$1;
-		const MINIMAP_HEIGHT = HEIGHT$4 * MINIMAP_RATIO$1;
+		const mapWidth = WIDTH$6 * 5;
+		const mapHeight = HEIGHT$6 * 3;
+		const MINIMAP_WIDTH = WIDTH$6 * MINIMAP_RATIO$1;
+		const MINIMAP_HEIGHT = HEIGHT$6 * MINIMAP_RATIO$1;
 		ctx.save();
 		ctx.translate(MINIMAP_X$1, MINIMAP_Y$1);
 		ctx.scale(MINIMAP_WIDTH / mapWidth, MINIMAP_HEIGHT / mapHeight);
@@ -11183,28 +11353,28 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		ctx.fillRect(-6e3, -2025, mapWidth, mapHeight);
 		const player = this.players[playerIdx];
 		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) {
-			const cellX = -6e3 + x * WIDTH$4;
-			const cellY = -2025 + y * HEIGHT$4;
-			const ballInside = this.ball.x >= cellX && this.ball.x < cellX + WIDTH$4 && this.ball.y >= cellY && this.ball.y < cellY + HEIGHT$4;
-			const playerInside = player.x >= cellX && player.x < cellX + WIDTH$4 && player.y >= cellY && player.y < cellY + HEIGHT$4;
-			const bucketInside = this.buckets.some((bucket) => bucket.team === null && bucket.x >= cellX && bucket.x < cellX + WIDTH$4 && bucket.y >= cellY && bucket.y < cellY + HEIGHT$4);
+			const cellX = -6e3 + x * WIDTH$6;
+			const cellY = -2025 + y * HEIGHT$6;
+			const ballInside = this.ball.x >= cellX && this.ball.x < cellX + WIDTH$6 && this.ball.y >= cellY && this.ball.y < cellY + HEIGHT$6;
+			const playerInside = player.x >= cellX && player.x < cellX + WIDTH$6 && player.y >= cellY && player.y < cellY + HEIGHT$6;
+			const bucketInside = this.buckets.some((bucket) => bucket.team === null && bucket.x >= cellX && bucket.x < cellX + WIDTH$6 && bucket.y >= cellY && bucket.y < cellY + HEIGHT$6);
 			if (ballInside) ctx.fillStyle = "rgba(255, 165, 0, 0.35)";
 			else if (playerInside) ctx.fillStyle = "rgba(255, 255, 0, 0.35)";
 			else if (bucketInside) ctx.fillStyle = "rgba(0, 128, 0, 0.35)";
 			else continue;
-			ctx.fillRect(cellX, cellY, WIDTH$4, HEIGHT$4);
+			ctx.fillRect(cellX, cellY, WIDTH$6, HEIGHT$6);
 		}
 		ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
 		ctx.lineWidth = 1 / (MINIMAP_WIDTH / mapWidth);
 		for (let x = 1; x < 5; x++) {
-			const px = -6e3 + x * WIDTH$4;
+			const px = -6e3 + x * WIDTH$6;
 			ctx.beginPath();
 			ctx.moveTo(px, -2025);
 			ctx.lineTo(px, mapHeight / 2);
 			ctx.stroke();
 		}
 		for (let y = 1; y < 3; y++) {
-			const py = -2025 + y * HEIGHT$4;
+			const py = -2025 + y * HEIGHT$6;
 			ctx.beginPath();
 			ctx.moveTo(-6e3, py);
 			ctx.lineTo(mapWidth / 2, py);
@@ -11251,13 +11421,13 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		}
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#333";
-		ctx.fillRect(0, 0, WIDTH$4, HEIGHT$4);
+		ctx.fillRect(0, 0, WIDTH$6, HEIGHT$6);
 		const cameraCoords = data.camera.getCoords();
 		ctx.save();
-		ctx.translate(WIDTH$4 / 2, HEIGHT$4 / 2);
-		ctx.scale(Camera$1.SCALE, Camera$1.SCALE);
+		ctx.translate(WIDTH$6 / 2, HEIGHT$6 / 2);
+		ctx.scale(Camera$3.SCALE, Camera$3.SCALE);
 		ctx.translate(-cameraCoords.x, -cameraCoords.y);
-		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) ctx.drawImage(imageLoader.get("sky", y * 5 + x), (x - 2.5) * WIDTH$4, (y - 1.5) * HEIGHT$4, WIDTH$4, HEIGHT$4);
+		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) ctx.drawImage(imageLoader.get("sky", y * 5 + x), (x - 2.5) * WIDTH$6, (y - 1.5) * HEIGHT$6, WIDTH$6, HEIGHT$6);
 		for (const bucket of this.buckets) {
 			const b = "bucket-" + (bucket.team ?? "mid");
 			ctx.drawImage(imageLoader.get(b), bucket.x - Bucket.SIZE / 2, bucket.y - Bucket.SIZE / 2, Bucket.SIZE, Bucket.SIZE);
@@ -11266,7 +11436,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			if (idx === playerIdx) {
 				ctx.fillStyle = "#0f0";
 				const r = 1.3;
-				ctx.fillRect(p.x - r * Player$5.WIDTH / 2, p.y - r * Player$5.HEIGHT / 2, r * Player$5.WIDTH, r * Player$5.HEIGHT);
+				ctx.fillRect(p.x - r * Player$8.WIDTH / 2, p.y - r * Player$8.HEIGHT / 2, r * Player$8.WIDTH, r * Player$8.HEIGHT);
 			}
 			ctx.fillStyle = p.team;
 			let [tx, ty, dir] = data.getPlayerTextureCode(this.ball.grabber === idx, p, idx);
@@ -11274,25 +11444,25 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			const playerTexture = imageLoader.get("skin-" + data.skins[idx]);
 			const w = playerTexture.width / 6;
 			const h = playerTexture.height / 4;
-			const width = Player$5.WIDTH * 4 / 3;
+			const width = Player$8.WIDTH * 4 / 3;
 			ctx.save();
 			if (dir) {
-				ctx.translate(p.x + width / 2, p.y - Player$5.HEIGHT / 2);
+				ctx.translate(p.x + width / 2, p.y - Player$8.HEIGHT / 2);
 				ctx.scale(-1, 1);
-				ctx.drawImage(playerTexture, tx * w, ty * h, w, h, 0, 0, width, Player$5.HEIGHT);
-			} else ctx.drawImage(playerTexture, tx * w, ty * h, w, h, p.x - width / 2, p.y - Player$5.HEIGHT / 2, width, Player$5.HEIGHT);
+				ctx.drawImage(playerTexture, tx * w, ty * h, w, h, 0, 0, width, Player$8.HEIGHT);
+			} else ctx.drawImage(playerTexture, tx * w, ty * h, w, h, p.x - width / 2, p.y - Player$8.HEIGHT / 2, width, Player$8.HEIGHT);
 			ctx.restore();
 		}
 		if (this.ball.grabber < 0) {
 			const drawBallCoords = this.getBallDrawCoords();
-			ctx.drawImage(imageLoader.get("ball"), drawBallCoords.x - Ball.RADIUS / 2, drawBallCoords.y - Ball.RADIUS / 2, Ball.RADIUS, Ball.RADIUS);
+			ctx.drawImage(imageLoader.get("ball"), drawBallCoords.x - Ball$1.RADIUS / 2, drawBallCoords.y - Ball$1.RADIUS / 2, Ball$1.RADIUS, Ball$1.RADIUS);
 		}
 		{
 			const player = this.players[playerIdx];
 			let color;
 			if (this.ball.grabber === playerIdx) color = player.team;
 			else color = this.ball.prevGrabber !== playerIdx;
-			drawPlayerToTarget(ctx, player.x, player.y, data.mouseX, data.mouseY, color);
+			drawPlayerToTarget$1(ctx, player.x, player.y, data.mouseX, data.mouseY, color);
 		}
 		ctx.restore();
 		this.drawMinimap(ctx, playerIdx);
@@ -11301,9 +11471,9 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$5.get();
+		const { State } = protocols$8.get();
 		const object = {
-			players: this.players,
+			players: this.players.map((p) => p.save()),
 			prevBallGrabber: this.ball.prevGrabber,
 			buckets: this.buckets.map((b) => ({
 				taken: b.team !== null,
@@ -11319,7 +11489,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$5.get();
+		const { State } = protocols$8.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) this.players[idx].load(player);
 		for (const [idx, bucket] of obj.buckets.entries()) if (!bucket.taken) this.buckets[idx].team = null;
@@ -11332,16 +11502,16 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$4,
-			height: HEIGHT$4
+			width: WIDTH$6,
+			height: HEIGHT$6
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _clientData) {
 		const clientData = _clientData;
 		const cameraCoords = clientData.camera.getCoords();
 		const ret = {
-			x: (x - WIDTH$4 / 2) / Camera$1.SCALE + cameraCoords.x,
-			y: (y - HEIGHT$4 / 2) / Camera$1.SCALE + cameraCoords.y
+			x: (x - WIDTH$6 / 2) / Camera$3.SCALE + cameraCoords.x,
+			y: (y - HEIGHT$6 / 2) / Camera$3.SCALE + cameraCoords.y
 		};
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;
@@ -11351,7 +11521,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		return null;
 	}
 	createTutorial() {
-		return new TutorialData$4(this);
+		return new TutorialData$7(this);
 	}
 	produceFinish() {
 		const redTeam = [];
@@ -11383,27 +11553,25 @@ function norm2(dx, dy) {
 }
 //#endregion
 //#region commons/gamemods/GMRoarsOnGlass.ts
-var protocols$4 = getProtocol("roarsOnGlass", "multiplayer");
-var WIDTH$3 = 1600;
-var HEIGHT$3 = 2800;
+var protocols$7 = getProtocol("roarsOnGlass", "multiplayer");
+var WIDTH$5 = 1600;
+var HEIGHT$5 = 2800;
 var POINTS_TO_WIN = 5;
 var TILE_SIZE = 150;
 var GRID_PADDING = 1.5;
-var GRID_W = Math.floor(WIDTH$3 / TILE_SIZE) - GRID_PADDING * 2;
-var GRID_H = Math.floor(HEIGHT$3 / TILE_SIZE) - GRID_PADDING * 2;
+var GRID_W = Math.floor(WIDTH$5 / TILE_SIZE) - GRID_PADDING * 2;
+var GRID_H = Math.floor(HEIGHT$5 / TILE_SIZE) - GRID_PADDING * 2;
 var PLAYER_SIZE = 100;
 var PLAYER_ROUND = 20;
 var SPEED = 400;
 var ACCELERATION = 2e3;
 var SOFT_DECELERATION = 1e3;
-var QUICK_DECELERATION = 3e3;
-var MIN_DECELERATION = 500;
 var ROAR_COOLDOWN = 3;
 var ROAR_CAST_TIME = 1;
 var ROAR_RADIUS = 200;
 var PUSH_SPEED = 800;
 var SPEED_REDUCOR = 800;
-var Player$4 = class {
+var Player$7 = class {
 	x;
 	y;
 	spawnX = null;
@@ -11466,7 +11634,7 @@ var Player$4 = class {
 		};
 	}
 };
-var ClientData$5 = class ClientData$5 {
+var ClientData$8 = class ClientData$8 {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
@@ -11501,20 +11669,20 @@ var ClientData$5 = class ClientData$5 {
 		return `${Math.floor(time / 60)}:${(time % 60).toFixed(1).padStart(4, "0")}`;
 	}
 	update(game, playerIdx) {
-		if (game.time < 60) this.time.innerText = ClientData$5.showTime(game.time);
+		if (game.time < 60) this.time.innerText = ClientData$8.showTime(game.time);
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
 		game.players[playerIdx];
 	}
 };
-function generateClientDom$5(unlockedSkins) {
+function generateClientDom$8(unlockedSkins) {
 	return {
 		skin: Object.keys(GMRoarsOnGlass.SKINS)[0],
 		preferTeam: 0,
 		SKINS: GMRoarsOnGlass.SKINS,
 		unlockedSkins,
 		produce() {
-			const { StartData } = protocols$4.get();
+			const { StartData } = protocols$7.get();
 			return StartData.encode({
 				skin: this.skin,
 				preferTeam: this.preferTeam
@@ -11526,7 +11694,7 @@ function generateClientDom$5(unlockedSkins) {
 		getSkinIconPath: (id) => window.IMG_ROOT_PATH + `/assets/games/test/skins/${id}/icon.png`
 	};
 }
-var TutorialData$3 = class {
+var TutorialData$6 = class {
 	game;
 	constructor(game) {
 		this.game = game;
@@ -11553,7 +11721,7 @@ var TutorialData$3 = class {
 	}
 };
 var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
-	static types = { Player: Player$4 };
+	static types = { Player: Player$7 };
 	players;
 	grid = [];
 	redScore = 0;
@@ -11563,7 +11731,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 	isRoundEnding = false;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$4(0, 0));
+		this.players = Array.from({ length: total }, () => new Player$7(0, 0));
 		this.initGrid();
 	}
 	static TEXTURES = {
@@ -11585,11 +11753,11 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		this.roundTimer = 0;
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$4.get();
+		const { StartData, StartDataClient } = protocols$7.get();
 		const game = new GMRoarsOnGlass(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom$5([]);
+			return generateClientDom$8([]);
 		}
 		const playerInfos = await Promise.all(game.players.map(async (p, i) => {
 			const d = decode(i);
@@ -11633,7 +11801,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		}
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = assigned[i];
-			const spawnX = WIDTH$3 / 2;
+			const spawnX = WIDTH$5 / 2;
 			const spawnY = redTeam ? 2.5 * TILE_SIZE : 15.5 * TILE_SIZE;
 			p.initSpawn(spawnX, spawnY, redTeam ? "red" : "blue");
 		}
@@ -11647,11 +11815,11 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			})) }).finish()
 		};
 	}
-	static createClient(data, total) {
+	static createClient({ data, origin }, total) {
 		const game = new GMRoarsOnGlass(total);
-		const { StartDataClient } = protocols$4.get();
-		const clientData = new ClientData$5();
-		if (data) {
+		const { StartDataClient } = protocols$7.get();
+		const clientData = new ClientData$8();
+		if (origin === "server") {
 			const decoded = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of decoded.players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
@@ -11659,7 +11827,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			}
 		} else for (const [i, p] of game.players.entries()) {
 			const redTeam = i % 2 === 0;
-			const spawnX = WIDTH$3 / 2;
+			const spawnX = WIDTH$5 / 2;
 			const spawnY = redTeam ? 2.5 * TILE_SIZE : 15.5 * TILE_SIZE;
 			p.initSpawn(spawnX, spawnY, redTeam ? "red" : "blue");
 		}
@@ -11670,7 +11838,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$5;
+	static generateClientDom = generateClientDom$8;
 	static SKINS = { "default": "Default" };
 	static SKINS_IDS = Object.keys(GMRoarsOnGlass.SKINS);
 	init() {}
@@ -11678,6 +11846,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		return Array.from({ length: count }, () => 0);
 	}
 	applyPhysics(dt, velocity, dir) {
+		const targetVelocity = dir * SPEED;
 		let v = velocity;
 		if (dir === 0) {
 			if (v > 0) {
@@ -11687,26 +11856,12 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 				v += SOFT_DECELERATION * dt;
 				if (v > 0) v = 0;
 			}
-		} else if (dir > 0) {
-			if (v < 0) {
-				v += QUICK_DECELERATION * dt;
-				if (v > 0) v = 0;
-			} else if (v < SPEED) {
-				v += ACCELERATION * dt;
-				if (v > SPEED) v = SPEED;
-			} else if (v > SPEED) {
-				v -= MIN_DECELERATION * dt;
-				if (v < SPEED) v = SPEED;
-			}
-		} else if (v > 0) {
-			v -= QUICK_DECELERATION * dt;
-			if (v < 0) v = 0;
-		} else if (v > -400) {
+		} else if (v < targetVelocity) {
+			v += ACCELERATION * dt;
+			if (v > targetVelocity) v = targetVelocity;
+		} else if (v > targetVelocity) {
 			v -= ACCELERATION * dt;
-			if (v < -400) v = -400;
-		} else if (v < -400) {
-			v += MIN_DECELERATION * dt;
-			if (v > -400) v = -400;
+			if (v < targetVelocity) v = targetVelocity;
 		}
 		return v;
 	}
@@ -11811,7 +11966,6 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 						y: p.y,
 						r: ROAR_RADIUS
 					})) {
-						console.log("coll", p.team);
 						const dx = e.x - p.x;
 						const dy = e.y - p.y;
 						const invNorm = PUSH_SPEED / Math.sqrt(dx * dx + dy * dy);
@@ -11877,9 +12031,9 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			p.y += p.vy * dt;
 			this.handlePlayerCollisions();
 			if (p.x < 0) p.x = 0;
-			if (p.x > WIDTH$3) p.x = WIDTH$3;
+			if (p.x > WIDTH$5) p.x = WIDTH$5;
 			if (p.y < 0) p.y = 0;
-			if (p.y > HEIGHT$3) p.y = HEIGHT$3;
+			if (p.y > HEIGHT$5) p.y = HEIGHT$5;
 		}
 		if (redAliveCount === 0 || blueAliveCount === 0) {
 			this.isRoundEnding = true;
@@ -11895,6 +12049,12 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		if (input.action === "move") {
 			p.dirX = input.move.dx || 0;
 			p.dirY = input.move.dy || 0;
+			const norm2 = p.dirX * p.dirX + p.dirY * p.dirY;
+			if (norm2 > 1) {
+				const inv = 1 / Math.sqrt(norm2);
+				p.dirX *= inv;
+				p.dirY *= inv;
+			}
 		}
 		if (input.action === "roar") p.isRoaring = input.roar;
 	}
@@ -11962,7 +12122,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		if (data.firstFrame) data.firstFrame = false;
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#039";
-		ctx.fillRect(0, 0, WIDTH$3, HEIGHT$3);
+		ctx.fillRect(0, 0, WIDTH$5, HEIGHT$5);
 		ctx.save();
 		const brokenTexture = imageLoader.get("broken");
 		const glassTexture = imageLoader.get("glass");
@@ -11987,14 +12147,26 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			else ctx.fillStyle = `rgba(150, 200, 255, ${alpha})`;
 			ctx.drawImage(cell < 3 ? brokenTexture : glassTexture, (x + GRID_PADDING) * TILE_SIZE + SPACING + dx, (y + GRID_PADDING) * TILE_SIZE + SPACING + dy, 146, 146);
 		}
-		for (let p of this.players) {
+		for (let i = 0; i < this.players.length; i++) {
+			const p = this.players[i];
 			if (!p.isAlive()) continue;
-			ctx.fillStyle = p.team === "red" ? "#ff4444" : "#44ff44";
+			const isLocalPlayer = i === playerIdx;
+			const playerColor = p.team === "red" ? "#ff4444" : "#44ff44";
+			ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+			this.drawRoundedRect(ctx, p.x + 8, p.y + 8, PLAYER_SIZE, PLAYER_ROUND);
+			ctx.fill();
+			ctx.fillStyle = playerColor;
 			this.drawRoundedRect(ctx, p.x, p.y, PLAYER_SIZE, PLAYER_ROUND);
 			ctx.fill();
+			if (isLocalPlayer) {
+				ctx.strokeStyle = "#ffffff";
+				ctx.lineWidth = 14;
+				this.drawRoundedRect(ctx, p.x, p.y, PLAYER_SIZE, PLAYER_ROUND);
+				ctx.stroke();
+			}
 			if (p.roarTimer > 0) {
-				ctx.strokeStyle = "rgba(255, 255, 0, 0.5)";
-				ctx.lineWidth = 10;
+				ctx.strokeStyle = isLocalPlayer ? "rgba(255, 255, 255, 0.85)" : "rgba(255, 255, 0, 0.5)";
+				ctx.lineWidth = isLocalPlayer ? 14 : 10;
 				ctx.beginPath();
 				ctx.arc(p.x, p.y, ROAR_RADIUS, 0, 2 * Math.PI);
 				ctx.stroke();
@@ -12006,7 +12178,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$4.get();
+		const { State } = protocols$7.get();
 		return State.encode({
 			players: this.players.map((p) => p.save()),
 			grid: this.grid.flat(),
@@ -12018,7 +12190,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		}).finish();
 	}
 	load(data) {
-		const { State } = protocols$4.get();
+		const { State } = protocols$7.get();
 		const obj = State.decode(data);
 		for (let i = 0; i < this.players.length; i++) if (obj.players[i]) this.players[i].load(obj.players[i]);
 		this.redScore = obj.redScore;
@@ -12030,8 +12202,8 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$3,
-			height: HEIGHT$3
+			width: WIDTH$5,
+			height: HEIGHT$5
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _data) {
@@ -12045,7 +12217,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			joysticks: { move: {
 				x: 100,
 				xp: "left",
-				y: 100,
+				y: 200,
 				yp: "bottom",
 				size: 100,
 				color: "#007700"
@@ -12053,7 +12225,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			buttons: { roar: {
 				x: 100,
 				xp: "right",
-				y: 100,
+				y: 200,
 				yp: "bottom",
 				size: 100,
 				color: "#ff00ff"
@@ -12061,7 +12233,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$3(this);
+		return new TutorialData$6(this);
 	}
 	produceFinish() {
 		let results = [];
@@ -12083,13 +12255,13 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 };
 //#endregion
 //#region commons/gamemods/GMSuperTicTacToe.ts
-var protocols$3 = getProtocol("superTicTacToe", "multiplayer");
-var CELL_SIZE = 100;
+var protocols$6 = getProtocol("superTicTacToe", "multiplayer");
+var CELL_SIZE$1 = 100;
 var SUBGRID_SIZE = 300;
-var BOARD_SIZE = SUBGRID_SIZE * 3;
+var BOARD_SIZE$1 = SUBGRID_SIZE * 3;
 var BOARD_MARGIN = 60;
-var WIDTH$2 = 1020;
-var HEIGHT$2 = 1020;
+var WIDTH$4 = 1020;
+var HEIGHT$4 = 1020;
 var WIN_LINES$1 = [
 	[
 		0,
@@ -12148,11 +12320,11 @@ function findLineWinner(values) {
 	for (const [a, b, c] of WIN_LINES$1) if (values[a].taken && values[b].taken && values[c].taken && values[a].isRed === values[b].isRed && values[b].isRed === values[c].isRed) return values[a].isRed ? "red" : "blue";
 	return null;
 }
-var Player$3 = class {
+var Player$6 = class {
 	connected = true;
 	team = "red";
 };
-var ClientData$4 = class {
+var ClientData$7 = class {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
@@ -12190,7 +12362,7 @@ var ClientData$4 = class {
 		this.opponent.classList.toggle("game-superTicTacToe-disabled", isYourTurn);
 	}
 };
-var TutorialData$2 = class {
+var TutorialData$5 = class {
 	game;
 	shown = false;
 	constructor(game) {
@@ -12210,23 +12382,23 @@ var TutorialData$2 = class {
 		return "Playing a cell sends your opponent to the matching sub-grid!";
 	}
 };
-function generateClientDom$4() {
+function generateClientDom$7() {
 	return {
 		preferTeam: 0,
 		produce() {
-			const { StartData } = protocols$3.get();
+			const { StartData } = protocols$6.get();
 			return StartData.encode({ preferTeam: this.preferTeam }).finish();
 		}
 	};
 }
 var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
-	static types = { Player: Player$3 };
+	static types = { Player: Player$6 };
 	static DATA = {
-		WIDTH: WIDTH$2,
-		HEIGHT: HEIGHT$2,
-		CELL_SIZE,
+		WIDTH: WIDTH$4,
+		HEIGHT: HEIGHT$4,
+		CELL_SIZE: CELL_SIZE$1,
 		SUBGRID_SIZE,
-		BOARD_SIZE,
+		BOARD_SIZE: BOARD_SIZE$1,
 		BOARD_MARGIN
 	};
 	players;
@@ -12239,13 +12411,13 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 	winner = null;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$3());
+		this.players = Array.from({ length: total }, () => new Player$6());
 		this.cells = Array.from({ length: 81 }, emptyCell);
 		this.subgridWinners = Array.from({ length: 9 }, emptyCell);
 		this.subgridFull = Array.from({ length: 9 }, () => false);
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$3.get();
+		const { StartData, StartDataClient } = protocols$6.get();
 		const game = new GMSuperTicTacToe(total);
 		function decodePreference(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data)).preferTeam ?? 0;
@@ -12267,11 +12439,11 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 			data: StartDataClient.encode({ players: game.players.map((p) => ({ isRed: p.team === "red" })) }).finish()
 		};
 	}
-	static createClient(data, total, playerIdx) {
+	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMSuperTicTacToe(total);
-		const { StartDataClient } = protocols$3.get();
-		const clientData = new ClientData$4(playerIdx);
-		if (data) {
+		const { StartDataClient } = protocols$6.get();
+		const clientData = new ClientData$7(playerIdx);
+		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) game.players[idx].team = p.isRed ? "red" : "blue";
 		} else {
@@ -12285,7 +12457,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$4;
+	static generateClientDom = generateClientDom$7;
 	static TEXTURES = {};
 	init() {}
 	getBotIds(count) {
@@ -12404,9 +12576,9 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 	static cellFromBoardCoords(x, y) {
 		const bx = x - BOARD_MARGIN;
 		const by = y - BOARD_MARGIN;
-		if (bx < 0 || by < 0 || bx >= BOARD_SIZE || by >= BOARD_SIZE) return null;
-		const globalX = Math.floor(bx / CELL_SIZE);
-		return Math.floor(by / CELL_SIZE) * 9 + globalX;
+		if (bx < 0 || by < 0 || bx >= BOARD_SIZE$1 || by >= BOARD_SIZE$1) return null;
+		const globalX = Math.floor(bx / CELL_SIZE$1);
+		return Math.floor(by / CELL_SIZE$1) * 9 + globalX;
 	}
 	drawMark(ctx, cx, cy, size, isRed) {
 		const half = size * .32;
@@ -12432,11 +12604,11 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		if (data.firstFrame) data.firstFrame = false;
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#1e1e24";
-		ctx.fillRect(0, 0, WIDTH$2, HEIGHT$2);
+		ctx.fillRect(0, 0, WIDTH$4, HEIGHT$4);
 		ctx.save();
 		ctx.translate(BOARD_MARGIN, BOARD_MARGIN);
 		ctx.fillStyle = "#f4f1ea";
-		ctx.fillRect(0, 0, BOARD_SIZE, BOARD_SIZE);
+		ctx.fillRect(0, 0, BOARD_SIZE$1, BOARD_SIZE$1);
 		for (let s = 0; s < 9; s++) {
 			if (!(!this.subgridWinners[s].taken && !this.subgridFull[s] && (this.forced < 0 || this.forced === s))) continue;
 			const sx = s % 3 * SUBGRID_SIZE;
@@ -12448,12 +12620,12 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		ctx.lineWidth = 2;
 		for (let i = 1; i < 9; i++) {
 			ctx.beginPath();
-			ctx.moveTo(i * CELL_SIZE, 0);
-			ctx.lineTo(i * CELL_SIZE, BOARD_SIZE);
+			ctx.moveTo(i * CELL_SIZE$1, 0);
+			ctx.lineTo(i * CELL_SIZE$1, BOARD_SIZE$1);
 			ctx.stroke();
 			ctx.beginPath();
-			ctx.moveTo(0, i * CELL_SIZE);
-			ctx.lineTo(BOARD_SIZE, i * CELL_SIZE);
+			ctx.moveTo(0, i * CELL_SIZE$1);
+			ctx.lineTo(BOARD_SIZE$1, i * CELL_SIZE$1);
 			ctx.stroke();
 		}
 		ctx.strokeStyle = "#3a3a3a";
@@ -12461,11 +12633,11 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		for (let i = 1; i < 3; i++) {
 			ctx.beginPath();
 			ctx.moveTo(i * SUBGRID_SIZE, 0);
-			ctx.lineTo(i * SUBGRID_SIZE, BOARD_SIZE);
+			ctx.lineTo(i * SUBGRID_SIZE, BOARD_SIZE$1);
 			ctx.stroke();
 			ctx.beginPath();
 			ctx.moveTo(0, i * SUBGRID_SIZE);
-			ctx.lineTo(BOARD_SIZE, i * SUBGRID_SIZE);
+			ctx.lineTo(BOARD_SIZE$1, i * SUBGRID_SIZE);
 			ctx.stroke();
 		}
 		for (let i = 0; i < 81; i++) {
@@ -12473,9 +12645,9 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 			if (!cell.taken) continue;
 			const gx = i % 9;
 			const gy = Math.floor(i / 9);
-			const cx = gx * CELL_SIZE + CELL_SIZE / 2;
-			const cy = gy * CELL_SIZE + CELL_SIZE / 2;
-			this.drawMark(ctx, cx, cy, CELL_SIZE, cell.isRed);
+			const cx = gx * CELL_SIZE$1 + CELL_SIZE$1 / 2;
+			const cy = gy * CELL_SIZE$1 + CELL_SIZE$1 / 2;
+			this.drawMark(ctx, cx, cy, CELL_SIZE$1, cell.isRed);
 		}
 		for (let s = 0; s < 9; s++) {
 			const sx = s % 3 * SUBGRID_SIZE;
@@ -12495,7 +12667,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 			const hgy = Math.floor(hovered / 9);
 			ctx.strokeStyle = this.turn === "red" ? "#e63946" : "#3a86ff";
 			ctx.lineWidth = 3;
-			ctx.strokeRect(hgx * CELL_SIZE + 2, hgy * CELL_SIZE + 2, 96, 96);
+			ctx.strokeRect(hgx * CELL_SIZE$1 + 2, hgy * CELL_SIZE$1 + 2, 96, 96);
 		}
 		ctx.restore();
 	}
@@ -12503,7 +12675,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$3.get();
+		const { State } = protocols$6.get();
 		const object = {
 			cells: this.cells.map((c) => ({
 				taken: c.taken,
@@ -12523,7 +12695,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$3.get();
+		const { State } = protocols$6.get();
 		const obj = decodeFullMessage(State.decode(data));
 		this.cells = obj.cells.map((c) => ({
 			taken: c.taken,
@@ -12543,8 +12715,8 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$2,
-			height: HEIGHT$2
+			width: WIDTH$4,
+			height: HEIGHT$4
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _clientData) {
@@ -12563,7 +12735,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$2(this);
+		return new TutorialData$5(this);
 	}
 	/**
 	* Builds the FinishGame payload once the match is over. Each team
@@ -12592,8 +12764,8 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 };
 //#endregion
 //#region commons/gamemods/GMTest.ts
-var protocols$2 = getProtocol("test", "multiplayer");
-var Player$2 = class {
+var protocols$5 = getProtocol("test", "multiplayer");
+var Player$5 = class {
 	x;
 	y;
 	team;
@@ -12610,12 +12782,12 @@ var Player$2 = class {
 		this.move = obj.move;
 	}
 };
-var ClientData$3 = class {};
-function generateClientDom$3() {
+var ClientData$6 = class {};
+function generateClientDom$6() {
 	return {
 		choosen: 0,
 		produce() {
-			const { StartData } = protocols$2.get();
+			const { StartData } = protocols$5.get();
 			return StartData.encode({ testNumber: this.choosen }).finish();
 		}
 	};
@@ -12626,11 +12798,11 @@ var Tutorial = class {
 	}
 };
 var GMTest = class GMTest extends GameMode {
-	static types = { Player: Player$2 };
+	static types = { Player: Player$5 };
 	players;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$2(0, 0, "red"));
+		this.players = Array.from({ length: total }, () => new Player$5(0, 0, "red"));
 	}
 	static async createServ(players, total) {
 		const game = new GMTest(total);
@@ -12645,7 +12817,7 @@ var GMTest = class GMTest extends GameMode {
 			data: /* @__PURE__ */ new Uint8Array()
 		};
 	}
-	static createClient(data, total) {
+	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMTest(total);
 		for (let i = 0; i < game.players.length; i++) {
 			const p = game.players[i];
@@ -12655,12 +12827,12 @@ var GMTest = class GMTest extends GameMode {
 		}
 		return {
 			game,
-			data: new ClientData$3(),
+			data: new ClientData$6(),
 			html: null,
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$3;
+	static generateClientDom = generateClientDom$6;
 	static TEXTURES = {};
 	init() {}
 	getBotIds(count) {
@@ -12702,11 +12874,11 @@ var GMTest = class GMTest extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$2.get();
+		const { State } = protocols$5.get();
 		return State.encode(this).finish();
 	}
 	load(data) {
-		const { State } = protocols$2.get();
+		const { State } = protocols$5.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) this.players[idx].update(player);
 	}
@@ -12776,7 +12948,7 @@ var SoloGameMode = class SoloGameMode {
 };
 //#endregion
 //#region commons/gamemods/GMTestSolo.ts
-function generateClientDom$2() {
+function generateClientDom$5() {
 	return {
 		category: "default",
 		produce() {
@@ -12784,17 +12956,17 @@ function generateClientDom$2() {
 		}
 	};
 }
-var ClientData$2 = class {};
+var ClientData$5 = class {};
 var GMTestSolo = class GMTestSolo extends SoloGameMode {
 	static TEXTURES = {};
 	static CATEGORIES = ["default"];
 	static MIN_FIRST = true;
-	static generateClientDom = generateClientDom$2;
+	static generateClientDom = generateClientDom$5;
 	static create = () => new GMTestSolo();
 	player = 500;
 	move = 0;
 	init(category, rng, generateClientData) {
-		if (generateClientData) return new ClientData$2();
+		if (generateClientData) return new ClientData$5();
 	}
 	collectInputs(keyboard, mouse, mobile, data) {
 		const inputs = [];
@@ -12833,22 +13005,22 @@ var GMTestSolo = class GMTestSolo extends SoloGameMode {
 };
 //#endregion
 //#region commons/gamemods/GMTurrets.ts
-var protocols$1 = getProtocol("turrets", "multiplayer");
+var protocols$4 = getProtocol("turrets", "multiplayer");
 var GRAVITY = 1100;
-var WIDTH$1 = 2400;
-var HEIGHT$1 = 1350;
-var FULL_ROOM_SIZE = WIDTH$1 * 2.5;
-var ROOM_SIZE = WIDTH$1 * 1.5;
-var BRIDGE_SIZE = WIDTH$1 * .3;
+var WIDTH$3 = 2400;
+var HEIGHT$3 = 1350;
+var FULL_ROOM_SIZE = WIDTH$3 * 2.5;
+var ROOM_SIZE = WIDTH$3 * 1.5;
+var BRIDGE_SIZE = WIDTH$3 * .3;
 var BULLET_DAMAGE = 15;
-var TURRET_RADIUS$1 = WIDTH$1 * .6;
+var TURRET_RADIUS$1 = WIDTH$3 * .6;
 var TURRET_ACTIVATION = 2e3;
 var TURRET_COOLDOWN = 2;
 var TURRET_HP$1 = 1200;
 var TURRET_START_COOLDOWN = 5;
 var TURRET_ITEM_DAMAGES = 500;
-var MINIMAP_X = WIDTH$1 * .79;
-var MINIMAP_Y = HEIGHT$1 * .01;
+var MINIMAP_X = WIDTH$3 * .79;
+var MINIMAP_Y = HEIGHT$3 * .01;
 var MINIMAP_RATIO = .2;
 var STAR_DURATION = 10;
 var ITEM_COUNT = 3;
@@ -12942,7 +13114,7 @@ var SPAWN_COLORS = [
 		"blue"
 	]
 ];
-var Player$1 = class Player$1 {
+var Player$4 = class Player$4 {
 	x;
 	y;
 	static SPEED = 2e3;
@@ -12973,18 +13145,18 @@ var Player$1 = class Player$1 {
 	vy = 0;
 	dirX = 0;
 	dirY = 0;
-	hp = Player$1.MAX_HP;
-	maxHp = Player$1.MAX_HP;
-	healCooldown = Player$1.HEAL_COOLDOWN;
+	hp = Player$4.MAX_HP;
+	maxHp = Player$4.MAX_HP;
+	healCooldown = Player$4.HEAL_COOLDOWN;
 	target = null;
 	team = "red";
 	items = Array(ITEM_COUNT).fill(-1);
 	selectedItem = -1;
 	starDuration = -1;
 	kills = 0;
-	attackMunitions = Player$1.ATTACK_FULL;
+	attackMunitions = Player$4.ATTACK_FULL;
 	attackCooldown = 0;
-	attackTimer = Player$1.ATTACK_DELAY;
+	attackTimer = Player$4.ATTACK_DELAY;
 	attackFullyReloading = false;
 	invincible = false;
 	speedMultiplier = 1;
@@ -13021,7 +13193,7 @@ var Player$1 = class Player$1 {
 		if (dirX === 0 && dirY === 0) {
 			const speed = Math.hypot(vx, vy);
 			if (speed === 0) return [0, 0];
-			const deceleration = Player$1.SOFT_DECELERATION * dt;
+			const deceleration = Player$4.SOFT_DECELERATION * dt;
 			if (speed <= deceleration) return [0, 0];
 			const factor = (speed - deceleration) / speed;
 			return [vx * factor, vy * factor];
@@ -13029,20 +13201,20 @@ var Player$1 = class Player$1 {
 		const speed = Math.hypot(vx, vy);
 		const forwardSpeed = vx * dirX + vy * dirY;
 		if (forwardSpeed < 0) {
-			const deceleration = Player$1.QUICK_DECELERATION * dt;
+			const deceleration = Player$4.QUICK_DECELERATION * dt;
 			if (speed <= deceleration) return [0, 0];
 			const factor = (speed - deceleration) / speed;
 			return [vx * factor, vy * factor];
 		}
 		const dirLength = Math.hypot(dirX, dirY);
-		const targetSpeed = Player$1.SPEED * speedMultiplier * dirLength;
+		const targetSpeed = Player$4.SPEED * speedMultiplier * dirLength;
 		if (forwardSpeed < targetSpeed) {
-			const acceleration = Player$1.ACCELERATION * dt;
+			const acceleration = Player$4.ACCELERATION * dt;
 			const newSpeed = Math.min(forwardSpeed + acceleration, targetSpeed);
 			return [dirX / dirLength * newSpeed, dirY / dirLength * newSpeed];
 		}
 		if (speed > targetSpeed) {
-			const deceleration = Player$1.MIN_DECELERATION * dt;
+			const deceleration = Player$4.MIN_DECELERATION * dt;
 			const newSpeed = Math.max(speed - deceleration, targetSpeed);
 			return [vx / speed * newSpeed, vy / speed * newSpeed];
 		}
@@ -13055,16 +13227,16 @@ var Player$1 = class Player$1 {
 			if (this.spawnX !== null) this.x = this.spawnX;
 			if (this.spawnY !== null) this.y = this.spawnY;
 			this.hp = this.maxHp;
-			this.attackMunitions = Player$1.ATTACK_FULL;
+			this.attackMunitions = Player$4.ATTACK_FULL;
 			this.attackFullyReloading = false;
 			this.attackCooldown = 0;
-			this.attackTimer = Player$1.ATTACK_DELAY;
+			this.attackTimer = Player$4.ATTACK_DELAY;
 		}
-		[this.vx, this.vy] = Player$1.applyMovement(this.dirX, this.dirY, this.vx, this.vy, dt, this.speedMultiplier);
+		[this.vx, this.vy] = Player$4.applyMovement(this.dirX, this.dirY, this.vx, this.vy, dt, this.speedMultiplier);
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 		if (this.healCooldown > 0) this.healCooldown -= dt;
-		if (this.healCooldown <= 0) this.hp = Math.min(this.hp + Player$1.HP_INC * dt, Player$1.MAX_HP);
+		if (this.healCooldown <= 0) this.hp = Math.min(this.hp + Player$4.HP_INC * dt, Player$4.MAX_HP);
 		this.avoidOOB();
 		if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
 	}
@@ -13118,16 +13290,16 @@ var Player$1 = class Player$1 {
 	}
 	avoidOOB() {
 		const LIMIT = FULL_ROOM_SIZE * 3;
-		const r = Player$1.RADIUS;
+		const r = Player$4.RADIUS;
 		this.x = Math.max(-18e3 + r, Math.min(LIMIT - r, this.x));
 		this.y = Math.max(-18e3 + r, Math.min(LIMIT - r, this.y));
 	}
 	die() {
 		this.vx = 0;
 		this.vy = 0;
-		this.alive = Player$1.COOLDOWN;
+		this.alive = Player$4.COOLDOWN;
 		this.hp = 0;
-		this.healCooldown = Player$1.HEAL_COOLDOWN;
+		this.healCooldown = Player$4.HEAL_COOLDOWN;
 	}
 	attackLogic(dt, idx, game) {
 		if (this.attackFullyReloading) {
@@ -13160,7 +13332,7 @@ var Player$1 = class Player$1 {
 			this.items[this.selectedItem] = nextItemId;
 			this.target = null;
 		}
-		this.attackCooldown = Player$1.ATTACK_COOLDOWN;
+		this.attackCooldown = Player$4.ATTACK_COOLDOWN;
 	}
 	/**
 	* Converts the current targeting system into a raw direction vector (dx, dy).
@@ -13189,15 +13361,15 @@ var Player$1 = class Player$1 {
 	executeStandardAttack(dt, idx, game) {
 		if (this.attackMunitions <= 0) return;
 		this.attackMunitions = Math.max(0, this.attackMunitions - dt);
-		this.attackCooldown = Player$1.ATTACK_COOLDOWN;
+		this.attackCooldown = Player$4.ATTACK_COOLDOWN;
 		this.attackTimer += dt;
 		if (this.attackMunitions <= 0) {
 			this.attackFullyReloading = true;
 			this.attackTimer = 0;
 			return;
 		}
-		if (this.attackTimer >= Player$1.ATTACK_DELAY) {
-			this.attackTimer -= Player$1.ATTACK_DELAY;
+		if (this.attackTimer >= Player$4.ATTACK_DELAY) {
+			this.attackTimer -= Player$4.ATTACK_DELAY;
 			const [dx, dy] = this.resolveTargetVector(game);
 			const baseAngle = Math.atan2(dy, dx);
 			for (const pat of Bullet.PATTERNS) {
@@ -13213,21 +13385,21 @@ var Player$1 = class Player$1 {
 		}
 	}
 	processReloading(dt) {
-		this.attackMunitions = Math.min(Player$1.ATTACK_FULL, this.attackMunitions + dt * Player$1.ATTACK_SLOW_RELOAD);
-		if (this.attackMunitions >= Player$1.ATTACK_FULL) {
-			this.attackMunitions = Player$1.ATTACK_FULL;
+		this.attackMunitions = Math.min(Player$4.ATTACK_FULL, this.attackMunitions + dt * Player$4.ATTACK_SLOW_RELOAD);
+		if (this.attackMunitions >= Player$4.ATTACK_FULL) {
+			this.attackMunitions = Player$4.ATTACK_FULL;
 			this.attackFullyReloading = false;
-			this.attackTimer = Player$1.ATTACK_DELAY;
+			this.attackTimer = Player$4.ATTACK_DELAY;
 		}
 	}
 	processAttackCooldowns(dt) {
-		this.attackTimer = Math.min(this.attackTimer + dt, Player$1.ATTACK_DELAY);
+		this.attackTimer = Math.min(this.attackTimer + dt, Player$4.ATTACK_DELAY);
 		if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
-		if (this.attackCooldown <= 0) this.attackMunitions = Math.min(Player$1.ATTACK_FULL, this.attackMunitions + dt * Player$1.ATTACK_RELOAD);
+		if (this.attackCooldown <= 0) this.attackMunitions = Math.min(Player$4.ATTACK_FULL, this.attackMunitions + dt * Player$4.ATTACK_RELOAD);
 	}
 	hit(damages, attacker) {
 		if (this.invincible || this.hp <= 0) return;
-		this.healCooldown = Player$1.HEAL_COOLDOWN;
+		this.healCooldown = Player$4.HEAL_COOLDOWN;
 		this.hp -= damages;
 		if (this.hp <= 0) {
 			this.die();
@@ -13244,18 +13416,18 @@ var Player$1 = class Player$1 {
 		ctx.save();
 		ctx.translate(this.x, this.y);
 		ctx.rotate(a);
-		ctx.drawImage(imageLoader.get("player-" + this.team), -Player$1.RADIUS * r / 2, -Player$1.RADIUS * r / 2, Player$1.RADIUS * r, Player$1.RADIUS * r);
+		ctx.drawImage(imageLoader.get("player-" + this.team), -Player$4.RADIUS * r / 2, -Player$4.RADIUS * r / 2, Player$4.RADIUS * r, Player$4.RADIUS * r);
 		ctx.restore();
 		const BAR_W = 80;
 		const BAR_H = 10;
 		const hpRatio = Math.max(0, this.hp / this.maxHp);
 		ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-		ctx.fillRect(this.x - BAR_W / 2, this.y - Player$1.RADIUS - 15, BAR_W, BAR_H);
+		ctx.fillRect(this.x - BAR_W / 2, this.y - Player$4.RADIUS - 15, BAR_W, BAR_H);
 		ctx.fillStyle = "#22cc22";
-		ctx.fillRect(this.x - BAR_W / 2, this.y - Player$1.RADIUS - 15, BAR_W * hpRatio, BAR_H);
+		ctx.fillRect(this.x - BAR_W / 2, this.y - Player$4.RADIUS - 15, BAR_W * hpRatio, BAR_H);
 		if (currentPlayer) {
-			const ratio = this.attackMunitions / Player$1.ATTACK_FULL;
-			const y = this.y - Player$1.RADIUS - 30;
+			const ratio = this.attackMunitions / Player$4.ATTACK_FULL;
+			const y = this.y - Player$4.RADIUS - 30;
 			ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
 			ctx.fillRect(this.x - BAR_W / 2, y, BAR_W, BAR_H);
 			if (this.attackFullyReloading) {
@@ -13269,9 +13441,9 @@ var Player$1 = class Player$1 {
 		if (this.starDuration > 0) {
 			const ratio = Math.min(1, this.starDuration / 6);
 			ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-			ctx.fillRect(this.x - BAR_W / 2, this.y - Player$1.RADIUS - 40, BAR_W, BAR_H);
+			ctx.fillRect(this.x - BAR_W / 2, this.y - Player$4.RADIUS - 40, BAR_W, BAR_H);
 			ctx.fillStyle = "yellow";
-			ctx.fillRect(this.x - BAR_W / 2, this.y - Player$1.RADIUS - 30, BAR_W * ratio, BAR_H);
+			ctx.fillRect(this.x - BAR_W / 2, this.y - Player$4.RADIUS - 30, BAR_W * ratio, BAR_H);
 		}
 		return a;
 	}
@@ -13284,7 +13456,7 @@ var Player$1 = class Player$1 {
 			return;
 		}
 		const hoverItemIdx = game.itemsInMap.findIndex((item) => {
-			return Math.hypot(item.x - this.x, item.y - this.y) <= ItemInMap.RADIUS + Player$1.RADIUS;
+			return Math.hypot(item.x - this.x, item.y - this.y) <= ItemInMap.RADIUS + Player$4.RADIUS;
 		});
 		if (hoverItemIdx !== -1) this.swapOrPickupItem(slot, hoverItemIdx, game);
 		else this.selectedItem = slot;
@@ -13303,7 +13475,7 @@ var Player$1 = class Player$1 {
 		return this.team;
 	}
 	getRadius() {
-		return Player$1.RADIUS;
+		return Player$4.RADIUS;
 	}
 };
 var Turret = class Turret {
@@ -13839,7 +14011,7 @@ var EBallon = class EBallon extends AbstractEntity {
 		};
 	}
 	detectsEnemy(game) {
-		const playerRange = this.radius + Player$1.RADIUS;
+		const playerRange = this.radius + Player$4.RADIUS;
 		const playerRange2 = playerRange * playerRange;
 		for (const p of game.players) if (p.isAlive() && p.team !== this.team && norm2(p.x - this.x, p.y - this.y) <= playerRange2) return true;
 		const turretRange = this.radius + Turret.SIZE;
@@ -14303,7 +14475,7 @@ var ITEMS = [
 		}
 	}
 ];
-var Camera = class Camera {
+var Camera$2 = class Camera$2 {
 	x = 0;
 	y = 0;
 	static SCALE = .7;
@@ -14350,8 +14522,8 @@ var Camera = class Camera {
 			this.t = 0;
 			this.isTransitioning = true;
 		}
-		const viewHalfW = WIDTH$1 / (2 * Camera.SCALE);
-		const viewHalfH = HEIGHT$1 / (2 * Camera.SCALE);
+		const viewHalfW = WIDTH$3 / (2 * Camera$2.SCALE);
+		const viewHalfH = HEIGHT$3 / (2 * Camera$2.SCALE);
 		const minX = this.targetX - FULL_ROOM_SIZE / 2 + viewHalfW;
 		const maxX = this.targetX + FULL_ROOM_SIZE / 2 - viewHalfW;
 		const minY = this.targetY - FULL_ROOM_SIZE / 2 + viewHalfH;
@@ -14360,12 +14532,12 @@ var Camera = class Camera {
 		const desiredY = this.clamp(py, minY, maxY);
 		if (this.isTransitioning) {
 			this.t += dt;
-			if (this.t >= Camera.DURATION) {
+			if (this.t >= Camera$2.DURATION) {
 				this.isTransitioning = false;
 				this.x = desiredX;
 				this.y = desiredY;
 			} else {
-				const progress = this.easing(this.t / Camera.DURATION);
+				const progress = this.easing(this.t / Camera$2.DURATION);
 				this.x = this.startX + (desiredX - this.startX) * progress;
 				this.y = this.startY + (desiredY - this.startY) * progress;
 			}
@@ -14378,8 +14550,8 @@ var Camera = class Camera {
 		const { cx, cy } = this.getZoneCenter(px, py);
 		this.targetX = cx;
 		this.targetY = cy;
-		const viewHalfW = WIDTH$1 / (2 * Camera.SCALE);
-		const viewHalfH = HEIGHT$1 / (2 * Camera.SCALE);
+		const viewHalfW = WIDTH$3 / (2 * Camera$2.SCALE);
+		const viewHalfH = HEIGHT$3 / (2 * Camera$2.SCALE);
 		const minX = cx - FULL_ROOM_SIZE / 2 + viewHalfW;
 		const maxX = cx + FULL_ROOM_SIZE / 2 - viewHalfW;
 		const minY = cy - FULL_ROOM_SIZE / 2 + viewHalfH;
@@ -14396,13 +14568,13 @@ var Camera = class Camera {
 		};
 	}
 };
-var ClientData$1 = class ClientData$1 {
+var ClientData$4 = class ClientData$4 {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
 	html;
 	time;
-	camera = new Camera();
+	camera = new Camera$2();
 	clientWasDead = true;
 	lastDirX = 0;
 	lastDirY = 0;
@@ -14420,14 +14592,14 @@ var ClientData$1 = class ClientData$1 {
 		return `${Math.floor(time / 60)}:${(time % 60).toFixed(1).padStart(4, "0")}`;
 	}
 	update(game, playerIdx) {
-		this.time.innerText = ClientData$1.showTime(game.time);
+		this.time.innerText = ClientData$4.showTime(game.time);
 		const player = game.players[playerIdx];
 		if (this.clientWasDead && player.alive < 0) this.camera.teleport(player.x, player.y);
 		this.clientWasDead = player.alive >= 0;
 		this.camera.update(player.x, player.y, 1 / 60);
 	}
 };
-var TutorialData$1 = class {
+var TutorialData$4 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -14440,12 +14612,12 @@ var TutorialData$1 = class {
 		return "Placeholder";
 	}
 };
-function generateClientDom$1() {
+function generateClientDom$4() {
 	return {
 		skin: 0,
 		preferTeam: 0,
 		produce() {
-			const { StartData } = protocols$1.get();
+			const { StartData } = protocols$4.get();
 			return StartData.encode({
 				skin: this.skin,
 				preferTeam: this.preferTeam
@@ -14495,13 +14667,13 @@ function drawItemHand(ctx, x, y, size, itemId, slotIndex, isSelected, imageLoade
 }
 var GMTurrets = class GMTurrets extends GameMode {
 	static types = {
-		Player: Player$1,
+		Player: Player$4,
 		Turret
 	};
 	static DATA = {
 		GRAVITY,
-		WIDTH: WIDTH$1,
-		HEIGHT: HEIGHT$1
+		WIDTH: WIDTH$3,
+		HEIGHT: HEIGHT$3
 	};
 	players;
 	turrets = [];
@@ -14517,7 +14689,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 	cycleStep = 0;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$1(0, 0));
+		this.players = Array.from({ length: total }, () => new Player$4(0, 0));
 		for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
 			this.turrets.push(new Turret(x * FULL_ROOM_SIZE, y * FULL_ROOM_SIZE, SPAWN_COLORS[y + 2][x + 2]));
 			const floorX = x * FULL_ROOM_SIZE;
@@ -14543,11 +14715,11 @@ var GMTurrets = class GMTurrets extends GameMode {
 		}
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$1.get();
+		const { StartData, StartDataClient } = protocols$4.get();
 		const game = new GMTurrets(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom$1();
+			return generateClientDom$4();
 		}
 		const playerInfos = game.players.map((p, i) => ({
 			player: p,
@@ -14592,17 +14764,17 @@ var GMTurrets = class GMTurrets extends GameMode {
 			})) }).finish()
 		};
 	}
-	static createClient(data, total) {
+	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMTurrets(total);
-		const { StartDataClient } = protocols$1.get();
-		if (data) {
+		const { StartDataClient } = protocols$4.get();
+		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
 		} else {
 			game.players[0].initSpawn(0, -200, "red");
 			game.players[1].initSpawn(0, 200, "blue");
 		}
-		const clientData = new ClientData$1();
+		const clientData = new ClientData$4();
 		return {
 			game,
 			data: clientData,
@@ -14610,7 +14782,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$1;
+	static generateClientDom = generateClientDom$4;
 	static TEXTURES = {
 		"player-blue": "/assets/games/turrets/player-blue.png",
 		"player-red": "/assets/games/turrets/player-red.png",
@@ -14887,7 +15059,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 	drawMinimap(ctx, playerIdx) {
 		const mapWidth = FULL_ROOM_SIZE * 5;
 		const mapHeight = FULL_ROOM_SIZE * 5;
-		const MINIMAP_SIZE = WIDTH$1 * MINIMAP_RATIO;
+		const MINIMAP_SIZE = WIDTH$3 * MINIMAP_RATIO;
 		ctx.save();
 		ctx.translate(MINIMAP_X, MINIMAP_Y);
 		ctx.scale(MINIMAP_SIZE / mapWidth, MINIMAP_SIZE / mapHeight);
@@ -14996,11 +15168,11 @@ var GMTurrets = class GMTurrets extends GameMode {
 		}
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#333";
-		ctx.fillRect(0, 0, WIDTH$1, HEIGHT$1);
+		ctx.fillRect(0, 0, WIDTH$3, HEIGHT$3);
 		const cameraCoords = data.camera.getCoords();
 		ctx.save();
-		ctx.translate(WIDTH$1 / 2, HEIGHT$1 / 2);
-		ctx.scale(Camera.SCALE, Camera.SCALE);
+		ctx.translate(WIDTH$3 / 2, HEIGHT$3 / 2);
+		ctx.scale(Camera$2.SCALE, Camera$2.SCALE);
 		ctx.translate(-cameraCoords.x, -cameraCoords.y);
 		ctx.fillStyle = "#777";
 		for (const f of this.floors) ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
@@ -15021,14 +15193,14 @@ var GMTurrets = class GMTurrets extends GameMode {
 		this.drawInventoryHUD(ctx, localPlayer, imageLoader);
 		if (!localPlayer.isAlive()) {
 			ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-			ctx.fillRect(0, 0, WIDTH$1, HEIGHT$1);
+			ctx.fillRect(0, 0, WIDTH$3, HEIGHT$3);
 			ctx.fillStyle = "white";
 			ctx.textAlign = "center";
 			ctx.textBaseline = "middle";
 			ctx.font = "bold 80px sans-serif";
-			ctx.fillText("YOU DIED", WIDTH$1 / 2, HEIGHT$1 / 2 - 40);
+			ctx.fillText("YOU DIED", WIDTH$3 / 2, HEIGHT$3 / 2 - 40);
 			ctx.font = "40px sans-serif";
-			ctx.fillText(`Respawn in ${localPlayer.alive.toFixed(1)}s`, WIDTH$1 / 2, 715);
+			ctx.fillText(`Respawn in ${localPlayer.alive.toFixed(1)}s`, WIDTH$3 / 2, 715);
 		}
 		this.drawMinimap(ctx, playerIdx);
 	}
@@ -15036,7 +15208,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$1.get();
+		const { State } = protocols$4.get();
 		const object = {
 			players: this.players,
 			turrets: this.turrets.map((t) => ({
@@ -15069,7 +15241,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$1.get();
+		const { State } = protocols$4.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) this.players[idx].load(player);
 		for (const [idx, turret] of obj.turrets.entries()) this.turrets[idx].load(turret);
@@ -15084,16 +15256,16 @@ var GMTurrets = class GMTurrets extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$1,
-			height: HEIGHT$1
+			width: WIDTH$3,
+			height: HEIGHT$3
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _clientData) {
 		const clientData = _clientData;
 		const cameraCoords = clientData.camera.getCoords();
 		const ret = {
-			x: (x - WIDTH$1 / 2) / Camera.SCALE + cameraCoords.x,
-			y: (y - HEIGHT$1 / 2) / Camera.SCALE + cameraCoords.y
+			x: (x - WIDTH$3 / 2) / Camera$2.SCALE + cameraCoords.x,
+			y: (y - HEIGHT$3 / 2) / Camera$2.SCALE + cameraCoords.y
 		};
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;
@@ -15148,7 +15320,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$1(this);
+		return new TutorialData$4(this);
 	}
 	produceFinish() {
 		const redTeam = [];
@@ -15183,16 +15355,16 @@ var GMTurrets = class GMTurrets extends GameMode {
 };
 //#endregion
 //#region commons/gamemods/GMWoodSword.ts
-var protocols = getProtocol("woodSword", "multiplayer");
-var WIDTH = 1920;
-var HEIGHT = 1080;
-var TRUNK_RADIUS = 150;
-var SWORD_SPAWN = 650;
-var SWORD_SPEED = 2e3;
+var protocols$3 = getProtocol("woodSword", "multiplayer");
+var WIDTH$2 = 1920;
+var HEIGHT$2 = 1080;
+var TRUNK_RADIUS$1 = 200;
+var SWORD_SPAWN$1 = 700;
+var SWORD_SPEED$1 = 2e3;
 var SWORD_LENGTH = 120;
-var SWORD_HITBOX_ANGLE = Math.PI / 12;
+var SWORD_HITBOX_ANGLE$1 = Math.PI / 12;
 var MAX_SCORE = 5;
-var ROUND_TIME = 30;
+var ROUND_TIME$1 = 30;
 var TRUNK_ACCEL = 3;
 var SWORDS_STREAM = [
 	7,
@@ -15252,518 +15424,602 @@ var SWORDS_STREAM = [
 var TRUNK_STREAM = [
 	[
 		{
-			speed: 1,
+			speed: 5,
 			timestamp: 0
 		},
 		{
-			speed: 5,
-			timestamp: .5
+			speed: 2,
+			timestamp: 5
 		},
 		{
 			speed: -2,
-			timestamp: 2
+			timestamp: 10
 		},
 		{
 			speed: 3,
-			timestamp: 3.5
+			timestamp: 15
+		},
+		{
+			speed: -1,
+			timestamp: 20
 		},
 		{
 			speed: 0,
-			timestamp: 5
+			timestamp: 25
 		}
 	],
 	[
-		{
-			speed: -1,
-			timestamp: 0
-		},
 		{
 			speed: -5,
-			timestamp: .4
-		},
-		{
-			speed: 2,
-			timestamp: 1.8
-		},
-		{
-			speed: -3,
-			timestamp: 3
-		},
-		{
-			speed: 0,
-			timestamp: 5
-		}
-	],
-	[
-		{
-			speed: 1.5,
 			timestamp: 0
-		},
-		{
-			speed: 6,
-			timestamp: .6
-		},
-		{
-			speed: 4,
-			timestamp: 1.5
-		},
-		{
-			speed: -3,
-			timestamp: 2.8
-		},
-		{
-			speed: 2,
-			timestamp: 4
-		},
-		{
-			speed: -8,
-			timestamp: 5.5
-		},
-		{
-			speed: 0,
-			timestamp: 8
-		}
-	],
-	[
-		{
-			speed: -1.5,
-			timestamp: 0
-		},
-		{
-			speed: -6,
-			timestamp: .5
 		},
 		{
 			speed: -2,
-			timestamp: 1.5
+			timestamp: 5
 		},
 		{
-			speed: 4,
-			timestamp: 2.5
+			speed: 2,
+			timestamp: 10
+		},
+		{
+			speed: -3,
+			timestamp: 15
+		},
+		{
+			speed: 1,
+			timestamp: 20
+		},
+		{
+			speed: 0,
+			timestamp: 25
+		}
+	],
+	[
+		{
+			speed: 6,
+			timestamp: 0
+		},
+		{
+			speed: 3,
+			timestamp: 5
+		},
+		{
+			speed: -2,
+			timestamp: 10
+		},
+		{
+			speed: 2,
+			timestamp: 15
+		},
+		{
+			speed: -3,
+			timestamp: 20
+		},
+		{
+			speed: 1,
+			timestamp: 25
+		},
+		{
+			speed: 0,
+			timestamp: 30
+		}
+	],
+	[
+		{
+			speed: -6,
+			timestamp: 0
+		},
+		{
+			speed: -3,
+			timestamp: 5
+		},
+		{
+			speed: 2,
+			timestamp: 10
+		},
+		{
+			speed: -2,
+			timestamp: 15
+		},
+		{
+			speed: 3,
+			timestamp: 20
 		},
 		{
 			speed: -1,
-			timestamp: 4
+			timestamp: 25
 		},
 		{
 			speed: 0,
-			timestamp: 5.5
+			timestamp: 30
 		}
 	],
 	[
 		{
-			speed: .5,
+			speed: 5,
 			timestamp: 0
 		},
 		{
-			speed: 7,
-			timestamp: .35
+			speed: 1,
+			timestamp: 5
 		},
 		{
-			speed: -4,
-			timestamp: 1.5
+			speed: -3,
+			timestamp: 11
 		},
 		{
-			speed: 5,
-			timestamp: 2.5
+			speed: 2,
+			timestamp: 16
 		},
 		{
 			speed: -2,
-			timestamp: 3.5
+			timestamp: 21
+		},
+		{
+			speed: 1,
+			timestamp: 26
 		},
 		{
 			speed: 0,
-			timestamp: 5
+			timestamp: 31
 		}
 	],
 	[
 		{
-			speed: -.5,
+			speed: -5,
 			timestamp: 0
 		},
+		{
+			speed: -1,
+			timestamp: 5
+		},
+		{
+			speed: 3,
+			timestamp: 11
+		},
+		{
+			speed: -2,
+			timestamp: 16
+		},
+		{
+			speed: 2,
+			timestamp: 21
+		},
+		{
+			speed: -1,
+			timestamp: 26
+		},
+		{
+			speed: 0,
+			timestamp: 31
+		}
+	],
+	[
+		{
+			speed: 7,
+			timestamp: 0
+		},
+		{
+			speed: 3,
+			timestamp: 5
+		},
+		{
+			speed: 1,
+			timestamp: 11
+		},
+		{
+			speed: -3,
+			timestamp: 16
+		},
+		{
+			speed: -1,
+			timestamp: 21
+		},
+		{
+			speed: 2,
+			timestamp: 26
+		},
+		{
+			speed: -2,
+			timestamp: 31
+		},
+		{
+			speed: 0,
+			timestamp: 36
+		}
+	],
+	[
 		{
 			speed: -7,
-			timestamp: .4
-		},
-		{
-			speed: 3,
-			timestamp: 1.3
-		},
-		{
-			speed: -5,
-			timestamp: 2.4
-		},
-		{
-			speed: 2,
-			timestamp: 3.8
-		},
-		{
-			speed: 0,
-			timestamp: 5
-		}
-	],
-	[
-		{
-			speed: 2,
 			timestamp: 0
-		},
-		{
-			speed: 8,
-			timestamp: .5
-		},
-		{
-			speed: 6,
-			timestamp: 1.2
-		},
-		{
-			speed: -4,
-			timestamp: 2.5
-		},
-		{
-			speed: -6,
-			timestamp: 3.2
-		},
-		{
-			speed: 3,
-			timestamp: 4.2
-		},
-		{
-			speed: 0,
-			timestamp: 5.5
-		}
-	],
-	[
-		{
-			speed: -2,
-			timestamp: 0
-		},
-		{
-			speed: -8,
-			timestamp: .45
-		},
-		{
-			speed: -5,
-			timestamp: 1.2
-		},
-		{
-			speed: 4,
-			timestamp: 2.3
-		},
-		{
-			speed: 7,
-			timestamp: 3
-		},
-		{
-			speed: -2,
-			timestamp: 4.2
-		},
-		{
-			speed: 0,
-			timestamp: 5.5
-		}
-	],
-	[
-		{
-			speed: 1,
-			timestamp: 0
-		},
-		{
-			speed: 5,
-			timestamp: .3
-		},
-		{
-			speed: -5,
-			timestamp: 1.2
-		},
-		{
-			speed: 6,
-			timestamp: 2
-		},
-		{
-			speed: -4,
-			timestamp: 3
-		},
-		{
-			speed: 3,
-			timestamp: 4
-		},
-		{
-			speed: 0,
-			timestamp: 5.5
-		}
-	],
-	[
-		{
-			speed: -1,
-			timestamp: 0
-		},
-		{
-			speed: -5,
-			timestamp: .35
-		},
-		{
-			speed: 5,
-			timestamp: 1.3
-		},
-		{
-			speed: -6,
-			timestamp: 2.1
-		},
-		{
-			speed: 4,
-			timestamp: 3
 		},
 		{
 			speed: -3,
-			timestamp: 4.1
+			timestamp: 5
+		},
+		{
+			speed: -1,
+			timestamp: 11
+		},
+		{
+			speed: 3,
+			timestamp: 16
+		},
+		{
+			speed: 1,
+			timestamp: 21
+		},
+		{
+			speed: -2,
+			timestamp: 26
+		},
+		{
+			speed: 2,
+			timestamp: 31
 		},
 		{
 			speed: 0,
-			timestamp: 5.5
+			timestamp: 36
 		}
 	],
 	[
 		{
-			speed: 1,
+			speed: 5,
 			timestamp: 0
 		},
 		{
-			speed: 9,
-			timestamp: .5
+			speed: 2,
+			timestamp: 5
+		},
+		{
+			speed: -3,
+			timestamp: 10
+		},
+		{
+			speed: 1,
+			timestamp: 15
+		},
+		{
+			speed: -2,
+			timestamp: 20
+		},
+		{
+			speed: 3,
+			timestamp: 25
+		},
+		{
+			speed: -1,
+			timestamp: 30
+		},
+		{
+			speed: 0,
+			timestamp: 35
+		}
+	],
+	[
+		{
+			speed: -5,
+			timestamp: 0
+		},
+		{
+			speed: -2,
+			timestamp: 5
+		},
+		{
+			speed: 3,
+			timestamp: 10
+		},
+		{
+			speed: -1,
+			timestamp: 15
 		},
 		{
 			speed: 2,
-			timestamp: 1.5
+			timestamp: 20
 		},
+		{
+			speed: -3,
+			timestamp: 25
+		},
+		{
+			speed: 1,
+			timestamp: 30
+		},
+		{
+			speed: 0,
+			timestamp: 35
+		}
+	],
+	[
+		{
+			speed: 6,
+			timestamp: 0
+		},
+		{
+			speed: 2,
+			timestamp: 5
+		},
+		{
+			speed: -2,
+			timestamp: 11
+		},
+		{
+			speed: 3,
+			timestamp: 16
+		},
+		{
+			speed: -1,
+			timestamp: 21
+		},
+		{
+			speed: 2,
+			timestamp: 26
+		},
+		{
+			speed: -2,
+			timestamp: 31
+		},
+		{
+			speed: 0,
+			timestamp: 36
+		}
+	],
+	[
+		{
+			speed: -6,
+			timestamp: 0
+		},
+		{
+			speed: -2,
+			timestamp: 5
+		},
+		{
+			speed: 2,
+			timestamp: 11
+		},
+		{
+			speed: -3,
+			timestamp: 16
+		},
+		{
+			speed: 1,
+			timestamp: 21
+		},
+		{
+			speed: -2,
+			timestamp: 26
+		},
+		{
+			speed: 2,
+			timestamp: 31
+		},
+		{
+			speed: 0,
+			timestamp: 36
+		}
+	],
+	[
+		{
+			speed: 5,
+			timestamp: 0
+		},
+		{
+			speed: 1,
+			timestamp: 5
+		},
+		{
+			speed: -2,
+			timestamp: 10
+		},
+		{
+			speed: 3,
+			timestamp: 15
+		},
+		{
+			speed: -3,
+			timestamp: 20
+		},
+		{
+			speed: 2,
+			timestamp: 25
+		},
+		{
+			speed: -1,
+			timestamp: 30
+		},
+		{
+			speed: 0,
+			timestamp: 35
+		}
+	],
+	[
+		{
+			speed: -5,
+			timestamp: 0
+		},
+		{
+			speed: -1,
+			timestamp: 5
+		},
+		{
+			speed: 2,
+			timestamp: 10
+		},
+		{
+			speed: -3,
+			timestamp: 15
+		},
+		{
+			speed: 3,
+			timestamp: 20
+		},
+		{
+			speed: -2,
+			timestamp: 25
+		},
+		{
+			speed: 1,
+			timestamp: 30
+		},
+		{
+			speed: 0,
+			timestamp: 35
+		}
+	],
+	[
+		{
+			speed: 6,
+			timestamp: 0
+		},
+		{
+			speed: 2,
+			timestamp: 5
+		},
+		{
+			speed: -1,
+			timestamp: 10
+		},
+		{
+			speed: 3,
+			timestamp: 15
+		},
+		{
+			speed: -2,
+			timestamp: 20
+		},
+		{
+			speed: 2,
+			timestamp: 25
+		},
+		{
+			speed: -3,
+			timestamp: 30
+		},
+		{
+			speed: 1,
+			timestamp: 35
+		},
+		{
+			speed: 0,
+			timestamp: 40
+		}
+	],
+	[
+		{
+			speed: -6,
+			timestamp: 0
+		},
+		{
+			speed: -2,
+			timestamp: 5
+		},
+		{
+			speed: 1,
+			timestamp: 10
+		},
+		{
+			speed: -3,
+			timestamp: 15
+		},
+		{
+			speed: 2,
+			timestamp: 20
+		},
+		{
+			speed: -2,
+			timestamp: 25
+		},
+		{
+			speed: 3,
+			timestamp: 30
+		},
+		{
+			speed: -1,
+			timestamp: 35
+		},
+		{
+			speed: 0,
+			timestamp: 40
+		}
+	],
+	[
+		{
+			speed: 7,
+			timestamp: 0
+		},
+		{
+			speed: 4,
+			timestamp: 5
+		},
+		{
+			speed: 2,
+			timestamp: 10
+		},
+		{
+			speed: -2,
+			timestamp: 15
+		},
+		{
+			speed: -3,
+			timestamp: 20
+		},
+		{
+			speed: 1,
+			timestamp: 25
+		},
+		{
+			speed: -2,
+			timestamp: 30
+		},
+		{
+			speed: 2,
+			timestamp: 35
+		},
+		{
+			speed: 0,
+			timestamp: 40
+		}
+	],
+	[
 		{
 			speed: -7,
-			timestamp: 2.5
-		},
-		{
-			speed: 5,
-			timestamp: 3.5
-		},
-		{
-			speed: 0,
-			timestamp: 5
-		}
-	],
-	[
-		{
-			speed: -1,
 			timestamp: 0
-		},
-		{
-			speed: -9,
-			timestamp: .45
-		},
-		{
-			speed: -2,
-			timestamp: 1.5
-		},
-		{
-			speed: 7,
-			timestamp: 2.5
-		},
-		{
-			speed: -5,
-			timestamp: 3.5
-		},
-		{
-			speed: 0,
-			timestamp: 5
-		}
-	],
-	[
-		{
-			speed: 2,
-			timestamp: 0
-		},
-		{
-			speed: 6,
-			timestamp: .4
-		},
-		{
-			speed: -1,
-			timestamp: 1.2
-		},
-		{
-			speed: -6,
-			timestamp: 2
-		},
-		{
-			speed: 4,
-			timestamp: 3
-		},
-		{
-			speed: 2,
-			timestamp: 4
-		},
-		{
-			speed: 0,
-			timestamp: 5.5
-		}
-	],
-	[
-		{
-			speed: -2,
-			timestamp: 0
-		},
-		{
-			speed: -6,
-			timestamp: .4
-		},
-		{
-			speed: 1,
-			timestamp: 1.2
-		},
-		{
-			speed: 6,
-			timestamp: 2
 		},
 		{
 			speed: -4,
-			timestamp: 3
+			timestamp: 5
 		},
 		{
 			speed: -2,
-			timestamp: 4
+			timestamp: 10
 		},
 		{
-			speed: 0,
-			timestamp: 5.5
-		}
-	],
-	[
-		{
-			speed: .5,
-			timestamp: 0
-		},
-		{
-			speed: 8,
-			timestamp: .3
-		},
-		{
-			speed: -3,
-			timestamp: 1
-		},
-		{
-			speed: 6,
-			timestamp: 1.8
-		},
-		{
-			speed: -6,
-			timestamp: 2.8
-		},
-		{
-			speed: 4,
-			timestamp: 3.8
-		},
-		{
-			speed: -2,
-			timestamp: 4.6
-		},
-		{
-			speed: 0,
-			timestamp: 5.5
-		}
-	],
-	[
-		{
-			speed: -.5,
-			timestamp: 0
-		},
-		{
-			speed: -8,
-			timestamp: .3
+			speed: 2,
+			timestamp: 15
 		},
 		{
 			speed: 3,
-			timestamp: 1
+			timestamp: 20
 		},
 		{
-			speed: -6,
-			timestamp: 1.8
+			speed: -1,
+			timestamp: 25
 		},
 		{
-			speed: 6,
-			timestamp: 2.8
-		},
-		{
-			speed: -4,
-			timestamp: 3.8
-		},
-		{
-			speed: 8,
-			timestamp: 4.6
-		},
-		{
-			speed: 0,
-			timestamp: 5.5
-		}
-	],
-	[
-		{
-			speed: 1,
-			timestamp: 0
-		},
-		{
-			speed: 10,
-			timestamp: .5
-		},
-		{
-			speed: 8,
-			timestamp: 1.2
-		},
-		{
-			speed: 5,
-			timestamp: 2
-		},
-		{
-			speed: -5,
-			timestamp: 3
+			speed: 2,
+			timestamp: 30
 		},
 		{
 			speed: -2,
-			timestamp: 4
+			timestamp: 35
 		},
 		{
 			speed: 0,
-			timestamp: 5.5
-		}
-	],
-	[
-		{
-			speed: -1,
-			timestamp: 0
-		},
-		{
-			speed: -10,
-			timestamp: .5
-		},
-		{
-			speed: -8,
-			timestamp: 1.2
-		},
-		{
-			speed: -5,
-			timestamp: 2
-		},
-		{
-			speed: 5,
-			timestamp: 3
-		},
-		{
-			speed: .4,
-			timestamp: 4
-		},
-		{
-			speed: 0,
-			timestamp: 5.1
+			timestamp: 40
 		}
 	]
 ];
-var Player = class {
+var Player$3 = class {
 	connected = true;
 	team = "red";
 	swordsLeft = 0;
@@ -15775,7 +16031,7 @@ var Player = class {
 		this.team = obj.isRed ? "red" : "blue";
 	}
 };
-var ClientData = class {
+var ClientData$3 = class {
 	prevThrowing = false;
 	firstFrame = true;
 	dyingSwords = [];
@@ -15832,13 +16088,13 @@ var ClientData = class {
 		}
 	}
 };
-function generateClientDom(_unlockedSkins) {
+function generateClientDom$3(_unlockedSkins) {
 	return { produce() {
-		const { StartData } = protocols.get();
+		const { StartData } = protocols$3.get();
 		return StartData.encode({}).finish();
 	} };
 }
-var TutorialData = class {
+var TutorialData$3 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -15850,11 +16106,18 @@ var TutorialData = class {
 	}
 };
 var GMWoodSword = class GMWoodSword extends GameMode {
-	static types = { Player };
+	static DATA = {
+		SWORD_SPEED: SWORD_SPEED$1,
+		SWORD_SPAWN: SWORD_SPAWN$1,
+		TRUNK_RADIUS: TRUNK_RADIUS$1,
+		SWORD_HITBOX_ANGLE: SWORD_HITBOX_ANGLE$1,
+		ROUND_TIME: ROUND_TIME$1
+	};
+	static types = { Player: Player$3 };
 	players;
 	redScore = 0;
 	blueScore = 0;
-	roundTimer = ROUND_TIME;
+	roundTimer = ROUND_TIME$1;
 	trunkAngle = 0;
 	trunkSpeed = 0;
 	trunkStreamTime = 0;
@@ -15865,10 +16128,10 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 	swordId = 0;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player());
+		this.players = Array.from({ length: total }, () => new Player$3());
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols.get();
+		const { StartData, StartDataClient } = protocols$3.get();
 		const game = new GMWoodSword(total);
 		game.players[0].team = "red";
 		game.players[1].team = "blue";
@@ -15882,12 +16145,12 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 			})) }).finish()
 		};
 	}
-	static createClient(data, total) {
+	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMWoodSword(total);
-		const { StartDataClient } = protocols.get();
-		const clientData = new ClientData();
+		const { StartDataClient } = protocols$3.get();
+		const clientData = new ClientData$3();
 		let skins = {};
-		if (data) {
+		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) game.players[idx].team = p.isRed ? "red" : "blue";
 		} else {
@@ -15901,7 +16164,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 			skins
 		};
 	}
-	static generateClientDom = generateClientDom;
+	static generateClientDom = generateClientDom$3;
 	static SKINS = {};
 	static SKINS_IDS = Object.keys(GMWoodSword.SKINS);
 	static TEXTURES = {
@@ -15924,7 +16187,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 			if (player.swordsLeft <= 0) continue;
 			player.swordsLeft--;
 			this.movingSwords.push({
-				x: player.team === "red" ? -650 : SWORD_SPAWN,
+				x: player.team === "red" ? -700 : SWORD_SPAWN$1,
 				team: player.team,
 				id: this.produceSwordId()
 			});
@@ -15943,15 +16206,15 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		this.trunkAngle += this.trunkSpeed * dt;
 		for (let i = this.movingSwords.length - 1; i >= 0; i--) {
 			const sword = this.movingSwords[i];
-			const dx = (sword.team === "red" ? SWORD_SPEED : -2e3) * dt;
+			const dx = (sword.team === "red" ? SWORD_SPEED$1 : -2e3) * dt;
 			sword.x += dx;
 			let hit = false;
-			if (sword.team === "red" && sword.x >= -150) {
+			if (sword.team === "red" && sword.x >= -200) {
 				hit = true;
-				sword.x = -150;
-			} else if (sword.team === "blue" && sword.x <= TRUNK_RADIUS) {
+				sword.x = -200;
+			} else if (sword.team === "blue" && sword.x <= TRUNK_RADIUS$1) {
 				hit = true;
-				sword.x = TRUNK_RADIUS;
+				sword.x = TRUNK_RADIUS$1;
 			}
 			if (hit) {
 				const localAngle = (sword.team === "red" ? Math.PI : 0) - this.trunkAngle;
@@ -15960,7 +16223,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 					let diff = (localAngle - cs.angle) % (2 * Math.PI);
 					if (diff > Math.PI) diff -= 2 * Math.PI;
 					if (diff < -Math.PI) diff += 2 * Math.PI;
-					if (Math.abs(diff) < SWORD_HITBOX_ANGLE) {
+					if (Math.abs(diff) < SWORD_HITBOX_ANGLE$1) {
 						overlap = true;
 						break;
 					}
@@ -15990,14 +16253,14 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 			if (this.redScore >= MAX_SCORE || this.blueScore >= MAX_SCORE) {
 				if (produceFinish) return this.produceFinish();
 			} else if (rng) {
-				this.roundTimer = ROUND_TIME;
+				this.roundTimer = ROUND_TIME$1;
 				this.clingingSwords = [];
 				this.movingSwords = [];
-				this.trunkAngle = 0;
-				this.trunkSpeed = 0;
-				this.trunkStreamTime = 0;
 				this.streamId = Math.floor(rng() * TRUNK_STREAM.length);
 				this.swordId = Math.floor(rng() * SWORDS_STREAM.length);
+				this.trunkAngle = 0;
+				this.trunkSpeed = TRUNK_STREAM[this.streamId][0].speed;
+				this.trunkStreamTime = 0;
 				for (const p of this.players) p.swordsLeft = SWORDS_STREAM[this.swordId];
 			}
 		}
@@ -16031,13 +16294,14 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		if (data.firstFrame) data.firstFrame = false;
 		data.update(this, dt);
 		ctx.fillStyle = "#362010";
-		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+		ctx.fillRect(0, 0, WIDTH$2, HEIGHT$2);
 		ctx.save();
-		ctx.translate(WIDTH / 2, HEIGHT / 2);
-		const player = this.players[playerIdx];
-		if (player.swordsLeft > 0) {
+		ctx.translate(WIDTH$2 / 2, HEIGHT$2 / 2);
+		this.players[playerIdx];
+		for (const player of this.players) {
+			if (player.swordsLeft <= 0) continue;
 			ctx.save();
-			ctx.translate(player.team === "red" ? -650 : 650, 0);
+			ctx.translate(player.team === "red" ? -700 : 700, 0);
 			const tex = imageLoader.get(`sword-${player.team}`);
 			if (tex) {
 				ctx.rotate(player.team === "red" ? Math.PI : 0);
@@ -16048,7 +16312,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		for (const cs of this.clingingSwords) {
 			ctx.save();
 			ctx.rotate(cs.angle + this.trunkAngle);
-			ctx.translate(120, 0);
+			ctx.translate(170, 0);
 			const tex = imageLoader.get(cs.team ? `sword-${cs.team}` : "sword-white");
 			if (tex) ctx.drawImage(tex, 0, -30, SWORD_LENGTH, 60);
 			ctx.restore();
@@ -16056,7 +16320,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		ctx.save();
 		ctx.rotate(this.trunkAngle);
 		const trunkTex = imageLoader.get("wood");
-		if (trunkTex) ctx.drawImage(trunkTex, -150, -150, 300, 300);
+		if (trunkTex) ctx.drawImage(trunkTex, -200, -200, 400, 400);
 		ctx.restore();
 		for (const ms of this.movingSwords) {
 			ctx.save();
@@ -16085,7 +16349,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols.get();
+		const { State } = protocols$3.get();
 		const object = {
 			trunkAngle: this.trunkAngle,
 			trunkSpeed: this.trunkSpeed,
@@ -16113,7 +16377,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols.get();
+		const { State } = protocols$3.get();
 		const obj = State.decode(data);
 		this.trunkAngle = obj.trunkAngle;
 		this.trunkSpeed = obj.trunkSpeed;
@@ -16138,8 +16402,8 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH,
-			height: HEIGHT
+			width: WIDTH$2,
+			height: HEIGHT$2
 		};
 	}
 	evalMouseCoords(x, y) {
@@ -16181,7 +16445,3379 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		};
 	}
 	createTutorial() {
+		return new TutorialData$3(this);
+	}
+};
+//#endregion
+//#region commons/gamemods/GMMoveArmy.ts
+var protocols$2 = getProtocol("moveArmy", "multiplayer");
+/** Portrait arena. Coordinates are centered: x/y in [-LIMIT, +LIMIT]. */
+var WIDTH$1 = 1200;
+var HEIGHT$1 = 2400;
+var X_LIMIT = WIDTH$1 / 2;
+var Y_LIMIT = HEIGHT$1 / 2;
+/** The arena is split into 5 horizontal bands. Band 0 (topmost, red side) and
+*  band ZONE_COUNT-1 (bottommost, blue side) are "slow zones": troops standing
+*  in them are slowed down regardless of their team. The 3 middle bands behave
+*  identically to each other ("zone normale"). */
+var ZONE_COUNT = 10;
+var ZONE_HEIGHT = HEIGHT$1 / ZONE_COUNT;
+var SLOW_ZONE_SPEED_MULTIPLIER = .5;
+/** Match S. The match lasts MATCH_TOTAL_TIME seconds, and the last
+*  SUDDEN_DEATH_DURATION seconds of it are sudden death (towers take extra
+*  damage to force a conclusion). */
+var MATCH_TOTAL_TIME = 180;
+var SUDDEN_DEATH_DURATION = 60;
+var SUDDEN_DEATH_DAMAGE_MULTIPLIER = 2;
+/** Spawn-mana system. Each team keeps one gauge per troop type (never sent to
+*  the client as a "visible" resource, but it IS part of the shared State so
+*  a load() never desyncs it). The gauge fills over time and gets a bonus
+*  whenever a troop of that type dies; once it crosses the threshold, 1 unit
+*  is consumed and a troop of that type spawns automatically. */
+var SPAWN_MANA_RATE = .1;
+var DEATH_MANA_BONUS = .9;
+var SPAWN_MANA_THRESHOLD = 1;
+/** AI "neighboor" (movement link) behaviour. */
+var TARGET_SEARCH_DELAY = 1;
+var MAX_CYCLE_CHECK_DEPTH = 64;
+/** Towers. */
+var TOWER_COUNT_PER_TEAM = 3;
+var TOWER_HP = 400;
+var TOWER_RANGE = 260;
+var TOWER_DAMAGE = 18;
+var TOWER_FIRE_RATE = .25;
+var TOWER_RADIUS = 40;
+var TOWER_X_POSITIONS = [
+	-330,
+	0,
+	X_LIMIT * .55
+];
+var TOWER_Y_OFFSET = Y_LIMIT * .8;
+/** Troops. */
+var TROOP_ENEMY_RADIUS = 500;
+var TROOP_RADIUS = 18;
+var ARROW_SPEED = 900;
+var ARROW_HIT_DISTANCE = 14;
+var BOMB_SPEED = 500;
+var BOMB_HIT_DISTANCE = 14;
+var BOMB_EXPLOSION_RADIUS = 90;
+var TROOP_TYPE_IDS = [
+	"soldier",
+	"archer",
+	"tank",
+	"bomber",
+	"car"
+];
+var TYPE_X_POSITION = {
+	soldier: -360,
+	archer: -180,
+	tank: 0,
+	bomber: X_LIMIT * .3,
+	car: X_LIMIT * .6
+};
+var TROOP_TYPE_TO_ENUM = {
+	soldier: 0,
+	archer: 1,
+	tank: 2,
+	bomber: 3,
+	car: 4
+};
+var ENUM_TO_TROOP_TYPE = [
+	"soldier",
+	"archer",
+	"tank",
+	"bomber",
+	"car"
+];
+/** 2D cross product, used by segmentsIntersect. */
+function cross(ax, ay, bx, by) {
+	return ax * by - ay * bx;
+}
+/** Standard segment/segment intersection test (proper intersection only),
+*  used to know which troop-troop links a player's "cut" gesture severs. */
+function segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+	const d1 = cross(dx - cx, dy - cy, ax - cx, ay - cy);
+	const d2 = cross(dx - cx, dy - cy, bx - cx, by - cy);
+	const d3 = cross(bx - ax, by - ay, cx - ax, cy - ay);
+	const d4 = cross(bx - ax, by - ay, dx - ax, dy - ay);
+	return (d1 > 0 && d2 < 0 || d1 < 0 && d2 > 0) && (d3 > 0 && d4 < 0 || d3 < 0 && d4 > 0);
+}
+/**
+* Abstract base for all army units. Holds every piece of state that must be
+* shared (and therefore saved/loaded), and implements the generic per-frame
+* behaviour (movement, targeting, combat trigger). Subclasses only need to
+* describe their stats and how they actually deal damage.
+*/
+var Troop = class {
+	id;
+	team;
+	x;
+	y;
+	hp;
+	/** True while this troop is actively fighting something in range. Troops
+	*  (except TCar) stop moving while attacking. */
+	attacking = false;
+	/** What this troop is currently trying to reach: a fixed point, a tower,
+	*  or a friendly/enemy troop. Null means "no target yet". */
+	neighboor = null;
+	/** How long (seconds) this troop has had no neighboor target. */
+	noTargetTimer = 0;
+	/** Countdown (seconds) until this troop can attack again. */
+	attackCooldown = 0;
+	/** The troop we were last bound to (so we don't immediately re-bind to it
+	*  the moment our link is cleared). Null if we've never been bound. */
+	lastNeighboorTroopId = null;
+	/** Static per-subclass initial mana value, see e.g. TSoldier.SPAWN_MANA.
+	*  Declared here only so subclasses can override it; used through the
+	*  TROOP_CLASSES / INITIAL_SPAWN_MANA lookup tables below. */
+	static SPAWN_MANA = 0;
+	constructor(id, team, x, y) {
+		this.id = id;
+		this.team = team;
+		this.x = x;
+		this.y = y;
+		this.hp = this.getMaxHp();
+	}
+	/** Only TCar can move while attacking; everyone else plants their feet. */
+	canMoveWhileAttacking() {
+		return false;
+	}
+	isAlive() {
+		return this.hp > 0;
+	}
+	takeDamage(amount) {
+		this.hp = Math.max(0, this.hp - amount);
+	}
+	/** Red pushes towards +y, blue pushes towards -y. */
+	getForwardDirection() {
+		return this.team === "red" ? 1 : -1;
+	}
+	/** Which of the 5 horizontal bands this troop currently stands in. */
+	getZoneIndex() {
+		const clampedY = Math.max(-1200, Math.min(1199.999, this.y));
+		return Math.floor((clampedY + Y_LIMIT) / ZONE_HEIGHT);
+	}
+	isInSlowZone() {
+		const idx = this.getZoneIndex();
+		return idx === 0 || idx === 9;
+	}
+	getEffectiveSpeed() {
+		return this.isInSlowZone() ? this.getSpeed() * SLOW_ZONE_SPEED_MULTIPLIER : this.getSpeed();
+	}
+	/** Keeps the troop inside the arena bounds (used after movement/collisions). */
+	clampToArena() {
+		this.x = Math.max(-582, Math.min(582, this.x));
+		this.y = Math.max(-1182, Math.min(1182, this.y));
+	}
+	/** Forgets the current neighboor troop link, remembering it so we don't
+	*  instantly re-select the same troop next time we search. */
+	clearNeighboor(_game) {
+		if (this.neighboor?.kind === "troop") this.lastNeighboorTroopId = this.neighboor.id;
+		this.neighboor = null;
+		this.noTargetTimer = 0;
+	}
+	/**
+	* Main per-frame update. Order of priorities:
+	*   1. If an enemy (troop or tower) is within attack range: fight it.
+	*   2. If in a slow zone: always push forward, but keep maintaining the
+	*      neighboor graph for later use.
+	*   3. If following a friendly troop that just started attacking: redirect
+	*      onto whatever that friendly troop is attacking.
+	*   4. Otherwise: move towards the resolved neighboor, or search for one,
+	*      or just advance forward as a last resort.
+	*/
+	frame(game, dt) {
+		if (!this.isAlive()) return;
+		if (this.attackCooldown > 0) this.attackCooldown -= dt;
+		this.checkFriendlyRedirect(game);
+		const combatTarget = game.findNearestEnemyInRange(this);
+		if (combatTarget) {
+			this.attacking = true;
+			if (this.attackCooldown <= 0) {
+				const damage = this.getAttackDamage() * game.getDamageMultiplier();
+				this.performAttack(game, combatTarget, damage);
+				this.attackCooldown = this.getAttackRate();
+			}
+			this.moveTowardsNeighboor(game, dt);
+			return;
+		}
+		this.attacking = false;
+		if (this.isInSlowZone()) {
+			this.updateNeighboorSearch(game, dt);
+			this.moveForward(dt);
+			return;
+		}
+		if (this.neighboor) this.moveTowardsNeighboor(game, dt);
+		else {
+			this.noTargetTimer += dt;
+			if (this.noTargetTimer > TARGET_SEARCH_DELAY) {
+				if (!this.searchNeighboor(game)) this.moveForward(dt);
+			}
+		}
+	}
+	/** Same target-searching logic used outside slow zones, but only used to
+	*  MAINTAIN the graph while in a slow zone (movement itself always goes
+	*  forward there, per the design). */
+	updateNeighboorSearch(game, dt) {
+		this.checkFriendlyRedirect(game);
+		if (!this.neighboor) {
+			this.noTargetTimer += dt;
+			if (this.noTargetTimer > TARGET_SEARCH_DELAY) this.searchNeighboor(game);
+		}
+	}
+	/** If we're following a friendly troop that has started fighting, stop
+	*  trailing it and instead head towards whatever it's fighting — this
+	*  makes troops "pile onto" a fight instead of queuing behind a
+	*  stationary ally. */
+	checkFriendlyRedirect(game) {
+		if (!this.neighboor || this.neighboor.kind !== "troop") return;
+		const followed = game.getTroopById(this.neighboor.id);
+		if (!followed || followed.team !== this.team || !followed.attacking) return;
+		if (followed.neighboor) this.searchNeighboor(game);
+	}
+	/** Searches for the closest living friendly troop to attach our neighboor
+	*  to, skipping the troop we were just following and any candidate that
+	*  would close a cycle in the link graph. Returns true if bound. */
+	searchNeighboor(game) {
+		{
+			let best = null;
+			let bestDist2 = TROOP_ENEMY_RADIUS * TROOP_ENEMY_RADIUS;
+			for (const other of game.getEnemyTroops(this.team)) {
+				if (other.id === this.id || !other.isAlive() || other.id === this.lastNeighboorTroopId || game.wouldCreateCycle(this.id, other.id)) continue;
+				const d = norm2(other.x - this.x, other.y - this.y);
+				if (d < bestDist2) {
+					bestDist2 = d;
+					best = other;
+				}
+			}
+			if (best) {
+				this.neighboor = {
+					kind: "troop",
+					id: best.id
+				};
+				this.noTargetTimer = 0;
+				return true;
+			}
+		}
+		{
+			let best = null;
+			let bestDist = Infinity;
+			for (const other of game.getFriendlyTroops(this.team)) {
+				if (this.team === "red" && other.y < this.y || this.team === "blue" && other.y > this.y || other.id === this.id || !other.isAlive() || other.id === this.lastNeighboorTroopId || game.wouldCreateCycle(this.id, other.id)) continue;
+				const d = norm2(other.x - this.x, other.y - this.y);
+				if (d < bestDist) {
+					bestDist = d;
+					best = other;
+				}
+			}
+			if (best) {
+				this.neighboor = {
+					kind: "troop",
+					id: best.id
+				};
+				this.noTargetTimer = 0;
+				return true;
+			}
+		}
+		return false;
+	}
+	moveForward(dt) {
+		this.y += this.getForwardDirection() * this.getEffectiveSpeed() * dt;
+		this.clampToArena();
+	}
+	moveTowardsNeighboor(game, dt) {
+		if (!this.neighboor) return;
+		const pos = game.resolveNeighboorPosition(this.neighboor);
+		if (!pos) {
+			this.clearNeighboor(game);
+			return;
+		}
+		const dx = pos.x - this.x;
+		const dy = pos.y - this.y;
+		const dist = Math.sqrt(norm2(dx, dy));
+		if (dist <= 36) {
+			if (this.neighboor.kind === "point") this.neighboor = null;
+			return;
+		}
+		const speed = this.getEffectiveSpeed();
+		this.x += dx / dist * speed * dt;
+		this.y += dy / dist * speed * dt;
+		this.clampToArena();
+	}
+	/** Serializes this troop's dynamic state into a plain protobuf-ready object. */
+	serialize() {
+		const base = {
+			id: this.id,
+			type: TROOP_TYPE_TO_ENUM[this.getType()],
+			isRed: this.team === "red",
+			x: this.x,
+			y: this.y,
+			hp: this.hp,
+			attacking: this.attacking,
+			noTargetTimer: this.noTargetTimer,
+			attackCooldown: this.attackCooldown,
+			lastNeighboorTroopId: this.lastNeighboorTroopId ?? -1
+		};
+		if (!this.neighboor) {
+			base.neighboor = "neighboorNone";
+			base.neighboorNone = {};
+		} else if (this.neighboor.kind === "point") {
+			base.neighboor = "neighboorPoint";
+			base.neighboorPoint = {
+				x: this.neighboor.x,
+				y: this.neighboor.y
+			};
+		} else if (this.neighboor.kind === "troop") {
+			base.neighboor = "neighboorTroopId";
+			base.neighboorTroopId = this.neighboor.id;
+		} else {
+			base.neighboor = "neighboorTowerId";
+			base.neighboorTowerId = this.neighboor.id;
+		}
+		return base;
+	}
+};
+/** Melee unit: damages nearby enemies directly, high HP-ish, no projectile. */
+var TSoldier = class extends Troop {
+	static SPAWN_MANA = 5;
+	getType() {
+		return "soldier";
+	}
+	getMaxHp() {
+		return 120;
+	}
+	getSpeed() {
+		return 160;
+	}
+	getAttackRange() {
+		return 50;
+	}
+	getAttackDamage() {
+		return 20;
+	}
+	getAttackRate() {
+		return .8;
+	}
+	performAttack(game, target, damage) {
+		game.applyDamageToTarget(target, damage, this.team);
+	}
+};
+/** Ranged unit: fires arrows at anything within a fairly large radius. */
+var TArcher = class extends Troop {
+	static SPAWN_MANA = 1;
+	getType() {
+		return "archer";
+	}
+	getMaxHp() {
+		return 70;
+	}
+	getSpeed() {
+		return 140;
+	}
+	getAttackRange() {
+		return 220;
+	}
+	getAttackDamage() {
+		return 14;
+	}
+	getAttackRate() {
+		return 1;
+	}
+	performAttack(game, target, damage) {
+		game.spawnArrow(this.x, this.y, target, damage, this.team);
+	}
+};
+/** Heavy unit: huge HP pool, but a small range and low damage. */
+var TTank = class extends Troop {
+	static SPAWN_MANA = 1;
+	getType() {
+		return "tank";
+	}
+	getMaxHp() {
+		return 400;
+	}
+	getSpeed() {
+		return 80;
+	}
+	getAttackRange() {
+		return 70;
+	}
+	getAttackDamage() {
+		return 10;
+	}
+	getAttackRate() {
+		return 1.2;
+	}
+	performAttack(game, target, damage) {
+		game.applyDamageToTarget(target, damage, this.team);
+	}
+};
+/** Support unit: lobs area-damage bombs at nearby enemies. */
+var TBomber = class extends Troop {
+	static SPAWN_MANA = 1;
+	getType() {
+		return "bomber";
+	}
+	getMaxHp() {
+		return 90;
+	}
+	getSpeed() {
+		return 150;
+	}
+	getAttackRange() {
+		return 180;
+	}
+	getAttackDamage() {
+		return 25;
+	}
+	getAttackRate() {
+		return 1.6;
+	}
+	performAttack(game, target, damage) {
+		game.spawnBomb(this.x, this.y, target, damage, this.team, BOMB_EXPLOSION_RADIUS);
+	}
+};
+/** Fast skirmisher: shoots like an archer but never stops moving. */
+var TCar = class extends Troop {
+	static SPAWN_MANA = 1;
+	getType() {
+		return "car";
+	}
+	getMaxHp() {
+		return 80;
+	}
+	getSpeed() {
+		return 400;
+	}
+	getAttackRange() {
+		return 200;
+	}
+	getAttackDamage() {
+		return 12;
+	}
+	getAttackRate() {
+		return .9;
+	}
+	canMoveWhileAttacking() {
+		return true;
+	}
+	performAttack(game, target, damage) {
+		game.spawnArrow(this.x, this.y, target, damage, this.team);
+	}
+};
+var TROOP_CLASSES = {
+	soldier: TSoldier,
+	archer: TArcher,
+	tank: TTank,
+	bomber: TBomber,
+	car: TCar
+};
+var INITIAL_SPAWN_MANA = {
+	soldier: TSoldier.SPAWN_MANA,
+	archer: TArcher.SPAWN_MANA,
+	tank: TTank.SPAWN_MANA,
+	bomber: TBomber.SPAWN_MANA,
+	car: TCar.SPAWN_MANA
+};
+function createTroop(type, id, team, x, y) {
+	const Ctor = TROOP_CLASSES[type];
+	return new Ctor(id, team, x, y);
+}
+/** Rebuilds a Troop instance (correct subclass) from its saved State fields. */
+function deserializeTroop(obj) {
+	const type = ENUM_TO_TROOP_TYPE[obj.type];
+	const troop = createTroop(type, obj.id, obj.isRed ? "red" : "blue", obj.x, obj.y);
+	troop.hp = obj.hp;
+	troop.attacking = obj.attacking;
+	troop.noTargetTimer = obj.noTargetTimer;
+	troop.attackCooldown = obj.attackCooldown;
+	troop.lastNeighboorTroopId = obj.lastNeighboorTroopId >= 0 ? obj.lastNeighboorTroopId : null;
+	switch (obj.neighboor) {
+		case "neighboorPoint":
+			troop.neighboor = {
+				kind: "point",
+				x: obj.neighboorPoint.x,
+				y: obj.neighboorPoint.y
+			};
+			break;
+		case "neighboorTroopId":
+			troop.neighboor = {
+				kind: "troop",
+				id: obj.neighboorTroopId
+			};
+			break;
+		case "neighboorTowerId":
+			troop.neighboor = {
+				kind: "tower",
+				id: obj.neighboorTowerId
+			};
+			break;
+		default: troop.neighboor = null;
+	}
+	return troop;
+}
+/**
+* A defensive structure. Its x/y are initialization data (sent once via
+* StartDataClient, per the "spawnX/spawnY" pattern) and never resaved — only
+* its HP is dynamic and part of State.
+*/
+var Tower = class {
+	id;
+	team;
+	x;
+	y;
+	hp = TOWER_HP;
+	attackCooldown = 0;
+	constructor(id, team, x, y) {
+		this.id = id;
+		this.team = team;
+		this.x = x;
+		this.y = y;
+	}
+	isAlive() {
+		return this.hp > 0;
+	}
+	takeDamage(amount) {
+		this.hp = Math.max(0, this.hp - amount);
+	}
+	/** Towers auto-fire fast, high-damage arrows at the closest enemy troop in range. */
+	frame(game, dt) {
+		if (!this.isAlive()) return;
+		if (this.attackCooldown > 0) this.attackCooldown -= dt;
+		const target = game.findNearestEnemyTroopInRange(this.x, this.y, TOWER_RANGE, this.team);
+		if (target && this.attackCooldown <= 0) {
+			const damage = TOWER_DAMAGE * game.getDamageMultiplier();
+			game.spawnArrow(this.x, this.y, target, damage, this.team);
+			this.attackCooldown = TOWER_FIRE_RATE;
+		}
+	}
+};
+var Player$2 = class {
+	/** Assigned once at match creation, like spawnX/spawnY elsewhere: this is
+	*  initialization data, intentionally NOT re-sent via save()/load(). */
+	team = "red";
+	/** This DOES need to be part of the shared State, since it can change at
+	*  any point mid-match and losing it on a load() would be confusing. */
+	connected = true;
+	initTeam(team) {
+		this.team = team;
+	}
+};
+var ClientData$2 = class ClientData$2 {
+	firstFrame = true;
+	/** This client's own team, learned once from StartDataClient. */
+	myTeam = "red";
+	/** Last known world-space pointer position (mouse or first touch). */
+	mouseX = 0;
+	mouseY = 0;
+	lastPointerX = 0;
+	lastPointerY = 0;
+	/** Drag/gesture state for the cut-links / re-link interaction. */
+	dragMode = null;
+	dragTroopId = null;
+	dragStartX = 0;
+	dragStartY = 0;
+	dragCurrentX = 0;
+	dragCurrentY = 0;
+	/** Emulated "first/killed" tracking for touch, since IMobileController
+	*  only exposes the raw current digit list. */
+	prevDigitId = null;
+	/** Troop currently under the pointer, used for the hover highlight. */
+	hoveredTroopId = null;
+	html;
+	time;
+	towerRow;
+	towerBars = [];
+	constructor() {
+		this.html = document.createElement("div");
+		this.html.classList.add("game-moveArmy-root");
+		this.time = document.createElement("div");
+		this.time.classList.add("game-moveArmy-time");
+		this.towerRow = document.createElement("div");
+		this.towerRow.classList.add("game-moveArmy-tower-row");
+		for (let i = 0; i < 6; i++) {
+			const isRed = i < TOWER_COUNT_PER_TEAM;
+			const wrapper = document.createElement("div");
+			wrapper.classList.add("game-moveArmy-tower-hp");
+			const fill = document.createElement("div");
+			fill.classList.add("game-moveArmy-tower-hp-fill");
+			fill.classList.add(isRed ? "game-moveArmy-tower-hp-fill-red" : "game-moveArmy-tower-hp-fill-blue");
+			wrapper.appendChild(fill);
+			this.towerRow.appendChild(wrapper);
+			this.towerBars.push(fill);
+		}
+		this.html.appendChild(this.time);
+		this.html.appendChild(this.towerRow);
+	}
+	static showTime(time) {
+		const minutes = Math.floor(time / 60);
+		const seconds = Math.floor(time % 60);
+		return `${minutes}:${String(seconds).padStart(2, "0")}`;
+	}
+	/** Refreshes the overlay DOM and recomputes which troop (if any) is hovered. */
+	update(game, _playerIdx) {
+		this.time.innerText = ClientData$2.showTime(game.time);
+		for (const [i, tower] of game.towers.entries()) {
+			const ratio = Math.max(0, tower.hp / TOWER_HP);
+			this.towerBars[i].style.width = `${ratio * 100}%`;
+		}
+		let best = null;
+		let bestDist = (TROOP_RADIUS * 1.5) ** 2;
+		for (const troop of game.troops) {
+			const d = norm2(troop.x - this.mouseX, troop.y - this.mouseY);
+			if (d < bestDist) {
+				bestDist = d;
+				best = troop;
+			}
+		}
+		this.hoveredTroopId = best?.id ?? null;
+	}
+};
+var TutorialData$2 = class {
+	game;
+	step = 0;
+	constructor(game) {
+		this.game = game;
+	}
+	frame(_dt, _clock) {
+		if (this.step === 0) return "Drag from a soldier to link it to a target. Drag across links to cut them.";
+		return "";
+	}
+};
+function generateClientDom$2() {
+	return {
+		preferTeam: 0,
+		produce() {
+			const { StartData } = protocols$2.get();
+			return StartData.encode({ preferTeam: this.preferTeam }).finish();
+		}
+	};
+}
+var GMMoveArmy = class GMMoveArmy extends GameMode {
+	static types = {
+		Player: Player$2,
+		Troop,
+		Tower
+	};
+	static DATA = {
+		WIDTH: WIDTH$1,
+		HEIGHT: HEIGHT$1,
+		X_LIMIT,
+		Y_LIMIT,
+		ZONE_COUNT,
+		ZONE_HEIGHT,
+		TOWER_RADIUS,
+		TROOP_RADIUS
+	};
+	players;
+	troops = [];
+	towers = [];
+	arrows = [];
+	bombs = [];
+	/** Per-team, per-type spawn gauges. Never shown to the client directly. */
+	manaGauges = {
+		red: {
+			soldier: 0,
+			archer: 0,
+			tank: 0,
+			bomber: 0,
+			car: 0
+		},
+		blue: {
+			soldier: 0,
+			archer: 0,
+			tank: 0,
+			bomber: 0,
+			car: 0
+		}
+	};
+	time = MATCH_TOTAL_TIME;
+	nextTroopId = 0;
+	nextProjectileId = 0;
+	constructor(total) {
+		super();
+		this.players = Array.from({ length: total }, () => new Player$2());
+	}
+	static assignTeams(preferences) {
+		const total = preferences.length;
+		const maxPerTeam = Math.ceil(total / 2);
+		const assigned = new Array(total);
+		let redCount = 0;
+		let blueCount = 0;
+		for (let i = 0; i < total; i++) if (preferences[i] === 1 && redCount < maxPerTeam) {
+			assigned[i] = true;
+			redCount++;
+		} else if (preferences[i] === -1 && blueCount < maxPerTeam) {
+			assigned[i] = false;
+			blueCount++;
+		}
+		for (let i = 0; i < total; i++) {
+			if (assigned[i] !== void 0) continue;
+			if ((redCount < blueCount || redCount === blueCount && i % 2 === 0) && redCount < maxPerTeam) {
+				assigned[i] = true;
+				redCount++;
+			} else {
+				assigned[i] = false;
+				blueCount++;
+			}
+		}
+		return assigned;
+	}
+	createTowers() {
+		let id = 0;
+		for (const team of ["red", "blue"]) {
+			const y = team === "red" ? -960 : TOWER_Y_OFFSET;
+			for (const x of TOWER_X_POSITIONS) this.towers.push(new Tower(id++, team, x, y));
+		}
+	}
+	/** Sets each team's gauges to their starting values (TSoldier.SPAWN_MANA
+	*  etc.), immediately spawning whichever troops that implies (e.g. a
+	*  starting gauge of 12 spawns 12 soldiers right away). */
+	initializeInitialArmies() {
+		for (const team of ["red", "blue"]) for (const type of TROOP_TYPE_IDS) {
+			this.manaGauges[team][type] = INITIAL_SPAWN_MANA[type];
+			if (this.manaGauges[team][type] >= SPAWN_MANA_THRESHOLD) {
+				this.manaGauges[team][type] -= SPAWN_MANA_THRESHOLD;
+				this.spawnTroop(team, type);
+			}
+		}
+	}
+	spawnTroop(team, type) {
+		const x = TYPE_X_POSITION[type];
+		const y = team === "red" ? -1164 : 1164;
+		this.troops.push(createTroop(type, this.nextTroopId++, team, x, y));
+	}
+	static async createServ(players, total, _hasSkin) {
+		const { StartData, StartDataClient } = protocols$2.get();
+		const game = new GMMoveArmy(total);
+		const preferences = Array.from({ length: total }, (_, i) => {
+			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data)).preferTeam ?? 0;
+			return 0;
+		});
+		const assignedRed = GMMoveArmy.assignTeams(preferences);
+		for (const [i, player] of game.players.entries()) player.initTeam(assignedRed[i] ? "red" : "blue");
+		game.createTowers();
+		game.initializeInitialArmies();
+		return {
+			game,
+			data: StartDataClient.encode({
+				playersRed: assignedRed,
+				towers: game.towers.map((t) => ({
+					id: t.id,
+					x: t.x,
+					y: t.y,
+					isRed: t.team === "red"
+				}))
+			}).finish()
+		};
+	}
+	static createClient({ data, origin }, total, playerIdx) {
+		const game = new GMMoveArmy(total);
+		const { StartDataClient } = protocols$2.get();
+		const clientData = new ClientData$2();
+		if (origin === "server") {
+			const { playersRed, towers } = decodeFullMessage(StartDataClient.decode(data));
+			for (const [i, player] of game.players.entries()) player.initTeam(playersRed[i] ? "red" : "blue");
+			for (const t of towers) game.towers.push(new Tower(t.id, t.isRed ? "red" : "blue", t.x, t.y));
+		} else {
+			const assignedRed = GMMoveArmy.assignTeams(new Array(total).fill(0));
+			for (const [i, player] of game.players.entries()) player.initTeam(assignedRed[i] ? "red" : "blue");
+			game.createTowers();
+			game.initializeInitialArmies();
+		}
+		clientData.myTeam = game.players[playerIdx].team;
+		return {
+			game,
+			data: clientData,
+			html: clientData.html,
+			skins: {}
+		};
+	}
+	static generateClientDom = generateClientDom$2;
+	static TEXTURES = {
+		"tower-red": "/assets/games/moveArmy/tower-red.svg",
+		"tower-blue": "/assets/games/moveArmy/tower-blue.svg",
+		"troop-soldier-red": "/assets/games/moveArmy/troop-soldier-red.svg",
+		"troop-soldier-blue": "/assets/games/moveArmy/troop-soldier-blue.svg",
+		"troop-archer-red": "/assets/games/moveArmy/troop-archer-red.svg",
+		"troop-archer-blue": "/assets/games/moveArmy/troop-archer-blue.svg",
+		"troop-tank-red": "/assets/games/moveArmy/troop-tank-red.svg",
+		"troop-tank-blue": "/assets/games/moveArmy/troop-tank-blue.svg",
+		"troop-bomber-red": "/assets/games/moveArmy/troop-bomber-red.svg",
+		"troop-bomber-blue": "/assets/games/moveArmy/troop-bomber-blue.svg",
+		"troop-car-red": "/assets/games/moveArmy/troop-car-red.svg",
+		"troop-car-blue": "/assets/games/moveArmy/troop-car-blue.svg",
+		"arrow": "/assets/games/moveArmy/arrow.svg",
+		"bomb": "/assets/games/moveArmy/bomb.svg"
+	};
+	init() {}
+	getBotIds(count) {
+		return Array.from({ length: count }, () => 0);
+	}
+	getTroopById(id) {
+		return this.troops.find((t) => t.id === id) ?? null;
+	}
+	getTowerById(id) {
+		return this.towers.find((t) => t.id === id) ?? null;
+	}
+	getFriendlyTroops(team) {
+		return this.troops.filter((t) => t.team === team);
+	}
+	getEnemyTroops(team) {
+		return this.troops.filter((t) => t.team !== team);
+	}
+	/** Damage is doubled during the last minute (sudden death) to force a winner. */
+	getDamageMultiplier() {
+		return this.time <= SUDDEN_DEATH_DURATION ? SUDDEN_DEATH_DAMAGE_MULTIPLIER : 1;
+	}
+	resolveNeighboorPosition(target) {
+		switch (target.kind) {
+			case "point": return {
+				x: target.x,
+				y: target.y
+			};
+			case "troop": {
+				const t = this.getTroopById(target.id);
+				return t && t.isAlive() ? {
+					x: t.x,
+					y: t.y
+				} : null;
+			}
+			case "tower": {
+				const t = this.getTowerById(target.id);
+				return t && t.isAlive() ? {
+					x: t.x,
+					y: t.y
+				} : null;
+			}
+		}
+	}
+	/** Walks the neighboor chain starting at `toId`; returns true if it ever
+	*  reaches `fromId`, meaning adding the fromId -> toId edge would create a
+	*  cycle in the link graph. */
+	wouldCreateCycle(fromId, toId) {
+		let currentId = toId;
+		let depth = 0;
+		const visited = /* @__PURE__ */ new Set();
+		while (currentId !== null && depth < MAX_CYCLE_CHECK_DEPTH) {
+			if (currentId === fromId) return true;
+			if (visited.has(currentId)) return true;
+			visited.add(currentId);
+			const troop = this.getTroopById(currentId);
+			if (!troop || !troop.neighboor || troop.neighboor.kind !== "troop") break;
+			currentId = troop.neighboor.id;
+			depth++;
+		}
+		return false;
+	}
+	findNearestEnemyInRange(troop) {
+		const range2 = troop.getAttackRange() ** 2;
+		let best = null;
+		let bestDist = Infinity;
+		for (const other of this.troops) {
+			if (!other.isAlive() || other.team === troop.team) continue;
+			const d = norm2(other.x - troop.x, other.y - troop.y);
+			if (d <= range2 && d < bestDist) {
+				bestDist = d;
+				best = {
+					kind: "troop",
+					id: other.id,
+					x: other.x,
+					y: other.y
+				};
+			}
+		}
+		for (const tower of this.towers) {
+			if (!tower.isAlive() || tower.team === troop.team) continue;
+			const d = norm2(tower.x - troop.x, tower.y - troop.y);
+			if (d <= range2 && d < bestDist) {
+				bestDist = d;
+				best = {
+					kind: "tower",
+					id: tower.id,
+					x: tower.x,
+					y: tower.y
+				};
+			}
+		}
+		return best;
+	}
+	findNearestEnemyTroopInRange(x, y, range, team) {
+		const range2 = range * range;
+		let best = null;
+		let bestDist = Infinity;
+		for (const troop of this.troops) {
+			if (!troop.isAlive() || troop.team === team) continue;
+			const d = norm2(troop.x - x, troop.y - y);
+			if (d <= range2 && d < bestDist) {
+				bestDist = d;
+				best = {
+					kind: "troop",
+					id: troop.id,
+					x: troop.x,
+					y: troop.y
+				};
+			}
+		}
+		return best;
+	}
+	applyDamageToTarget(target, damage, _attackerTeam) {
+		if (target.kind === "troop") {
+			const troop = this.getTroopById(target.id);
+			if (troop && troop.isAlive()) {
+				troop.takeDamage(damage);
+				if (!troop.isAlive()) this.onTroopDeath(troop);
+			}
+		} else {
+			const tower = this.getTowerById(target.id);
+			if (tower && tower.isAlive()) tower.takeDamage(damage);
+		}
+	}
+	/** Grants the death mana bonus and unlinks anyone who was following this
+	*  troop, so they immediately start searching for a new target. */
+	onTroopDeath(troop) {
+		this.manaGauges[troop.team][troop.getType()] += DEATH_MANA_BONUS;
+		for (const other of this.troops) if (other.neighboor?.kind === "troop" && other.neighboor.id === troop.id) other.clearNeighboor(this);
+	}
+	spawnArrow(x, y, target, damage, team) {
+		const dx = target.x - x;
+		const dy = target.y - y;
+		const dist = Math.sqrt(norm2(dx, dy)) || 1;
+		this.arrows.push({
+			id: this.nextProjectileId++,
+			x,
+			y,
+			vx: dx / dist * ARROW_SPEED,
+			vy: dy / dist * ARROW_SPEED,
+			targetX: target.x,
+			targetY: target.y,
+			damage,
+			team,
+			targetTroopId: target.kind === "troop" ? target.id : null,
+			targetTowerId: target.kind === "tower" ? target.id : null
+		});
+	}
+	spawnBomb(x, y, target, damage, team, radius) {
+		const dx = target.x - x;
+		const dy = target.y - y;
+		const dist = Math.sqrt(norm2(dx, dy)) || 1;
+		this.bombs.push({
+			id: this.nextProjectileId++,
+			x,
+			y,
+			vx: dx / dist * BOMB_SPEED,
+			vy: dy / dist * BOMB_SPEED,
+			targetX: target.x,
+			targetY: target.y,
+			damage,
+			team,
+			radius
+		});
+	}
+	updateManaGauges(dt) {
+		for (const team of ["red", "blue"]) {
+			const gauge = this.manaGauges[team];
+			for (const type of TROOP_TYPE_IDS) {
+				gauge[type] += SPAWN_MANA_RATE * dt;
+				if (gauge[type] >= SPAWN_MANA_THRESHOLD) {
+					gauge[type] -= SPAWN_MANA_THRESHOLD;
+					this.spawnTroop(team, type);
+				}
+			}
+		}
+	}
+	updateArrows(dt) {
+		const remaining = [];
+		for (const arrow of this.arrows) {
+			arrow.x += arrow.vx * dt;
+			arrow.y += arrow.vy * dt;
+			const distToTarget = Math.sqrt(norm2(arrow.targetX - arrow.x, arrow.targetY - arrow.y));
+			const outOfBounds = Math.abs(arrow.x) > X_LIMIT * 1.2 || Math.abs(arrow.y) > Y_LIMIT * 1.2;
+			if (distToTarget < ARROW_HIT_DISTANCE) {
+				if (arrow.targetTroopId !== null) {
+					const troop = this.getTroopById(arrow.targetTroopId);
+					if (troop && troop.isAlive()) {
+						troop.takeDamage(arrow.damage);
+						if (!troop.isAlive()) this.onTroopDeath(troop);
+					}
+				} else if (arrow.targetTowerId !== null) {
+					const tower = this.getTowerById(arrow.targetTowerId);
+					if (tower) tower.takeDamage(arrow.damage);
+				}
+			} else if (!outOfBounds) remaining.push(arrow);
+		}
+		this.arrows = remaining;
+	}
+	updateBombs(dt) {
+		const remaining = [];
+		for (const bomb of this.bombs) {
+			bomb.x += bomb.vx * dt;
+			bomb.y += bomb.vy * dt;
+			if (Math.sqrt(norm2(bomb.targetX - bomb.x, bomb.targetY - bomb.y)) < BOMB_HIT_DISTANCE) this.explodeBomb(bomb);
+			else remaining.push(bomb);
+		}
+		this.bombs = remaining;
+	}
+	explodeBomb(bomb) {
+		const r2 = bomb.radius * bomb.radius;
+		for (const troop of this.troops) {
+			if (troop.team === bomb.team || !troop.isAlive()) continue;
+			if (norm2(troop.x - bomb.targetX, troop.y - bomb.targetY) <= r2) {
+				troop.takeDamage(bomb.damage);
+				if (!troop.isAlive()) this.onTroopDeath(troop);
+			}
+		}
+		for (const tower of this.towers) {
+			if (tower.team === bomb.team || !tower.isAlive()) continue;
+			if (norm2(tower.x - bomb.targetX, tower.y - bomb.targetY) <= r2) tower.takeDamage(bomb.damage);
+		}
+	}
+	/** Adapted from the reference PlayerCollisions code: pairwise circle-circle
+	*  separation so troops don't overlap. Troops that are planted while
+	*  attacking hold their ground; only free-moving troops get pushed. */
+	handleTroopCollisions() {
+		const minDist = 36;
+		for (let i = 0; i < this.troops.length; i++) {
+			const a = this.troops[i];
+			if (!a.isAlive()) continue;
+			for (let j = i + 1; j < this.troops.length; j++) {
+				const b = this.troops[j];
+				if (!b.isAlive()) continue;
+				const dx = b.x - a.x;
+				const dy = b.y - a.y;
+				const dist2 = norm2(dx, dy);
+				if (dist2 >= 1296 || dist2 === 0) continue;
+				const dist = Math.sqrt(dist2);
+				const nx = dx / dist;
+				const ny = dy / dist;
+				const correction = (minDist - dist) / 2;
+				const aFixed = a.attacking && !a.canMoveWhileAttacking();
+				const bFixed = b.attacking && !b.canMoveWhileAttacking();
+				if (!aFixed) {
+					a.x -= nx * correction;
+					a.y -= ny * correction;
+				}
+				if (!bFixed) {
+					b.x += nx * correction;
+					b.y += ny * correction;
+				}
+				a.clampToArena();
+				b.clampToArena();
+			}
+		}
+	}
+	/** True once either team has lost all of its towers (instant win). */
+	checkEarlyFinish() {
+		const redAlive = this.towers.some((t) => t.team === "red" && t.isAlive());
+		const blueAlive = this.towers.some((t) => t.team === "blue" && t.isAlive());
+		return !redAlive || !blueAlive;
+	}
+	run(dt, produceFinish) {
+		this.time = Math.max(0, this.time - dt);
+		const timeUp = this.time <= 0;
+		this.updateManaGauges(dt);
+		for (const troop of this.troops) troop.frame(this, dt);
+		this.handleTroopCollisions();
+		for (const tower of this.towers) tower.frame(this, dt);
+		this.updateArrows(dt);
+		this.updateBombs(dt);
+		this.troops = this.troops.filter((t) => t.isAlive());
+		if (timeUp || this.checkEarlyFinish()) {
+			if (produceFinish) return this.produceFinish();
+		}
+		return null;
+	}
+	runInput(playerIdx, input) {
+		const player = this.players[playerIdx];
+		switch (input.action) {
+			case "cutLine":
+				this.handleCutLine(player.team, input.cutLine);
+				break;
+			case "changeNeighboor": this.handleChangeNeighboor(player, input.changeNeighboor);
+		}
+	}
+	/** Cuts every link (of any team — cutting isn't restricted, only creating
+	*  new links is) that crosses the given segment. */
+	handleCutLine(team, data) {
+		const { startX, startY, endX, endY } = data;
+		for (const troop of this.troops) {
+			if (!troop.neighboor || troop.neighboor.kind !== "troop" || troop.team !== team) continue;
+			const pos = this.resolveNeighboorPosition(troop.neighboor);
+			if (!pos) continue;
+			if (segmentsIntersect(startX, startY, endX, endY, troop.x, troop.y, pos.x, pos.y)) troop.clearNeighboor(this);
+		}
+	}
+	/** Re-links a troop the player commands. Only the owning team may do this. */
+	handleChangeNeighboor(player, data) {
+		const troop = this.getTroopById(data.troopId);
+		if (!troop || troop.team !== player.team) return;
+		switch (data.target?.case) {
+			case "cancel":
+				troop.clearNeighboor(this);
+				return;
+			case "targetPoint":
+				troop.neighboor = {
+					kind: "point",
+					x: data.target.targetPoint.x,
+					y: data.target.targetPoint.y
+				};
+				break;
+			case "targetTroopId": {
+				const targetId = data.target.targetTroopId;
+				if (targetId === troop.id || this.wouldCreateCycle(troop.id, targetId)) return;
+				troop.neighboor = {
+					kind: "troop",
+					id: targetId
+				};
+				break;
+			}
+			case "targetTowerId":
+				troop.neighboor = {
+					kind: "tower",
+					id: data.target.targetTowerId
+				};
+				break;
+			default: return;
+		}
+		troop.noTargetTimer = 0;
+	}
+	hitTestTroop(x, y) {
+		for (const troop of this.troops) {
+			if (!troop.isAlive()) continue;
+			if (norm2(troop.x - x, troop.y - y) <= 324) return troop;
+		}
+		return null;
+	}
+	hitTestTower(x, y) {
+		for (const tower of this.towers) {
+			if (!tower.isAlive()) continue;
+			if (norm2(tower.x - x, tower.y - y) <= 1600) return tower;
+		}
+		return null;
+	}
+	/** Unifies mouse and (emulated) single-touch pointer handling, since
+	*  IMobileController only exposes the raw current digit list rather than
+	*  first/press/killed helpers like the mouse controller does. */
+	getPointerState(mouse, mobile, data) {
+		if (mouse.press(0) || mouse.first(0) || mouse.killed(0)) {
+			const coords = mouse.getCoords();
+			return {
+				x: coords.x,
+				y: coords.y,
+				first: mouse.first(0),
+				press: mouse.press(0),
+				killed: mouse.killed(0)
+			};
+		}
+		if (mobile) {
+			const digit = mobile.getDigits()[0] ?? null;
+			const wasDown = data.prevDigitId !== null;
+			const isDown = digit !== null;
+			const first = isDown && !wasDown;
+			const killedNow = !isDown && wasDown;
+			data.prevDigitId = isDown ? digit.id : null;
+			if (isDown) return {
+				x: digit.x,
+				y: digit.y,
+				first,
+				press: true,
+				killed: false
+			};
+			if (killedNow) return {
+				x: data.lastPointerX,
+				y: data.lastPointerY,
+				first: false,
+				press: false,
+				killed: true
+			};
+		}
+		return null;
+	}
+	collectInputs(_keyboard, mouse, mobile, _data) {
+		const data = _data;
+		const inputs = [];
+		const pointer = this.getPointerState(mouse, mobile, data);
+		if (!pointer) return inputs;
+		data.mouseX = pointer.x;
+		data.mouseY = pointer.y;
+		data.lastPointerX = pointer.x;
+		data.lastPointerY = pointer.y;
+		if (pointer.first) {
+			const hitTroop = this.hitTestTroop(pointer.x, pointer.y);
+			if (hitTroop && hitTroop.team === data.myTeam) {
+				data.dragMode = "link";
+				data.dragTroopId = hitTroop.id;
+			} else {
+				data.dragMode = "cut";
+				data.dragTroopId = null;
+			}
+			data.dragStartX = pointer.x;
+			data.dragStartY = pointer.y;
+			data.dragCurrentX = pointer.x;
+			data.dragCurrentY = pointer.y;
+		}
+		if (pointer.press && data.dragMode) {
+			data.dragCurrentX = pointer.x;
+			data.dragCurrentY = pointer.y;
+		}
+		if (pointer.killed && data.dragMode) {
+			if (data.dragMode === "cut") inputs.push({
+				action: "cutLine",
+				cutLine: {
+					startX: data.dragStartX,
+					startY: data.dragStartY,
+					endX: pointer.x,
+					endY: pointer.y
+				}
+			});
+			else if (data.dragMode === "link" && data.dragTroopId !== null) {
+				const targetTroop = this.hitTestTroop(pointer.x, pointer.y);
+				const targetTower = this.hitTestTower(pointer.x, pointer.y);
+				let target;
+				if (targetTroop && targetTroop.id === data.dragTroopId) target = {
+					case: "cancel",
+					cancel: {}
+				};
+				else if (targetTroop) target = {
+					case: "targetTroopId",
+					targetTroopId: targetTroop.id
+				};
+				else if (targetTower) target = {
+					case: "targetTowerId",
+					targetTowerId: targetTower.id
+				};
+				else target = {
+					case: "targetPoint",
+					targetPoint: {
+						x: pointer.x,
+						y: pointer.y
+					}
+				};
+				inputs.push({
+					action: "changeNeighboor",
+					changeNeighboor: {
+						troopId: data.dragTroopId,
+						target
+					}
+				});
+			}
+			data.dragMode = null;
+			data.dragTroopId = null;
+		}
+		return inputs;
+	}
+	drawBackground(ctx, imageLoader) {
+		ctx.fillStyle = "#2b2b2b";
+		ctx.fillRect(-600, -1200, WIDTH$1, HEIGHT$1);
+	}
+	/** Tints the two slow zones (red top / blue bottom) so their effect is legible. */
+	drawZones(ctx) {
+		for (let i = 0; i < ZONE_COUNT; i++) {
+			const top = -1200 + i * ZONE_HEIGHT;
+			ctx.fillStyle = i === 0 || i === 9 ? i === 0 ? "rgba(255,0,68,0.10)" : "rgba(0,68,255,0.10)" : "rgba(255,255,255,0.02)";
+			ctx.fillRect(-600, top, WIDTH$1, ZONE_HEIGHT);
+		}
+	}
+	drawHpBar(ctx, x, y, hp, maxHp, width) {
+		const ratio = Math.max(0, hp / maxHp);
+		const height = 6;
+		ctx.fillStyle = "#222";
+		ctx.fillRect(x - width / 2, y, width, height);
+		ctx.fillStyle = ratio > .5 ? "#4caf50" : ratio > .2 ? "#ffb300" : "#e53935";
+		ctx.fillRect(x - width / 2, y, width * ratio, height);
+	}
+	drawArrowShape(ctx, x1, y1, x2, y2, color, width) {
+		ctx.save();
+		ctx.strokeStyle = color;
+		ctx.fillStyle = color;
+		ctx.lineWidth = width;
+		ctx.beginPath();
+		ctx.moveTo(x1, y1);
+		ctx.lineTo(x2, y2);
+		ctx.stroke();
+		const angle = Math.atan2(y2 - y1, x2 - x1);
+		const headLength = 10;
+		ctx.beginPath();
+		ctx.moveTo(x2, y2);
+		ctx.lineTo(x2 - headLength * Math.cos(angle - Math.PI / 6), y2 - headLength * Math.sin(angle - Math.PI / 6));
+		ctx.lineTo(x2 - headLength * Math.cos(angle + Math.PI / 6), y2 - headLength * Math.sin(angle + Math.PI / 6));
+		ctx.closePath();
+		ctx.fill();
+		ctx.restore();
+	}
+	/** Draws every neighboor link as a thin team-colored arrow; links that the
+	*  current in-progress "cut" gesture crosses are drawn thicker. */
+	drawLinks(ctx, data) {
+		const cutting = data.dragMode === "cut";
+		for (const troop of this.troops) {
+			if (!troop.neighboor) continue;
+			const pos = this.resolveNeighboorPosition(troop.neighboor);
+			if (!pos) continue;
+			const color = troop.team === "red" ? "#ff0044" : "#0044ff";
+			let width = 1.5;
+			if (cutting) {
+				if (segmentsIntersect(data.dragStartX, data.dragStartY, data.dragCurrentX, data.dragCurrentY, troop.x, troop.y, pos.x, pos.y)) width = 4;
+			}
+			this.drawArrowShape(ctx, troop.x, troop.y, pos.x, pos.y, color, width);
+		}
+	}
+	drawTowers(ctx, imageLoader) {
+		for (const tower of this.towers) {
+			const texture = imageLoader.get(tower.team === "red" ? "tower-red" : "tower-blue");
+			ctx.save();
+			if (!tower.isAlive()) ctx.globalAlpha = .35;
+			ctx.drawImage(texture, tower.x - TOWER_RADIUS, tower.y - TOWER_RADIUS, 80, 80);
+			ctx.restore();
+			this.drawHpBar(ctx, tower.x, tower.y - TOWER_RADIUS - 10, tower.hp, TOWER_HP, 50);
+		}
+	}
+	drawTroops(ctx, imageLoader, data) {
+		for (const troop of this.troops) {
+			const texture = imageLoader.get(`troop-${troop.getType()}-${troop.team}`);
+			if (troop.id === data.hoveredTroopId || troop.id === data.dragTroopId) {
+				ctx.save();
+				ctx.strokeStyle = "#ffffff";
+				ctx.lineWidth = 3;
+				ctx.beginPath();
+				ctx.arc(troop.x, troop.y, 23, 0, Math.PI * 2);
+				ctx.stroke();
+				ctx.restore();
+			}
+			ctx.drawImage(texture, troop.x - TROOP_RADIUS, troop.y - TROOP_RADIUS, 36, 36);
+			if (troop.hp < troop.getMaxHp()) this.drawHpBar(ctx, troop.x, troop.y - TROOP_RADIUS - 8, troop.hp, troop.getMaxHp(), 30);
+		}
+	}
+	drawProjectiles(ctx, imageLoader) {
+		const arrowTexture = imageLoader.get("arrow");
+		for (const arrow of this.arrows) {
+			ctx.save();
+			ctx.translate(arrow.x, arrow.y);
+			ctx.rotate(Math.atan2(arrow.vy, arrow.vx));
+			ctx.drawImage(arrowTexture, -12, -4, 24, 8);
+			ctx.restore();
+		}
+		const bombTexture = imageLoader.get("bomb");
+		for (const bomb of this.bombs) ctx.drawImage(bombTexture, bomb.x - 10, bomb.y - 10, 20, 20);
+	}
+	drawDragPreview(ctx, data) {
+		if (!data.dragMode) return;
+		if (data.dragMode === "cut") {
+			ctx.save();
+			ctx.strokeStyle = "#ffffff";
+			ctx.lineWidth = 2;
+			ctx.setLineDash([6, 6]);
+			ctx.beginPath();
+			ctx.moveTo(data.dragStartX, data.dragStartY);
+			ctx.lineTo(data.dragCurrentX, data.dragCurrentY);
+			ctx.stroke();
+			ctx.restore();
+		} else if (data.dragMode === "link" && data.dragTroopId !== null) {
+			const troop = this.getTroopById(data.dragTroopId);
+			if (troop) this.drawArrowShape(ctx, troop.x, troop.y, data.dragCurrentX, data.dragCurrentY, "#ffffff", 2);
+		}
+	}
+	draw(ctx, playerIdx, _data, _imageLoader) {
+		ctx.imageSmoothingEnabled = false;
+		const imageLoader = _imageLoader.getFolder("moveArmy");
+		const data = _data;
+		if (data.firstFrame) data.firstFrame = false;
+		data.update(this, playerIdx);
+		ctx.save();
+		ctx.translate(X_LIMIT, Y_LIMIT);
+		this.drawBackground(ctx, imageLoader);
+		this.drawZones(ctx);
+		this.drawLinks(ctx, data);
+		this.drawTowers(ctx, imageLoader);
+		this.drawTroops(ctx, imageLoader, data);
+		this.drawProjectiles(ctx, imageLoader);
+		this.drawDragPreview(ctx, data);
+		ctx.restore();
+	}
+	onDisconnection(id) {
+		this.players[id].connected = false;
+	}
+	save() {
+		const { State } = protocols$2.get();
+		const object = {
+			time: this.time,
+			players: this.players.map((p) => ({ connected: p.connected })),
+			troops: this.troops.map((t) => t.serialize()),
+			towers: this.towers.map((t) => ({
+				id: t.id,
+				hp: t.hp
+			})),
+			arrows: this.arrows.map((a) => ({
+				id: a.id,
+				x: a.x,
+				y: a.y,
+				vx: a.vx,
+				vy: a.vy,
+				targetX: a.targetX,
+				targetY: a.targetY,
+				damage: a.damage,
+				isRed: a.team === "red",
+				targetTroopId: a.targetTroopId ?? -1,
+				targetTowerId: a.targetTowerId ?? -1
+			})),
+			bombs: this.bombs.map((b) => ({
+				id: b.id,
+				x: b.x,
+				y: b.y,
+				vx: b.vx,
+				vy: b.vy,
+				targetX: b.targetX,
+				targetY: b.targetY,
+				damage: b.damage,
+				isRed: b.team === "red",
+				radius: b.radius
+			})),
+			redMana: this.manaGauges.red,
+			blueMana: this.manaGauges.blue,
+			nextTroopId: this.nextTroopId,
+			nextProjectileId: this.nextProjectileId
+		};
+		return State.encode(object).finish();
+	}
+	load(data) {
+		const { State } = protocols$2.get();
+		const obj = decodeFullMessage(State.decode(data));
+		this.time = obj.time;
+		for (const [i, p] of this.players.entries()) p.connected = obj.players[i]?.connected ?? false;
+		this.troops = obj.troops.map((t) => deserializeTroop(t));
+		for (const [i, tower] of this.towers.entries()) {
+			const saved = obj.towers[i];
+			if (saved) tower.hp = saved.hp;
+		}
+		this.arrows = obj.arrows.map((a) => ({
+			id: a.id,
+			x: a.x,
+			y: a.y,
+			vx: a.vx,
+			vy: a.vy,
+			targetX: a.targetX,
+			targetY: a.targetY,
+			damage: a.damage,
+			team: a.isRed ? "red" : "blue",
+			targetTroopId: a.targetTroopId >= 0 ? a.targetTroopId : null,
+			targetTowerId: a.targetTowerId >= 0 ? a.targetTowerId : null
+		}));
+		this.bombs = obj.bombs.map((b) => ({
+			id: b.id,
+			x: b.x,
+			y: b.y,
+			vx: b.vx,
+			vy: b.vy,
+			targetX: b.targetX,
+			targetY: b.targetY,
+			damage: b.damage,
+			team: b.isRed ? "red" : "blue",
+			radius: b.radius
+		}));
+		this.manaGauges.red = obj.redMana;
+		this.manaGauges.blue = obj.blueMana;
+		this.nextTroopId = obj.nextTroopId;
+		this.nextProjectileId = obj.nextProjectileId;
+	}
+	getSize() {
+		return {
+			width: WIDTH$1,
+			height: HEIGHT$1
+		};
+	}
+	evalMouseCoords(x, y, _playerIdx, _clientData) {
+		const clientData = _clientData;
+		const ret = {
+			x: x - X_LIMIT,
+			y: y - Y_LIMIT
+		};
+		clientData.mouseX = ret.x;
+		clientData.mouseY = ret.y;
+		return ret;
+	}
+	getMobileDesc() {
+		return {
+			joysticks: {},
+			buttons: {}
+		};
+	}
+	createTutorial() {
+		return new TutorialData$2(this);
+	}
+	/** Ranks the two teams by how many of their towers are still standing.
+	*  Players within the same team are always tied with each other (2v2). */
+	produceFinish() {
+		const redStanding = this.towers.filter((t) => t.team === "red" && t.isAlive()).length;
+		const blueStanding = this.towers.filter((t) => t.team === "blue" && t.isAlive()).length;
+		const redPlayers = this.players.map((_, idx) => idx).filter((idx) => this.players[idx].team === "red");
+		const bluePlayers = this.players.map((_, idx) => idx).filter((idx) => this.players[idx].team === "blue");
+		let results;
+		const teamEqualities = [];
+		if (redStanding === blueStanding) {
+			results = [redPlayers, bluePlayers];
+			teamEqualities.push(0);
+		} else if (redStanding > blueStanding) results = [redPlayers, bluePlayers];
+		else results = [bluePlayers, redPlayers];
+		const playerEqualities = [];
+		let cursor = 0;
+		for (const team of results) {
+			for (let i = 0; i < team.length - 1; i++) playerEqualities.push(cursor + i);
+			cursor += team.length;
+		}
+		return {
+			results,
+			teamEqualities,
+			playerEqualities
+		};
+	}
+};
+//#endregion
+//#region commons/gamemods/GMPopit.ts
+var protocols$1 = getProtocol("popit", "multiplayer");
+var WIDTH = 2e3;
+var HEIGHT = 2e3;
+var GRID_ROWS = 6;
+var GRID_COLS = 6;
+var TOTAL_CELLS = 36;
+var BOARD_SIZE = 1400;
+var BOARD_X = 300;
+var BOARD_Y = 300;
+var CELL_SIZE = BOARD_SIZE / GRID_COLS;
+var BUBBLE_RADIUS = CELL_SIZE * .38;
+var TURN_DURATION = 15;
+var ROW_COLORS = [
+	{
+		bg: "#FF3B30",
+		popped: "#A0201B",
+		border: "#D72A20"
+	},
+	{
+		bg: "#FF9500",
+		popped: "#A86200",
+		border: "#E08300"
+	},
+	{
+		bg: "#FFCC00",
+		popped: "#A38200",
+		border: "#E0B300"
+	},
+	{
+		bg: "#34C759",
+		popped: "#1F7A37",
+		border: "#2BB04C"
+	},
+	{
+		bg: "#007AFF",
+		popped: "#004EA8",
+		border: "#0068E0"
+	},
+	{
+		bg: "#AF52DE",
+		popped: "#6F328E",
+		border: "#9A40C4"
+	}
+];
+/**
+* Represents a player state in the Popit game.
+* Stores connectivity, spawn parameters, and individual player team status.
+*/
+var Player$1 = class {
+	x;
+	y;
+	spawnX = null;
+	spawnY = null;
+	connected = true;
+	team = "red";
+	score = 0;
+	constructor(x, y) {
+		this.x = x;
+		this.y = y;
+	}
+	/**
+	* Initializes spawn coordinates and team membership for the player.
+	*/
+	initSpawn(x, y, team) {
+		this.spawnX = x;
+		this.spawnY = y;
+		this.x = x;
+		this.y = y;
+		this.team = team;
+	}
+	/**
+	* Restores player attributes from network decoding structure.
+	*/
+	load(obj) {
+		this.connected = obj.connected ?? true;
+		this.score = obj.score ?? 0;
+		if (obj.team !== void 0) this.team = obj.team;
+	}
+};
+/**
+* Static Camera helper for viewport transformations.
+*/
+var Camera$1 = class {
+	x = WIDTH / 2;
+	y = HEIGHT / 2;
+	static SCALE = 1;
+	update(px, py, dt) {
+		this.x = px;
+		this.y = py;
+	}
+	teleport(px, py) {
+		this.x = px;
+		this.y = py;
+	}
+	getCoords() {
+		return {
+			x: this.x,
+			y: this.y
+		};
+	}
+};
+/**
+* UI and Client Data Handler for Popit.
+* Manages HTML elements, turn indicators, local interactions, and camera state.
+*/
+var ClientData$1 = class ClientData$1 {
+	firstFrame = true;
+	mouseX = 0;
+	mouseY = 0;
+	skins = [];
+	html;
+	time;
+	turnInfo;
+	endTurnBtn;
+	redScore;
+	blueScore;
+	camera = new Camera$1();
+	selectedRow = null;
+	lastClickedCell = null;
+	validateTurn = false;
+	constructor() {
+		this.html = document.createElement("div");
+		this.html.classList.add("game-popit-root");
+		const header = document.createElement("div");
+		header.classList.add("game-popit-header");
+		this.time = document.createElement("div");
+		this.time.classList.add("game-popit-time");
+		const scores = document.createElement("div");
+		scores.classList.add("game-popit-scores");
+		this.redScore = document.createElement("div");
+		this.blueScore = document.createElement("div");
+		this.redScore.classList.add("game-popit-red-score");
+		this.blueScore.classList.add("game-popit-blue-score");
+		const separator = document.createElement("div");
+		separator.textContent = "-";
+		scores.appendChild(this.redScore);
+		scores.appendChild(separator);
+		scores.appendChild(this.blueScore);
+		header.appendChild(scores);
+		header.appendChild(this.time);
+		this.turnInfo = document.createElement("div");
+		this.turnInfo.classList.add("game-popit-turn-info");
+		this.endTurnBtn = document.createElement("button");
+		this.endTurnBtn.classList.add("game-popit-end-turn-btn");
+		this.endTurnBtn.textContent = "VALIDATE TURN";
+		this.html.appendChild(header);
+		this.html.appendChild(this.turnInfo);
+		this.html.appendChild(this.endTurnBtn);
+		this.endTurnBtn.onclick = () => {
+			this.validateTurn = true;
+		};
+	}
+	/**
+	* Formats fractional seconds into MM:SS format.
+	*/
+	static showTime(time) {
+		return `${Math.floor(Math.max(0, time) / 60)}:${(Math.max(0, time) % 60).toFixed(1).padStart(4, "0")}`;
+	}
+	/**
+	* Updates HTML UI state based on current GMState.
+	*/
+	update(game, playerIdx) {
+		this.time.innerText = ClientData$1.showTime(game.turnTimer);
+		this.redScore.innerText = String(game.redScore).padStart(2, "0");
+		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
+		const isMyTurn = game.currentTurnPlayer === playerIdx;
+		if (game.gameOver) {
+			this.turnInfo.innerText = game.winnerPlayer === playerIdx ? "VICTORY!" : "GAME OVER";
+			this.endTurnBtn.style.display = "none";
+		} else if (isMyTurn) {
+			this.turnInfo.innerText = "Your turn - Pop bubbles!";
+			this.turnInfo.style.color = "#4CD964";
+			this.endTurnBtn.style.display = game.turnPoppedCount > 0 ? "block" : "none";
+		} else {
+			this.turnInfo.innerText = `Opponent's Turn...`;
+			this.turnInfo.style.color = "#FF9500";
+			this.endTurnBtn.style.display = "none";
+		}
+		this.camera.update(WIDTH / 2, HEIGHT / 2, 1 / 60);
+	}
+};
+/**
+* Interactive tutorial that reacts to the actual game state.
+*/
+var TutorialData$1 = class {
+	game;
+	step = 0;
+	wakeUp = 0;
+	constructor(game) {
+		this.game = game;
+	}
+	frame(dt, clock) {
+		if (this.game.gameOver) return "";
+		const OPPONENT_TIMER = 1;
+		if (this.game.currentTurnPlayer !== 0 && this.game.turnTimer > OPPONENT_TIMER) this.game.turnTimer = OPPONENT_TIMER;
+		switch (this.step) {
+			case 0:
+				if (this.game.turnPoppedCount > 0) {
+					this.step = 1;
+					this.wakeUp = clock + 1.5;
+				}
+				return "Press a bubble";
+			case 1:
+				if (clock >= this.wakeUp) this.step = 2;
+				return "You can press the bubble next to the last you played (left or right only)";
+			case 2:
+				if (this.game.turnPoppedCount >= 2) {
+					this.step = 3;
+					this.wakeUp = clock + 1.5;
+				}
+				return "You can press the bubble next to the last you played (left or right only)";
+			case 3:
+				if (clock >= this.wakeUp) this.step = 4;
+				return "When you're finished, press \"VALIDATE TURN\" to let the opponent play";
+			case 4:
+				if (this.game.currentTurnPlayer !== 0) {
+					this.step = 5;
+					this.wakeUp = clock + 1.5;
+				}
+				return "When you're finished, press \"VALIDATE TURN\" to let the opponent play";
+			case 5: return "To win, force your opponent to press the very last bubble";
+			default: return "";
+		}
+	}
+};
+/**
+* Builds data structure for Alpine.js client interface initialization.
+*/
+function generateClientDom$1(unlockedSkins) {
+	return {
+		skin: Object.keys(GMPopit.SKINS)[0],
+		preferTeam: 0,
+		SKINS: GMPopit.SKINS,
+		unlockedSkins,
+		produce() {
+			const { StartData } = protocols$1.get();
+			return StartData.encode({
+				skin: this.skin,
+				preferTeam: this.preferTeam
+			}).finish();
+		},
+		hasSkin(skin) {
+			return this.unlockedSkins.includes(skin);
+		},
+		getSkinIconPath,
+		getIconPath
+	};
+}
+function getSkinTexturePath(id) {
+	return `/assets/games/popit/skins/${id}/grid.png`;
+}
+function getIconPath(id) {
+	return window.IMG_ROOT_PATH + `/assets/games/popit/skins/${id}/icon.png`;
+}
+function getSkinIconPath(id) {
+	return window.IMG_ROOT_PATH + `/assets/games/popit/skins/${id}/icon.png`;
+}
+/**
+* Main GameMode implementation for Popit.
+*/
+var GMPopit = class GMPopit extends GameMode {
+	static types = { Player: Player$1 };
+	static DATA = {
+		WIDTH,
+		HEIGHT,
+		GRID_ROWS,
+		GRID_COLS,
+		BOARD_SIZE
+	};
+	players;
+	redScore = 0;
+	blueScore = 0;
+	grid = new Array(TOTAL_CELLS).fill(true);
+	currentTurnPlayer = 0;
+	turnRow = -1;
+	turnPoppedCols = [];
+	turnPoppedCount = 0;
+	turnTimer = TURN_DURATION;
+	globalTime = 300;
+	gameOver = false;
+	loserPlayer = -1;
+	winnerPlayer = -1;
+	constructor(total) {
+		super();
+		this.players = Array.from({ length: Math.max(1, total) }, () => new Player$1(WIDTH / 2, HEIGHT / 2));
+	}
+	/**
+	* Server-side instantiation method.
+	*/
+	static async createServ(players, total, hasSkin) {
+		const { StartData, StartDataClient } = protocols$1.get();
+		const game = new GMPopit(total);
+		function decode(i) {
+			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
+			return generateClientDom$1([]);
+		}
+		const playerInfos = await Promise.all(game.players.map(async (p, i) => {
+			const d = decode(i);
+			let skin;
+			const pseudo = i < players.length ? players[i].pseudo : null;
+			if (pseudo !== null && GMPopit.SKINS_IDS.includes(d.skin)) {
+				if (await hasSkin("popit", d.skin, pseudo)) skin = d.skin;
+				else skin = GMPopit.SKINS_IDS[0];
+			} else skin = GMPopit.SKINS_IDS[0];
+			return {
+				player: p,
+				index: i,
+				skin,
+				pref: d.preferTeam ?? 0
+			};
+		}));
+		const totalPlayers = playerInfos.length;
+		const maxPerTeam = Math.ceil(totalPlayers / 2);
+		const assigned = new Array(totalPlayers);
+		let redCount = 0;
+		let blueCount = 0;
+		for (let i = 0; i < totalPlayers; i++) {
+			const info = playerInfos[i];
+			if (info.pref === 1 && redCount < maxPerTeam) {
+				assigned[info.index] = true;
+				redCount++;
+			} else if (info.pref === -1 && blueCount < maxPerTeam) {
+				assigned[info.index] = false;
+				blueCount++;
+			}
+		}
+		for (let i = 0; i < totalPlayers; i++) {
+			if (assigned[i] !== void 0) continue;
+			if ((redCount < blueCount || redCount === blueCount && i % 2 === 0) && redCount < maxPerTeam) {
+				assigned[i] = true;
+				redCount++;
+			} else {
+				assigned[i] = false;
+				blueCount++;
+			}
+		}
+		for (const [i, p] of game.players.entries()) {
+			const isRedTeam = assigned[i];
+			p.initSpawn(WIDTH / 2, HEIGHT / 2, isRedTeam ? "red" : "blue");
+		}
+		return {
+			game,
+			data: StartDataClient.encode({ players: game.players.map((p, idx) => ({
+				x: p.spawnX,
+				y: p.spawnY,
+				skin: playerInfos[idx].skin,
+				isRed: p.team === "red"
+			})) }).finish()
+		};
+	}
+	/**
+	* Client-side initialization method.
+	*/
+	static createClient({ data, origin }, total, playerIdx) {
+		const game = new GMPopit(total);
+		const { StartData, StartDataClient } = protocols$1.get();
+		const clientData = new ClientData$1();
+		let skins;
+		if (origin === "server") {
+			const { players } = decodeFullMessage(StartDataClient.decode(data));
+			const skinSet = /* @__PURE__ */ new Set();
+			for (const [idx, p] of players.entries()) {
+				if (game.players[idx]) game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
+				clientData.skins.push(p.skin);
+				skinSet.add(p.skin);
+			}
+			skins = Object.fromEntries([...skinSet].map((key) => ["skin-" + key, getSkinTexturePath(key)]));
+		} else {
+			const { skin } = decodeFullMessage(StartData.decode(data));
+			if (game.players[0]) game.players[0].initSpawn(WIDTH / 2, HEIGHT / 2, "red");
+			if (game.players[1]) game.players[1].initSpawn(WIDTH / 2, HEIGHT / 2, "blue");
+			clientData.skins = Array.from({ length: game.players.length }, () => GMPopit.SKINS_IDS[0]);
+			clientData.skins[0] = skin;
+			skins = {};
+		}
+		return {
+			game,
+			data: clientData,
+			html: clientData.html,
+			skins
+		};
+	}
+	static generateClientDom = generateClientDom$1;
+	static SKINS = {
+		"default": "Classic Rainbow",
+		"pastel": "Pastel Pop",
+		"neon": "Neon Cyber"
+	};
+	static SKINS_IDS = Object.keys(GMPopit.SKINS);
+	static TEXTURES = {
+		"popit-bg": "/assets/games/popit/board_bg.png",
+		"bubble-texture": "/assets/games/popit/bubble.png",
+		"skin-default": getSkinTexturePath("default")
+	};
+	init() {
+		this.grid.fill(true);
+		this.currentTurnPlayer = 0;
+		this.turnRow = -1;
+		this.turnPoppedCols = [];
+		this.turnPoppedCount = 0;
+		this.turnTimer = TURN_DURATION;
+		this.gameOver = false;
+		this.loserPlayer = -1;
+		this.winnerPlayer = -1;
+	}
+	getBotIds(count) {
+		return Array.from({ length: count }, () => 0);
+	}
+	/**
+	* Main game loop step function.
+	*/
+	run(dt, produceFinish) {
+		if (this.gameOver) {
+			if (produceFinish) return this.produceFinish();
+			return null;
+		}
+		this.globalTime -= dt;
+		this.turnTimer -= dt;
+		if (this.turnTimer <= 0) this.handleTurnTimeout();
+		if (produceFinish && (this.gameOver || this.globalTime <= 0)) return this.produceFinish();
+		return null;
+	}
+	/**
+	* Automatically pops a random valid bubble and forces turn end if player times out.
+	*/
+	handleTurnTimeout() {
+		if (this.turnPoppedCount === 0) {
+			let foundIdx = -1;
+			for (let i = 0; i < TOTAL_CELLS; i++) if (this.grid[i]) {
+				foundIdx = i;
+				break;
+			}
+			if (foundIdx !== -1) {
+				const r = Math.floor(foundIdx / GRID_COLS);
+				const c = foundIdx % GRID_COLS;
+				this.popBubble(r, c);
+			}
+		}
+		this.advanceTurn();
+	}
+	/**
+	* Pops a bubble at (row, col) if move is valid according to game rules.
+	*/
+	popBubble(row, col) {
+		const idx = row * GRID_COLS + col;
+		if (!this.grid[idx]) return false;
+		if (this.turnRow === -1) this.turnRow = row;
+		else if (this.turnRow !== row) return false;
+		if (this.turnPoppedCols.length > 0) {
+			const minCol = Math.min(...this.turnPoppedCols);
+			const maxCol = Math.max(...this.turnPoppedCols);
+			if (!(col === minCol - 1 || col === maxCol + 1)) return false;
+		}
+		this.grid[idx] = false;
+		this.turnPoppedCols.push(col);
+		this.turnPoppedCount++;
+		if (this.grid.filter((cell) => cell).length === 0) {
+			this.gameOver = true;
+			this.loserPlayer = this.currentTurnPlayer;
+			this.winnerPlayer = (this.currentTurnPlayer + 1) % this.players.length;
+			if (this.players[this.winnerPlayer]?.team === "red") this.redScore++;
+			else this.blueScore++;
+		}
+		return true;
+	}
+	/**
+	* Validates and passes the turn to the next player.
+	*/
+	advanceTurn() {
+		if (this.gameOver) return;
+		this.turnRow = -1;
+		this.turnPoppedCols = [];
+		this.turnPoppedCount = 0;
+		this.turnTimer = TURN_DURATION;
+		this.currentTurnPlayer = (this.currentTurnPlayer + 1) % this.players.length;
+	}
+	/**
+	* Processes network player inputs.
+	*/
+	runInput(playerIdx, input) {
+		if (this.gameOver) return;
+		if (playerIdx !== this.currentTurnPlayer) return;
+		switch (input.action) {
+			case "popCell": {
+				const r = input.popCell.row;
+				const c = input.popCell.col;
+				this.popBubble(r, c);
+				break;
+			}
+			case "endTurn": if (this.turnPoppedCount > 0) this.advanceTurn();
+		}
+	}
+	/**
+	* Collects mouse/touch user inputs and formats input payload.
+	*/
+	collectInputs(keyboard, mouse, mobile, _data) {
+		const data = _data;
+		const inputs = [];
+		const mousePos = mouse.getCoords();
+		data.mouseX = mousePos.x;
+		data.mouseY = mousePos.y;
+		if (mouse.first(0)) {
+			if (mousePos.x >= BOARD_X && mousePos.x <= 1700 && mousePos.y >= BOARD_Y && mousePos.y <= 1700) {
+				const col = Math.floor((mousePos.x - BOARD_X) / CELL_SIZE);
+				const row = Math.floor((mousePos.y - BOARD_Y) / CELL_SIZE);
+				if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) inputs.push({
+					action: "popCell",
+					popCell: {
+						row,
+						col
+					}
+				});
+			}
+		}
+		if (keyboard.first("space") || data.validateTurn) {
+			data.validateTurn = false;
+			inputs.push({
+				action: "endTurn",
+				endTurn: {}
+			});
+		}
+		return inputs;
+	}
+	/**
+	* Render routine for game state visualization.
+	*/
+	draw(ctx, playerIdx, _data, _imageLoader) {
+		ctx.imageSmoothingEnabled = true;
+		const imageLoader = _imageLoader.getFolder("popit");
+		const data = _data;
+		if (data.firstFrame) {
+			data.firstFrame = false;
+			imageLoader.setColorRule("bubble-texture", 0, [{
+				prev: "#ff0044",
+				next: "#FF3B30"
+			}]);
+			imageLoader.setColorRule("bubble-texture", 1, [{
+				prev: "#ff0044",
+				next: "#007AFF"
+			}]);
+		}
+		data.update(this, playerIdx);
+		ctx.fillStyle = "#1E1E24";
+		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+		const boardRadius = 40;
+		ctx.save();
+		ctx.fillStyle = "#2A2A36";
+		ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+		ctx.shadowBlur = 30;
+		ctx.shadowOffsetY = 15;
+		ctx.beginPath();
+		ctx.roundRect(280, 280, 1440, 1440, boardRadius);
+		ctx.fill();
+		ctx.restore();
+		for (let r = 0; r < GRID_ROWS; r++) {
+			const rowColor = ROW_COLORS[r];
+			const rowY = BOARD_Y + r * CELL_SIZE;
+			ctx.fillStyle = rowColor.bg + "22";
+			ctx.fillRect(BOARD_X, rowY, BOARD_SIZE, CELL_SIZE);
+			for (let c = 0; c < GRID_COLS; c++) {
+				const centerX = BOARD_X + c * CELL_SIZE + CELL_SIZE / 2;
+				const centerY = rowY + CELL_SIZE / 2;
+				const cellIdx = r * GRID_COLS + c;
+				const isUnpopped = this.grid[cellIdx];
+				ctx.save();
+				if (isUnpopped) {
+					const radius = BUBBLE_RADIUS;
+					ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+					ctx.shadowBlur = 8;
+					ctx.shadowOffsetY = 5;
+					const gradient = ctx.createRadialGradient(centerX - radius * .35, centerY - radius * .4, radius * .1, centerX, centerY, radius);
+					gradient.addColorStop(0, "#ffffff");
+					gradient.addColorStop(.18, rowColor.bg);
+					gradient.addColorStop(.75, rowColor.bg);
+					gradient.addColorStop(1, rowColor.popped);
+					ctx.beginPath();
+					ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+					ctx.fillStyle = gradient;
+					ctx.fill();
+					ctx.shadowColor = "transparent";
+					ctx.shadowBlur = 0;
+					ctx.shadowOffsetY = 0;
+					ctx.beginPath();
+					ctx.arc(centerX, centerY, radius * .88, 0, Math.PI * 2);
+					ctx.lineWidth = 3;
+					ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+					ctx.stroke();
+					const highlight = ctx.createRadialGradient(centerX - radius * .35, centerY - radius * .4, 0, centerX - radius * .35, centerY - radius * .4, radius * .4);
+					highlight.addColorStop(0, "rgba(255, 255, 255, 0.30)");
+					highlight.addColorStop(1, "rgba(255, 255, 255, 0)");
+					ctx.beginPath();
+					ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+					ctx.fillStyle = highlight;
+					ctx.fill();
+					if (this.currentTurnPlayer === playerIdx && !this.gameOver) {
+						if (this.turnRow === -1 || this.turnRow === r) {
+							ctx.lineWidth = 4;
+							ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+							ctx.stroke();
+						}
+					}
+				} else {
+					ctx.beginPath();
+					ctx.arc(centerX, centerY, BUBBLE_RADIUS * .85, 0, Math.PI * 2);
+					ctx.fillStyle = rowColor.popped;
+					ctx.fill();
+					ctx.lineWidth = 6;
+					ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+					ctx.stroke();
+				}
+				ctx.restore();
+			}
+		}
+		if (data.mouseX >= BOARD_X && data.mouseX <= 1700 && data.mouseY >= BOARD_Y && data.mouseY <= 1700 && !this.gameOver) {
+			const hoverCol = Math.floor((data.mouseX - BOARD_X) / CELL_SIZE);
+			const hoverRow = Math.floor((data.mouseY - BOARD_Y) / CELL_SIZE);
+			ctx.save();
+			ctx.strokeStyle = "#FFFFFF";
+			ctx.lineWidth = 4;
+			ctx.strokeRect(BOARD_X + hoverCol * CELL_SIZE + 5, BOARD_Y + hoverRow * CELL_SIZE + 5, 223.33333333333334, 223.33333333333334);
+			ctx.restore();
+		}
+	}
+	onDisconnection(id) {
+		if (this.players[id]) this.players[id].connected = false;
+	}
+	/**
+	* Serializes current state to Protobuf byte array.
+	*/
+	save() {
+		const { State } = protocols$1.get();
+		const object = {
+			grid: this.grid,
+			currentTurnPlayer: this.currentTurnPlayer,
+			turnRow: this.turnRow,
+			turnPoppedCols: this.turnPoppedCols,
+			turnTimer: this.turnTimer,
+			globalTime: this.globalTime,
+			gameOver: this.gameOver,
+			loserPlayer: this.loserPlayer,
+			winnerPlayer: this.winnerPlayer,
+			redScore: this.redScore,
+			blueScore: this.blueScore,
+			players: this.players.map((p) => ({
+				connected: p.connected,
+				score: p.score,
+				team: p.team
+			}))
+		};
+		return State.encode(object).finish();
+	}
+	/**
+	* Deserializes Protobuf state payload into local game instance.
+	*/
+	load(data) {
+		const { State } = protocols$1.get();
+		const obj = State.decode(data);
+		if (obj.grid && obj.grid.length === TOTAL_CELLS) this.grid = Array.from(obj.grid);
+		this.currentTurnPlayer = obj.currentTurnPlayer ?? 0;
+		this.turnRow = obj.turnRow ?? -1;
+		this.turnPoppedCols = Array.from(obj.turnPoppedCols ?? []);
+		this.turnPoppedCount = this.turnPoppedCols.length;
+		this.turnTimer = obj.turnTimer ?? TURN_DURATION;
+		this.globalTime = obj.globalTime ?? 300;
+		this.gameOver = obj.gameOver ?? false;
+		this.loserPlayer = obj.loserPlayer ?? -1;
+		this.winnerPlayer = obj.winnerPlayer ?? -1;
+		this.redScore = obj.redScore ?? 0;
+		this.blueScore = obj.blueScore ?? 0;
+		if (obj.players) {
+			for (let i = 0; i < obj.players.length; i++) if (this.players[i]) this.players[i].load(obj.players[i]);
+		}
+	}
+	getSize() {
+		return {
+			width: WIDTH,
+			height: HEIGHT
+		};
+	}
+	/**
+	* Converts raw screen pixel coordinates into game world coordinates.
+	*/
+	evalMouseCoords(x, y, playerIdx, _clientData) {
+		const clientData = _clientData;
+		const cameraCoords = clientData.camera.getCoords();
+		const ret = {
+			x: (x - WIDTH / 2) / Camera$1.SCALE + cameraCoords.x,
+			y: (y - HEIGHT / 2) / Camera$1.SCALE + cameraCoords.y
+		};
+		clientData.mouseX = ret.x;
+		clientData.mouseY = ret.y;
+		return ret;
+	}
+	/**
+	* Provides mobile controller button layout definitions.
+	*/
+	getMobileDesc() {
+		return {
+			joysticks: {},
+			buttons: { "end_turn": {
+				x: 100,
+				xp: "right",
+				y: 100,
+				yp: "bottom",
+				size: 80,
+				color: "#34C759"
+			} }
+		};
+	}
+	createTutorial() {
+		return new TutorialData$1(this);
+	}
+	/**
+	* Produces final game ranking output structure.
+	*/
+	produceFinish() {
+		const ranking = [];
+		if (this.winnerPlayer !== -1 && this.loserPlayer !== -1) {
+			ranking.push([this.winnerPlayer]);
+			ranking.push([this.loserPlayer]);
+		} else {
+			const allPlayerIndices = this.players.map((_, idx) => idx);
+			ranking.push(allPlayerIndices);
+		}
+		return {
+			results: ranking,
+			teamEqualities: [],
+			playerEqualities: this.winnerPlayer === -1 ? [0] : []
+		};
+	}
+};
+//#endregion
+//#region commons/gamemods/GMLavaBall.ts
+var protocols = getProtocol("lavaBall", "multiplayer");
+var LEVEL_WIDTH = 1e3;
+var SCREEN_HEIGHT = 1200;
+var MAX_LEVEL_HEIGHT = 5e3;
+var BALL_GRAVITY = 1200;
+var BALL_RADIUS = 26;
+var PLAYER_THROW_SPEED = 1650;
+var TURN_WAIT_BEFORE = 1;
+var TURN_AIM_DURATION = 3;
+var TURN_TOTAL_DURATION = 5;
+var SLOW_MOTION_MIN_SPEED = .1;
+var PHASE_WAIT_BEFORE = 0;
+var PHASE_AIMING$1 = 1;
+var PHASE_WAIT_AFTER = 2;
+var LAST_SURVIVOR_MULTIPLIER = 1.2;
+var WIN_SCORE_LIMIT = 1e4;
+var TOP_OF_LEVEL_BONUS = 5e3;
+var ROUND_END_DELAY = 3;
+var OBSTACLE_CHECK_INTERVAL = .65;
+var OBSTACLE_SPAWN_DELAY = .5;
+var OBSTACLE_SPAWN_CHANCE = .65;
+var OBSTACLE_SPAWN_YRANGE = 800;
+var OBSTACLE_CLEANUP_MARGIN = SCREEN_HEIGHT;
+var OBSTACLE_GRAVITY = BALL_GRAVITY / 3;
+var OBSTACLE_RECT_MIN_SIZE = 60;
+var OBSTACLE_RECT_MIN_ANGULAR_VEL = -3;
+var OBSTACLE_CIRCLE_MIN_RADIUS = 30;
+var OBSTACLE_MIN_SPEED = 80;
+var PLATFORM_MIN_GAP = 180;
+var PLATFORM_MIN_WIDTH = 140;
+var PLATFORM_HEIGHT = 30;
+var PLATFORM_X_MARGIN = 60;
+var START_PLATFORM_WIDTH = 360;
+var TEAM_COLORS = {
+	red: "#ff4444",
+	blue: "#4477ff"
+};
+var OBSTACLE_COLOR = "#ff0000";
+/**
+* Maps aiming-phase local time t in [0, TURN_AIM_DURATION] to a game speed
+* multiplier in [SLOW_MOTION_MIN_SPEED, 1]. The curve starts and ends at 1
+* (normal speed, smooth entry/exit) and dips down to SLOW_MOTION_MIN_SPEED
+* exactly at the midpoint of the aiming phase, using a cosine for a smooth,
+* non-instantaneous transition in both directions.
+*/
+function aimSpeedScale(t) {
+	if (t < TURN_AIM_DURATION) return SLOW_MOTION_MIN_SPEED;
+	return 1;
+}
+/**
+* Computes the initial velocity vector required for a projectile starting at
+* the origin (0, 0) to reach the target position (X, Y) with initial speed N
+* and constant gravitational acceleration g. Returns a fallback vector
+* pointing roughly at the target when no valid ballistic solution exists.
+* (Provided verbatim by the spec.)
+*/
+function getVectorToReachTarget(X, Y, N, g) {
+	if (X === 0) return {
+		x: 0,
+		y: Y > 0 ? N : -N,
+		success: false
+	};
+	const X2 = X * X;
+	const Y2 = Y * Y;
+	const N2 = N * N;
+	const g2 = g * g;
+	const delta = X2 * (N2 * N2 + 2 * N2 * g * Y - g2 * X2);
+	function fail() {
+		const n = N / Math.sqrt(X2 + Y2);
+		return {
+			x: X * n,
+			y: Y * n,
+			success: false
+		};
+	}
+	if (delta < 0) return fail();
+	const a = X2 + Y2;
+	const S = (-(-X2 * (N2 + g * Y)) + Math.sqrt(delta)) / (2 * a);
+	if (S <= 0) return fail();
+	const v0 = Math.sign(X) * Math.sqrt(S);
+	return {
+		x: v0,
+		y: v0 / X * (Y - g * X2 / (2 * S)),
+		success: true
+	};
+}
+/**
+* Draws the ballistic aiming trajectory from (srcX, srcY) to (destX, destY)
+* in whatever coordinate space the caller uses (we always call this with
+* SCREEN-space coordinates, see worldToScreen()). (Provided verbatim by the
+* spec, parameterized on Player.THROW / Ball.GRAVITY renamed to local
+* constants PLAYER_THROW_SPEED / BALL_GRAVITY.)
+*/
+function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
+	const X = destX - srcX;
+	const Y = destY - srcY;
+	let radius;
+	let lineWidth;
+	let outline = false;
+	if (color === true) {
+		lineWidth = 5;
+		ctx.strokeStyle = "black";
+		color = "black";
+		radius = 5;
+	} else if (color === false) {
+		lineWidth = 4;
+		ctx.strokeStyle = "grey";
+		color = "grey";
+		radius = 4;
+	} else {
+		lineWidth = 10;
+		ctx.strokeStyle = color;
+		radius = 10;
+		outline = true;
+	}
+	if (outline) {
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius + 2, 0, Math.PI * 2);
+		ctx.lineWidth = lineWidth + 4;
+		ctx.strokeStyle = "black";
+		ctx.stroke();
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
+		ctx.lineWidth = lineWidth;
+		ctx.strokeStyle = color;
+		ctx.stroke();
+	} else {
+		ctx.beginPath();
+		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
+		ctx.stroke();
+	}
+	const velocity = getVectorToReachTarget(X, Y, PLAYER_THROW_SPEED, -1200);
+	if (velocity.x === 0 || !velocity.success) {
+		const dx = destX - srcX;
+		const dy = destY - srcY;
+		const distance = Math.sqrt(dx * dx + dy * dy);
+		if (distance === 0) return;
+		const startX = srcX + dx / distance * 40;
+		const startY = srcY + dy / distance * 40;
+		ctx.beginPath();
+		ctx.moveTo(startX, startY);
+		ctx.lineTo(destX, destY);
+		if (outline) {
+			ctx.lineWidth = lineWidth + 4;
+			ctx.strokeStyle = "black";
+			ctx.stroke();
+			ctx.beginPath();
+			ctx.moveTo(startX, startY);
+			ctx.lineTo(destX, destY);
+			ctx.lineWidth = lineWidth;
+			ctx.strokeStyle = color;
+			ctx.stroke();
+		} else ctx.stroke();
+		return;
+	}
+	const vx = velocity.x;
+	const vy = velocity.y;
+	const g = BALL_GRAVITY;
+	const T = X / vx;
+	if (T <= 0) return;
+	const steps = 50;
+	const points = [];
+	for (let i = 0; i <= steps; i++) {
+		const t = T * i / steps;
+		const x = srcX + vx * t;
+		const y = srcY + vy * t - g / 2 * t * t;
+		points.push({
+			x,
+			y
+		});
+	}
+	let startIndex = 0;
+	for (let i = 1; i < points.length; i++) {
+		const dx = points[i].x - srcX;
+		const dy = points[i].y - srcY;
+		if (Math.sqrt(dx * dx + dy * dy) >= 40) {
+			startIndex = i;
+			break;
+		}
+	}
+	const drawCurve = () => {
+		ctx.beginPath();
+		ctx.moveTo(points[startIndex].x, points[startIndex].y);
+		for (let i = startIndex + 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+		ctx.stroke();
+	};
+	if (outline) {
+		ctx.lineWidth = lineWidth + 4;
+		ctx.strokeStyle = "black";
+		drawCurve();
+	}
+	ctx.lineWidth = lineWidth;
+	ctx.strokeStyle = color;
+	drawCurve();
+}
+/** A live, collidable obstacle. Always drawn in red. */
+var Obstacle = class {
+	id;
+	type;
+	x;
+	y;
+	vx;
+	vy;
+	angle;
+	angularVelocity;
+	affectedByGravity;
+	radius;
+	w;
+	h;
+	constructor(id, type, x, y, vx, vy, angle, angularVelocity, affectedByGravity, radius, w, h) {
+		this.id = id;
+		this.type = type;
+		this.x = x;
+		this.y = y;
+		this.vx = vx;
+		this.vy = vy;
+		this.angle = angle;
+		this.angularVelocity = angularVelocity;
+		this.affectedByGravity = affectedByGravity;
+		this.radius = radius;
+		this.w = w;
+		this.h = h;
+	}
+	/** Advances physics for this obstacle by dt seconds (already speed-scaled). */
+	move(dt) {
+		if (this.affectedByGravity) this.vy -= OBSTACLE_GRAVITY * dt;
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+		this.angle += this.angularVelocity * dt;
+	}
+	/** True when this obstacle is far enough from the camera to be garbage-collected. */
+	isFarFrom(cameraY) {
+		return this.y < cameraY - SCREEN_HEIGHT / 2 - OBSTACLE_CLEANUP_MARGIN || this.y > cameraY + SCREEN_HEIGHT / 2 + OBSTACLE_CLEANUP_MARGIN || Math.abs(this.x) > LEVEL_WIDTH * 2;
+	}
+	/**
+	* Checks whether this (red, deadly) obstacle currently overlaps the ball.
+	* NOTE: rotation is ignored for the collision test (only the provided
+	* axis-aligned collisions.* helpers are available) - a documented
+	* simplification.
+	*/
+	collidesWithBall(ballX, ballY, ballRadius) {
+		if (this.type === "circle") return collisions.CircleCircle({
+			x: this.x,
+			y: this.y,
+			r: this.radius
+		}, {
+			x: ballX,
+			y: ballY,
+			r: ballRadius
+		});
+		return collisions.RotatedRectCircle({
+			x: this.x,
+			y: this.y,
+			w: this.w,
+			h: this.h,
+			angle: this.angle
+		}, {
+			x: ballX,
+			y: ballY,
+			r: ballRadius
+		});
+	}
+};
+/** The single shared ball. */
+var Ball = class {
+	x = 0;
+	y = 0;
+	vx = 0;
+	vy = 0;
+	/** True while flying (thrown, not resting on a platform / at start). */
+	inFlight = false;
+	load(obj) {
+		this.x = obj.x;
+		this.y = obj.y;
+		this.vx = obj.vx;
+		this.vy = obj.vy;
+		this.inFlight = obj.inFlight;
+	}
+};
+/** Per-player persistent (shared) state. No client-only data here. */
+var Player = class {
+	isRed = true;
+	connected = true;
+	eliminated = false;
+	score = 0;
+	/** Last aimed target, kept in State so every client can render it. */
+	aimX = 0;
+	aimY = 0;
+	aiming = false;
+	askThrow = false;
+	load(obj) {
+		this.isRed = obj.isRed;
+		this.connected = obj.connected;
+		this.eliminated = obj.eliminated;
+		this.score = obj.score;
+		this.aimX = obj.aimX;
+		this.aimY = obj.aimY;
+		this.aiming = obj.aiming;
+		this.askThrow = obj.askThrow;
+	}
+};
+var Camera = class {
+	/** Current vertical focus point, smoothly follows the authoritative yLevel. */
+	y = 0;
+	static SCALE = .75;
+	update(targetY, dt) {
+		const diff = targetY - this.y;
+		this.y += diff * Math.min(1, dt * 4);
+	}
+	teleport(targetY) {
+		this.y = targetY;
+	}
+	getCoords() {
+		return {
+			x: 0,
+			y: this.y
+		};
+	}
+};
+var ClientData = class {
+	firstFrame = true;
+	/** Last sent aim target, used to avoid re-sending identical inputs. */
+	lastSentAimX = null;
+	lastSentAimY = null;
+	/**
+	* ID of the finger currently controlling the aim.
+	* This lets us distinguish a new touch from a finger that is still held.
+	*/
+	mobileAimTouchId = null;
+	/**
+	* Whether the current mobile aim touch has already produced a throw.
+	*/
+	mobileAimTouchActive = false;
+	camera = new Camera();
+	html;
+	turnIndicator;
+	scoreBoard;
+	timerLabel;
+	roundBanner;
+	playerSlots = [];
+	scoreSlots = [];
+	constructor() {
+		this.html = document.createElement("div");
+		this.html.classList.add("game-lavaBall-root");
+		this.turnIndicator = document.createElement("div");
+		this.turnIndicator.classList.add("game-lavaBall-turn-indicator");
+		for (let i = 0; i < 4; i++) {
+			const slot = document.createElement("span");
+			slot.classList.add("game-lavaBall-turn-slot");
+			this.turnIndicator.appendChild(slot);
+			this.playerSlots.push(slot);
+		}
+		this.scoreBoard = document.createElement("div");
+		this.scoreBoard.classList.add("game-lavaBall-scoreboard");
+		for (let i = 0; i < 4; i++) {
+			const row = document.createElement("div");
+			row.classList.add("game-lavaBall-score-row");
+			this.scoreBoard.appendChild(row);
+			this.scoreSlots.push(row);
+		}
+		this.timerLabel = document.createElement("div");
+		this.timerLabel.classList.add("game-lavaBall-timer");
+		this.roundBanner = document.createElement("div");
+		this.roundBanner.classList.add("game-lavaBall-round-banner");
+		this.html.appendChild(this.turnIndicator);
+		this.html.appendChild(this.scoreBoard);
+		this.html.appendChild(this.timerLabel);
+		this.html.appendChild(this.roundBanner);
+	}
+	/** Refreshes all DOM overlays from the authoritative game state. */
+	update(game, playerIdx, dt) {
+		for (let i = 0; i < game.players.length; i++) {
+			const player = game.players[i];
+			const slot = this.playerSlots[i];
+			slot.textContent = i === playerIdx ? "M" : String(i + 1);
+			slot.classList.toggle("is-turn", i === game.currentPlayer);
+			slot.classList.toggle("is-eliminated", player.eliminated);
+			slot.classList.toggle("is-red", player.isRed);
+			slot.classList.toggle("is-blue", !player.isRed);
+		}
+		for (let i = 0; i < game.players.length; i++) {
+			const player = game.players[i];
+			const row = this.scoreSlots[i];
+			row.textContent = `${i + 1}: ${Math.round(player.score)}`;
+			row.classList.toggle("is-red", player.isRed);
+			row.classList.toggle("is-blue", !player.isRed);
+			row.classList.toggle("is-eliminated", player.eliminated);
+		}
+		const remaining = Math.max(0, TURN_TOTAL_DURATION - game.turnTimer);
+		this.timerLabel.textContent = game.roundEnding ? "" : String(Math.ceil(remaining));
+		this.roundBanner.textContent = game.roundEnding ? game.gameOver ? "Game over!" : "Round over - next round starting..." : "";
+		this.roundBanner.classList.toggle("visible", game.roundEnding);
+		this.camera.update(game.yLevel, dt);
+	}
+};
+var TutorialData = class {
+	game;
+	step = 0;
+	wakeUp = 0;
+	constructor(game) {
+		this.game = game;
+	}
+	frame(dt, clock) {
+		const MSG_0 = "Aim with your mouse/finger, then click/tap to throw the ball!";
+		const MSG_1 = "Time slows down at 4,3,2 and auto-throws at 1";
+		if (this.step === 0) {
+			this.wakeUp = clock + 9;
+			this.step = 1;
+			return MSG_0;
+		}
+		if (this.step === 1) {
+			if (clock >= this.wakeUp) this.step = 2;
+			return MSG_0;
+		}
+		return MSG_1;
+	}
+};
+/**
+* Procedurally builds a vertical chain of platforms from y=0 up to
+* MAX_LEVEL_HEIGHT. The first platform is wide and centered so every match
+* starts fairly. This is called ONCE per match by the server (createServ);
+* the resulting list is then shipped to clients as init data.
+*/
+function generatePlatforms(rng) {
+	const platforms = [];
+	platforms.push({
+		x: 0,
+		y: 0,
+		w: START_PLATFORM_WIDTH,
+		h: PLATFORM_HEIGHT
+	});
+	let currentY = 0;
+	while (currentY < MAX_LEVEL_HEIGHT) {
+		currentY += PLATFORM_MIN_GAP + Math.random() * 340;
+		if (currentY >= MAX_LEVEL_HEIGHT) break;
+		const width = PLATFORM_MIN_WIDTH + Math.random() * 140;
+		const halfRange = LEVEL_WIDTH / 2 - PLATFORM_X_MARGIN - width / 2;
+		const x = (Math.random() * 2 - 1) * Math.max(0, halfRange);
+		platforms.push({
+			x,
+			y: currentY,
+			w: width,
+			h: PLATFORM_HEIGHT
+		});
+	}
+	platforms.push({
+		x: 0,
+		y: MAX_LEVEL_HEIGHT,
+		w: START_PLATFORM_WIDTH,
+		h: PLATFORM_HEIGHT
+	});
+	return platforms;
+}
+/** Finds the highest platform at or below a given y (used to compute checkpoints). */
+function findPlatformBelow(platforms, y) {
+	let best = platforms[0];
+	for (const p of platforms) if (p.y <= y + 1 && p.y > best.y) best = p;
+	return best;
+}
+/**
+* Randomly builds the full description of a new obstacle, ready to be
+* queued as a WaitingObstacleData.
+*
+* All randomness happens exactly once, at selection time, so the eventual
+* spawn is fully deterministic given the data stored in State
+* (no re-rolling on the client).
+*/
+function pickRandomObstacle(id, yLevel) {
+	const type = Math.random() < .7 ? "rect" : "circle";
+	const affectedByGravity = Math.random() < .5;
+	let x;
+	let y;
+	let vx;
+	let vy;
+	const speed = OBSTACLE_MIN_SPEED + Math.random() * 180;
+	{
+		const fromLeft = Math.random() < .5;
+		x = fromLeft ? -620 : 620;
+		y = yLevel + (Math.random() + .3) * OBSTACLE_SPAWN_YRANGE;
+		vx = fromLeft ? speed : -speed;
+		vy = affectedByGravity ? 0 : (Math.random() * 2 - 1) * speed * .5;
+	}
+	const radius = OBSTACLE_CIRCLE_MIN_RADIUS + Math.random() * 40;
+	const size = OBSTACLE_RECT_MIN_SIZE + Math.random() * 80;
+	const angularVelocity = OBSTACLE_RECT_MIN_ANGULAR_VEL + Math.random() * 6;
+	return {
+		id,
+		type,
+		x,
+		y,
+		vx,
+		vy,
+		angle: Math.random() * Math.PI * 2,
+		angularVelocity: type === "rect" ? angularVelocity : 0,
+		affectedByGravity,
+		radius,
+		w: size,
+		h: size * (.5 + Math.random()),
+		timeLeft: OBSTACLE_SPAWN_DELAY
+	};
+}
+function generateClientDom() {
+	return {
+		preferTeam: 0,
+		produce() {
+			const { StartData } = protocols.get();
+			return StartData.encode({ preferTeam: this.preferTeam }).finish();
+		}
+	};
+}
+var GMLavaBall = class GMLavaBall extends GameMode {
+	static types = {
+		Player,
+		Ball,
+		Obstacle
+	};
+	static DATA = {
+		LEVEL_WIDTH,
+		SCREEN_HEIGHT,
+		MAX_LEVEL_HEIGHT,
+		BALL_GRAVITY,
+		BALL_RADIUS
+	};
+	static generateClientDom = generateClientDom;
+	static TEXTURES = {
+		"ball": "/assets/games/lavaBall/ball.png",
+		"platform": "/assets/games/lavaBall/platform.png",
+		"obstacle-rect": "/assets/games/lavaBall/obstacle_rect.png",
+		"obstacle-circle": "/assets/games/lavaBall/obstacle_circle.png",
+		"background": "/assets/games/lavaBall/background.png"
+	};
+	players;
+	ball = new Ball();
+	/** Maximum ball.y ever reached during the CURRENT round. */
+	yLevel = 0;
+	/** yLevel recorded at the moment of the most recent elimination this round (used for the last-survivor bonus). */
+	lastEliminatedYLevel = 0;
+	currentPlayer = 0;
+	turnPhase = PHASE_WAIT_BEFORE;
+	turnTimer = 0;
+	/** True once the current turn's ball has already been thrown (prevents double-throw / late auto-throw). */
+	thrownThisTurn = false;
+	roundNumber = 0;
+	roundEnding = false;
+	roundEndTimer = 0;
+	roundStartPlayer = 0;
+	obstacles = [];
+	waitingObstacles = [];
+	obstacleSpawnTimer = 0;
+	nextObstacleId = 0;
+	gameOver = false;
+	/** Checkpoint the ball respawns to after an elimination (last safe platform). Not part of State: fully derivable from the platform list + yLevel is NOT enough, so we DO store it explicitly below. */
+	checkpointX = 0;
+	checkpointY = 0;
+	/** Init data only: never resaved (see design notes above). */
+	platforms = [];
+	constructor(total) {
+		super();
+		this.players = Array.from({ length: total }, () => new Player());
+	}
+	static async createServ(players, total, hasSkin) {
+		const { StartData, StartDataClient } = protocols.get();
+		const game = new GMLavaBall(total);
+		function decode(i) {
+			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
+			return generateClientDom();
+		}
+		const prefs = game.players.map((_, i) => decode(i).preferTeam ?? 0);
+		const maxPerTeam = Math.ceil(total / 2);
+		const assignedRed = new Array(total);
+		let redCount = 0, blueCount = 0;
+		for (let i = 0; i < total; i++) if (prefs[i] === 1 && redCount < maxPerTeam) {
+			assignedRed[i] = true;
+			redCount++;
+		} else if (prefs[i] === -1 && blueCount < maxPerTeam) {
+			assignedRed[i] = false;
+			blueCount++;
+		}
+		for (let i = 0; i < total; i++) {
+			if (assignedRed[i] !== void 0) continue;
+			if ((redCount < blueCount || redCount === blueCount && i % 2 === 0) && redCount < maxPerTeam) {
+				assignedRed[i] = true;
+				redCount++;
+			} else {
+				assignedRed[i] = false;
+				blueCount++;
+			}
+		}
+		for (let i = 0; i < total; i++) game.players[i].isRed = assignedRed[i];
+		const rng = () => Math.random();
+		game.platforms = generatePlatforms(rng);
+		game.startNewRound(true);
+		return {
+			game,
+			data: StartDataClient.encode({
+				players: game.players.map((p) => ({ isRed: p.isRed })),
+				platforms: game.platforms
+			}).finish()
+		};
+	}
+	static createClient({ data, origin }, total, playerIdx) {
+		const game = new GMLavaBall(total);
+		const { StartDataClient } = protocols.get();
+		const clientData = new ClientData();
+		if (origin === "server") {
+			const { players, platforms } = decodeFullMessage(StartDataClient.decode(data));
+			for (const [idx, p] of players.entries()) game.players[idx].isRed = p.isRed;
+			game.platforms = platforms;
+		} else {
+			for (let i = 0; i < total; i++) game.players[i].isRed = i % 2 === 0;
+			const rng = () => Math.random();
+			game.platforms = generatePlatforms(rng);
+		}
+		game.startNewRound(true);
+		clientData.camera.teleport(0);
+		return {
+			game,
+			data: clientData,
+			html: clientData.html,
+			skins: {}
+		};
+	}
+	/** Resets everything needed for a fresh round, keeping accumulated scores. */
+	startNewRound(firstRound) {
+		this.roundNumber++;
+		this.yLevel = 0;
+		this.lastEliminatedYLevel = 0;
+		this.obstacles = [];
+		this.waitingObstacles = [];
+		this.obstacleSpawnTimer = 0;
+		this.roundEnding = false;
+		this.roundEndTimer = 0;
+		for (const p of this.players) {
+			p.eliminated = false;
+			p.aiming = false;
+		}
+		this.roundStartPlayer = firstRound ? 0 : (this.roundStartPlayer + 1) % this.players.length;
+		this.currentPlayer = this.firstAlivePlayerFrom(this.roundStartPlayer);
+		this.resetBallToStart();
+		this.beginTurn();
+	}
+	/** Puts the ball back on the starting platform, at rest. */
+	resetBallToStart() {
+		const start = this.platforms.length > 0 ? this.platforms[0] : {
+			x: 0,
+			y: 0,
+			w: 0,
+			h: 0
+		};
+		this.ball.x = start.x;
+		this.ball.y = start.y + start.h / 2 + BALL_RADIUS;
+		this.ball.vx = 0;
+		this.ball.vy = 0;
+		this.ball.inFlight = false;
+		this.checkpointX = this.ball.x;
+		this.checkpointY = this.ball.y;
+	}
+	/** Prepares the turn-timer/phase state for whoever is about to play. */
+	beginTurn() {
+		this.turnPhase = PHASE_WAIT_BEFORE;
+		this.turnTimer = 0;
+		this.thrownThisTurn = false;
+		this.players[this.currentPlayer].aiming = false;
+		this.players[this.currentPlayer].askThrow = false;
+	}
+	firstAlivePlayerFrom(start) {
+		for (let offset = 0; offset < this.players.length; offset++) {
+			const idx = (start + offset) % this.players.length;
+			if (!this.players[idx].eliminated) return idx;
+		}
+		return start;
+	}
+	/** Advances to the next non-eliminated player's turn. */
+	advanceTurn() {
+		const next = this.firstAlivePlayerFrom((this.currentPlayer + 1) % this.players.length);
+		this.currentPlayer = next;
+		this.beginTurn();
+	}
+	countAlive() {
+		return this.players.filter((p) => !p.eliminated).length;
+	}
+	init() {}
+	getBotIds(count) {
+		return Array.from({ length: count }, () => 0);
+	}
+	run(dt, produceFinish, rng) {
+		if (this.gameOver) return produceFinish ? this.produceFinish() : null;
+		if (this.roundEnding) {
+			this.roundEndTimer -= dt;
+			if (this.roundEndTimer <= 0) this.startNewRound(false);
+			return null;
+		}
+		const scaledDt = dt * this.computeSpeedScale();
+		this.updateBall(scaledDt);
+		if (rng) this.updateObstacles(scaledDt, rng);
+		const currentPlayer = this.players[this.currentPlayer];
+		if (currentPlayer.askThrow) {
+			this.throwBall(currentPlayer.aimX, currentPlayer.aimY);
+			this.turnPhase = PHASE_WAIT_AFTER;
+			this.turnTimer = Math.max(this.turnTimer, 4);
+			currentPlayer.askThrow = false;
+		}
+		this.turnTimer += dt;
+		if (this.turnPhase === PHASE_AIMING$1 && this.turnTimer >= 4) {
+			this.turnPhase = PHASE_WAIT_AFTER;
+			if (!this.thrownThisTurn) this.autoThrow();
+		} else if (this.turnPhase === PHASE_WAIT_BEFORE && this.turnTimer >= TURN_WAIT_BEFORE) this.turnPhase = PHASE_AIMING$1;
+		if (this.turnTimer >= TURN_TOTAL_DURATION) this.advanceTurn();
+		this.checkRoundEndConditions();
+		if (this.gameOver && produceFinish) return this.produceFinish();
+		return null;
+	}
+	/** Returns the game speed multiplier that applies RIGHT NOW, based on turn phase. */
+	computeSpeedScale() {
+		if (this.turnPhase !== PHASE_AIMING$1) return 1;
+		return aimSpeedScale(this.turnTimer - TURN_WAIT_BEFORE);
+	}
+	/** Physics step for the shared ball: gravity, wall bounce, platform landing, obstacle collision. */
+	updateBall(dt) {
+		if (!this.ball.inFlight) return;
+		this.ball.vy -= BALL_GRAVITY * dt;
+		this.ball.x += this.ball.vx * dt;
+		this.ball.y += this.ball.vy * dt;
+		const limit = (LEVEL_WIDTH / 2 - BALL_RADIUS) / Camera.SCALE;
+		if (this.ball.x < -limit) {
+			this.ball.x = -limit;
+			this.ball.vx = Math.abs(this.ball.vx);
+		} else if (this.ball.x > limit) {
+			this.ball.x = limit;
+			this.ball.vx = -Math.abs(this.ball.vx);
+		}
+		if (this.ball.y > this.yLevel) this.yLevel = this.ball.y;
+		if (this.ball.vy <= 0) for (const platform of this.platforms) {
+			const rect = {
+				x: platform.x,
+				y: platform.y,
+				w: platform.w,
+				h: platform.h
+			};
+			const circle = {
+				x: this.ball.x,
+				y: this.ball.y,
+				r: BALL_RADIUS
+			};
+			const topOfPlatform = platform.y + platform.h / 2;
+			if (collisions.RectCircle(rect, circle)) {
+				this.ball.y = topOfPlatform + BALL_RADIUS;
+				this.ball.vx = 0;
+				this.ball.vy = 0;
+				this.ball.inFlight = false;
+				this.checkpointX = this.ball.x;
+				this.checkpointY = this.ball.y;
+				break;
+			}
+		}
+		if (this.ball.y >= MAX_LEVEL_HEIGHT) {
+			this.handleTopOfLevelReached();
+			return;
+		}
+		for (const obstacle of this.obstacles) if (obstacle.collidesWithBall(this.ball.x, this.ball.y, BALL_RADIUS)) {
+			this.eliminateCurrentPlayer();
+			return;
+		}
+		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT * Camera.SCALE) this.eliminateCurrentPlayer();
+	}
+	/** Removes the current player from the round and resets the ball to the last checkpoint. */
+	eliminateCurrentPlayer() {
+		const player = this.players[this.currentPlayer];
+		if (player.eliminated) return;
+		player.eliminated = true;
+		player.score += this.yLevel;
+		this.lastEliminatedYLevel = this.yLevel;
+		this.ball.x = this.checkpointX;
+		this.ball.y = this.checkpointY;
+		this.ball.vx = 0;
+		this.ball.vy = 0;
+		this.ball.inFlight = false;
+	}
+	/** Handles a player reaching the top of the level: they win the round instantly. */
+	handleTopOfLevelReached() {
+		const winner = this.players[this.currentPlayer];
+		winner.score += TOP_OF_LEVEL_BONUS;
+		this.ball.inFlight = false;
+		this.triggerRoundEnd();
+	}
+	/** Queues/spawns obstacles and advances obstacle physics. */
+	updateObstacles(dt, rng) {
+		this.obstacleSpawnTimer += dt;
+		if (this.obstacleSpawnTimer >= OBSTACLE_CHECK_INTERVAL) {
+			this.obstacleSpawnTimer -= OBSTACLE_CHECK_INTERVAL;
+			if (rng() < OBSTACLE_SPAWN_CHANCE) this.waitingObstacles.push(pickRandomObstacle(this.nextObstacleId++, this.yLevel));
+		}
+		const stillWaiting = [];
+		for (const w of this.waitingObstacles) {
+			w.timeLeft -= dt;
+			if (w.timeLeft <= 0) this.obstacles.push(new Obstacle(w.id, w.type, w.x, w.y, w.vx, w.vy, w.angle, w.angularVelocity, w.affectedByGravity, w.radius, w.w, w.h));
+			else stillWaiting.push(w);
+		}
+		this.waitingObstacles = stillWaiting;
+		for (const o of this.obstacles) o.move(dt);
+		this.obstacles = this.obstacles.filter((o) => !o.isFarFrom(this.yLevel));
+	}
+	/** Throws the ball using the given world-space aim target and PLAYER_THROW_SPEED. */
+	throwBall(targetX, targetY) {
+		const velocity = getVectorToReachTarget(targetX - this.ball.x, targetY - this.ball.y, PLAYER_THROW_SPEED, -1200);
+		this.ball.vx = velocity.x;
+		this.ball.vy = velocity.y;
+		this.ball.inFlight = true;
+		this.thrownThisTurn = true;
+		this.players[this.currentPlayer].aiming = false;
+		this.players[this.currentPlayer].askThrow = false;
+	}
+	/** Called when the aiming window closes without an explicit throw input. */
+	autoThrow() {
+		const player = this.players[this.currentPlayer];
+		const targetX = player.aiming ? player.aimX : this.ball.x;
+		const targetY = player.aiming ? player.aimY : this.ball.y + 1e3;
+		this.throwBall(targetX, targetY);
+	}
+	/** Checks whether the current round (or the whole game) must end now. */
+	checkRoundEndConditions() {
+		if (this.roundEnding || this.gameOver) return;
+		if (this.countAlive() <= 1) {
+			const survivor = this.players.find((p) => !p.eliminated);
+			if (survivor) survivor.score += LAST_SURVIVOR_MULTIPLIER * this.lastEliminatedYLevel;
+			this.triggerRoundEnd();
+			return;
+		}
+		for (const p of this.players) if (p.score >= WIN_SCORE_LIMIT) {
+			this.gameOver = true;
+			this.roundEnding = false;
+			return;
+		}
+	}
+	triggerRoundEnd() {
+		for (const p of this.players) if (p.score >= WIN_SCORE_LIMIT) {
+			this.gameOver = true;
+			return;
+		}
+		this.roundEnding = true;
+		this.roundEndTimer = ROUND_END_DELAY;
+	}
+	runInput(playerIdx, input) {
+		if (playerIdx !== this.currentPlayer) return;
+		if (this.turnPhase !== PHASE_AIMING$1) return;
+		const player = this.players[playerIdx];
+		switch (input.action) {
+			case "aim":
+				player.aimX = input.aim.x;
+				player.aimY = input.aim.y;
+				player.aiming = true;
+				break;
+			case "throwBall":
+				if (this.thrownThisTurn) break;
+				player.aimX = input.throwBall.x;
+				player.aimY = input.throwBall.y;
+				player.aiming = true;
+				player.askThrow = true;
+		}
+	}
+	collectInputs(keyboard, mouse, mobile, _data) {
+		const data = _data;
+		const inputs = [];
+		if (!(this.turnPhase === PHASE_AIMING$1)) {
+			if (mobile) {
+				data.mobileAimTouchId = null;
+				data.mobileAimTouchActive = false;
+			}
+			return inputs;
+		}
+		if (mobile) {
+			const touches = mobile.getDigits();
+			if (data.mobileAimTouchId === null && touches.length > 0) {
+				const touch = touches[0];
+				data.mobileAimTouchId = touch.id;
+				data.mobileAimTouchActive = true;
+				this.evalMouseCoords(touch.x, touch.y, 0, data);
+				data.lastSentAimX = touch.x;
+				data.lastSentAimY = touch.y;
+				inputs.push({
+					action: "aim",
+					aim: {
+						x: touch.x,
+						y: touch.y
+					}
+				});
+			}
+			const aimTouch = data.mobileAimTouchId === null ? null : touches.find((t) => t.id === data.mobileAimTouchId);
+			if (aimTouch) {
+				this.evalMouseCoords(aimTouch.x, aimTouch.y, 0, data);
+				if (data.lastSentAimX !== aimTouch.x || data.lastSentAimY !== aimTouch.y) {
+					data.lastSentAimX = aimTouch.x;
+					data.lastSentAimY = aimTouch.y;
+					inputs.push({
+						action: "aim",
+						aim: {
+							x: aimTouch.x,
+							y: aimTouch.y
+						}
+					});
+				}
+			} else if (data.mobileAimTouchActive) {
+				if (data.lastSentAimX !== null && data.lastSentAimY !== null) inputs.push({
+					action: "throwBall",
+					throwBall: {
+						x: data.lastSentAimX,
+						y: data.lastSentAimY
+					}
+				});
+				data.mobileAimTouchId = null;
+				data.mobileAimTouchActive = false;
+			}
+			return inputs;
+		}
+		let targetX = null;
+		let targetY = null;
+		let wantsThrow = false;
+		const coords = mouse.getCoords();
+		targetX = coords.x;
+		targetY = coords.y;
+		if (mouse.first(0)) wantsThrow = true;
+		if (targetX !== null && targetY !== null) {
+			if (data.lastSentAimX !== targetX || data.lastSentAimY !== targetY) {
+				data.lastSentAimX = targetX;
+				data.lastSentAimY = targetY;
+				inputs.push({
+					action: "aim",
+					aim: {
+						x: targetX,
+						y: targetY
+					}
+				});
+			}
+			if (wantsThrow) inputs.push({
+				action: "throwBall",
+				throwBall: {
+					x: targetX,
+					y: targetY
+				}
+			});
+		}
+		return inputs;
+	}
+	/** Converts world-space coordinates to on-canvas pixel coordinates, flipping the Y axis (world Y grows up, canvas Y grows down). */
+	worldToScreen(x, y, camera) {
+		return {
+			x: LEVEL_WIDTH / 2 + (x - camera.getCoords().x) * Camera.SCALE,
+			y: SCREEN_HEIGHT / 2 - (y - camera.getCoords().y) * Camera.SCALE
+		};
+	}
+	draw(ctx, playerIdx, _data, _imageLoader) {
+		ctx.imageSmoothingEnabled = false;
+		_imageLoader.getFolder("lavaBall");
+		const data = _data;
+		if (data.firstFrame) {
+			data.firstFrame = false;
+			data.camera.teleport(this.yLevel);
+		}
+		data.update(this, playerIdx, 1 / 60);
+		const cameraCoords = data.camera.getCoords();
+		ctx.save();
+		ctx.translate(LEVEL_WIDTH / 2, SCREEN_HEIGHT / 2);
+		ctx.scale(Camera.SCALE, -Camera.SCALE);
+		ctx.translate(-cameraCoords.x, -cameraCoords.y);
+		ctx.fillStyle = "#1a1a2e";
+		ctx.fillRect(cameraCoords.x - LEVEL_WIDTH / (2 * Camera.SCALE), cameraCoords.y - SCREEN_HEIGHT / (2 * Camera.SCALE), LEVEL_WIDTH / Camera.SCALE, SCREEN_HEIGHT / Camera.SCALE);
+		ctx.fillStyle = "#fff";
+		for (const p of this.platforms) ctx.fillRect(p.x - p.w / 2, p.y - p.h / 2, p.w, p.h);
+		ctx.fillStyle = OBSTACLE_COLOR;
+		for (const o of this.obstacles) {
+			ctx.save();
+			ctx.translate(o.x, o.y);
+			ctx.rotate(-o.angle);
+			if (o.type === "circle") {
+				ctx.beginPath();
+				ctx.arc(0, 0, o.radius, 0, Math.PI * 2);
+				ctx.fill();
+			} else ctx.fillRect(-o.w / 2, -o.h / 2, o.w, o.h);
+			ctx.restore();
+		}
+		ctx.fillStyle = "#ffee55";
+		ctx.beginPath();
+		ctx.arc(this.ball.x, this.ball.y, BALL_RADIUS, 0, Math.PI * 2);
+		ctx.fill();
+		const activePlayer = this.players[this.currentPlayer];
+		if (this.turnPhase === PHASE_AIMING$1 && activePlayer.aiming) {
+			const teamColor = activePlayer.isRed ? TEAM_COLORS.red : TEAM_COLORS.blue;
+			drawPlayerToTarget(ctx, this.ball.x, this.ball.y, activePlayer.aimX, activePlayer.aimY, teamColor);
+		}
+		ctx.restore();
+	}
+	onDisconnection(id) {
+		this.players[id].connected = false;
+	}
+	save() {
+		const { State } = protocols.get();
+		const object = {
+			players: this.players.map((p) => ({
+				isRed: p.isRed,
+				connected: p.connected,
+				eliminated: p.eliminated,
+				score: p.score,
+				aimX: p.aimX,
+				aimY: p.aimY,
+				aiming: p.aiming,
+				askThrow: p.askThrow
+			})),
+			ball: {
+				x: this.ball.x,
+				y: this.ball.y,
+				vx: this.ball.vx,
+				vy: this.ball.vy,
+				inFlight: this.ball.inFlight
+			},
+			yLevel: this.yLevel,
+			lastEliminatedYLevel: this.lastEliminatedYLevel,
+			currentPlayer: this.currentPlayer,
+			turnPhase: this.turnPhase,
+			turnTimer: this.turnTimer,
+			roundNumber: this.roundNumber,
+			roundEnding: this.roundEnding,
+			roundEndTimer: this.roundEndTimer,
+			roundStartPlayer: this.roundStartPlayer,
+			thrownThisTurn: this.thrownThisTurn,
+			obstacles: this.obstacles.map((o) => ({
+				id: o.id,
+				type: o.type,
+				x: o.x,
+				y: o.y,
+				vx: o.vx,
+				vy: o.vy,
+				angle: o.angle,
+				angularVelocity: o.angularVelocity,
+				affectedByGravity: o.affectedByGravity,
+				radius: o.radius,
+				w: o.w,
+				h: o.h
+			})),
+			waitingObstacles: this.waitingObstacles,
+			obstacleSpawnTimer: this.obstacleSpawnTimer,
+			nextObstacleId: this.nextObstacleId,
+			gameOver: this.gameOver
+		};
+		return State.encode(object).finish();
+	}
+	load(data) {
+		const { State } = protocols.get();
+		const obj = decodeFullMessage(State.decode(data));
+		for (let i = 0; i < this.players.length; i++) this.players[i].load(obj.players[i]);
+		this.ball.load(obj.ball);
+		this.yLevel = obj.yLevel;
+		this.lastEliminatedYLevel = obj.lastEliminatedYLevel;
+		this.currentPlayer = obj.currentPlayer;
+		this.turnPhase = obj.turnPhase;
+		this.turnTimer = obj.turnTimer;
+		this.roundNumber = obj.roundNumber;
+		this.roundEnding = obj.roundEnding;
+		this.roundEndTimer = obj.roundEndTimer;
+		this.roundStartPlayer = obj.roundStartPlayer;
+		this.thrownThisTurn = obj.thrownThisTurn;
+		this.obstacles = obj.obstacles.map((o) => new Obstacle(o.id, o.type, o.x, o.y, o.vx, o.vy, o.angle, o.angularVelocity, o.affectedByGravity, o.radius, o.w, o.h));
+		this.waitingObstacles = obj.waitingObstacles;
+		this.obstacleSpawnTimer = obj.obstacleSpawnTimer;
+		this.nextObstacleId = obj.nextObstacleId;
+		this.gameOver = obj.gameOver;
+		const platformBelow = findPlatformBelow(this.platforms, this.ball.y);
+		this.checkpointX = this.ball.inFlight ? platformBelow.x : this.ball.x;
+		this.checkpointY = this.ball.inFlight ? platformBelow.y + platformBelow.h / 2 + BALL_RADIUS : this.ball.y;
+	}
+	getSize() {
+		return {
+			width: LEVEL_WIDTH,
+			height: SCREEN_HEIGHT
+		};
+	}
+	evalMouseCoords(x, y, playerIdx, _clientData) {
+		const camera = _clientData.camera;
+		return {
+			x: (x - LEVEL_WIDTH / 2) / Camera.SCALE + camera.getCoords().x,
+			y: -(y - SCREEN_HEIGHT / 2) / Camera.SCALE + camera.getCoords().y
+		};
+	}
+	getMobileDesc() {
+		return {
+			joysticks: {},
+			buttons: {}
+		};
+	}
+	createTutorial() {
 		return new TutorialData(this);
+	}
+	produceFinish() {
+		const redIndices = this.players.map((p, i) => ({
+			p,
+			i
+		})).filter(({ p }) => p.isRed).sort((a, b) => b.p.score - a.p.score).map(({ i }) => i);
+		const blueIndices = this.players.map((p, i) => ({
+			p,
+			i
+		})).filter(({ p }) => !p.isRed).sort((a, b) => b.p.score - a.p.score).map(({ i }) => i);
+		const redScore = redIndices.reduce((sum, i) => sum + this.players[i].score, 0);
+		const blueScore = blueIndices.reduce((sum, i) => sum + this.players[i].score, 0);
+		const results = redScore >= blueScore ? [redIndices, blueIndices] : [blueIndices, redIndices];
+		const teamEqualities = [];
+		if (results.length === 2 && redScore === blueScore) teamEqualities.push(0);
+		const flatScores = results.flat().map((i) => this.players[i].score);
+		const playerEqualities = [];
+		for (let i = 0; i < flatScores.length - 1; i++) if (flatScores[i] === flatScores[i + 1]) playerEqualities.push(i);
+		return {
+			results,
+			teamEqualities,
+			playerEqualities
+		};
 	}
 };
 //#endregion
@@ -16340,13 +19976,13 @@ function botActionNodeHelper() {
 }
 //#endregion
 //#region commons/bots/bots-test.ts
-var logger$2 = getLogger("bots-test");
+var logger$3 = getLogger("bots-test");
 GMTest.types;
-function dataConstructor$5() {
+function dataConstructor$8() {
 	return { nearestOpponent: -1 };
 }
-var { all: all$5, first: first$4, loop: loop$5, runner: runner$5 } = botActionNodeHelper();
-var getFollowOpponent = runner$5((game, data, playerIdx) => {
+var { all: all$8, first: first$4, loop: loop$5, runner: runner$8 } = botActionNodeHelper();
+var getFollowOpponent = runner$8((game, data, playerIdx) => {
 	const player = game.players[playerIdx];
 	let nearestIdx = -1;
 	let nearestDistance = Infinity;
@@ -16363,7 +19999,7 @@ var getFollowOpponent = runner$5((game, data, playerIdx) => {
 	data.nearestOpponent = nearestIdx;
 	return [[], "success"];
 });
-var followNearestOpponent = runner$5((game, data, playerIdx) => {
+var followNearestOpponent = runner$8((game, data, playerIdx) => {
 	const inputs = [];
 	let move;
 	const target = game.players[data.nearestOpponent];
@@ -16371,15 +20007,15 @@ var followNearestOpponent = runner$5((game, data, playerIdx) => {
 	else if (target.y > game.players[playerIdx].y) move = -300;
 	else if (target.y < game.players[playerIdx].y) move = 300;
 	else move = 0;
-	logger$2.debug(`move ${move} ty=${target.y} py=${game.players[playerIdx].y}`);
+	logger$3.debug(`move ${move} ty=${target.y} py=${game.players[playerIdx].y}`);
 	if (game.players[playerIdx].move !== move) inputs.push({ move });
 	return [inputs, "success"];
 });
 var bots_test_default = describeBot([{
 	root: (function() {
-		return all$5([getFollowOpponent, followNearestOpponent]);
+		return all$8([getFollowOpponent, followNearestOpponent]);
 	})(),
-	data: dataConstructor$5
+	data: dataConstructor$8
 }]);
 //#endregion
 //#region commons/util/getBestInArray.ts
@@ -16400,64 +20036,40 @@ function getBestInArray(items, score) {
 }
 //#endregion
 //#region commons/bots/bots-airbasket.ts
-var logger$1 = getLogger("bots-airbasket");
-var { all: all$4, runner: runner$4 } = botActionNodeHelper();
+getLogger("bots-airbasket");
+var { all: all$7, runner: runner$7 } = botActionNodeHelper();
 /**
 * ================================================================
-* BOT STRATEGY OVERVIEW
+* STRATEGIC BOT OVERVIEW (HUMAN-LIKE GAMEPLAY)
 * ================================================================
-*
-* Goal: carry/throw the ball into an available (unclaimed) bucket.
-*
-* Two hard rules from the game engine drive this whole strategy:
-*
-*   - A player CANNOT JUMP while currently holding the ball
-*     (`ball.grabber === playerIdx`). This matters for the DUNK
-*     behaviour below: reaching a bucket that sits above us while
-*     we're holding the ball may be impossible without a jump.
-*
-*   - Once a player THROWS the ball, they cannot re-grab it
-*     immediately afterwards (outside of the "grabber infinite" /
-*     "sudden death" end-game phases). ANY other player - ally or
-*     opponent - who touches the flying ball becomes the new
-*     grabber. A throw is therefore a one-way commitment: once
-*     released, we have no more control over it.
-*
-* Because a throw can be intercepted, a holder only really has
-* three sensible things to do with the ball, evaluated in this
-* priority order:
-*
-*   1. DUNK  - An available bucket is close enough to just walk
-*              onto while still holding the ball. This scores
-*              immediately (see `playerTouchBucket` in the game
-*              code) with zero mid-air interception risk. Always
-*              the best option when available.
-*
-*   2. SHOOT - Throw at an available bucket from range, but only
-*              if no opponent is standing close enough to it to
-*              likely intercept the flying ball ("guarded").
-*
-*   3. PASS  - If every reachable bucket is guarded, throw to an
-*              open (unguarded) teammate instead, so *they* get a
-*              cleaner look at scoring next.
-*
-* If none of the three is currently safe, we do NOT throw blindly
-* - we just keep moving towards the nearest bucket and wait for an
-* opening (a defender to move away, an ally to get free, etc.).
-*
-* When we do NOT hold the ball, we pick one of three roles instead:
-*
-*   - CHASE   : the ball is free -> go grab it.
-*   - SUPPORT : a teammate holds it -> get open near an unguarded
-*               bucket so we're a good pass target.
-*   - DEFEND  : an opponent holds it -> press them to make their
-*               eventual throw harder to place safely.
-*
-* All roles are re-evaluated every single tick, since possession
-* changes constantly in this game.
+* 
+* Instead of purely reactive tactics (chasing the ball blindly), this 
+* bot implements higher-level team strategies: Anticipation, Spacing, 
+* and Zone Defense.
+* 
+* Key Human-Like Behaviors Introduced:
+* 
+* 1. ANTICIPATION (Reading the play):
+*    Humans don't run to where a flying ball IS, they run to where 
+*    it WILL BE. When the ball is free, the bot calculates a simple 
+*    parabolic trajectory to intercept it upon landing.
+* 
+* 2. SPACING (Offensive Spread):
+*    If an ally has the ball, bots won't swarm the exact same bucket.
+*    They penalize buckets that are already covered by teammates, 
+*    naturally spreading across the court to provide multiple passing 
+*    options and stretch the enemy defense.
+* 
+* 3. ZONE DEFENSE (Protecting the paint):
+*    When an enemy has the ball, only the closest defender presses them.
+*    The others fall back to protect the most vulnerable (closest) 
+*    buckets. This cuts off passing lanes and prevents easy dunks.
+* 
+* 4. IMPERFECTION & MOMENTUM (Deadzones):
+*    Added horizontal deadzones so the bot doesn't jitter left/right 
+*    pixel-perfectly, mimicking a human's analog movement.
 * ================================================================
 */
-/** Static "keyboard-like" inputs, reused every tick to avoid re-allocating. */
 var INPUTS = {
 	jump: {
 		jump: {},
@@ -16488,33 +20100,62 @@ var INPUTS = {
 		action: "throwOff"
 	}
 };
-/** Tunable bot parameters - all distances are kept squared where possible to avoid sqrt(). */
 var STATS = {
 	FOCUS_Y: 200,
 	JUMP_VY: 600,
 	DUNK_RANGE: 260,
-	THREAT_RADIUS: 380
+	THREAT_RADIUS: 450,
+	DEADZONE_X: 20,
+	INTERCEPT_TIME: .6
 };
 var DUNK_RANGE_SQ = STATS.DUNK_RANGE * STATS.DUNK_RANGE;
 var THREAT_RADIUS_SQ = STATS.THREAT_RADIUS * STATS.THREAT_RADIUS;
-var Data$3 = class {
+var Data$6 = class {
 	lastAvoidOOBTick = 0;
 	dir = 0;
 	pushDownStates = {};
-	/** Keeps the bot away from the level's out-of-bounds edges. Runs once per game tick. */
-	avoidOOB(game, player, inputs) {
-		if (game.internalFrameTick === this.lastAvoidOOBTick) return;
-		const LIMIT = 150;
-		if (player.y <= -GMAirBasket.DATA.Y_LIMIT + LIMIT) this.pushDown(true, 0, inputs);
-		else this.pushDown(false, 0, inputs);
-		if (player.y >= GMAirBasket.DATA.Y_LIMIT - LIMIT) inputs.push(INPUTS.jump);
-		this.lastAvoidOOBTick = game.internalFrameTick;
-	}
 	/**
-	* Multiple callers (avoidOOB uses slot 0, reach() uses slot 1) may want
-	* to dash down at the same time; we only emit downOn/downOff when the
-	* *combined* state actually changes, to avoid spamming redundant inputs.
+	* HARD BOUNDS SAFETY SYSTEM:
+	* Prevents players from dying or going out of bounds.
+	* Overrides all tactical movement if dangerously close to limits.
 	*/
+	avoidOOB(game, player, inputs) {
+		if (game.internalFrameTick === this.lastAvoidOOBTick) {
+			const nearBottom = player.y >= GMAirBasket.DATA.Y_LIMIT - 650;
+			return {
+				overrideX: this.isNearXBounds(player),
+				nearBottom
+			};
+		}
+		this.lastAvoidOOBTick = game.internalFrameTick;
+		const MARGIN_X = 500;
+		const MARGIN_Y_BOTTOM = 650;
+		const MARGIN_Y_TOP = 300;
+		let overrideX = false;
+		if (player.x >= GMAirBasket.DATA.X_LIMIT - MARGIN_X) {
+			this.goLeft(inputs);
+			overrideX = true;
+		} else if (player.x <= -GMAirBasket.DATA.X_LIMIT + MARGIN_X) {
+			this.goRight(inputs);
+			overrideX = true;
+		}
+		const nearBottom = player.y >= GMAirBasket.DATA.Y_LIMIT - MARGIN_Y_BOTTOM;
+		if (nearBottom) {
+			this.pushDownStates[0] = false;
+			this.pushDownStates[1] = false;
+			inputs.push(INPUTS.downOff);
+			inputs.push(INPUTS.jump);
+		} else if (player.y <= -GMAirBasket.DATA.Y_LIMIT + MARGIN_Y_TOP) this.pushDown(true, 0, inputs);
+		else this.pushDown(false, 0, inputs);
+		return {
+			overrideX,
+			nearBottom
+		};
+	}
+	isNearXBounds(player) {
+		const MARGIN_X = 500;
+		return player.x >= GMAirBasket.DATA.X_LIMIT - MARGIN_X || player.x <= -GMAirBasket.DATA.X_LIMIT + MARGIN_X;
+	}
 	pushDown(active, slot, inputs) {
 		if (active) {
 			const wasIdle = Object.values(this.pushDownStates).every((v) => !v);
@@ -16541,43 +20182,49 @@ var Data$3 = class {
 		inputs.push(INPUTS.stop);
 	}
 	/**
-	* Steers the player towards an arbitrary (x, y) point: left/right to
-	* close the horizontal gap, jump if the target is above us, dash down
-	* if it's clearly below. Works for chasing the ball, a bucket, an
-	* opponent or a teammate alike - it only needs x/y.
-	*
-	* NOTE: while we're holding the ball, the game silently ignores jump
-	* inputs (you can't jump with the ball). That means a bucket sitting
-	* above us while dunking may be unreachable this way - acceptable
-	* limitation given the bucket layout is mostly on a few horizontal
-	* bands.
+	* Steers towards target, yielding control if safety overrides are active.
 	*/
-	reach(player, target, inputs) {
+	reach(player, target, inputs, safety) {
 		const dx = target.x - player.x;
 		const dy = target.y - player.y;
-		if (dx < -1) this.goLeft(inputs);
-		else if (dx > 1) this.goRight(inputs);
-		else this.goStop(inputs);
+		if (!safety.overrideX) {
+			if (dx < -STATS.DEADZONE_X) this.goLeft(inputs);
+			else if (dx > STATS.DEADZONE_X) this.goRight(inputs);
+			else this.goStop(inputs);
+		}
 		if (dy < 0) {
 			if (player.vy > -STATS.JUMP_VY) inputs.push(INPUTS.jump);
 			this.pushDown(false, 1, inputs);
-		} else if (dy > STATS.FOCUS_Y) this.pushDown(true, 1, inputs);
+		} else if (dy > STATS.FOCUS_Y && !safety.nearBottom) this.pushDown(true, 1, inputs);
 		else this.pushDown(false, 1, inputs);
 	}
-	/** Is any *alive opponent* of `selfTeam` standing within `radiusSq` of (x, y)? */
+	predictBallLocation(ball) {
+		const t = STATS.INTERCEPT_TIME;
+		const predictedX = ball.x + ball.vx * t;
+		const predictedY = ball.y + ball.vy * t + .5 * GMAirBasket.DATA.GRAVITY * t * t;
+		const SAFE_X = GMAirBasket.DATA.X_LIMIT - 600;
+		const SAFE_Y = GMAirBasket.DATA.Y_LIMIT - 700;
+		return {
+			x: Math.max(-SAFE_X, Math.min(SAFE_X, predictedX)),
+			y: Math.max(-SAFE_Y, Math.min(SAFE_Y, predictedY))
+		};
+	}
 	isGuardedByOpponent(game, x, y, selfTeam, radiusSq) {
 		for (const p of game.players) {
-			if (p.team === selfTeam) continue;
-			if (!p.isAlive()) continue;
+			if (p.team === selfTeam || !p.isAlive()) continue;
 			if (norm2(p.x - x, p.y - y) <= radiusSq) return true;
 		}
 		return false;
 	}
-	/** Closest bucket that hasn't been claimed yet, ignoring how dangerous it is. Used for DUNK range checks and as a last-resort fallback target. */
-	findNearestBucket(game, player) {
+	findStrategicBucket(game, player, selfTeam) {
 		const u = getBestInArray(game.buckets, (b) => {
 			if (b.team !== null) return -Infinity;
-			return -norm2(b.x - player.x, b.y - player.y);
+			let score = -norm2(b.x - player.x, b.y - player.y);
+			for (const p of game.players) {
+				if (p === player || p.team !== selfTeam || !p.isAlive()) continue;
+				if (norm2(b.x - p.x, b.y - p.y) < -score) score -= 1e7;
+			}
+			return score;
 		});
 		if (!Number.isFinite(u.score)) return null;
 		return {
@@ -16586,11 +20233,6 @@ var Data$3 = class {
 			distSq: -u.score
 		};
 	}
-	/**
-	* Closest bucket that is BOTH available and currently unguarded.
-	* This is what we throw at for the SHOOT option - throwing at a
-	* guarded bucket is how you hand the ball straight to the defense.
-	*/
 	findSafeBucket(game, player, selfTeam) {
 		const u = getBestInArray(game.buckets, (b) => {
 			if (b.team !== null) return -Infinity;
@@ -16603,15 +20245,6 @@ var Data$3 = class {
 			index: u.index
 		};
 	}
-	/**
-	* Best teammate to PASS to when no bucket is safe to shoot at
-	* directly: must be alive, not already holding the ball, and
-	* unguarded (never pass into a contested teammate - that's just
-	* gifting the ball to the defense one step later). Among the valid
-	* candidates we prefer whoever is closest to an available bucket,
-	* since they'll be best placed to follow up with their own
-	* dunk/shot.
-	*/
 	findOpenTeammate(game, selfIdx, selfTeam) {
 		let best = null;
 		let bestScore = -Infinity;
@@ -16620,8 +20253,8 @@ var Data$3 = class {
 			const mate = game.players[idx];
 			if (mate.team !== selfTeam || !mate.isAlive()) continue;
 			if (this.isGuardedByOpponent(game, mate.x, mate.y, selfTeam, THREAT_RADIUS_SQ)) continue;
-			const nearestBucket = this.findNearestBucket(game, mate);
-			const score = nearestBucket ? -nearestBucket.distSq : 0;
+			const u = getBestInArray(game.buckets, (b) => b.team === null ? -norm2(b.x - mate.x, b.y - mate.y) : -Infinity);
+			const score = Number.isFinite(u.score) ? u.score : 0;
 			if (score > bestScore) {
 				bestScore = score;
 				best = {
@@ -16633,26 +20266,32 @@ var Data$3 = class {
 		return best;
 	}
 };
-function dataConstructor$4() {
-	return new Data$3();
+function dataConstructor$7() {
+	return new Data$6();
 }
 var bots_airbasket_default = describeBot([{
-	root: all$4([runner$4((game, data, playerIdx) => {
+	root: all$7([runner$7((game, data, playerIdx) => {
 		const inputs = [];
 		const player = game.players[playerIdx];
 		const selfTeam = player.team;
-		data.avoidOOB(game, player, inputs);
+		const safety = data.avoidOOB(game, player, inputs);
 		let threwThisTick = false;
+		let amIClosestToBall = true;
+		const myDistToBallSq = norm2(game.ball.x - player.x, game.ball.y - player.y);
+		for (const p of game.players) {
+			if (p === player || p.team !== selfTeam || !p.isAlive()) continue;
+			if (norm2(game.ball.x - p.x, game.ball.y - p.y) < myDistToBallSq) {
+				amIClosestToBall = false;
+				break;
+			}
+		}
 		if (game.ball.grabber === playerIdx) {
-			const nearest = data.findNearestBucket(game, player);
-			if (nearest && nearest.distSq <= DUNK_RANGE_SQ) {
-				logger$1.debug(`#${playerIdx} dunking bucket ${nearest.index}`);
-				data.reach(player, nearest.bucket, inputs);
-			} else {
-				const readyToThrow = player.vy >= 0;
+			const nearest = data.findStrategicBucket(game, player, selfTeam);
+			if (nearest && nearest.distSq <= DUNK_RANGE_SQ) data.reach(player, nearest.bucket, inputs, safety);
+			else {
+				const apexReached = player.vy >= -100;
 				const safe = data.findSafeBucket(game, player, selfTeam);
-				if (safe && readyToThrow) {
-					logger$1.debug(`#${playerIdx} shooting at bucket ${safe.index}`);
+				if (safe && apexReached) {
 					inputs.push({
 						throwTarget: {
 							x: safe.bucket.x,
@@ -16663,8 +20302,7 @@ var bots_airbasket_default = describeBot([{
 					threwThisTick = true;
 				} else {
 					const mate = data.findOpenTeammate(game, playerIdx, selfTeam);
-					if (mate && readyToThrow) {
-						logger$1.debug(`#${playerIdx} passing to #${mate.index}`);
+					if (mate && apexReached) {
 						inputs.push({
 							throwTarget: {
 								x: mate.mate.x,
@@ -16673,25 +20311,46 @@ var bots_airbasket_default = describeBot([{
 							action: "throwTarget"
 						});
 						threwThisTick = true;
-					} else if (nearest) data.reach(player, nearest.bucket, inputs);
+					} else if (nearest) data.reach(player, nearest.bucket, inputs, safety);
 				}
 			}
 		} else if (game.ball.grabber >= 0) {
 			const grabber = game.players[game.ball.grabber];
 			if (grabber.team === selfTeam) {
-				const target = data.findSafeBucket(game, player, selfTeam) ?? data.findNearestBucket(game, player);
-				if (target) data.reach(player, target.bucket, inputs);
-			} else data.reach(player, grabber, inputs);
-		} else data.reach(player, game.ball, inputs);
+				const target = data.findStrategicBucket(game, player, selfTeam);
+				if (target) data.reach(player, target.bucket, inputs, safety);
+			} else if (amIClosestToBall) data.reach(player, grabber, inputs, safety);
+			else {
+				const vulnerableBucket = getBestInArray(game.buckets, (b) => {
+					return b.team === null ? -norm2(b.x - grabber.x, b.y - grabber.y) : -Infinity;
+				});
+				if (Number.isFinite(vulnerableBucket.score)) {
+					const targetBucket = game.buckets[vulnerableBucket.index];
+					data.reach(player, {
+						x: targetBucket.x,
+						y: targetBucket.y - 150
+					}, inputs, safety);
+				} else data.reach(player, grabber, inputs, safety);
+			}
+		} else if (amIClosestToBall) {
+			if (norm2(game.ball.x - player.x, game.ball.y - player.y) < 16e4) data.reach(player, game.ball, inputs, safety);
+			else {
+				const predictedLocation = data.predictBallLocation(game.ball);
+				data.reach(player, predictedLocation, inputs, safety);
+			}
+		} else {
+			const transitionTarget = data.findStrategicBucket(game, player, selfTeam);
+			if (transitionTarget) data.reach(player, transitionTarget.bucket, inputs, safety);
+		}
 		if (!threwThisTick) inputs.push(INPUTS.throwOff);
 		return [inputs, "success"];
 	})]),
-	data: dataConstructor$4
+	data: dataConstructor$7
 }]);
 //#endregion
 //#region commons/bots/bots-turrets.ts
 getLogger("bots-turrets");
-var { all: all$3, first: first$3, loop: loop$4, runner: runner$3 } = botActionNodeHelper();
+var { all: all$6, first: first$3, loop: loop$4, runner: runner$6 } = botActionNodeHelper();
 var TYPES = GMTurrets.types;
 var ITEM = {
 	LIFE_SLIDER: 0,
@@ -16715,7 +20374,7 @@ var APPROACH_BUFFER = 30;
 /**
 * Per-bot memory that persists across frames.
 */
-var Data$2 = class {
+var Data$5 = class {
 	/** Index into game.turrets of the turret currently being pushed, or null. */
 	lockedTurretIdx = null;
 	/**
@@ -16725,8 +20384,8 @@ var Data$2 = class {
 	*/
 	floorGraph = null;
 };
-function dataConstructor$3() {
-	return new Data$2();
+function dataConstructor$6() {
+	return new Data$5();
 }
 /** Euclidean distance between two points. */
 function distance(ax, ay, bx, by) {
@@ -16955,7 +20614,7 @@ function chooseTurretTarget(game, self, data) {
 		idx: bestIdx
 	};
 }
-var method$2 = runner$3((game, data, playerIdx) => {
+var method$5 = runner$6((game, data, playerIdx) => {
 	const inputs = [];
 	const self = getSelf(game, playerIdx);
 	if (!self.isAlive()) return [inputs, "success"];
@@ -17026,19 +20685,19 @@ var method$2 = runner$3((game, data, playerIdx) => {
 });
 var bots_turrets_default = describeBot([{
 	root: (function() {
-		return all$3([method$2]);
+		return all$6([method$5]);
 	})(),
-	data: dataConstructor$3
+	data: dataConstructor$6
 }]);
 //#endregion
 //#region commons/bots/bots-superTicTacToe.ts
-var logger = getLogger("bots-superTicTacToe");
-logger.setLevel("debug");
+var logger$2 = getLogger("bots-superTicTacToe");
+logger$2.setLevel("debug");
 var COOLDOWN = .6;
 /**
 * Factory constructing the initial clean state container for a new match.
 */
-function dataConstructor$2() {
+function dataConstructor$5() {
 	return {
 		lastProcessedTurn: null,
 		hasPlayedThisTurn: false,
@@ -17169,7 +20828,7 @@ function scoreMove(game, cell, myTeam) {
 	};
 	if (winsSubgrid) {
 		score += 5e3;
-		logger.debug(`[Cell ${cell}] Move completes local victory in Sub-grid #${subgridIndex}`);
+		logger$2.debug(`[Cell ${cell}] Move completes local victory in Sub-grid #${subgridIndex}`);
 		const simulatedMeta = game.subgridWinners.map((w) => ({ ...w }));
 		simulatedMeta[subgridIndex] = {
 			taken: true,
@@ -17177,13 +20836,13 @@ function scoreMove(game, cell, myTeam) {
 		};
 		if (evaluateLineWinner(simulatedMeta) === myTeam) {
 			score += 1e5;
-			logger.debug(`[Cell ${cell}] CRITICAL: Move completes META-GRID VICTORY!`);
+			logger$2.debug(`[Cell ${cell}] CRITICAL: Move completes META-GRID VICTORY!`);
 			return score;
 		}
 	}
 	if (blocksOpponentSubgridWin) {
 		score += 2e3;
-		logger.debug(`[Cell ${cell}] Move blocks opponent from winning Sub-grid #${subgridIndex}`);
+		logger$2.debug(`[Cell ${cell}] Move blocks opponent from winning Sub-grid #${subgridIndex}`);
 		const simulatedMeta = game.subgridWinners.map((w) => ({ ...w }));
 		simulatedMeta[subgridIndex] = {
 			taken: true,
@@ -17191,13 +20850,13 @@ function scoreMove(game, cell, myTeam) {
 		};
 		if (evaluateLineWinner(simulatedMeta) === oppTeam) {
 			score += 5e4;
-			logger.debug(`[Cell ${cell}] CRITICAL: Move blocks OPPONENT META-GRID VICTORY!`);
+			logger$2.debug(`[Cell ${cell}] CRITICAL: Move blocks OPPONENT META-GRID VICTORY!`);
 		}
 	}
 	const nextForcedSubgrid = localIndex;
 	if (game.subgridWinners[nextForcedSubgrid].taken || game.subgridFull[nextForcedSubgrid]) {
 		score -= 1500;
-		logger.debug(`[Cell ${cell}] Penalty: Gives opponent free choice (Sub-grid #${nextForcedSubgrid} finished)`);
+		logger$2.debug(`[Cell ${cell}] Penalty: Gives opponent free choice (Sub-grid #${nextForcedSubgrid} finished)`);
 	} else {
 		const nextSubgridGlobalIndices = getSubgridGlobalIndices(nextForcedSubgrid);
 		let oppCanWinNextSubgrid = false;
@@ -17225,10 +20884,10 @@ function scoreMove(game, cell, myTeam) {
 		}
 		if (oppCanWinMetaInNextSubgrid) {
 			score -= 5e4;
-			logger.debug(`[Cell ${cell}] SEVERE PENALTY: Sends opponent directly to META WIN in Sub-grid #${nextForcedSubgrid}`);
+			logger$2.debug(`[Cell ${cell}] SEVERE PENALTY: Sends opponent directly to META WIN in Sub-grid #${nextForcedSubgrid}`);
 		} else if (oppCanWinNextSubgrid) {
 			score -= 3e3;
-			logger.debug(`[Cell ${cell}] Penalty: Sends opponent to sub-grid win in Sub-grid #${nextForcedSubgrid}`);
+			logger$2.debug(`[Cell ${cell}] Penalty: Sends opponent to sub-grid win in Sub-grid #${nextForcedSubgrid}`);
 		}
 	}
 	if (localIndex === 4) score += 100;
@@ -17248,19 +20907,19 @@ function scoreMove(game, cell, myTeam) {
 	].includes(subgridIndex)) score += 75;
 	return score;
 }
-var { all: all$2, first: first$2, loop: loop$3, runner: runner$2 } = botActionNodeHelper();
+var { all: all$5, first: first$2, loop: loop$3, runner: runner$5 } = botActionNodeHelper();
 /**
 * Main per-frame tick function called by the game runner engine.
 */
-var frame = runner$2((game, data, playerIdx) => {
+var frame = runner$5((game, data, playerIdx) => {
 	const inputs = [];
 	if (game.finished) {
-		logger.debug(`Match complete. Winner: ${game.winner}`);
+		logger$2.debug(`Match complete. Winner: ${game.winner}`);
 		return [inputs, "success"];
 	}
 	const myTeam = game.players[playerIdx].team;
 	if (game.turn !== myTeam) {
-		if (data.lastProcessedTurn === myTeam) logger.debug(`Turn transitioned from ${myTeam} to ${game.turn}. Resetting input state.`);
+		if (data.lastProcessedTurn === myTeam) logger$2.debug(`Turn transitioned from ${myTeam} to ${game.turn}. Resetting input state.`);
 		data.hasPlayedThisTurn = false;
 		data.lastProcessedTurn = game.turn;
 		return [inputs, "success"];
@@ -17272,7 +20931,7 @@ var frame = runner$2((game, data, playerIdx) => {
 	}
 	if (performance.now() < data.nextDate) return [inputs, "success"];
 	data.nextDate = -1;
-	logger.debug(`=== Bot Turn Started (${myTeam.toUpperCase()}) | Forced Sub-grid: ${game.forced} ===`);
+	logger$2.debug(`=== Bot Turn Started (${myTeam.toUpperCase()}) | Forced Sub-grid: ${game.forced} ===`);
 	const legalCells = [];
 	for (let i = 0; i < 81; i++) {
 		if (game.cells[i].taken) continue;
@@ -17281,23 +20940,23 @@ var frame = runner$2((game, data, playerIdx) => {
 		if (game.forced >= 0 && subgridIndex !== game.forced) continue;
 		legalCells.push(i);
 	}
-	logger.debug(`Found ${legalCells.length} legal moves available.`);
+	logger$2.debug(`Found ${legalCells.length} legal moves available.`);
 	if (legalCells.length === 0) {
-		logger.warning("No legal moves available despite turn active!");
+		logger$2.warning("No legal moves available despite turn active!");
 		return [inputs, "success"];
 	}
 	let bestCell = legalCells[0];
 	let maxScore = -Infinity;
 	for (const cell of legalCells) {
 		const score = scoreMove(game, cell, myTeam);
-		logger.debug(`Evaluated Cell #${cell} -> Score: ${score}`);
+		logger$2.debug(`Evaluated Cell #${cell} -> Score: ${score}`);
 		if (score > maxScore) {
 			maxScore = score;
 			bestCell = cell;
 		}
 	}
 	const { subgridIndex, localIndex } = decomposeCellIndex(bestCell);
-	logger.debug(`---> BEST MOVE SELECTED: Cell #${bestCell} (Sub-grid #${subgridIndex}, Local #${localIndex}) with score: ${maxScore}`);
+	logger$2.debug(`---> BEST MOVE SELECTED: Cell #${bestCell} (Sub-grid #${subgridIndex}, Local #${localIndex}) with score: ${maxScore}`);
 	inputs.push({
 		action: "cell",
 		cell: bestCell
@@ -17305,27 +20964,27 @@ var frame = runner$2((game, data, playerIdx) => {
 	data.hasPlayedThisTurn = true;
 	data.lastProcessedTurn = myTeam;
 	data.moveCount++;
-	logger.debug(`Dispatched move #${data.moveCount}. Waiting for server/engine state advance.`);
+	logger$2.debug(`Dispatched move #${data.moveCount}. Waiting for server/engine state advance.`);
 	return [inputs, "success"];
 });
 var bots_superTicTacToe_default = describeBot([{
 	root: (function() {
-		return all$2([frame]);
+		return all$5([frame]);
 	})(),
-	data: dataConstructor$2
+	data: dataConstructor$5
 }]);
 //#endregion
 //#region commons/bots/bots-roarsOnGlass.ts
 getLogger("bots-roarsOnGlass");
-var { all: all$1, first: first$1, loop: loop$2, runner: runner$1 } = botActionNodeHelper();
+var { all: all$4, first: first$1, loop: loop$2, runner: runner$4 } = botActionNodeHelper();
 GMRoarsOnGlass.types;
-var Data$1 = class {
+var Data$4 = class {
 	lastDx = 0;
 	lastDy = 0;
 	lastRoar = false;
 };
-function dataConstructor$1() {
-	return new Data$1();
+function dataConstructor$4() {
+	return new Data$4();
 }
 /**
 * Main behavior runner for the GMRoarsOnGlass bot.
@@ -17339,7 +20998,7 @@ function dataConstructor$1() {
 *    - Trigger a roar (`roar = true`) when close enough to an enemy to push them backwards, provided the roar is off cooldown.
 * 4. Input Emission: Send movement and action updates only when states change to optimize performance.
 */
-var method$1 = runner$1((game, data, playerIdx) => {
+var method$4 = runner$4((game, data, playerIdx) => {
 	const inputs = [];
 	const bot = game.players[playerIdx];
 	if (!bot || !bot.isAlive()) return [inputs, "success"];
@@ -17421,23 +21080,419 @@ var method$1 = runner$1((game, data, playerIdx) => {
 });
 var bots_roarsOnGlass_default = describeBot([{
 	root: (function() {
+		return all$4([method$4]);
+	})(),
+	data: dataConstructor$4
+}]);
+//#endregion
+//#region commons/bots/bots-woodSword.ts
+getLogger("bots-woodSword");
+var { all: all$3, runner: runner$3 } = botActionNodeHelper();
+var { SWORD_SPEED, SWORD_SPAWN, TRUNK_RADIUS, SWORD_HITBOX_ANGLE, ROUND_TIME } = GMWoodSword.DATA;
+var TIME_OF_FLIGHT = (SWORD_SPAWN - TRUNK_RADIUS) / SWORD_SPEED;
+var THROW_COOLDOWN = .2;
+var SAFE_MARGIN = SWORD_HITBOX_ANGLE + .1;
+var Data$3 = class {
+	lastThrowTimer = -1;
+};
+function dataConstructor$3() {
+	return new Data$3();
+}
+/**
+* Normalizes an angle to the range [-PI, PI].
+*/
+function normalizeAngle(angle) {
+	let normalized = angle % (2 * Math.PI);
+	if (normalized > Math.PI) normalized -= 2 * Math.PI;
+	else if (normalized < -Math.PI) normalized += 2 * Math.PI;
+	return normalized;
+}
+/**
+* Gathers the local angles of all swords that are either already 
+* clinging to the trunk or currently moving towards it.
+*/
+function getOccupiedAngles(game) {
+	const angles = [];
+	for (const cs of game.clingingSwords) angles.push(cs.angle);
+	for (const ms of game.movingSwords) {
+		let distance = 0;
+		let arrivalWorld = 0;
+		if (ms.team === "red") {
+			distance = Math.abs(ms.x - -TRUNK_RADIUS);
+			arrivalWorld = Math.PI;
+		} else {
+			distance = Math.abs(ms.x - TRUNK_RADIUS);
+			arrivalWorld = 0;
+		}
+		const timeToHit = distance / SWORD_SPEED;
+		const futureTrunkAngle = game.trunkAngle + game.trunkSpeed * timeToHit;
+		const localAngle = normalizeAngle(arrivalWorld - futureTrunkAngle);
+		angles.push(localAngle);
+	}
+	return angles;
+}
+/**
+* Calculates how much space is "missing" for a perfectly safe throw.
+* 
+* @returns 0 if the throw is completely safe. A higher number means 
+* the sword is closer to overlapping an existing sword.
+*/
+function getMissingSpace(targetAngle, occupiedAngles, margin) {
+	if (occupiedAngles.length === 0) return 0;
+	let minDistance = Math.PI * 2;
+	for (const angle of occupiedAngles) {
+		const diff = Math.abs(normalizeAngle(targetAngle - angle));
+		if (diff < minDistance) minDistance = diff;
+	}
+	return Math.max(0, margin - minDistance);
+}
+var method$3 = runner$3((game, data, playerIdx) => {
+	const inputs = [];
+	const player = game.players[playerIdx];
+	if (player.swordsLeft <= 0 || game.roundTimer <= 0) return [inputs, "success"];
+	if (data.lastThrowTimer !== -1 && game.roundTimer > data.lastThrowTimer) data.lastThrowTimer = -1;
+	if (data.lastThrowTimer !== -1 && data.lastThrowTimer - game.roundTimer < THROW_COOLDOWN) return [inputs, "success"];
+	const missingSpace = getMissingSpace(normalizeAngle((player.team === "red" ? Math.PI : 0) - (game.trunkAngle + game.trunkSpeed * TIME_OF_FLIGHT)), getOccupiedAngles(game), SAFE_MARGIN);
+	const timeFactor = 1 - game.roundTimer / ROUND_TIME;
+	if (missingSpace <= SAFE_MARGIN * .9 * timeFactor) {
+		inputs.push({
+			action: "throw",
+			throw: true
+		});
+		data.lastThrowTimer = game.roundTimer;
+	}
+	return [inputs, "success"];
+});
+var bots_woodSword_default = describeBot([{
+	root: (function() {
+		return all$3([method$3]);
+	})(),
+	data: dataConstructor$3
+}]);
+//#endregion
+//#region commons/bots/bots-moveArmy.ts
+var logger$1 = getLogger("bots-moveArmy");
+var { all: all$2, runner: runner$2 } = botActionNodeHelper();
+/**
+* The Data class holds the internal state of our bot across frames.
+* It tracks whether we are currently rallying our troops or pushing an attack.
+*/
+var Data$2 = class {
+	state = "GROUPING";
+	startAttackingThreshold = 10;
+	retreatThreshold = 3;
+};
+function dataConstructor$2() {
+	return new Data$2();
+}
+/**
+* Finds the best friendly tower to use as a rally point.
+* We want to rally at our strongest tower (highest HP) so the troops 
+* are protected by it while they wait for reinforcements.
+*/
+function getBestRallyTower(game, team) {
+	return getBestInArray(game.towers.filter((t) => t.team === team && t.hp > 0), (t) => t.hp) || null;
+}
+/**
+* Finds the best enemy tower to attack.
+* We prioritize the tower with the lowest HP to destroy it quickly and reduce enemy map control.
+*/
+function getBestEnemyTower(game, myTeam) {
+	const enemyTeam = myTeam === "red" ? "blue" : "red";
+	return getBestInArray(game.towers.filter((t) => t.team === enemyTeam && t.hp > 0), (t) => -t.hp) || null;
+}
+/**
+* Refactored single bot loop combining all grouping and attacking behaviors.
+* This runs every tick/frame.
+*/
+var method$2 = runner$2((game, data, playerIdx) => {
+	const inputs = [];
+	const myTeam = game.players[playerIdx].team;
+	const myTroops = game.getFriendlyTroops(myTeam);
+	if (data.state === "GROUPING" && myTroops.length >= data.startAttackingThreshold) {
+		logger$1.info(`Swarm assembled with ${myTroops.length} troops! Switching to ATTACKING state.`);
+		data.state = "ATTACKING";
+	} else if (data.state === "ATTACKING" && myTroops.length <= data.retreatThreshold) {
+		logger$1.info(`Swarm defeated. Only ${myTroops.length} troops left. Falling back to GROUPING state.`);
+		data.state = "GROUPING";
+	}
+	if (data.state === "GROUPING") {
+		const rallyTower = getBestRallyTower(game, myTeam);
+		if (rallyTower) {
+			for (const troop of myTroops) if (!(troop.neighboor?.kind === "tower" && troop.neighboor.id === rallyTower.index)) inputs.push({
+				action: "changeNeighboor",
+				changeNeighboor: {
+					troopId: troop.id,
+					target: {
+						case: "targetTowerId",
+						targetTowerId: rallyTower.index
+					}
+				}
+			});
+		} else for (const troop of myTroops) if (troop.neighboor !== null) inputs.push({
+			action: "changeNeighboor",
+			changeNeighboor: {
+				troopId: troop.id,
+				target: {
+					case: "cancel",
+					cancel: {}
+				}
+			}
+		});
+	} else if (data.state === "ATTACKING") {
+		const enemyTower = getBestEnemyTower(game, myTeam);
+		if (enemyTower) {
+			for (const troop of myTroops) if (!(troop.neighboor?.kind === "tower" && troop.neighboor.id === enemyTower.index)) inputs.push({
+				action: "changeNeighboor",
+				changeNeighboor: {
+					troopId: troop.id,
+					target: {
+						case: "targetTowerId",
+						targetTowerId: enemyTower.index
+					}
+				}
+			});
+		} else for (const troop of myTroops) if (troop.neighboor !== null) inputs.push({
+			action: "changeNeighboor",
+			changeNeighboor: {
+				troopId: troop.id,
+				target: {
+					case: "cancel",
+					cancel: {}
+				}
+			}
+		});
+	}
+	return [inputs.slice(0, 5), "success"];
+});
+var bots_moveArmy_default = describeBot([{
+	root: (function() {
+		return all$2([method$2]);
+	})(),
+	data: dataConstructor$2
+}]);
+//#endregion
+//#region commons/bots/bots-popit.ts
+getLogger("bots-popit");
+var { all: all$1, first, loop: loop$1, runner: runner$1 } = botActionNodeHelper();
+/**
+* Data class to hold the internal state of the bot.
+* We need to track the cooldown between actions and the sequence of moves planned.
+*/
+var Data$1 = class {
+	lastActionTime = 0;
+	plannedMoves = [];
+	isTurnActive = false;
+};
+function dataConstructor$1() {
+	return new Data$1();
+}
+/**
+* Helper Method: Checks if it is currently this bot's turn to play.
+* It also ensures the game is not already over.
+*/
+function isOurTurn(game, playerIdx) {
+	return game.currentTurnPlayer === playerIdx && !game.gameOver;
+}
+/**
+* Helper Method: Enforces a 0.4 seconds (400ms) cooldown between any game actions.
+* This simulates a human reaction time and fulfills the 0.4s cooldown skill requirement.
+*/
+function isCooldownReady(data) {
+	return Date.now() - data.lastActionTime >= 400;
+}
+/**
+* Helper Method: Scans the grid and returns all unpopped cells, grouped by their row index.
+*/
+function getAvailableCellsByRow(game) {
+	const rows = [];
+	const maxRows = GMPopit.DATA.GRID_ROWS;
+	const maxCols = GMPopit.DATA.GRID_COLS;
+	for (let r = 0; r < maxRows; r++) {
+		const cols = [];
+		for (let c = 0; c < maxCols; c++) {
+			const idx = r * maxCols + c;
+			if (game.grid[idx]) cols.push(c);
+		}
+		if (cols.length > 0) rows[r] = cols;
+	}
+	return rows;
+}
+/**
+* Helper Method: Resets the bot's state. Called when the turn is passed to the opponent.
+*/
+function resetTurnState(data) {
+	data.plannedMoves = [];
+	data.isTurnActive = false;
+}
+/**
+* Helper Method: Analyzes the board and plans a valid move.
+* A valid move consists of popping one or multiple contiguous bubbles on a single row.
+*/
+function planTurn(game, data) {
+	const rows = getAvailableCellsByRow(game);
+	const validRowIndices = rows.map((cols, idx) => cols !== void 0 ? idx : -1).filter((idx) => idx !== -1);
+	if (validRowIndices.length === 0) return;
+	const randomRowIndex = validRowIndices[Math.floor(Math.random() * validRowIndices.length)];
+	const availableCols = rows[randomRowIndex];
+	const segments = [];
+	let currentSegment = [availableCols[0]];
+	for (let i = 1; i < availableCols.length; i++) if (availableCols[i] === availableCols[i - 1] + 1) currentSegment.push(availableCols[i]);
+	else {
+		segments.push(currentSegment);
+		currentSegment = [availableCols[i]];
+	}
+	segments.push(currentSegment);
+	const randomSegment = segments[Math.floor(Math.random() * segments.length)];
+	const startIdx = Math.floor(Math.random() * randomSegment.length);
+	const maxLen = randomSegment.length - startIdx;
+	const lengthToPop = Math.floor(Math.random() * maxLen) + 1;
+	data.plannedMoves = randomSegment.slice(startIdx, startIdx + lengthToPop).map((col) => ({
+		row: randomRowIndex,
+		col
+	}));
+	data.isTurnActive = true;
+}
+/**
+* Main behavior runner for the bot.
+* Evaluates the game state on each tick and issues inputs (popCell or endTurn).
+*/
+var method$1 = runner$1((game, data, playerIdx) => {
+	const inputs = [];
+	if (!isOurTurn(game, playerIdx)) {
+		resetTurnState(data);
+		return [inputs, "success"];
+	}
+	if (!isCooldownReady(data)) return [inputs, "success"];
+	if (!data.isTurnActive) planTurn(game, data);
+	if (data.plannedMoves.length > 0) {
+		const move = data.plannedMoves.shift();
+		inputs.push({
+			action: "popCell",
+			popCell: {
+				row: move.row,
+				col: move.col
+			}
+		});
+		data.lastActionTime = Date.now();
+		return [inputs, "success"];
+	}
+	if (data.isTurnActive && data.plannedMoves.length === 0) {
+		inputs.push({
+			action: "endTurn",
+			endTurn: {}
+		});
+		data.lastActionTime = Date.now();
+		data.isTurnActive = false;
+		return [inputs, "success"];
+	}
+	return [inputs, "success"];
+});
+var bots_popit_default = describeBot([{
+	root: (function() {
 		return all$1([method$1]);
 	})(),
 	data: dataConstructor$1
 }]);
 //#endregion
-//#region commons/bots/bots-woodSword.ts
-getLogger("bots-woodSword");
-var { all, first, loop: loop$1, runner } = botActionNodeHelper();
-GMTurrets.types;
-var Data = class {};
+//#region commons/bots/bots-lavaBall.ts
+var logger = getLogger("bots-lavaball");
+var { all, runner } = botActionNodeHelper();
+var PHASE_AIMING = 1;
+var THROW_DELAY = 1.5;
+/**
+* Persistent state for the bot across game ticks.
+* Useful for caching decisions so we don't recalculate pathing/heuristics every frame.
+*/
+var Data = class {
+	hasThrownThisTurn = false;
+	targetX = null;
+	targetY = null;
+	resetTurnData() {
+		this.hasThrownThisTurn = false;
+		this.targetX = null;
+		this.targetY = null;
+	}
+};
 function dataConstructor() {
 	return new Data();
 }
+/**
+* Helper to determine if it is currently our turn and the game is waiting for our aim/throw.
+*/
+function isMyAimingTurn(game, playerIdx) {
+	const me = game.players[playerIdx];
+	if (me.eliminated || !me.connected) return false;
+	return game.currentPlayer === playerIdx && game.turnPhase === PHASE_AIMING;
+}
+/**
+* Helper to evaluate and find the safest, most progressive platform to jump to.
+* Uses a heuristic scoring system prioritizing reachable vertical gain.
+*/
+function evaluateBestPlatform(game) {
+	const ball = game.ball;
+	let bestScore = -Infinity;
+	let bestTarget = null;
+	const MAX_REACHABLE_HEIGHT = 800;
+	for (const platform of game.platforms) {
+		const topOfPlatform = platform.y + platform.h / 2;
+		if (topOfPlatform <= ball.y + 10) continue;
+		const deltaY = topOfPlatform - ball.y;
+		const deltaX = Math.abs(platform.x + platform.w / 2 - ball.x);
+		if (deltaY > MAX_REACHABLE_HEIGHT) continue;
+		const score = deltaY * 1.5 - deltaX * .5;
+		if (score > bestScore) {
+			bestScore = score;
+			bestTarget = {
+				x: platform.x + platform.w / 2,
+				y: topOfPlatform + 20
+			};
+		}
+	}
+	return bestTarget;
+}
+/**
+* Helper to consistently format inputs exactly as required by the spec.
+*/
+function buildInput(actionName, x, y) {
+	return {
+		action: actionName,
+		[actionName]: {
+			x,
+			y
+		}
+	};
+}
+/**
+* The main execution loop for the bot. Evaluates state and pushes actions.
+*/
 var method = runner((game, data, playerIdx) => {
-	return [[], "success"];
+	const inputs = [];
+	if (!isMyAimingTurn(game, playerIdx)) {
+		if (data.hasThrownThisTurn) data.resetTurnData();
+		return [inputs, "success"];
+	}
+	if (data.hasThrownThisTurn) return [inputs, "success"];
+	if (data.targetX === null || data.targetY === null) {
+		const target = evaluateBestPlatform(game);
+		if (target) {
+			data.targetX = target.x;
+			data.targetY = target.y;
+		} else {
+			data.targetX = game.ball.x;
+			data.targetY = game.ball.y + 500;
+		}
+	}
+	const currentTurnTime = game.turnTimer;
+	inputs.push(buildInput("aim", data.targetX, data.targetY));
+	if (currentTurnTime > THROW_DELAY) {
+		inputs.push(buildInput("throwBall", data.targetX, data.targetY));
+		data.hasThrownThisTurn = true;
+		logger.debug(`Bot threw ball towards X:${data.targetX}, Y:${data.targetY}`);
+	}
+	return [inputs, "success"];
 });
-var bots_woodSword_default = describeBot([{
+var bots_lavaBall_default = describeBot([{
 	root: (function() {
 		return all([method]);
 	})(),
@@ -17715,6 +21770,58 @@ var gamemods = {
 		defaultPlayerCount: 2,
 		nodes: bots_woodSword_default
 	},
+	popit: {
+		type: "multiplayer",
+		server: GMPopit.createServ,
+		client: GMPopit.createClient,
+		dom: GMPopit.generateClientDom,
+		textures: GMPopit.TEXTURES,
+		name: "Pop it",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: "png",
+		defaultPlayerCount: 2,
+		nodes: bots_popit_default
+	},
+	lavaBall: {
+		type: "multiplayer",
+		server: GMLavaBall.createServ,
+		client: GMLavaBall.createClient,
+		dom: GMLavaBall.generateClientDom,
+		textures: GMLavaBall.TEXTURES,
+		name: "Lava ball",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: "png",
+		defaultPlayerCount: 4,
+		nodes: bots_lavaBall_default
+	},
+	separator_comingSoon: {
+		type: "ui-separator",
+		category: "Coming soon..."
+	},
+	moveArmy: {
+		type: "multiplayer",
+		server: GMMoveArmy.createServ,
+		client: GMMoveArmy.createClient,
+		dom: GMMoveArmy.generateClientDom,
+		textures: GMMoveArmy.TEXTURES,
+		name: "Move army",
+		tropheesPerPlayer: 0,
+		computerOnly: true,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: "png",
+		defaultPlayerCount: 4,
+		nodes: bots_moveArmy_default
+	},
 	separator_solo: {
 		type: "ui-separator",
 		category: "Solo games"
@@ -17791,6 +21898,1692 @@ function getProtocol(name, type) {
 		}
 	};
 }
+//#endregion
+//#region node_modules/marked/lib/marked.esm.js
+/**
+* marked v18.0.13 - a markdown parser
+* Copyright (c) 2018-2026, MarkedJS. (MIT License)
+* Copyright (c) 2011-2018, Christopher Jeffrey. (MIT License)
+* https://github.com/markedjs/marked
+*/
+/**
+* DO NOT EDIT THIS FILE
+* The code in this file is generated from files in ./src/
+*/
+function A() {
+	return {
+		async: !1,
+		breaks: !1,
+		extensions: null,
+		gfm: !0,
+		hooks: null,
+		pedantic: !1,
+		renderer: null,
+		silent: !1,
+		tokenizer: null,
+		walkTokens: null
+	};
+}
+var T = A();
+function U(l) {
+	T = l;
+}
+var E = { exec: () => null };
+function I(l) {
+	let e = [];
+	return (t) => {
+		let n = Math.max(0, Math.min(3, t - 1)), i = e[n];
+		return i || (i = l(n), e[n] = i), i;
+	};
+}
+function d(l, e = "") {
+	let t = typeof l == "string" ? l : l.source, n = {
+		replace: (i, r) => {
+			let o = typeof r == "string" ? r : r.source;
+			return o = o.replace(m.caret, "$1"), t = t.replace(i, o), n;
+		},
+		getRegex: () => new RegExp(t, e)
+	};
+	return n;
+}
+var we = ((l = "") => {
+	try {
+		return !!new RegExp("(?<=1)(?<!1)" + l);
+	} catch {
+		return !1;
+	}
+})();
+var m = {
+	codeRemoveIndent: /^(?: {0,3}\t| {1,4})/gm,
+	outputLinkReplace: /\\([\[\]])/g,
+	indentCodeCompensation: /^(\s+)(?:```)/,
+	beginningSpace: /^\s+/,
+	endingHash: /#$/,
+	startingSpaceChar: /^ /,
+	endingSpaceChar: / $/,
+	endingSpaceTabChar: /[ \t]$/,
+	nonSpaceChar: /[^ ]/,
+	newLineCharGlobal: /\n/g,
+	tabCharGlobal: /\t/g,
+	multipleSpaceGlobal: /\s+/g,
+	blankLine: /^[ \t]*$/,
+	doubleBlankLine: /\n[ \t]*\n[ \t]*$/,
+	blockquoteStart: /^ {0,3}>/,
+	blockquoteSetextReplace: /\n {0,3}((?:=+|-+) *)(?=\n|$)/g,
+	blockquoteSetextReplace2: /^ {0,3}>[ \t]?/gm,
+	listReplaceNesting: /^ {1,4}(?=( {4})*[^ ])/g,
+	listIsTask: /^\[[ xX]\] +\S/,
+	listReplaceTask: /^\[[ xX]\] +/,
+	listTaskCheckbox: /\[[ xX]\]/,
+	anyLine: /\n.*\n/,
+	hrefBrackets: /^<(.*)>$/,
+	tableDelimiter: /[:|]/,
+	tableAlignChars: /^\||\| *$/g,
+	tableRowBlankLine: /\n[ \t]*$/,
+	tableAlignRight: /^ *-+: *$/,
+	tableAlignCenter: /^ *:-+: *$/,
+	tableAlignLeft: /^ *:-+ *$/,
+	startATag: /^<a /i,
+	endATag: /^<\/a>/i,
+	startPreScriptTag: /^<(pre|code|kbd|script)(\s|>)/i,
+	endPreScriptTag: /^<\/(pre|code|kbd|script)(\s|>)/i,
+	startAngleBracket: /^</,
+	endAngleBracket: />$/,
+	pedanticHrefTitle: /^([^'"]*[^\s])\s+(['"])(.*)\2/,
+	unicodeAlphaNumeric: /[\p{L}\p{N}]/u,
+	escapeTest: /[&<>"']/,
+	escapeReplace: /[&<>"']/g,
+	escapeTestNoEncode: /[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/,
+	escapeReplaceNoEncode: /[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/g,
+	caret: /(^|[^\[])\^/g,
+	percentDecode: /%25/g,
+	findPipe: /\|/g,
+	splitPipe: / \|/,
+	slashPipe: /\\\|/g,
+	carriageReturn: /\r\n|\r/g,
+	spaceLine: /^ +$/gm,
+	notSpaceStart: /^\S*/,
+	endingNewline: /\n$/,
+	listItemRegex: (l) => new RegExp(`^( {0,3}${l})((?:[	 ][^\\n]*)?(?:\\n|$))`),
+	nextBulletRegex: I((l) => new RegExp(`^ {0,${l}}(?:[*+-]|\\d{1,9}[.)])((?:[ 	][^\\n]*)?(?:\\n|$))`)),
+	hrRegex: I((l) => new RegExp(`^ {0,${l}}((?:-[ 	]*){3,}|(?:_[ 	]*){3,}|(?:\\*[ 	]*){3,})(?:\\n+|$)`)),
+	fencesBeginRegex: I((l) => new RegExp(`^ {0,${l}}(?:\`\`\`|~~~)`)),
+	headingBeginRegex: I((l) => new RegExp(`^ {0,${l}}#`)),
+	htmlBeginRegex: I((l) => new RegExp(`^ {0,${l}}(?:</?(?:${H})(?: +|$|/?>)|<(?:script|pre|style|textarea|!--))`, "i")),
+	blockquoteBeginRegex: I((l) => new RegExp(`^ {0,${l}}>`))
+};
+var ye = /^(?:[ \t]*(?:\n|$))+/;
+var Pe = /^((?: {4}| {0,3}\t)[^\n]+(?:\n(?:[ \t]*(?:\n|$))*)?)+/;
+var Se = /^ {0,3}(`{3,}(?=[^`\n]*(?:\n|$))|~{3,})([^\n]*)(?:\n|$)(?:|([\s\S]*?)(?:\n|$))(?: {0,3}\1[~`]* *(?=\n|$)|$)/;
+var v = /^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/;
+var _e = /^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/;
+var K = / {0,3}(?:[*+-]|\d{1,9}[.)])/;
+var le = /^(?!bull |blockCode|fences|blockquote|heading|html|table)((?:.|\n(?!\s*?\n|bull |blockCode|fences|blockquote|heading|html|table))+?)\n {0,3}(=+|-+) *(?:\n+|$)/;
+var ue = d(le).replace(/bull/g, K).replace(/blockCode/g, /(?: {4}| {0,3}\t)/).replace(/fences/g, / {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g, / {0,3}>/).replace(/heading/g, / {0,3}#{1,6}(?:\s|$)/).replace(/html/g, / {0,3}<[^\n>]+>\n/).replace(/\|table/g, "").getRegex();
+var $e = d(le).replace(/bull/g, K).replace(/blockCode/g, /(?: {4}| {0,3}\t)/).replace(/fences/g, / {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g, / {0,3}>/).replace(/heading/g, / {0,3}#{1,6}(?:\s|$)/).replace(/html/g, / {0,3}<[^\n>]+>\n/).replace(/table/g, / {0,3}\|?(?:[:\- ]*\|)+[\:\- ]*\n/).getRegex();
+var W = /^([^\n]+(?:\n(?!hr|heading|lheading|blockquote|fences|list|html|table|[ \t]+\n)[^\n]+)*)/;
+var Le = /^[^\n]+/;
+var X = /(?!\s*\])(?:\\[\s\S]|[^\[\]\\])+/;
+var ze = d(/^ {0,3}\[(label)\]: *(?:\n[ \t]*)?([^<\s][^\s]*|<.*?>)(?:(?: +(?:\n[ \t]*)?| *\n[ \t]*)(title))? *(?:\n+|$)/).replace("label", X).replace("title", /(?:"(?:\\"?|[^"\\])*"|'[^'\n]*(?:\n[^'\n]+)*\n?'|\([^()]*\))/).getRegex();
+var Ee = d(/^(bull)([ \t][^\n]*?)?(?:\n|$)/).replace(/bull/g, K).getRegex();
+var H = "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul";
+var J = /<!--(?:-?>|[\s\S]*?(?:-->|$))/;
+var Me = d("^ {0,3}(?:<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n*|$)|comment[^\\n]*(\\n+|$)|<\\?[\\s\\S]*?(?:\\?>[^\\n]*\\n*|$)|<![A-Z][\\s\\S]*?(?:>[^\\n]*\\n*|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>[^\\n]*\\n*|$)|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|<(?!script|pre|style|textarea)([a-z][a-z0-9-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|</(?!script|pre|style|textarea)[a-z][a-z0-9-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$))", "i").replace("comment", J).replace("tag", H).replace("attribute", / +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex();
+var pe = (l) => d(W).replace("hr", v).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("|lheading", "").replace("|table", "").replace("blockquote", " {0,3}>").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*(?:\\n|$))|~~~)[^\\n]*(?:\\n|$)").replace("list", l).replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", H).getRegex();
+var Ae = pe(/ {0,3}(?:[*+-]|1[.)])[ \t]+[^ \t\n]/);
+var Ie = pe(/ {0,3}(?:[*+-]|\d{1,9}[.)])(?:[ \t]|\n|$)/);
+var V = {
+	blockquote: d(/^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/).replace("paragraph", Ie).getRegex(),
+	code: Pe,
+	def: ze,
+	fences: Se,
+	heading: _e,
+	hr: v,
+	html: Me,
+	lheading: ue,
+	list: Ee,
+	newline: ye,
+	paragraph: Ae,
+	table: E,
+	text: Le
+};
+var ie = d("^ *([^\\n ].*)\\n {0,3}((?:\\| *)?:?-+:? *(?:\\| *:?-+:? *)*(?:\\| *)?)(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)").replace("hr", v).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("blockquote", " {0,3}>").replace("code", "(?: {4}| {0,3}	)[^\\n]").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*(?:\\n|$))|~~~)[^\\n]*(?:\\n|$)").replace("list", " {0,3}(?:[*+-]|1[.)])[ \\t]").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", H).getRegex();
+var Be = {
+	...V,
+	lheading: $e,
+	table: ie,
+	paragraph: d(W).replace("hr", v).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("|lheading", "").replace("table", ie).replace("blockquote", " {0,3}>").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*(?:\\n|$))|~~~)[^\\n]*(?:\\n|$)").replace("list", " {0,3}(?:[*+-]|1[.)])[ \\t]+[^ \\t\\n]").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", H).getRegex()
+};
+var De = {
+	...V,
+	html: d(`^ *(?:comment *(?:\\n|\\s*$)|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)|<tag(?:"[^"]*"|'[^']*'|\\s[^'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))`).replace("comment", J).replace(/tag/g, "(?!(?:a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)\\b)\\w+(?!:|[^\\w\\s@]*@)\\b").getRegex(),
+	def: /^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,
+	heading: /^(#{1,6})(.*)(?:\n+|$)/,
+	fences: E,
+	lheading: /^(.+?)\n {0,3}(=+|-+) *(?:\n+|$)/,
+	paragraph: d(W).replace("hr", v).replace("heading", ` *#{1,6} *[^
+]`).replace("lheading", ue).replace("|table", "").replace("blockquote", " {0,3}>").replace("|fences", "").replace("|list", "").replace("|html", "").replace("|tag", "").getRegex()
+};
+var qe = /^\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])/;
+var ve = /^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/;
+var ce = /^( {2,}|\\)\n(?!\s*$)[ \t]*/;
+var He = /^(`+|[^`])(?:(?= {2,}\n)|[\s\S]*?(?:(?=[\\<!\[`*_]|\b_|$)|[^ ](?= {2,}\n)))/;
+var _ = /[\p{P}\p{S}]/u;
+var C = /[\s\p{P}\p{S}]/u;
+var Z = /[^\s\p{P}\p{S}]/u;
+var Ze = d(/^((?![*_])punctSpace)/, "u").replace(/punctSpace/g, C).getRegex();
+var Ge = /[\p{Pi}\p{Ps}"']/u;
+var he = /(?!~)[\p{P}\p{S}]/u;
+var Qe = /(?!~)[\s\p{P}\p{S}]/u;
+var Ne = /(?:[^\s\p{P}\p{S}]|~)/u;
+var je = d(/link|precode-code|html/, "g").replace("link", /\[(?:[^\[\]`]|(?<a>`+)[^`]+\k<a>(?!`))*?\]\((?:\\[\s\S]|[^\\\(\)]|\((?:\\[\s\S]|[^\\\(\)])*\))*\)/).replace("precode-", we ? "(?<!`)()" : "(^^|[^`])").replace("code", /(?<b>`+)[^`]+\k<b>(?!`)/).replace("html", /<(?! )[^<>]*?>/).getRegex();
+var de = /^(?:\*+(?:((?!\*)punct)|([^\s*]))?)|^_+(?:((?!_)punct)|([^\s_]))?/;
+var Ue = d(de, "u").replace(/punct/g, _).getRegex();
+var Fe = d(de, "u").replace(/punct/g, he).getRegex();
+var We = d(/^(?:\*+(?:((?!\*)(?!openQuote)punct)|([^\s*]))?)|^_+(?:((?!_)(?!openQuote)punct)|([^\s_]))?/, "u").replace(/openQuote/g, Ge).replace(/punct/g, _).getRegex();
+var ke = "^[^_*]*?__[^_*]*?\\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\\*)punct(\\*+)(?=[\\s]|$)|notPunctSpace(\\*+)(?!\\*)(?=punctSpace|$)|(?!\\*)punctSpace(\\*+)(?=notPunctSpace)|[\\s](\\*+)(?!\\*)(?=punct)|(?!\\*)punct(\\*+)(?!\\*)(?=punct)|notPunctSpace(\\*+)(?=notPunctSpace)";
+var Xe = d(ke, "gu").replace(/notPunctSpace/g, Z).replace(/punctSpace/g, C).replace(/punct/g, _).getRegex();
+var Je = d(ke, "gu").replace(/notPunctSpace/g, Ne).replace(/punctSpace/g, Qe).replace(/punct/g, he).getRegex();
+var Ye = d("^[^_*]*?__[^_*]*?\\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\\*)punct(\\*+)(?=[\\s]|$)|notPunctSpace(\\*+)(?!\\*)(?=punctSpace|$)|(?!\\*)[\\s](\\*+)(?=notPunctSpace)|[\\s](\\*+)(?!\\*)(?=punct)|(?!\\*)punct(\\*+)(?!\\*)(?=punct)|(?:(?!\\*)punct|notPunctSpace)(\\*+)(?!\\*)(?=notPunctSpace)", "gu").replace(/notPunctSpace/g, Z).replace(/punctSpace/g, C).replace(/punct/g, _).getRegex();
+var et = d("^[^_*]*?\\*\\*[^_*]*?_[^_*]*?(?=\\*\\*)|[^_]+(?=[^_])|(?!_)punct(_+)(?=[\\s]|$)|notPunctSpace(_+)(?!_)(?=punctSpace|$)|(?!_)punctSpace(_+)(?=notPunctSpace)|[\\s](_+)(?!_)(?=punct)|(?!_)punct(_+)(?!_)(?=punct)", "gu").replace(/notPunctSpace/g, Z).replace(/punctSpace/g, C).replace(/punct/g, _).getRegex();
+var nt = d("^[^_*]*?\\*\\*[^_*]*?_[^_*]*?(?=\\*\\*)|[^_]+(?=[^_])|(?!_)punct(_+)(?=[\\s]|$)|notPunctSpace(_+)(?!_)(?=punctSpace|$)|(?!_)[\\s](_+)(?=notPunctSpace)|[\\s](_+)(?!_)(?=punct)|(?!_)punct(_+)(?!_)(?=punct)|(?:(?!_)punct|notPunctSpace)(_+)(?!_)(?=notPunctSpace)", "gu").replace(/notPunctSpace/g, Z).replace(/punctSpace/g, C).replace(/punct/g, _).getRegex();
+var rt = d(/^~~?(?:((?!~)punct)|[^\s~])/, "u").replace(/punct/g, _).getRegex();
+var it = d("^[^~]+(?=[^~])|(?!~)punct(~~?)(?=[\\s]|$)|notPunctSpace(~~?)(?!~)(?=punctSpace|$)|(?!~)punctSpace(~~?)(?=notPunctSpace)|[\\s](~~?)(?!~)(?=punct)|(?!~)punct(~~?)(?!~)(?=punct)|notPunctSpace(~~?)(?=notPunctSpace)", "gu").replace(/notPunctSpace/g, Z).replace(/punctSpace/g, C).replace(/punct/g, _).getRegex();
+var ot = d(/\\(punct)/, "gu").replace(/punct/g, _).getRegex();
+var at = d(/^<(scheme:[^\s\x00-\x1f<>]*|email)>/).replace("scheme", /[a-zA-Z][a-zA-Z0-9+.-]{1,31}/).replace("email", /[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])/).getRegex();
+var lt = d(J).replace("(?:-->|$)", "-->").getRegex();
+var ut = d("^comment|^</[a-zA-Z][a-zA-Z0-9-]*\\s*>|^<[a-zA-Z][a-zA-Z0-9-]*(?:attribute)*?\\s*/?>|^<\\?[\\s\\S]*?\\?>|^<![a-zA-Z]+\\s[\\s\\S]*?>|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>").replace("comment", lt).replace("attribute", /\s+[a-zA-Z:_][\w.:-]*(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s"'=<>`]+)?/).getRegex();
+var ge = /\[(?:\\[\s\S]|[^\[\]\\])*\]/;
+var N = d(/(?:\[(?:brackets|\\[\s\S]|[^\[\]\\])*\]|\\[\s\S]|`+(?!`)[^`]*?`+(?!`)|``+(?=\])|[^\[\]\\`])*?/).replace("brackets", ge).getRegex();
+var pt = d(/^!?\[(label)\]\(\s*(href)(?:(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)(title))?\s*\)/).replace("label", N).replace("href", /<(?:\\.|[^\n<>\\])+>|[^ \t\n\x00-\x1f]+|(?=\))/).replace("title", /"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)/).getRegex();
+var ct = d(/^!?\[(label)\]\[(ref)\]/).replace("label", N).replace("ref", X).getRegex();
+var ht = d(/^!?\[(ref)\](?:\[\])?/).replace("ref", X).getRegex();
+var oe = /(?!\s*\])(?:\\[\s\S]|[^\[\]\\]){1,999}/;
+var dt = d(/(?:[^\[\]\\`]*(?:\[(?:brackets|\\[\s\S]|[^\[\]\\])*\]|\\[\s\S]|`+(?!`)[^`]*?`+(?!`)|``+(?=\]))){0,999}?[^\[\]\\`]*?/).replace("brackets", ge).getRegex();
+var kt = d("reflink|nolink(?!\\()", "g").replace("reflink", d(/^!?\[(label)\]\[(ref)\]/).replace("label", dt).replace("ref", oe).getRegex()).replace("nolink", d(/^!?\[(ref)\](?:\[\])?/).replace("ref", oe).getRegex()).getRegex();
+var ae = /[hH][tT][tT][pP][sS]?|[fF][tT][pP]/;
+var Y = {
+	_backpedal: E,
+	anyPunctuation: ot,
+	autolink: at,
+	blockSkip: je,
+	br: ce,
+	code: ve,
+	del: E,
+	delLDelim: E,
+	delRDelim: E,
+	emStrongLDelim: Ue,
+	emStrongRDelimAst: Xe,
+	emStrongRDelimUnd: et,
+	escape: qe,
+	link: pt,
+	nolink: ht,
+	punctuation: Ze,
+	reflink: ct,
+	reflinkSearch: kt,
+	tag: ut,
+	text: He,
+	url: E
+};
+var gt = {
+	...Y,
+	emStrongLDelim: We,
+	emStrongRDelimAst: Ye,
+	emStrongRDelimUnd: nt,
+	link: d(/^!?\[(label)\]\((.*?)\)/).replace("label", N).getRegex(),
+	reflink: d(/^!?\[(label)\]\s*\[([^\]]*)\]/).replace("label", N).getRegex()
+};
+var F = {
+	...Y,
+	emStrongRDelimAst: Je,
+	emStrongLDelim: Fe,
+	delLDelim: rt,
+	delRDelim: it,
+	url: d(/^((?:protocol):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/).replace("protocol", ae).replace("email", /[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![\w-])/).getRegex(),
+	_backpedal: /(?:[^?!.,:;*_'"~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+/,
+	del: /^(~~?)(?=[^\s~])((?:\\[\s\S]|[^\\])*?(?:\\[\s\S]|[^\s~\\]))\1(?=[^~]|$)/,
+	text: d(/^(`+|~+|[^`~])(?:(?=[`~])|(?= {2,}\n)|(?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)|[\s\S]*?(?:(?=[\\<!\[`*~_]|\b_|protocol:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)))/).replace("protocol", ae).getRegex()
+};
+var ft = {
+	...F,
+	br: d(ce).replace("{2,}", "*").getRegex(),
+	text: d(F.text).replace("\\b_", "\\b_| {2,}\\n").replace(/\{2,\}/g, "*").getRegex()
+};
+var G = {
+	normal: V,
+	gfm: Be,
+	pedantic: De
+};
+var B = {
+	normal: Y,
+	gfm: F,
+	breaks: ft,
+	pedantic: gt
+};
+var mt = {
+	"&": "&amp;",
+	"<": "&lt;",
+	">": "&gt;",
+	"\"": "&quot;",
+	"'": "&#39;"
+};
+var fe = (l) => mt[l];
+function R(l, e) {
+	if (e) {
+		if (m.escapeTest.test(l)) return l.replace(m.escapeReplace, fe);
+	} else if (m.escapeTestNoEncode.test(l)) return l.replace(m.escapeReplaceNoEncode, fe);
+	return l;
+}
+function ee(l) {
+	try {
+		l = encodeURI(l).replace(m.percentDecode, "%");
+	} catch {
+		return null;
+	}
+	return l;
+}
+function te(l, e) {
+	let n = l.replace(m.findPipe, (r, o, s) => {
+		let u = !1, a = o;
+		for (; --a >= 0 && s[a] === "\\";) u = !u;
+		return u ? "|" : " |";
+	}).split(m.splitPipe), i = 0;
+	if (n[0].trim() || n.shift(), n.length > 0 && !n.at(-1)?.trim() && n.pop(), e) if (n.length > e) n.splice(e);
+	else for (; n.length < e;) n.push("");
+	for (; i < n.length; i++) n[i] = n[i].trim().replace(m.slashPipe, "|");
+	return n;
+}
+function $(l, e, t) {
+	let n = l.length;
+	if (n === 0) return "";
+	let i = 0;
+	for (; i < n;) {
+		let r = l.charAt(n - i - 1);
+		if (r === e && !t) i++;
+		else if (r !== e && t) i++;
+		else break;
+	}
+	return l.slice(0, n - i);
+}
+function ne(l) {
+	let e = l.split(`
+`), t = e.length - 1;
+	for (; t >= 0 && m.blankLine.test(e[t]);) t--;
+	return e.length - t <= 2 ? l : e.slice(0, t + 1).join(`
+`);
+}
+function D(l) {
+	return l.toLowerCase().toUpperCase().toLowerCase();
+}
+function me(l, e) {
+	if (l.indexOf(e[1]) === -1) return -1;
+	let t = 0;
+	for (let n = 0; n < l.length; n++) if (l[n] === "\\") n++;
+	else if (l[n] === e[0]) t++;
+	else if (l[n] === e[1] && (t--, t < 0)) return n;
+	return t > 0 ? -2 : -1;
+}
+function xe(l, e = 0) {
+	let t = e, n = "";
+	for (let i of l) if (i === "	") {
+		let r = 4 - t % 4;
+		n += " ".repeat(r), t += r;
+	} else n += i, t++;
+	return n;
+}
+function be(l, e, t, n, i) {
+	let r = e.href, o = e.title || null, s = l[1].replace(i.other.outputLinkReplace, "$1"), u = l[0].charAt(0) === "!";
+	n.state.inLink = !0;
+	let a = n.state.linkEmitted, p = n.state.inRawBlock;
+	n.state.linkEmitted = !1;
+	let c = n.inlineTokens(s), h = n.state.linkEmitted;
+	if (n.state.linkEmitted = a, n.state.inLink = !1, !u) {
+		if (h) {
+			n.state.inRawBlock = p;
+			return;
+		}
+		n.state.linkEmitted = !0;
+	}
+	return {
+		type: u ? "image" : "link",
+		raw: t,
+		href: r,
+		title: o,
+		text: s,
+		tokens: c
+	};
+}
+function xt(l, e, t) {
+	let n = l.match(t.other.indentCodeCompensation);
+	if (n === null) return e;
+	let i = n[1];
+	return e.split(`
+`).map((r) => {
+		let o = r.match(t.other.beginningSpace);
+		if (o === null) return r;
+		let [s] = o;
+		return r.slice(Math.min(s.length, i.length));
+	}).join(`
+`);
+}
+function Re(l, e, t, n) {
+	if (!e.includes("<")) return !1;
+	for (let i = 0; i < e.length; i++) {
+		if (e[i] === "\\") {
+			i++;
+			continue;
+		}
+		if (e[i] === "`") {
+			let s = n.inline.code.exec(e.slice(i));
+			if (s) {
+				i += s[0].length - 1;
+				continue;
+			}
+		}
+		if (e[i] !== "<") continue;
+		let r = l.slice(t + i), o = n.inline.tag.exec(r) || n.inline.autolink.exec(r);
+		if (o) {
+			if (o[0].length > e.length - i) return !0;
+			i += o[0].length - 1;
+		}
+	}
+	return !1;
+}
+var y = class {
+	options;
+	rules;
+	lexer;
+	constructor(e) {
+		this.options = e || T;
+	}
+	space(e) {
+		let t = this.rules.block.newline.exec(e);
+		if (t && t[0].length > 0) return {
+			type: "space",
+			raw: t[0]
+		};
+	}
+	code(e) {
+		let t = this.rules.block.code.exec(e);
+		if (t) {
+			let n = this.options.pedantic ? t[0] : ne(t[0]);
+			return {
+				type: "code",
+				raw: n,
+				codeBlockStyle: "indented",
+				text: n.replace(this.rules.other.codeRemoveIndent, "")
+			};
+		}
+	}
+	fences(e) {
+		let t = this.rules.block.fences.exec(e);
+		if (t) {
+			let n = t[0], i = xt(n, t[3] || "", this.rules);
+			return {
+				type: "code",
+				raw: n,
+				lang: t[2] ? t[2].trim().replace(this.rules.inline.anyPunctuation, "$1") : t[2],
+				text: i
+			};
+		}
+	}
+	heading(e) {
+		let t = this.rules.block.heading.exec(e);
+		if (t) {
+			let n = t[2].trim();
+			if (this.rules.other.endingHash.test(n)) {
+				let i = $(n, "#");
+				(this.options.pedantic || !i || this.rules.other.endingSpaceTabChar.test(i)) && (n = i.trim());
+			}
+			return {
+				type: "heading",
+				raw: $(t[0], `
+`),
+				depth: t[1].length,
+				text: n,
+				tokens: this.lexer.inline(n)
+			};
+		}
+	}
+	hr(e) {
+		let t = this.rules.block.hr.exec(e);
+		if (t) return {
+			type: "hr",
+			raw: $(t[0], `
+`)
+		};
+	}
+	blockquote(e) {
+		let t = this.rules.block.blockquote.exec(e);
+		if (t) {
+			let n = $(t[0], `
+`).split(`
+`), i = "", r = "", o = [];
+			for (; n.length > 0;) {
+				let s = !1, u = [], a;
+				for (a = 0; a < n.length; a++) if (this.rules.other.blockquoteStart.test(n[a])) u.push(n[a]), s = !0;
+				else if (!s) u.push(n[a]);
+				else break;
+				n = n.slice(a);
+				let p = u.join(`
+`), c = p.replace(this.rules.other.blockquoteSetextReplace, `
+    $1`).replace(this.rules.other.blockquoteSetextReplace2, "");
+				i = i ? `${i}
+${p}` : p, r = r ? `${r}
+${c}` : c;
+				let h = this.lexer.state.top;
+				if (this.lexer.state.top = !0, this.lexer.blockTokens(c, o, !0), this.lexer.state.top = h, n.length === 0) break;
+				let k = o.at(-1);
+				if (k?.type === "code") break;
+				if (k?.type === "blockquote") {
+					let O = k, g = n.join(`
+`), w = O.raw + `
+` + g.replace(this.rules.other.blockquoteSetextReplace2, ""), z = this.blockquote(w);
+					o[o.length - 1] = z, i = `${i}
+${g}`, r = r.substring(0, r.length - O.text.length) + z.text;
+					break;
+				} else if (k?.type === "list") {
+					let O = k, g = O.raw + `
+` + n.join(`
+`), w = this.list(g);
+					o[o.length - 1] = w, i = i.substring(0, i.length - k.raw.length) + w.raw, r = r.substring(0, r.length - O.raw.length) + w.raw, n = g.substring(o.at(-1).raw.length).split(`
+`);
+					continue;
+				}
+			}
+			return {
+				type: "blockquote",
+				raw: i,
+				tokens: o,
+				text: r
+			};
+		}
+	}
+	list(e) {
+		let t = this.rules.block.list.exec(e);
+		if (t) {
+			let n = t[1].trim(), i = n.length > 1, r = {
+				type: "list",
+				raw: "",
+				ordered: i,
+				start: i ? +n.slice(0, -1) : "",
+				loose: !1,
+				items: []
+			};
+			n = i ? `\\d{1,9}\\${n.slice(-1)}` : `\\${n}`, this.options.pedantic && (n = i ? n : "[*+-]");
+			let o = this.rules.other.listItemRegex(n), s = !1;
+			for (; e;) {
+				let a = !1, p = "", c = "";
+				if (!(t = o.exec(e)) || this.rules.block.hr.test(e)) break;
+				p = t[0], e = e.substring(p.length);
+				let h = xe(t[2].split(`
+`, 1)[0], t[1].length), k = e.split(`
+`, 1)[0], O = !h.trim(), g = 0;
+				if (this.options.pedantic ? (g = 2, c = h.trimStart()) : O ? g = t[1].length + 1 : (g = h.search(this.rules.other.nonSpaceChar), g = g > 4 ? 1 : g, c = h.slice(g), g += t[1].length), O && this.rules.other.blankLine.test(k) && (p += k + `
+`, e = e.substring(k.length + 1), a = !0), !a) {
+					let w = this.rules.other.nextBulletRegex(g), z = this.rules.other.hrRegex(g), re = this.rules.other.fencesBeginRegex(g), se = this.rules.other.headingBeginRegex(g), Te = this.rules.other.htmlBeginRegex(g), Oe = this.rules.other.blockquoteBeginRegex(g);
+					for (; e;) {
+						let j = e.split(`
+`, 1)[0], q;
+						if (k = j, this.options.pedantic ? (k = k.replace(this.rules.other.listReplaceNesting, "  "), q = k) : q = k.replace(this.rules.other.tabCharGlobal, "    "), re.test(k) || se.test(k) || Te.test(k) || Oe.test(k) || w.test(k) || z.test(k)) break;
+						if (q.search(this.rules.other.nonSpaceChar) >= g || !k.trim()) c += `
+` + q.slice(g);
+						else {
+							if (O || h.replace(this.rules.other.tabCharGlobal, "    ").search(this.rules.other.nonSpaceChar) >= 4 || re.test(h) || se.test(h) || z.test(h)) break;
+							c += `
+` + k;
+						}
+						O = !k.trim(), p += j + `
+`, e = e.substring(j.length + 1), h = q.slice(g);
+					}
+				}
+				r.loose || (s ? r.loose = !0 : this.rules.other.doubleBlankLine.test(p) && (s = !0)), r.items.push({
+					type: "list_item",
+					raw: p,
+					task: !!this.options.gfm && this.rules.other.listIsTask.test(c),
+					loose: !1,
+					text: c,
+					tokens: []
+				}), r.raw += p;
+			}
+			let u = r.items.at(-1);
+			if (u) u.raw = u.raw.trimEnd(), u.text = u.text.trimEnd();
+			else return;
+			r.raw = r.raw.trimEnd();
+			for (let a of r.items) if (this.lexer.state.top = !1, a.tokens = this.lexer.blockTokens(a.text, []), !r.loose) {
+				let p = a.tokens.filter((h) => h.type === "space");
+				r.loose = p.length > 0 && p.some((h) => this.rules.other.anyLine.test(h.raw));
+			}
+			for (let a of r.items) {
+				let p = a.tokens[0];
+				if (a.task && (p?.type === "text" || p?.type === "paragraph")) {
+					a.text = a.text.replace(this.rules.other.listReplaceTask, ""), p.raw = p.raw.replace(this.rules.other.listReplaceTask, ""), p.text = p.text.replace(this.rules.other.listReplaceTask, "");
+					for (let h = this.lexer.inlineQueue.length - 1; h >= 0; h--) if (this.rules.other.listIsTask.test(this.lexer.inlineQueue[h].src)) {
+						this.lexer.inlineQueue[h].src = this.lexer.inlineQueue[h].src.replace(this.rules.other.listReplaceTask, "");
+						break;
+					}
+					let c = this.rules.other.listTaskCheckbox.exec(a.raw);
+					if (c) {
+						let h = {
+							type: "checkbox",
+							raw: c[0] + " ",
+							checked: c[0] !== "[ ]"
+						};
+						a.checked = h.checked, r.loose ? a.tokens[0] && ["paragraph", "text"].includes(a.tokens[0].type) && "tokens" in a.tokens[0] && a.tokens[0].tokens ? (a.tokens[0].raw = h.raw + a.tokens[0].raw, a.tokens[0].text = h.raw + a.tokens[0].text, a.tokens[0].tokens.unshift(h)) : a.tokens.unshift({
+							type: "paragraph",
+							raw: h.raw,
+							text: h.raw,
+							tokens: [h]
+						}) : a.tokens.unshift(h);
+					}
+				} else a.task && (a.task = !1);
+			}
+			if (r.loose) for (let a of r.items) {
+				a.loose = !0;
+				for (let p of a.tokens) p.type === "text" && (p.type = "paragraph");
+			}
+			return r;
+		}
+	}
+	html(e) {
+		let t = this.rules.block.html.exec(e);
+		if (t) {
+			let n = ne(t[0]);
+			return {
+				type: "html",
+				block: !0,
+				raw: n,
+				pre: t[1] === "pre" || t[1] === "script" || t[1] === "style",
+				text: n
+			};
+		}
+	}
+	def(e) {
+		let t = this.rules.block.def.exec(e);
+		if (t) {
+			let n = D(t[1]).replace(this.rules.other.multipleSpaceGlobal, " "), i = t[2] ? t[2].replace(this.rules.other.hrefBrackets, "$1").replace(this.rules.inline.anyPunctuation, "$1") : "", r = t[3] ? t[3].substring(1, t[3].length - 1).replace(this.rules.inline.anyPunctuation, "$1") : t[3];
+			return {
+				type: "def",
+				tag: n,
+				raw: $(t[0], `
+`),
+				href: i,
+				title: r
+			};
+		}
+	}
+	table(e) {
+		let t = this.rules.block.table.exec(e);
+		if (!t || !this.rules.other.tableDelimiter.test(t[2])) return;
+		let n = te(t[1]), i = t[2].replace(this.rules.other.tableAlignChars, "").split("|"), r = t[3]?.trim() ? t[3].replace(this.rules.other.tableRowBlankLine, "").split(`
+`) : [], o = {
+			type: "table",
+			raw: $(t[0], `
+`),
+			header: [],
+			align: [],
+			rows: []
+		};
+		if (n.length === i.length) {
+			for (let s of i) this.rules.other.tableAlignRight.test(s) ? o.align.push("right") : this.rules.other.tableAlignCenter.test(s) ? o.align.push("center") : this.rules.other.tableAlignLeft.test(s) ? o.align.push("left") : o.align.push(null);
+			for (let s = 0; s < n.length; s++) o.header.push({
+				text: n[s],
+				tokens: this.lexer.inline(n[s]),
+				header: !0,
+				align: o.align[s]
+			});
+			for (let s of r) o.rows.push(te(s, o.header.length).map((u, a) => ({
+				text: u,
+				tokens: this.lexer.inline(u),
+				header: !1,
+				align: o.align[a]
+			})));
+			return o;
+		}
+	}
+	lheading(e) {
+		let t = this.rules.block.lheading.exec(e);
+		if (t) {
+			let n = t[1].trim();
+			return {
+				type: "heading",
+				raw: $(t[0], `
+`),
+				depth: t[2].charAt(0) === "=" ? 1 : 2,
+				text: n,
+				tokens: this.lexer.inline(n)
+			};
+		}
+	}
+	paragraph(e) {
+		let t = this.rules.block.paragraph.exec(e);
+		if (t) {
+			let n = t[1].charAt(t[1].length - 1) === `
+` ? t[1].slice(0, -1) : t[1];
+			return {
+				type: "paragraph",
+				raw: t[0],
+				text: n,
+				tokens: this.lexer.inline(n)
+			};
+		}
+	}
+	text(e) {
+		let t = this.rules.block.text.exec(e);
+		if (t) return {
+			type: "text",
+			raw: t[0],
+			text: t[0],
+			tokens: this.lexer.inline(t[0])
+		};
+	}
+	escape(e) {
+		let t = this.rules.inline.escape.exec(e);
+		if (t) return {
+			type: "escape",
+			raw: t[0],
+			text: t[1]
+		};
+	}
+	tag(e) {
+		let t = this.rules.inline.tag.exec(e);
+		if (t) return !this.lexer.state.inLink && this.rules.other.startATag.test(t[0]) ? this.lexer.state.inLink = !0 : this.lexer.state.inLink && this.rules.other.endATag.test(t[0]) && (this.lexer.state.inLink = !1), !this.lexer.state.inRawBlock && this.rules.other.startPreScriptTag.test(t[0]) ? this.lexer.state.inRawBlock = !0 : this.lexer.state.inRawBlock && this.rules.other.endPreScriptTag.test(t[0]) && (this.lexer.state.inRawBlock = !1), {
+			type: "html",
+			raw: t[0],
+			inLink: this.lexer.state.inLink,
+			inRawBlock: this.lexer.state.inRawBlock,
+			block: !1,
+			text: t[0]
+		};
+	}
+	link(e) {
+		let t = this.rules.inline.link.exec(e);
+		if (t) {
+			let n = t[0].charAt(0) === "!" ? 2 : 1;
+			if (!this.options.pedantic && Re(e, t[1], n, this.rules)) return;
+			let i = t[2].trim();
+			if (!this.options.pedantic && this.rules.other.startAngleBracket.test(i)) {
+				if (!this.rules.other.endAngleBracket.test(i)) return;
+				let s = $(i.slice(0, -1), "\\");
+				if ((i.length - s.length) % 2 === 0) return;
+			} else {
+				let s = me(t[2], "()");
+				if (s === -2) return;
+				if (s > -1) {
+					let a = (t[0].indexOf("!") === 0 ? 5 : 4) + t[1].length + s;
+					t[2] = t[2].substring(0, s), t[0] = t[0].substring(0, a).trim(), t[3] = "";
+				}
+			}
+			let r = t[2], o = "";
+			if (this.options.pedantic) {
+				let s = this.rules.other.pedanticHrefTitle.exec(r);
+				s && (r = s[1], o = s[3]);
+			} else o = t[3] ? t[3].slice(1, -1) : "";
+			return r = r.trim(), this.rules.other.startAngleBracket.test(r) && (this.options.pedantic && !this.rules.other.endAngleBracket.test(i) ? r = r.slice(1) : r = r.slice(1, -1)), be(t, {
+				href: r && r.replace(this.rules.inline.anyPunctuation, "$1"),
+				title: o && o.replace(this.rules.inline.anyPunctuation, "$1")
+			}, t[0], this.lexer, this.rules);
+		}
+	}
+	reflink(e, t) {
+		let n;
+		if ((n = this.rules.inline.reflink.exec(e)) || (n = this.rules.inline.nolink.exec(e))) {
+			let i = n[0].charAt(0) === "!" ? 2 : 1;
+			if (!this.options.pedantic && Re(e, n[1], i, this.rules)) return;
+			let o = t[D((n[2] || n[1]).replace(this.rules.other.multipleSpaceGlobal, " "))];
+			if (!o) {
+				let s = n[0].charAt(0);
+				return {
+					type: "text",
+					raw: s,
+					text: s
+				};
+			}
+			return be(n, o, n[0], this.lexer, this.rules);
+		}
+	}
+	emStrong(e, t, n = "") {
+		let i = this.rules.inline.emStrongLDelim.exec(e);
+		if (!i || !i[1] && !i[2] && !i[3] && !i[4] || i[4] && n.match(this.rules.other.unicodeAlphaNumeric)) return;
+		if (!(i[1] || i[3] || "") || !n || this.rules.inline.punctuation.exec(n)) {
+			let o = [...i[0]].length - 1, s, u, a = o, p = 0, c = i[0][0], h = n === c, k = c === "*" ? this.rules.inline.emStrongRDelimAst : this.rules.inline.emStrongRDelimUnd;
+			for (k.lastIndex = 0, t = t.slice(-1 * e.length + o); (i = k.exec(t)) !== null;) {
+				if (s = i[1] || i[2] || i[3] || i[4] || i[5] || i[6], !s) continue;
+				if (u = [...s].length, i[3] || i[4]) {
+					a += u;
+					continue;
+				} else if (i[5] || i[6]) {
+					if (o % 3 && !((o + u) % 3)) {
+						p += u;
+						continue;
+					}
+					if (h) break;
+				}
+				if (a -= u, a > 0) continue;
+				u = Math.min(u, u + a + p);
+				let O = [...i[0]][0].length, g = e.slice(0, o + i.index + O + u);
+				if (Math.min(o, u) % 2) {
+					let z = g.slice(1, -1);
+					return {
+						type: "em",
+						raw: g,
+						text: z,
+						tokens: this.lexer.inlineTokens(z)
+					};
+				}
+				let w = g.slice(2, -2);
+				return {
+					type: "strong",
+					raw: g,
+					text: w,
+					tokens: this.lexer.inlineTokens(w)
+				};
+			}
+		}
+	}
+	codespan(e) {
+		let t = this.rules.inline.code.exec(e);
+		if (t) {
+			let n = t[2].replace(this.rules.other.newLineCharGlobal, " "), i = this.rules.other.nonSpaceChar.test(n), r = this.rules.other.startingSpaceChar.test(n) && this.rules.other.endingSpaceChar.test(n);
+			return i && r && (n = n.substring(1, n.length - 1)), {
+				type: "codespan",
+				raw: t[0],
+				text: n
+			};
+		}
+	}
+	br(e) {
+		let t = this.rules.inline.br.exec(e);
+		if (t) return {
+			type: "br",
+			raw: t[0]
+		};
+	}
+	del(e, t, n = "") {
+		let i = this.rules.inline.delLDelim.exec(e);
+		if (!i) return;
+		if (!(i[1] || "") || !n || this.rules.inline.punctuation.exec(n)) {
+			let o = [...i[0]].length - 1, s, u, a = o, p = this.rules.inline.delRDelim;
+			for (p.lastIndex = 0, t = t.slice(-1 * e.length + o); (i = p.exec(t)) !== null;) {
+				if (s = i[1] || i[2] || i[3] || i[4] || i[5] || i[6], !s || (u = [...s].length, u !== o)) continue;
+				if (i[3] || i[4]) {
+					a += u;
+					continue;
+				}
+				if (a -= u, a > 0) continue;
+				u = Math.min(u, u + a);
+				let c = [...i[0]][0].length, h = e.slice(0, o + i.index + c + u), k = h.slice(o, -o);
+				return {
+					type: "del",
+					raw: h,
+					text: k,
+					tokens: this.lexer.inlineTokens(k)
+				};
+			}
+		}
+	}
+	autolink(e) {
+		let t = this.rules.inline.autolink.exec(e);
+		if (t) {
+			let n, i;
+			return t[2] === "@" ? (n = t[1], i = "mailto:" + n) : (n = t[1], i = n), {
+				type: "link",
+				raw: t[0],
+				text: n,
+				href: i,
+				autolink: !0,
+				tokens: [{
+					type: "text",
+					raw: n,
+					text: n
+				}]
+			};
+		}
+	}
+	url(e) {
+		let t;
+		if (t = this.rules.inline.url.exec(e)) {
+			let n, i;
+			if (t[2] === "@") n = t[0], i = "mailto:" + n;
+			else {
+				let r;
+				do
+					r = t[0], t[0] = this.rules.inline._backpedal.exec(t[0])?.[0] ?? "";
+				while (r !== t[0]);
+				n = t[0], t[1] === "www." ? i = "http://" + t[0] : i = t[0];
+			}
+			return {
+				type: "link",
+				raw: t[0],
+				text: n,
+				href: i,
+				autolink: !0,
+				tokens: [{
+					type: "text",
+					raw: n,
+					text: n
+				}]
+			};
+		}
+	}
+	inlineText(e) {
+		let t = this.rules.inline.text.exec(e);
+		if (t) {
+			let n = this.lexer.state.inRawBlock;
+			return {
+				type: "text",
+				raw: t[0],
+				text: t[0],
+				escaped: n
+			};
+		}
+	}
+};
+var x = class l {
+	tokens;
+	options;
+	state;
+	inlineQueue;
+	tokenizer;
+	constructor(e) {
+		this.tokens = [], this.tokens.links = Object.create(null), this.options = e || T, this.options.tokenizer = this.options.tokenizer || new y(), this.tokenizer = this.options.tokenizer, this.tokenizer.options = this.options, this.tokenizer.lexer = this, this.inlineQueue = [], this.state = {
+			inLink: !1,
+			inRawBlock: !1,
+			linkEmitted: !1,
+			top: !0
+		};
+		let t = {
+			other: m,
+			block: G.normal,
+			inline: B.normal
+		};
+		this.options.pedantic ? (t.block = G.pedantic, t.inline = B.pedantic) : this.options.gfm && (t.block = G.gfm, this.options.breaks ? t.inline = B.breaks : t.inline = B.gfm), this.tokenizer.rules = t;
+	}
+	static get rules() {
+		return {
+			block: G,
+			inline: B
+		};
+	}
+	static lex(e, t) {
+		return new l(t).lex(e);
+	}
+	static lexInline(e, t) {
+		return new l(t).inlineTokens(e);
+	}
+	lex(e) {
+		e = e.replace(m.carriageReturn, `
+`), this.blockTokens(e, this.tokens);
+		for (let t = 0; t < this.inlineQueue.length; t++) {
+			let n = this.inlineQueue[t];
+			this.inlineTokens(n.src, n.tokens);
+		}
+		return this.inlineQueue = [], this.tokens;
+	}
+	blockTokens(e, t = [], n = !1) {
+		this.tokenizer.lexer = this, this.options.pedantic && (e = e.replace(m.tabCharGlobal, "    ").replace(m.spaceLine, ""));
+		let i = 1 / 0;
+		for (; e;) {
+			if (e.length < i) i = e.length;
+			else {
+				this.infiniteLoopError(e.charCodeAt(0));
+				break;
+			}
+			let r;
+			if (this.options.extensions?.block?.some((s) => (r = s.call({ lexer: this }, e, t)) ? (e = e.substring(r.raw.length), t.push(r), !0) : !1)) continue;
+			if (r = this.tokenizer.space(e)) {
+				e = e.substring(r.raw.length);
+				let s = t.at(-1);
+				r.raw.length === 1 && s !== void 0 ? s.raw += `
+` : t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.code(e)) {
+				e = e.substring(r.raw.length);
+				let s = t.at(-1);
+				s?.type === "paragraph" || s?.type === "text" ? (s.raw += (s.raw.endsWith(`
+`) ? "" : `
+`) + r.raw, s.text += `
+` + r.text, this.inlineQueue.at(-1).src = s.text) : t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.fences(e)) {
+				e = e.substring(r.raw.length), t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.heading(e)) {
+				e = e.substring(r.raw.length), t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.hr(e)) {
+				e = e.substring(r.raw.length), t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.blockquote(e)) {
+				e = e.substring(r.raw.length), t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.list(e)) {
+				e = e.substring(r.raw.length), t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.html(e)) {
+				e = e.substring(r.raw.length), t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.def(e)) {
+				e = e.substring(r.raw.length);
+				let s = t.at(-1);
+				s?.type === "paragraph" || s?.type === "text" ? (s.raw += (s.raw.endsWith(`
+`) ? "" : `
+`) + r.raw, s.text += `
+` + r.raw, this.inlineQueue.at(-1).src = s.text) : this.tokens.links[r.tag] || (this.tokens.links[r.tag] = {
+					href: r.href,
+					title: r.title
+				}, t.push(r));
+				continue;
+			}
+			if (r = this.tokenizer.table(e)) {
+				e = e.substring(r.raw.length), t.push(r);
+				continue;
+			}
+			if (r = this.tokenizer.lheading(e)) {
+				e = e.substring(r.raw.length), t.push(r);
+				continue;
+			}
+			let o = e;
+			if (this.options.extensions?.startBlock) {
+				let s = 1 / 0, u = e.slice(1), a;
+				this.options.extensions.startBlock.forEach((p) => {
+					a = p.call({ lexer: this }, u), typeof a == "number" && a >= 0 && (s = Math.min(s, a));
+				}), s < 1 / 0 && s >= 0 && (o = e.substring(0, s + 1));
+			}
+			if (this.state.top && (r = this.tokenizer.paragraph(o))) {
+				let s = t.at(-1);
+				n && s?.type === "paragraph" ? (s.raw += (s.raw.endsWith(`
+`) ? "" : `
+`) + r.raw, s.text += `
+` + r.text, this.inlineQueue.pop(), this.inlineQueue.at(-1).src = s.text) : t.push(r), n = o.length !== e.length, e = e.substring(r.raw.length);
+				continue;
+			}
+			if (r = this.tokenizer.text(e)) {
+				e = e.substring(r.raw.length);
+				let s = t.at(-1);
+				s?.type === "text" ? (s.raw += (s.raw.endsWith(`
+`) ? "" : `
+`) + r.raw, s.text += `
+` + r.text, this.inlineQueue.pop(), this.inlineQueue.at(-1).src = s.text) : t.push(r);
+				continue;
+			}
+			if (e) {
+				this.infiniteLoopError(e.charCodeAt(0));
+				break;
+			}
+		}
+		return this.state.top = !0, t;
+	}
+	inline(e, t = []) {
+		return this.inlineQueue.push({
+			src: e,
+			tokens: t
+		}), t;
+	}
+	linkInText(e) {
+		if (!e.includes("[")) return !1;
+		let t = this.tokenizer.rules.inline.link;
+		for (let n of e.matchAll(this.tokenizer.rules.inline.blockSkip)) if (t.test(n[0]) && e.charAt(n.index - 1) !== "!") return !0;
+		for (let n of e.matchAll(this.tokenizer.rules.inline.reflinkSearch)) {
+			let i = n[0], r = i.lastIndexOf("[");
+			if (!(i.charAt(0) === "!" || !Object.hasOwn(this.tokens.links, D(i.slice(r + 1, -1)))) && !(r > 1 && this.linkInText(i.slice(1, r - 1)))) return !0;
+		}
+		return !1;
+	}
+	inlineTokens(e, t = []) {
+		this.tokenizer.lexer = this;
+		let n = e;
+		if (this.tokens.links && e.includes("[")) {
+			let s = this.tokenizer.rules.inline.reflinkSearch, u = (a) => {
+				let p = a.lastIndexOf("[");
+				if (!Object.hasOwn(this.tokens.links, D(a.slice(p + 1, -1)))) return a;
+				if (p > 1 && a.charAt(0) !== "!") {
+					let c = a.slice(1, p - 1);
+					if (this.linkInText(c)) return "[" + c.replace(s, u) + "][" + "a".repeat(a.length - p - 2) + "]";
+				}
+				return "[" + "a".repeat(a.length - 2) + "]";
+			};
+			n = n.replace(s, u);
+		}
+		n = n.replace(this.tokenizer.rules.inline.anyPunctuation, (s) => "+".repeat(s.length)), n = n.replace(this.tokenizer.rules.inline.blockSkip, (s, u, a) => {
+			let p = a ? a.length : 0;
+			return s.slice(0, p) + "[" + "a".repeat(s.length - p - 2) + "]";
+		}), n = this.options.hooks?.emStrongMask?.call({ lexer: this }, n) ?? n;
+		let i = !1, r = "", o = 1 / 0;
+		for (; e;) {
+			if (e.length < o) o = e.length;
+			else {
+				this.infiniteLoopError(e.charCodeAt(0));
+				break;
+			}
+			i || (r = ""), i = !1;
+			let s;
+			if (this.options.extensions?.inline?.some((a) => (s = a.call({ lexer: this }, e, t)) ? (e = e.substring(s.raw.length), t.push(s), !0) : !1)) continue;
+			if (s = this.tokenizer.escape(e)) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			if (s = this.tokenizer.tag(e)) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			if (s = this.tokenizer.link(e)) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			if (s = this.tokenizer.reflink(e, this.tokens.links)) {
+				e = e.substring(s.raw.length);
+				let a = t.at(-1);
+				s.type === "text" && a?.type === "text" ? (a.raw += s.raw, a.text += s.text) : t.push(s);
+				continue;
+			}
+			if (s = this.tokenizer.emStrong(e, n, r)) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			if (s = this.tokenizer.codespan(e)) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			if (s = this.tokenizer.br(e)) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			if (s = this.tokenizer.del(e, n, r)) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			if (s = this.tokenizer.autolink(e)) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			if (!this.state.inLink && (s = this.tokenizer.url(e))) {
+				e = e.substring(s.raw.length), t.push(s);
+				continue;
+			}
+			let u = e;
+			if (this.options.extensions?.startInline) {
+				let a = 1 / 0, p = e.slice(1), c;
+				this.options.extensions.startInline.forEach((h) => {
+					c = h.call({ lexer: this }, p), typeof c == "number" && c >= 0 && (a = Math.min(a, c));
+				}), a < 1 / 0 && a >= 0 && (u = e.substring(0, a + 1));
+			}
+			if (s = this.tokenizer.inlineText(u)) {
+				e = e.substring(s.raw.length), s.raw.slice(-1) !== "_" && (r = s.raw.slice(-1)), i = !0;
+				let a = t.at(-1);
+				a?.type === "text" ? (a.raw += s.raw, a.text += s.text) : t.push(s);
+				continue;
+			}
+			if (e) {
+				this.infiniteLoopError(e.charCodeAt(0));
+				break;
+			}
+		}
+		return t;
+	}
+	infiniteLoopError(e) {
+		let t = "Infinite loop on byte: " + e;
+		if (this.options.silent) console.error(t);
+		else throw new Error(t);
+	}
+};
+var P = class {
+	options;
+	parser;
+	constructor(e) {
+		this.options = e || T;
+	}
+	space(e) {
+		return "";
+	}
+	code({ text: e, lang: t, escaped: n }) {
+		let i = (t || "").match(m.notSpaceStart)?.[0], r = e ? e.replace(m.endingNewline, "") + `
+` : "";
+		return i ? "<pre><code class=\"language-" + R(i) + "\">" + (n ? r : R(r, !0)) + `</code></pre>
+` : "<pre><code>" + (n ? r : R(r, !0)) + `</code></pre>
+`;
+	}
+	blockquote({ tokens: e }) {
+		return `<blockquote>
+${this.parser.parse(e)}</blockquote>
+`;
+	}
+	html({ text: e }) {
+		return e;
+	}
+	def(e) {
+		return "";
+	}
+	heading({ tokens: e, depth: t }) {
+		return `<h${t}>${this.parser.parseInline(e)}</h${t}>
+`;
+	}
+	hr(e) {
+		return `<hr>
+`;
+	}
+	list(e) {
+		let t = e.ordered, n = e.start, i = "";
+		for (let s = 0; s < e.items.length; s++) {
+			let u = e.items[s];
+			i += this.listitem(u);
+		}
+		let r = t ? "ol" : "ul", o = t && n !== 1 ? " start=\"" + n + "\"" : "";
+		return "<" + r + o + `>
+` + i + "</" + r + `>
+`;
+	}
+	listitem(e) {
+		return `<li>${this.parser.parse(e.tokens)}</li>
+`;
+	}
+	checkbox({ checked: e }) {
+		return "<input " + (e ? "checked=\"\" " : "") + "disabled=\"\" type=\"checkbox\"> ";
+	}
+	paragraph({ tokens: e }) {
+		return `<p>${this.parser.parseInline(e)}</p>
+`;
+	}
+	table(e) {
+		let t = "", n = "";
+		for (let r = 0; r < e.header.length; r++) n += this.tablecell(e.header[r]);
+		t += this.tablerow({ text: n });
+		let i = "";
+		for (let r = 0; r < e.rows.length; r++) {
+			let o = e.rows[r];
+			n = "";
+			for (let s = 0; s < o.length; s++) n += this.tablecell(o[s]);
+			i += this.tablerow({ text: n });
+		}
+		return i && (i = `<tbody>${i}</tbody>`), `<table>
+<thead>
+` + t + `</thead>
+` + i + `</table>
+`;
+	}
+	tablerow({ text: e }) {
+		return `<tr>
+${e}</tr>
+`;
+	}
+	tablecell(e) {
+		let t = this.parser.parseInline(e.tokens), n = e.header ? "th" : "td";
+		return (e.align ? `<${n} align="${e.align}">` : `<${n}>`) + t + `</${n}>
+`;
+	}
+	strong({ tokens: e }) {
+		return `<strong>${this.parser.parseInline(e)}</strong>`;
+	}
+	em({ tokens: e }) {
+		return `<em>${this.parser.parseInline(e)}</em>`;
+	}
+	codespan({ text: e }) {
+		return `<code>${R(e, !0)}</code>`;
+	}
+	br(e) {
+		return "<br>";
+	}
+	del({ tokens: e }) {
+		return `<del>${this.parser.parseInline(e)}</del>`;
+	}
+	link({ href: e, title: t, text: n, tokens: i, autolink: r }) {
+		let o = r ? R(n, !0) : this.parser.parseInline(i), s = ee(e);
+		if (s === null) return o;
+		e = R(s, r);
+		let u = "<a href=\"" + e + "\"";
+		return t && (u += " title=\"" + R(t) + "\""), u += ">" + o + "</a>", u;
+	}
+	image({ href: e, title: t, text: n, tokens: i }) {
+		i && (n = this.parser.parseInline(i, this.parser.textRenderer));
+		let r = ee(e);
+		if (r === null) return R(n);
+		e = r;
+		let o = `<img src="${R(e)}" alt="${R(n)}"`;
+		return t && (o += ` title="${R(t)}"`), o += ">", o;
+	}
+	text(e) {
+		return "tokens" in e && e.tokens ? this.parser.parseInline(e.tokens) : "escaped" in e && e.escaped ? e.text : R(e.text);
+	}
+};
+var L = class {
+	strong({ text: e }) {
+		return e;
+	}
+	em({ text: e }) {
+		return e;
+	}
+	codespan({ text: e }) {
+		return e;
+	}
+	del({ text: e }) {
+		return e;
+	}
+	html({ text: e }) {
+		return e;
+	}
+	text({ text: e }) {
+		return e;
+	}
+	link({ text: e }) {
+		return "" + e;
+	}
+	image({ text: e }) {
+		return "" + e;
+	}
+	br() {
+		return "";
+	}
+	checkbox({ raw: e }) {
+		return e;
+	}
+};
+var b = class l {
+	options;
+	renderer;
+	textRenderer;
+	constructor(e) {
+		this.options = e || T, this.options.renderer = this.options.renderer || new P(), this.renderer = this.options.renderer, this.renderer.options = this.options, this.renderer.parser = this, this.textRenderer = new L();
+	}
+	static parse(e, t) {
+		return new l(t).parse(e);
+	}
+	static parseInline(e, t) {
+		return new l(t).parseInline(e);
+	}
+	parse(e) {
+		this.renderer.parser = this;
+		let t = "";
+		for (let n = 0; n < e.length; n++) {
+			let i = e[n];
+			if (this.options.extensions?.renderers?.[i.type]) {
+				let o = i, s = this.options.extensions.renderers[o.type].call({ parser: this }, o);
+				if (s !== !1 || ![
+					"space",
+					"hr",
+					"heading",
+					"code",
+					"table",
+					"blockquote",
+					"list",
+					"checkbox",
+					"html",
+					"def",
+					"paragraph",
+					"text"
+				].includes(o.type)) {
+					t += s || "";
+					continue;
+				}
+			}
+			let r = i;
+			switch (r.type) {
+				case "space":
+					t += this.renderer.space(r);
+					break;
+				case "hr":
+					t += this.renderer.hr(r);
+					break;
+				case "heading":
+					t += this.renderer.heading(r);
+					break;
+				case "code":
+					t += this.renderer.code(r);
+					break;
+				case "table":
+					t += this.renderer.table(r);
+					break;
+				case "blockquote":
+					t += this.renderer.blockquote(r);
+					break;
+				case "list":
+					t += this.renderer.list(r);
+					break;
+				case "checkbox":
+					t += this.renderer.checkbox(r);
+					break;
+				case "html":
+					t += this.renderer.html(r);
+					break;
+				case "def":
+					t += this.renderer.def(r);
+					break;
+				case "paragraph":
+					t += this.renderer.paragraph(r);
+					break;
+				case "text":
+					t += this.renderer.text(r);
+					break;
+				default: {
+					let o = "Token with \"" + r.type + "\" type was not found.";
+					if (this.options.silent) return console.error(o), "";
+					throw new Error(o);
+				}
+			}
+		}
+		return t;
+	}
+	parseInline(e, t = this.renderer) {
+		this.renderer.parser = this;
+		let n = "";
+		for (let i = 0; i < e.length; i++) {
+			let r = e[i];
+			if (this.options.extensions?.renderers?.[r.type]) {
+				let s = this.options.extensions.renderers[r.type].call({ parser: this }, r);
+				if (s !== !1 || ![
+					"escape",
+					"html",
+					"link",
+					"image",
+					"checkbox",
+					"strong",
+					"em",
+					"codespan",
+					"br",
+					"del",
+					"text"
+				].includes(r.type)) {
+					n += s || "";
+					continue;
+				}
+			}
+			let o = r;
+			switch (o.type) {
+				case "escape":
+					n += t.text(o);
+					break;
+				case "html":
+					n += t.html(o);
+					break;
+				case "link":
+					n += t.link(o);
+					break;
+				case "image":
+					n += t.image(o);
+					break;
+				case "checkbox":
+					n += t.checkbox(o);
+					break;
+				case "strong":
+					n += t.strong(o);
+					break;
+				case "em":
+					n += t.em(o);
+					break;
+				case "codespan":
+					n += t.codespan(o);
+					break;
+				case "br":
+					n += t.br(o);
+					break;
+				case "del":
+					n += t.del(o);
+					break;
+				case "text":
+					n += t.text(o);
+					break;
+				default: {
+					let s = "Token with \"" + o.type + "\" type was not found.";
+					if (this.options.silent) return console.error(s), "";
+					throw new Error(s);
+				}
+			}
+		}
+		return n;
+	}
+};
+var S = class {
+	options;
+	block;
+	constructor(e) {
+		this.options = e || T;
+	}
+	static passThroughHooks = /* @__PURE__ */ new Set([
+		"preprocess",
+		"postprocess",
+		"processAllTokens",
+		"emStrongMask"
+	]);
+	static passThroughHooksRespectAsync = /* @__PURE__ */ new Set([
+		"preprocess",
+		"postprocess",
+		"processAllTokens"
+	]);
+	preprocess(e) {
+		return e;
+	}
+	postprocess(e) {
+		return e;
+	}
+	processAllTokens(e) {
+		return e;
+	}
+	emStrongMask(e) {
+		return e;
+	}
+	provideLexer(e = this.block) {
+		return e ? x.lex : x.lexInline;
+	}
+	provideParser(e = this.block) {
+		return e ? b.parse : b.parseInline;
+	}
+};
+var Q = class {
+	defaults = A();
+	options = this.setOptions;
+	parse = this.parseMarkdown(!0);
+	parseInline = this.parseMarkdown(!1);
+	Parser = b;
+	Renderer = P;
+	TextRenderer = L;
+	Lexer = x;
+	Tokenizer = y;
+	Hooks = S;
+	constructor(...e) {
+		this.use(...e);
+	}
+	walkTokens(e, t) {
+		let n = [];
+		for (let i of e) switch (n = n.concat(t.call(this, i)), i.type) {
+			case "table": {
+				let r = i;
+				for (let o of r.header) n = n.concat(this.walkTokens(o.tokens, t));
+				for (let o of r.rows) for (let s of o) n = n.concat(this.walkTokens(s.tokens, t));
+				break;
+			}
+			case "list": {
+				let r = i;
+				n = n.concat(this.walkTokens(r.items, t));
+				break;
+			}
+			default: {
+				let r = i;
+				this.defaults.extensions?.childTokens?.[r.type] ? this.defaults.extensions.childTokens[r.type].forEach((o) => {
+					let s = r[o].flat(1 / 0);
+					n = n.concat(this.walkTokens(s, t));
+				}) : r.tokens && (n = n.concat(this.walkTokens(r.tokens, t)));
+			}
+		}
+		return n;
+	}
+	use(...e) {
+		let t = this.defaults.extensions || {
+			renderers: {},
+			childTokens: {}
+		};
+		return e.forEach((n) => {
+			let i = { ...n };
+			if (i.async = this.defaults.async || i.async || !1, n.extensions && (n.extensions.forEach((r) => {
+				if (!r.name) throw new Error("extension name required");
+				if ("renderer" in r) {
+					let o = t.renderers[r.name];
+					o ? t.renderers[r.name] = function(...s) {
+						let u = r.renderer.apply(this, s);
+						return u === !1 && (u = o.apply(this, s)), u;
+					} : t.renderers[r.name] = r.renderer;
+				}
+				if ("tokenizer" in r) {
+					if (!r.level || r.level !== "block" && r.level !== "inline") throw new Error("extension level must be 'block' or 'inline'");
+					let o = t[r.level];
+					o ? o.unshift(r.tokenizer) : t[r.level] = [r.tokenizer], r.start && (r.level === "block" ? t.startBlock ? t.startBlock.push(r.start) : t.startBlock = [r.start] : r.level === "inline" && (t.startInline ? t.startInline.push(r.start) : t.startInline = [r.start]));
+				}
+				"childTokens" in r && r.childTokens && (t.childTokens[r.name] = r.childTokens);
+			}), i.extensions = t), n.renderer) {
+				let r = this.defaults.renderer || new P(this.defaults);
+				for (let o in n.renderer) {
+					if (!(o in r)) throw new Error(`renderer '${o}' does not exist`);
+					if (["options", "parser"].includes(o)) continue;
+					let s = o, u = n.renderer[s], a = r[s];
+					r[s] = (...p) => {
+						let c = u.apply(r, p);
+						return c === !1 && (c = a.apply(r, p)), c || "";
+					};
+				}
+				i.renderer = r;
+			}
+			if (n.tokenizer) {
+				let r = this.defaults.tokenizer || new y(this.defaults);
+				for (let o in n.tokenizer) {
+					if (!(o in r)) throw new Error(`tokenizer '${o}' does not exist`);
+					if ([
+						"options",
+						"rules",
+						"lexer"
+					].includes(o)) continue;
+					let s = o, u = n.tokenizer[s], a = r[s];
+					r[s] = (...p) => {
+						let c = u.apply(r, p);
+						return c === !1 && (c = a.apply(r, p)), c;
+					};
+				}
+				i.tokenizer = r;
+			}
+			if (n.hooks) {
+				let r = this.defaults.hooks || new S();
+				for (let o in n.hooks) {
+					if (!(o in r)) throw new Error(`hook '${o}' does not exist`);
+					if (["options", "block"].includes(o)) continue;
+					let s = o, u = n.hooks[s], a = r[s];
+					S.passThroughHooks.has(o) ? r[s] = (p) => {
+						if (this.defaults.async && S.passThroughHooksRespectAsync.has(o)) return (async () => {
+							let h = await u.call(r, p);
+							return a.call(r, h);
+						})();
+						let c = u.call(r, p);
+						return a.call(r, c);
+					} : r[s] = (...p) => {
+						if (this.defaults.async) return (async () => {
+							let h = await u.apply(r, p);
+							return h === !1 && (h = await a.apply(r, p)), h;
+						})();
+						let c = u.apply(r, p);
+						return c === !1 && (c = a.apply(r, p)), c;
+					};
+				}
+				i.hooks = r;
+			}
+			if (n.walkTokens) {
+				let r = this.defaults.walkTokens, o = n.walkTokens;
+				i.walkTokens = function(s) {
+					let u = [];
+					return u.push(o.call(this, s)), r && (u = u.concat(r.call(this, s))), u;
+				};
+			}
+			this.defaults = {
+				...this.defaults,
+				...i
+			};
+		}), this;
+	}
+	setOptions(e) {
+		return this.defaults = {
+			...this.defaults,
+			...e
+		}, this;
+	}
+	lexer(e, t) {
+		return x.lex(e, t ?? this.defaults);
+	}
+	parser(e, t) {
+		return b.parse(e, t ?? this.defaults);
+	}
+	parseMarkdown(e) {
+		return (n, i) => {
+			let r = { ...i }, o = {
+				...this.defaults,
+				...r
+			}, s = this.onError(!!o.silent, !!o.async);
+			if (this.defaults.async === !0 && r.async === !1) return s(/* @__PURE__ */ new Error("marked(): The async option was set to true by an extension. Remove async: false from the parse options object to return a Promise."));
+			if (typeof n > "u" || n === null) return s(/* @__PURE__ */ new Error("marked(): input parameter is undefined or null"));
+			if (typeof n != "string") return s(/* @__PURE__ */ new Error("marked(): input parameter is of type " + Object.prototype.toString.call(n) + ", string expected"));
+			if (o.hooks && (o.hooks.options = o, o.hooks.block = e), o.async) return (async () => {
+				let u = o.hooks ? await o.hooks.preprocess(n) : n, p = await (o.hooks ? await o.hooks.provideLexer(e) : e ? x.lex : x.lexInline)(u, o), c = o.hooks ? await o.hooks.processAllTokens(p) : p;
+				o.walkTokens && await Promise.all(this.walkTokens(c, o.walkTokens));
+				let k = await (o.hooks ? await o.hooks.provideParser(e) : e ? b.parse : b.parseInline)(c, o);
+				return o.hooks ? await o.hooks.postprocess(k) : k;
+			})().catch(s);
+			try {
+				o.hooks && (n = o.hooks.preprocess(n));
+				let a = (o.hooks ? o.hooks.provideLexer(e) : e ? x.lex : x.lexInline)(n, o);
+				o.hooks && (a = o.hooks.processAllTokens(a)), o.walkTokens && this.walkTokens(a, o.walkTokens);
+				let c = (o.hooks ? o.hooks.provideParser(e) : e ? b.parse : b.parseInline)(a, o);
+				return o.hooks && (c = o.hooks.postprocess(c)), c;
+			} catch (u) {
+				return s(u);
+			}
+		};
+	}
+	onError(e, t) {
+		return (n) => {
+			if (n.message += `
+Please report this to https://github.com/markedjs/marked.`, e) {
+				let i = "<p>An error occurred:</p><pre>" + R(n.message + "", !0) + "</pre>";
+				return t ? Promise.resolve(i) : i;
+			}
+			if (t) return Promise.reject(n);
+			throw n;
+		};
+	}
+};
+var M = new Q();
+function f(l, e) {
+	return M.parse(l, e);
+}
+f.options = f.setOptions = function(l) {
+	return M.setOptions(l), f.defaults = M.defaults, U(f.defaults), f;
+};
+f.getDefaults = A;
+f.defaults = T;
+function bt(...l) {
+	return M.use(...l), f.defaults = M.defaults, U(f.defaults), f;
+}
+f.use = bt;
+f.walkTokens = function(l, e) {
+	return M.walkTokens(l, e);
+};
+f.parseInline = M.parseInline;
+f.Parser = b;
+f.parser = b.parse;
+f.Renderer = P;
+f.TextRenderer = L;
+f.Lexer = x;
+f.lexer = x.lex;
+f.Tokenizer = y;
+f.Hooks = S;
+f.parse = f;
+f.options;
+f.setOptions;
+f.walkTokens;
+f.parseInline;
+b.parse;
+x.lex;
 //#endregion
 //#region node_modules/alpinejs/dist/module.esm.js
 var flushPending = false;
@@ -21534,6 +27327,7 @@ var MobileController = class {
 	firsts = /* @__PURE__ */ new Set();
 	kills = /* @__PURE__ */ new Set();
 	joystickValues = /* @__PURE__ */ new Map();
+	activeJoyCenters = /* @__PURE__ */ new Map();
 	hiddenButtons = /* @__PURE__ */ new Set();
 	init() {
 		window.addEventListener("touchstart", this.handleTouchStart, { passive: false });
@@ -21609,7 +27403,8 @@ var MobileController = class {
 			const { centerX, centerY, radius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
 			const dx = screenX - centerX;
 			const dy = screenY - centerY;
-			if (dx * dx + dy * dy <= radius * radius) return key;
+			const detectionRadius = radius * 2.5;
+			if (dx * dx + dy * dy <= detectionRadius * detectionRadius) return key;
 		}
 		return touchId;
 	}
@@ -21619,6 +27414,7 @@ var MobileController = class {
 		if (!mobileData || !mobileData.joysticks) return;
 		const screenWidth = window.innerWidth;
 		const screenHeight = window.innerHeight;
+		const MAX_CENTER_DRIFT_MULTIPLIER = 1.5;
 		for (const key of Object.keys(mobileData.joysticks)) this.joystickValues.set(key, {
 			x: 0,
 			y: 0
@@ -21626,27 +27422,56 @@ var MobileController = class {
 		for (const touch of this.touches.values()) if (typeof touch.target === "string" && mobileData.joysticks[touch.target]) {
 			const joyKey = touch.target;
 			const joy = mobileData.joysticks[joyKey];
-			const { centerX, centerY, radius: maxRadius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
-			const dx = touch.screenX - centerX;
-			const dy = touch.screenY - centerY;
-			const distance = Math.sqrt(dx * dx + dy * dy);
+			const staticPos = this.resolveJoyPosition(joy, screenWidth, screenHeight);
+			const maxRadius = staticPos.radius;
+			if (!this.activeJoyCenters.has(joyKey)) this.activeJoyCenters.set(joyKey, {
+				x: staticPos.centerX,
+				y: staticPos.centerY
+			});
+			const center = this.activeJoyCenters.get(joyKey);
+			let dx = touch.screenX - center.x;
+			let dy = touch.screenY - center.y;
+			let distance = Math.sqrt(dx * dx + dy * dy);
+			if (distance > maxRadius) {
+				center.x = touch.screenX - dx / distance * maxRadius;
+				center.y = touch.screenY - dy / distance * maxRadius;
+				const maxDriftDistance = maxRadius * MAX_CENTER_DRIFT_MULTIPLIER;
+				const driftX = center.x - staticPos.centerX;
+				const driftY = center.y - staticPos.centerY;
+				const driftDistance = Math.sqrt(driftX * driftX + driftY * driftY);
+				if (driftDistance > maxDriftDistance) {
+					center.x = staticPos.centerX + driftX / driftDistance * maxDriftDistance;
+					center.y = staticPos.centerY + driftY / driftDistance * maxDriftDistance;
+				}
+				dx = touch.screenX - center.x;
+				dy = touch.screenY - center.y;
+				distance = Math.sqrt(dx * dx + dy * dy);
+				if (distance > maxRadius) {
+					dx = dx / distance * maxRadius;
+					dy = dy / distance * maxRadius;
+					distance = maxRadius;
+				}
+			}
 			if (distance === 0) this.joystickValues.set(joyKey, {
 				x: 0,
 				y: 0
 			});
 			else {
-				const clampDist = Math.min(distance, maxRadius);
-				const normX = dx / distance * (clampDist / maxRadius);
-				const normY = dy / distance * (clampDist / maxRadius);
+				const x = dx / maxRadius;
+				const y = dy / maxRadius;
 				this.joystickValues.set(joyKey, {
-					x: normX,
-					y: normY
+					x,
+					y
 				});
 			}
 		}
 	}
 	getJoystick(name) {
-		return this.joystickValues.get(name) || {
+		const val = this.joystickValues.get(name);
+		return val ? {
+			x: val.x,
+			y: val.y
+		} : {
 			x: 0,
 			y: 0
 		};
@@ -21660,8 +27485,19 @@ var MobileController = class {
 		ctx.save();
 		if (mobileData.joysticks) for (const [key, joy] of Object.entries(mobileData.joysticks)) {
 			if (this.hiddenButtons.has(key)) continue;
-			const { centerX, centerY, radius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
-			const values = this.getJoystick(key);
+			const staticPos = this.resolveJoyPosition(joy, screenWidth, screenHeight);
+			const radius = staticPos.radius;
+			let centerX = staticPos.centerX;
+			let centerY = staticPos.centerY;
+			if (this.activeJoyCenters.has(key)) {
+				const dynamicCenter = this.activeJoyCenters.get(key);
+				centerX = dynamicCenter.x;
+				centerY = dynamicCenter.y;
+			}
+			const values = this.joystickValues.get(key) || {
+				x: 0,
+				y: 0
+			};
 			ctx.beginPath();
 			ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
 			ctx.fillStyle = joy.color + "33";
@@ -21729,6 +27565,7 @@ var MobileController = class {
 		window.removeEventListener("touchmove", this.handleTouchMove);
 		window.removeEventListener("touchend", this.handleTouchEnd);
 		window.removeEventListener("touchcancel", this.handleTouchEnd);
+		this.activeJoyCenters.clear();
 	}
 	handleTouchStart = (e) => {
 		for (let i = 0; i < e.changedTouches.length; i++) {
@@ -21774,6 +27611,7 @@ var MobileController = class {
 				this.presses.delete(target);
 				this.kills.add(target);
 				this.touches.delete(touch.identifier);
+				if (typeof target === "string") this.activeJoyCenters.delete(target);
 			}
 		}
 		this.updateJoystickValues();
@@ -21856,6 +27694,8 @@ var ctx$2 = canvas.getContext("2d");
 canvas.oncontextmenu = (e) => {
 	e.preventDefault();
 };
+var PING_LIMIT = 2e3;
+var pingElement = document.getElementById("game-ping");
 function resizeCanvas() {
 	const dpr = window.devicePixelRatio || 1;
 	const width = window.innerWidth;
@@ -21883,6 +27723,10 @@ var GameHandler = class {
 	gameHeight;
 	prevDraw = null;
 	allowsMobile;
+	lastReceive = getNow();
+	pingSum = 0;
+	pingCount = 0;
+	lastPingUpdate = getNow();
 	constructor(gamemodeId, gamemode, playerIdx, protocols, clientData) {
 		this.gamemodeId = gamemodeId;
 		this.gamemode = gamemode;
@@ -21897,8 +27741,23 @@ var GameHandler = class {
 			this.allowsMobile = true;
 			mobileController.setScreenCoordsAdapter(gamemode, playerIdx, clientData);
 		} else this.allowsMobile = false;
+		pingElement.textContent = "";
+	}
+	updatePing() {
+		const now = getNow();
+		this.pingSum += now - this.lastReceive;
+		this.pingCount++;
+		this.lastReceive = now;
+		if (now - this.lastPingUpdate >= 1e3) {
+			pingElement.textContent = (this.pingCount > 0 ? this.pingSum / this.pingCount : 0).toFixed(1).padStart(4, "0");
+			pingElement.classList.remove("disconnected");
+			this.pingSum = 0;
+			this.pingCount = 0;
+			this.lastPingUpdate = now;
+		}
 	}
 	receive(gdata) {
+		this.updatePing();
 		const msg = decodeFullMessage(this.protocols.ServerMessage.decode(gdata));
 		this.gamemode.load(msg.state);
 		const now = getNow();
@@ -21943,6 +27802,10 @@ var GameHandler = class {
 	}
 	frame() {
 		const now = getNow();
+		if (now - this.lastReceive >= PING_LIMIT) {
+			pingElement.textContent = "(disconnected)";
+			pingElement.classList.add("disconnected");
+		}
 		const newInputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData).map((data) => ({
 			...data,
 			timestamp: now
@@ -21969,7 +27832,10 @@ async function setGameHandler(gamemode, playerIdx, startData, total) {
 	const factory = getMultiGmFactory(gamemode);
 	const protocols = getProtocol(gamemode, "multiplayer");
 	await protocols.load();
-	const { game, data, html, skins } = factory.client(startData, total, playerIdx);
+	const { game, data, html, skins } = factory.client({
+		data: startData,
+		origin: "server"
+	}, total, playerIdx);
 	await imageLoader.load(skins, gamemode);
 	const gameHtml = document.getElementById("game-html");
 	gameHtml.innerHTML = "";
@@ -22173,6 +28039,13 @@ var runners = {
 	},
 	accountInfoResult(d) {
 		dom.getHomePanel().onAccountInfo(d);
+	},
+	connectedUsersInfo(d) {
+		const connectedUsersInfo = {
+			total: d.total,
+			gamemods: Object.fromEntries(d.gamemods.map((i) => [i.gamemode, i.total]))
+		};
+		dom.getHomePanel().setConnectedUsersInfo(connectedUsersInfo);
 	}
 };
 var skinsResponseResolve = null;
@@ -22202,13 +28075,24 @@ var msgtypes = (async function() {
 	})();
 	const ClientMessage = root.lookupType("game.ClientMessage");
 	const ServerMessage = root.lookupType("game.ServerMessage");
+	const ServerVersion = root.lookupType("game.ServerVersion");
 	const socket = new WebSocket(window.SERVER_ADDRESS);
 	await new Promise((resolve, reject) => {
-		socket.addEventListener("open", () => {
-			resolve();
-		});
+		socket.addEventListener("open", () => {});
+		let firstMessage = true;
 		socket.addEventListener("message", async (event) => {
 			try {
+				if (firstMessage) {
+					const buffer = new Uint8Array(await event.data.arrayBuffer());
+					const msg = ServerVersion.decode(buffer);
+					if (msg.versionCode !== window.VERSION_CODE) {
+						alert("Please update Ayke");
+						reject(`Version mismatch (${msg.versionCode} vs ${window.VERSION_CODE})`);
+					}
+					console.log("Version code successfully checked", msg.versionCode);
+					resolve();
+					firstMessage = false;
+				}
 				const buffer = new Uint8Array(await event.data.arrayBuffer());
 				const msg = ServerMessage.decode(buffer);
 				if (msg.message === "timeDeltaDate") calculateDeltaTime(msg.timeDeltaDate);
@@ -22426,12 +28310,15 @@ var LocalGameHandler = class {
 	bots;
 	prando;
 	playerCount;
-	constructor(gamemodeId, addBots, seed = Math.random()) {
+	constructor(gamemodeId, addBots, startData, seed = Math.random()) {
 		const factory = getMultiGmFactory(gamemodeId);
 		this.prando = new Prando(seed);
 		console.log("Current seed is " + Math.random());
 		this.playerCount = addBots ? factory.defaultPlayerCount : 2;
-		const { game, data, html, skins } = factory.client(null, this.playerCount, 0);
+		const { game, data, html, skins } = factory.client({
+			data: startData,
+			origin: "client"
+		}, this.playerCount, 0);
 		const gameHtml = document.getElementById("game-html");
 		gameHtml.innerHTML = "";
 		if (html) gameHtml.appendChild(html);
@@ -22450,6 +28337,7 @@ var LocalGameHandler = class {
 			mobileController.setScreenCoordsAdapter(this.gamemode, 0, data);
 		} else this.allowsMobile = false;
 		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
+		document.getElementById("game-ping").textContent = "";
 	}
 	async start() {
 		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
@@ -22555,6 +28443,7 @@ var SoloGameHandler = class {
 			this.allowsMobile = true;
 			mobileController.setScreenCoordsAdapter(this.gamemode, 0, this.clientData);
 		} else this.allowsMobile = false;
+		document.getElementById("game-ping").innerText = "";
 	}
 	async start() {
 		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
@@ -22652,6 +28541,37 @@ var DynamicCssHandler = class {
 };
 var dynamicCssHandler = new DynamicCssHandler();
 //#endregion
+//#region client/src/dom/changelogs.ts
+var CHANGELOGS = [{
+	version: "1.4.0",
+	date: 17895528e5,
+	title: "Add gamemods and improve ayke",
+	lines: [
+		"<ust>Tutorial / vs Bots:</ust> skin & team selection",
+		"<ust>Controls:</ust> improve joystick",
+		"<ust>RoarsOnGlass:</ust> fix `dirX` / `dirY`",
+		"<ust>WoodSword:</ust> show opponent sword; balance streams; add bot",
+		"<ust>AirBasket:</ust> smarter bots; SPACE to target bucket area",
+		"<ust>Rooms:</ust> show connected users per gamemode/total; destroy empty rooms",
+		"<ust>RoarsOnGlass:</ust> bright player outline",
+		"<ust>Leaderboard:</ust> only suggest multiplayer gamemodes",
+		"<ust>UI:</ust> show ping; blur icons",
+		"<ust>Turrets:</ust> add icon",
+		"<ust>New games:</ust> Popit, LavaBall, MoveArmy*(still bugged)*",
+		"Versioned changelogs;"
+	]
+}, {
+	version: "1.3.0",
+	date: 17891208e5,
+	title: "Trophee road",
+	lines: [
+		"Trophee road",
+		"Collectibles, coins",
+		"Improve `game-result` page",
+		"RNG API (applied to *woodSword*)"
+	]
+}];
+//#endregion
 //#region client/src/dom/dom.ts
 var STORAGE_KEY_CONNECTION = "ayke_connectionKey";
 /** Runtime check for the "type 1" marker described above. */
@@ -22666,6 +28586,16 @@ var MainComponent = class {
 	isAuthenticated = false;
 	pseudo = null;
 	panel = new HomeComponent();
+	constructor() {
+		sendMessage({ subscribeConnectedUsersInfo: true });
+	}
+	setPanel(panel) {
+		const h1 = this.panel instanceof HomeComponent;
+		const h2 = panel instanceof HomeComponent;
+		if (h1 && !h2) sendMessage({ subscribeConnectedUsersInfo: false });
+		this.panel = panel;
+		if (h2 && !h1) sendMessage({ subscribeConnectedUsersInfo: true });
+	}
 	y0 = 0;
 	y1 = 0;
 	get currentPage() {
@@ -22685,7 +28615,7 @@ var MainComponent = class {
 		return this.currentPage === page;
 	}
 	openHome() {
-		this.panel = new HomeComponent();
+		this.setPanel(new HomeComponent());
 		this.currentPage = "home";
 		pushUrlStack(this);
 	}
@@ -22694,12 +28624,12 @@ var MainComponent = class {
 		this.currentPage = "test";
 	}
 	openLogin() {
-		this.panel = new LoginComponent();
+		this.setPanel(new LoginComponent());
 		this.currentPage = "login";
 		pushUrlStack(this);
 	}
 	openSignin() {
-		this.panel = new SigninComponent();
+		this.setPanel(new SigninComponent());
 		this.currentPage = "signin";
 		pushUrlStack(this);
 	}
@@ -22739,15 +28669,15 @@ var MainComponent = class {
 		this.currentPage = "game-panel";
 		if (factory.type === "multiplayer") {
 			const data = factory.dom(unlockedSkins);
-			this.panel = new GamePanelComponent(gamemode, data, html);
+			this.setPanel(new GamePanelComponent(gamemode, data, html));
 		} else {
 			const category = factory.dom();
-			this.panel = new SoloGamePanelComponent(gamemode, category, html);
+			this.setPanel(new SoloGamePanelComponent(gamemode, category, html));
 		}
 		pushUrlStack(this);
 	}
 	async openWaitPlayPanel(gamemode) {
-		this.panel = new WaitPlayPanelComponent(gamemode);
+		this.setPanel(new WaitPlayPanelComponent(gamemode));
 		this.currentPage = "wait-play";
 		pushUrlStack(this);
 	}
@@ -22777,22 +28707,22 @@ var MainComponent = class {
 		pushUrlStack(this);
 	}
 	openSoloComponent(result) {
-		this.panel = new SoloPlayResultComponent(result);
+		this.setPanel(new SoloPlayResultComponent(result));
 		this.currentPage = "play-solo-results";
 		pushUrlStack(this);
 	}
-	openLocalInPlay(gamemode) {
+	openLocalInPlay(gamemode, startData) {
 		this.currentPage = "play";
-		this.panel = new LocalPlayComponent(new LocalGameHandler(gamemode, false));
+		this.setPanel(new LocalPlayComponent(new LocalGameHandler(gamemode, false, startData)));
 		pushUrlStack(this);
 	}
-	openVsBotsInPlay(gamemode) {
+	openVsBotsInPlay(gamemode, startData) {
 		this.currentPage = "play";
-		this.panel = new LocalPlayComponent(new LocalGameHandler(gamemode, true));
+		this.setPanel(new LocalPlayComponent(new LocalGameHandler(gamemode, true, startData)));
 		pushUrlStack(this);
 	}
 	openSoloPlayComponent(gamemodeId, game, category) {
-		this.panel = new SoloPlayComponent(gamemodeId, game, category);
+		this.setPanel(new SoloPlayComponent(gamemodeId, game, category));
 		this.currentPage = "play";
 		pushUrlStack(this);
 	}
@@ -22808,6 +28738,12 @@ var MainComponent = class {
 		this.panel = panel;
 		this.currentPage = "solo-leaderboard";
 		panel.fetchRecords();
+		pushUrlStack(this);
+	}
+	openChangelog() {
+		const panel = new ChangelogsComponent();
+		this.panel = panel;
+		this.currentPage = "changelog";
 		pushUrlStack(this);
 	}
 	getPanel(type) {
@@ -22877,7 +28813,7 @@ var GamePanelComponent = class {
 		await imageLoader.load(factory.textures, this.gamemode);
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
-		dom.openLocalInPlay(this.gamemode);
+		dom.openLocalInPlay(this.gamemode, this.data.produce());
 	}
 	async againstBots() {
 		const factory = getMultiGmFactory(this.gamemode);
@@ -22885,7 +28821,7 @@ var GamePanelComponent = class {
 		await imageLoader.load(factory.textures, this.gamemode);
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
-		dom.openVsBotsInPlay(this.gamemode);
+		dom.openVsBotsInPlay(this.gamemode, this.data.produce());
 	}
 	initTrophyRoad() {
 		const factory = getMultiGmFactory(this.gamemode);
@@ -23207,6 +29143,10 @@ var HomeComponent = class HomeComponent {
 	totalTrophees = "(?)";
 	coins = "(?)";
 	globalRank = "(?)";
+	connectedUsersInfo = {
+		total: 0,
+		gamemods: Object.fromEntries(Object.entries(gamemods).filter(([, i]) => i.type === "multiplayer").map(([gamemode]) => [gamemode, -1]))
+	};
 	constructor() {
 		this.games = [];
 		for (const [key, gamemode] of Object.entries(gamemods)) {
@@ -23252,6 +29192,14 @@ var HomeComponent = class HomeComponent {
 		this.coins = String(d.coins);
 		this.globalRank = String(d.globalRank);
 	}
+	setConnectedUsersInfo(info) {
+		for (const _span of document.querySelectorAll(".connectedUsersIndicator")) {
+			const span = _span;
+			const k = info.gamemods[span.dataset.key];
+			if (k === void 0) span.innerText = "";
+			else span.innerText = "🟢 " + k;
+		}
+	}
 };
 var LocalPlayComponent = class {
 	game;
@@ -23295,7 +29243,7 @@ var LeaderboardComponent = class LeaderboardComponent {
 	entries = [];
 	gamemode = null;
 	page = 0;
-	gamemods = gamemods;
+	gamemods = Object.fromEntries(Object.entries(gamemods).filter(([, gamemod]) => gamemod.type === "multiplayer"));
 	/**
 	* Requests the latest leaderboard slice from the server based on current filters.
 	*/
@@ -23417,6 +29365,28 @@ var SoloLeaderboardComponent = class SoloLeaderboardComponent {
 	*/
 	setSoloRecords(d) {
 		this.entries = d.entries;
+	}
+};
+var ChangelogsComponent = class ChangelogsComponent {
+	static fragmentName = "changelog";
+	saveFragment() {
+		return {};
+	}
+	static openFragment(_) {
+		return new ChangelogsComponent();
+	}
+	changelogs = CHANGELOGS;
+	formatDate(timestamp) {
+		return new Intl.DateTimeFormat("en", {
+			weekday: "long",
+			day: "numeric",
+			month: "long",
+			hour: "numeric",
+			minute: "2-digit"
+		}).format(new Date(timestamp));
+	}
+	showLine(line) {
+		return f.parseInline(line);
 	}
 };
 var fragmentRegistry = /* @__PURE__ */ new Map();
