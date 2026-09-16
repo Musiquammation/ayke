@@ -217,23 +217,70 @@ class ClientData {
 }
 
 /**
- * Interactive Tutorial Handler for local solo play mode.
+ * Interactive tutorial that reacts to the actual game state.
  */
 class TutorialData {
 	private step = 0;
+	private wakeUp = 0;
 
 	constructor(private readonly game: GMPopit) {}
 
 	frame(dt: number, clock: number) {
 		if (this.game.gameOver) {
-			return "Game Over! Click restart to play again.";
+			return "";
 		}
 
-		if (this.step === 0) {
-			return "Pop 1 or more adjacent bubbles on the same row, then validate your turn!";
+		const OPPONENT_TIMER = 1;
+		if (this.game.currentTurnPlayer !== 0 && this.game.turnTimer > OPPONENT_TIMER) {
+			this.game.turnTimer = OPPONENT_TIMER;
 		}
 
-		return "";
+		switch (this.step) {
+			case 0:
+				// Wait until the player pops the first bubble.
+				if (this.game.turnPoppedCount > 0) {
+					this.step = 1;
+					this.wakeUp = clock + 1.5;
+				}
+				return "Press a bubble";
+
+			case 1:
+				// Give the player a short pause before showing the next instruction.
+				if (clock >= this.wakeUp) {
+					this.step = 2;
+				}
+				return "You can press the bubble next to the last you played (left or right only)";
+
+			case 2:
+				// Wait until the player pops another bubble.
+				if (this.game.turnPoppedCount >= 2) {
+					this.step = 3;
+					this.wakeUp = clock + 1.5;
+				}
+				return "You can press the bubble next to the last you played (left or right only)";
+
+			case 3:
+				// Give the player a short pause before explaining how to end the turn.
+				if (clock >= this.wakeUp) {
+					this.step = 4;
+				}
+				return "When you're finished, press \"VALIDATE TURN\" to let the opponent play";
+
+			case 4:
+				// Wait until the player validates their turn.
+				if (this.game.currentTurnPlayer !== 0) {
+					this.step = 5;
+					this.wakeUp = clock + 1.5;
+				}
+				return "When you're finished, press \"VALIDATE TURN\" to let the opponent play";
+
+			case 5:
+				// Keep this message until the game ends.
+				return "To win, force your opponent to press the very last bubble";
+
+			default:
+				return "";
+		}
 	}
 }
 

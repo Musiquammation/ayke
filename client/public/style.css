@@ -1157,6 +1157,7 @@ canvas {
 
 .tutorialText {
 	position: absolute;
+	z-index: 10;
 
 	top: 7vh;
 	left: 50%;
