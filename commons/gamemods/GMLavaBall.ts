@@ -251,7 +251,7 @@ function drawPlayerToTarget(
 		ctx.stroke();
 	}
 
-	const velocity = getVectorToReachTarget(X, Y, PLAYER_THROW_SPEED, BALL_GRAVITY);
+	const velocity = getVectorToReachTarget(X, Y, PLAYER_THROW_SPEED, -BALL_GRAVITY);
 
 	if (velocity.x === 0 || !velocity.success) {
 		const dx = destX - srcX;
@@ -304,7 +304,7 @@ function drawPlayerToTarget(
 	for (let i = 0; i <= steps; i++) {
 		const t = (T * i) / steps;
 		const x = srcX + vx * t;
-		const y = srcY + vy * t + (g / 2) * t * t;
+		const y = srcY + vy * t - (g / 2) * t * t;
 		points.push({ x, y });
 	}
 
