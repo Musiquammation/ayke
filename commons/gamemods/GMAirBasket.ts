@@ -1,5 +1,5 @@
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
@@ -155,6 +155,10 @@ interface DeltaTarget {
 	dy: number;
 }
 
+interface CenterTarget {
+	type: 'center'
+}
+
 class Player {
 	static readonly GRAB_GRAVITY = 900;
 	static readonly SPEED = 1500;
@@ -181,7 +185,7 @@ class Player {
 	dir = 0;
 	pushDown = false;
 	score = 0;
-	target : FixedTarget | DeltaTarget | null = null;
+	target : FixedTarget | DeltaTarget | CenterTarget | null = null;
 	team: 'red' | 'blue' = 'red';
 
 	constructor(
@@ -272,6 +276,27 @@ class Player {
 		});
 	}
 
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			vx: this.vx,
+			vy: this.vy,
+			dir: this.dir,
+			alive: this.alive,
+			score: this.score,
+			pushDown: this.pushDown,
+
+			...(this.target?.type === 'fixed'
+				? { fixed: { x: this.target.x, y: this.target.y } }
+				: this.target?.type === 'delta'
+					? { delta: { dx: this.target.dx, dy: this.target.dy } }
+					: this.target?.type === 'center'
+						? { center: {} }
+						: { none: {} })
+		};
+	}
+
 
 	load(obj: Fields) {
 		this.x = obj.x;
@@ -282,6 +307,34 @@ class Player {
 		this.alive = obj.alive;
 		this.score = obj.score;
 		this.pushDown = obj.pushDown;
+
+		switch (obj.target) {
+			case 'fixed':
+				this.target = {
+					type: 'fixed',
+					x: obj.fixed.x,
+					y: obj.fixed.y
+				};
+				break;
+
+			case 'delta':
+				this.target = {
+					type: 'delta',
+					dx: obj.delta.dx,
+					dy: obj.delta.dy
+				};
+				break;
+
+			case 'center':
+				this.target = {
+					type: 'center'
+				};
+				break;
+
+			default:
+				this.target = null;
+				break;
+		}
 	}
 
 	isOOB() {
@@ -612,7 +665,11 @@ class TutorialData {
 				this.wakeUp = clock + 1.5;
 			}
 
-			return "You can't jump when holding the ball.\n Throw it with the mouse towards a mate or a GREEN bucket";
+			return (
+				"You can't jump when holding the ball.\n" +
+				"Throw it with the mouse towards a mate or a GREEN bucket\n"+
+				"(or press SPACE for automatic throw)"
+			);
 		}
 
 		if (this.step === 4) {
@@ -943,7 +1000,7 @@ function getIconPath(id: string) {
 
 
 export class GMAirBasket extends GameMode {
-	static readonly types = {Player, Bucket};
+	static readonly types = {Player, Bucket, Ball};
 
 	static readonly DATA = {
 		GRAVITY,
@@ -1082,38 +1139,50 @@ export class GMAirBasket extends GameMode {
 	}
 
 	static createClient(
-		data: Uint8Array | null,
+		{data, origin}: MultiplayerClientEntry,
 		total: number
 	) {
 		const game = new GMAirBasket(total);
-		const {StartDataClient} = protocols.get();
+		const {StartData, StartDataClient} = protocols.get();
 		const clientData = new ClientData();
-		let skins: { [k: string]: string; };
 
-		if (data) {
+		const skinSet = new Set<string>();
+		if (origin === 'server') {
 			const {players} = decodeFullMessage(StartDataClient.decode(data));
 	
-			const skinSet = new Set<string>();
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
 				clientData.skins.push(p.skin);
 				skinSet.add(p.skin);
 			}
-			console.log(skinSet);
-			skins = Object.fromEntries(
-				[...skinSet].map(key => ['skin-' + key, getTexturePath(key)])
-			);
 
 		} else {
-			game.players[0].initSpawn(-WIDTH * 2, 0, 'red');
-			game.players[1].initSpawn(+WIDTH * 2, 0, 'blue');
+			const {skin, preferTeam} = decodeFullMessage(StartData.decode(data));
+
+			const modResult = preferTeam >= 0 ? 0 : 1;
+			for (let i = 0; i < game.players.length; i++) {
+				if (i % 2 === modResult) {
+					game.players[i].initSpawn(-WIDTH * 2, 0, 'red');
+				} else {
+					game.players[i].initSpawn(+WIDTH * 2, 0, 'blue');
+				}
+			}
+
+
 			clientData.skins = Array.from(
 				{length: game.players.length},
-				()=>GMAirBasket.SKINS_IDS[0]
+				() => GMAirBasket.SKINS_IDS[0]
 			);
 
-			skins = {};
+			clientData.skins[0] = skin;
+			skinSet.add(skin);
 		}
+
+		console.log(skinSet);
+		const skins = Object.fromEntries(
+			[...skinSet].map(key => ['skin-' + key, getTexturePath(key)])
+		);
+
 
 
 		return {
@@ -1259,13 +1328,31 @@ export class GMAirBasket extends GameMode {
 			const grabber = this.players[this.ball.grabber];
 			if (!grabber.isAlive()) {
 				this.ball.eject();
-			} else if (grabber.target && grabber.target.type === 'fixed') {
-				const dx = grabber.target.x - grabber.x;
-				const dy = grabber.target.y - grabber.y;
-				if (dx !== 0 || dy !== 0) {
+			} else if (grabber.target) {
+				if (grabber.target.type === 'fixed') {
+					const dx = grabber.target.x - grabber.x;
+					const dy = grabber.target.y - grabber.y;
+					if (dx !== 0 || dy !== 0) {
+						const {x, y} = getVectorToReachTarget(
+							dx,
+							dy,
+							Player.THROW,
+							Ball.GRAVITY
+						);
+						this.ball.vx = x;
+						this.ball.vy = y;
+						this.ball.removeGrabber();
+					}
+				
+				} else if (grabber.target.type === 'center') {
+					const ix = Math.trunc(grabber.x * 2/WIDTH );
+					const iy = Math.trunc(grabber.y * 2/HEIGHT);
+					const tx = Math.sign(ix) * Math.ceil(Math.abs(ix) / 2) * WIDTH;
+					const ty = Math.sign(iy) * Math.ceil(Math.abs(iy) / 2) * HEIGHT;
+					console.log(tx, ty, grabber.x, grabber.y);
 					const {x, y} = getVectorToReachTarget(
-						dx,
-						dy,
+						tx - grabber.x,
+						ty - grabber.y,
 						Player.THROW,
 						Ball.GRAVITY
 					);
@@ -1378,6 +1465,10 @@ export class GMAirBasket extends GameMode {
 			case 'throwOff':
 				player.target = null;
 				break;
+
+			case 'throwCenter':
+				player.target = {type: 'center'};
+				break;
 		}
 	}
 
@@ -1438,7 +1529,7 @@ export class GMAirBasket extends GameMode {
 		}
 
 		// Jump / Down
-		if (keyboard.first('up') || keyboard.first('jump')) {
+		if (keyboard.first('up')) {
 			inputs.push({jump: {}, action: 'jump'});
 		}
 
@@ -1456,6 +1547,12 @@ export class GMAirBasket extends GameMode {
 			inputs.push({throwTarget, action: 'throwTarget'});
 			
 		} else if (mouse.killed(0)) {
+			inputs.push({throwOff: {}, action: 'throwOff'});
+		}
+
+		if (keyboard.first('jump')) {
+			inputs.push({throwCenter: {}, action: 'throwCenter'});
+		} else if (keyboard.killed('jump')) {
 			inputs.push({throwOff: {}, action: 'throwOff'});
 		}
 
@@ -1830,7 +1927,7 @@ export class GMAirBasket extends GameMode {
 	override save(): Uint8Array {
 		const {State} = protocols.get();
 		const object: Fields = {
-			players: this.players,
+			players: this.players.map(p => p.save()),
 			prevBallGrabber: this.ball.prevGrabber,
 			buckets: this.buckets.map(b => ({
 				taken: b.team !== null,

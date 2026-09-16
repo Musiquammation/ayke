@@ -35,14 +35,19 @@ export class LocalGameHandler {
 
 	private readonly playerCount;
 
-	constructor(gamemodeId: string, addBots: boolean, seed = Math.random()) {
+	constructor(
+		gamemodeId: string,
+		addBots: boolean,
+		startData: any,
+		seed = Math.random()
+	) {
 		const factory = getMultiGmFactory(gamemodeId);
 		this.prando = new Prando(seed);
 		console.log("Current seed is " + Math.random());
 
 		this.playerCount = addBots ? factory.defaultPlayerCount : 2;
 		const {game, data, html, skins} = factory.client(
-			null,
+			{data: startData, origin: 'client'},
 			this.playerCount,
 			0
 		);
@@ -95,6 +100,8 @@ export class LocalGameHandler {
 		}
 
 		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
+
+		document.getElementById("game-ping")!.textContent = "";
 	}
 
 	async start() {

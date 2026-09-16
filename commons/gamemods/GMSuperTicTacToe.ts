@@ -1,6 +1,6 @@
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
@@ -298,12 +298,16 @@ export class GMSuperTicTacToe extends GameMode {
 		return { game, data };
 	}
 
-	static createClient(data: Uint8Array | null, total: number, playerIdx: number) {
+	static createClient(
+		{data, origin}: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number
+	) {
 		const game = new GMSuperTicTacToe(total);
 		const { StartDataClient } = protocols.get();
 		const clientData = new ClientData(playerIdx);
 
-		if (data) {
+		if (origin === 'server') {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) {
 				game.players[idx].team = p.isRed ? 'red' : 'blue';

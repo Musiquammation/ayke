@@ -343,7 +343,7 @@ Commente avec ça.
 ```ts
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
 import { norm2 } from "../util/norm2";
@@ -408,11 +408,21 @@ class Player {
 		}
 	}
 
-	
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			alive: this.alive,
+			iRed: this.team === 'red',
+		};
+	}
+
 	load(obj: Fields) {
 		this.x = obj.x;
 		this.y = obj.y;
-		/// complete
+		this.connected = obj.connected;
+		this.alive = obj.alive;
+		this.team = obj.isRed ? 'red' : 'blue';
 	}
 
 	isOOB() {
@@ -647,6 +657,8 @@ export class GMExample extends GameMode {
 		total: number,
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	) {
+		const rng = () => Math.random(); // You can do that only in createServer if you need rng
+
 		const {StartData, StartDataClient} = protocols.get();
 
 		const game = new GMExample(total);
@@ -747,15 +759,18 @@ export class GMExample extends GameMode {
 	}
 
 	static createClient(
-		data: Uint8Array | null,
-		total: number
+		{data, origin}: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number
 	) {
+		const rng = () => Math.random(); // You can do that only in createClient if you need rng
+
 		const game = new GMExample(total);
-		const {StartDataClient} = protocols.get();
+		const {StartData, StartDataClient} = protocols.get();
 		const clientData = new ClientData();
 		let skins: { [k: string]: string; };
 
-		if (data) {
+		if (origin === 'server') {
 			const {players} = decodeFullMessage(StartDataClient.decode(data));
 	
 			const skinSet = new Set<string>();
@@ -764,22 +779,26 @@ export class GMExample extends GameMode {
 				clientData.skins.push(p.skin);
 				skinSet.add(p.skin);
 			}
-			console.log(skinSet);
 			skins = Object.fromEntries(
 				[...skinSet].map(key => ['skin-' + key, getSkinTexturePath(key)])
 			);
 
-		} else {
+		} else { // origin === 'client'
+			/// NOTE: here, data: any is produced by generateClientDom.produce()
+			const {skin} = decodeFullMessage(StartData.decode(data));
+
 			game.players[0].initSpawn(-WIDTH * 2, 0, 'red');
 			game.players[1].initSpawn(+WIDTH * 2, 0, 'blue');
+		
 			clientData.skins = Array.from(
 				{length: game.players.length},
-				()=>GMExample.SKINS_IDS[0]
+				() => GMAirBasket.SKINS_IDS[0]
 			);
+
+			clientData.skins[0] = skin;
 
 			skins = {};
 		}
-
 
 		return {
 			game,
@@ -814,13 +833,23 @@ export class GMExample extends GameMode {
 	}
 
 
-	override run(dt: number, produceFinish: boolean): FinishGame | null {
+	override run(
+		dt: number,
+		produceFinish: boolean,
+		rng: GameRandomGenerator | null
+	): FinishGame | null {
 		// Time
 		this.time -= dt;
 		let finished = false;
 		if (this.time <= 0) {
 			finished = true;
 			this.time = 0;
+		}
+
+		if (rng) {
+			// prepare random values for next usage
+			// thoses random values must be sent via example.proto
+			// type GameRandomGenerator = (()=>number); beetween 0.0 and 1.0
 		}
 
 
@@ -914,7 +943,13 @@ export class GMExample extends GameMode {
 
 	override save(): Uint8Array {
 		const {State} = protocols.get();
+		// all should be shared (except data sent in createServ)
 		const object: Fields = {
+			players: players.map(p => p.save()),
+			time: this.time,
+			redScore: this.redScore,
+			blueScore: this.blueScore,
+			internalFrameTick: this.internalFrameTick,
 		};
 		
 		return State.encode(object).finish();
@@ -923,7 +958,13 @@ export class GMExample extends GameMode {
 	override load(data: Uint8Array) {
 		const {State} = protocols.get();
 		const obj = State.decode(data);
-		
+		for (let i = 0; i < obj.players.length) {
+			this.players[i].load(obj.players[i]);
+		}
+
+		this.redScore = obj.redScore;
+		this.blueScore = obj.blueScore;
+		this.time = obj.time;
 	}
 
 	override getSize() {

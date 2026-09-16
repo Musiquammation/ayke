@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+package game_lavaBall;
+
+message Empty {}
+
+
+// A static platform the ball can land on. Sent ONCE at match start via
+// StartDataClient (procedurally generated level layout), never resent
+// in State/save() since it never changes during the match.
+message Platform {
+	float x = 1;
+	float y = 2;
+	float w = 3;
+	float h = 4;
+}
+
+
+// A live, collidable, red obstacle. Fully dynamic (physics change every
+// frame), so it MUST be part of State and synchronized on every save/load.
+message Obstacle {
+	int32 id = 1;
+	string type = 2; // "rect" or "circle"
+	float x = 3;
+	float y = 4;
+	float vx = 5;
+	float vy = 6;
+	float angle = 7;
+	float angularVelocity = 8;
+	bool affectedByGravity = 9;
+	float radius = 10; // used when type == "circle"
+	float w = 11;      // used when type == "rect"
+	float h = 12;      // used when type == "rect"
+}
+
+
+// An obstacle whose parameters have already been randomly decided, but
+// which has not yet actually spawned (still within its OBSTACLE_SPAWN_DELAY
+// countdown). Must be synchronized so a load() cannot silently drop it.
+message WaitingObstacle {
+	int32 id = 1;
+	string type = 2;
+	float x = 3;
+	float y = 4;
+	float vx = 5;
+	float vy = 6;
+	float angle = 7;
+	float angularVelocity = 8;
+	bool affectedByGravity = 9;
+	float radius = 10;
+	float w = 11;
+	float h = 12;
+	float timeLeft = 13; // seconds remaining before it actually spawns
+}
+
+
+// The single shared ball thrown by whoever's turn it currently is.
+message Ball {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+	bool inFlight = 5;
+}
+
+
+// Fully shared, per-player state. No client-only fields here (see ClientData
+// in GMLavaBall.ts for anything that is allowed to be lost on a load()).
+message PlayerState {
+	bool isRed = 1;
+	bool connected = 2;
+	bool eliminated = 3;
+	float score = 4;
+	float aimX = 5;
+	float aimY = 6;
+	bool aiming = 7;
+	bool askThrow = 8;
+}
+
+
+// Full authoritative game state, serialized by GMLavaBall.save()/load().
+message State {
+	repeated PlayerState players = 1;
+	Ball ball = 2;
+
+	float yLevel = 3;                 // max ball.y reached so far this round
+	float lastEliminatedYLevel = 4;   // yLevel recorded at the last elimination this round
+
+	int32 currentPlayer = 5;
+	int32 turnPhase = 6;              // 0 = wait before, 1 = aiming, 2 = wait after
+	float turnTimer = 7;              // elapsed seconds within the current 5s turn
+
+	int32 roundNumber = 8;
+	bool roundEnding = 9;
+	float roundEndTimer = 10;
+	int32 roundStartPlayer = 11;
+
+	repeated Obstacle obstacles = 12;
+	repeated WaitingObstacle waitingObstacles = 13;
+	float obstacleSpawnTimer = 14;
+	int32 nextObstacleId = 15;
+
+	bool gameOver = 16;
+	bool thrownThisTurn = 17;
+}
+
+
+message AimData {
+	float x = 1;
+	float y = 2;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		Empty ping = 2;
+		AimData aim = 3;      // continuous update of the current aiming target
+		AimData throwBall = 4; // explicit release of the ball toward (x, y)
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+// Data sent by the client at match creation time (from example.html).
+message StartData {
+	int32 preferTeam = 1; // 0 = none, 1 = red, -1 = blue
+}
+
+
+message StartPlayerInfo {
+	bool isRed = 1;
+}
+
+// Data sent by the server once, at match creation time: team assignment
+// plus the fully generated (procedural) level layout. Never resent later.
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+	repeated Platform platforms = 2;
+}

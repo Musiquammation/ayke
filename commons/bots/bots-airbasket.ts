@@ -6,70 +6,46 @@ import { botActionNodeHelper, describeBot } from "../Bot";
 import { getLogger } from "../ILogger";
 
 const logger = getLogger('bots-airbasket');
-// logger.setLevel('debug');
 
 const { all, runner } = botActionNodeHelper<GMAirBasket, Data>();
 
 type Player = InstanceType<typeof GMAirBasket.types.Player>;
 type Bucket = InstanceType<typeof GMAirBasket.types.Bucket>;
+type Ball = InstanceType<typeof GMAirBasket.types.Ball>;
 
 /**
  * ================================================================
- * BOT STRATEGY OVERVIEW
+ * STRATEGIC BOT OVERVIEW (HUMAN-LIKE GAMEPLAY)
  * ================================================================
- *
- * Goal: carry/throw the ball into an available (unclaimed) bucket.
- *
- * Two hard rules from the game engine drive this whole strategy:
- *
- *   - A player CANNOT JUMP while currently holding the ball
- *     (`ball.grabber === playerIdx`). This matters for the DUNK
- *     behaviour below: reaching a bucket that sits above us while
- *     we're holding the ball may be impossible without a jump.
- *
- *   - Once a player THROWS the ball, they cannot re-grab it
- *     immediately afterwards (outside of the "grabber infinite" /
- *     "sudden death" end-game phases). ANY other player - ally or
- *     opponent - who touches the flying ball becomes the new
- *     grabber. A throw is therefore a one-way commitment: once
- *     released, we have no more control over it.
- *
- * Because a throw can be intercepted, a holder only really has
- * three sensible things to do with the ball, evaluated in this
- * priority order:
- *
- *   1. DUNK  - An available bucket is close enough to just walk
- *              onto while still holding the ball. This scores
- *              immediately (see `playerTouchBucket` in the game
- *              code) with zero mid-air interception risk. Always
- *              the best option when available.
- *
- *   2. SHOOT - Throw at an available bucket from range, but only
- *              if no opponent is standing close enough to it to
- *              likely intercept the flying ball ("guarded").
- *
- *   3. PASS  - If every reachable bucket is guarded, throw to an
- *              open (unguarded) teammate instead, so *they* get a
- *              cleaner look at scoring next.
- *
- * If none of the three is currently safe, we do NOT throw blindly
- * - we just keep moving towards the nearest bucket and wait for an
- * opening (a defender to move away, an ally to get free, etc.).
- *
- * When we do NOT hold the ball, we pick one of three roles instead:
- *
- *   - CHASE   : the ball is free -> go grab it.
- *   - SUPPORT : a teammate holds it -> get open near an unguarded
- *               bucket so we're a good pass target.
- *   - DEFEND  : an opponent holds it -> press them to make their
- *               eventual throw harder to place safely.
- *
- * All roles are re-evaluated every single tick, since possession
- * changes constantly in this game.
+ * 
+ * Instead of purely reactive tactics (chasing the ball blindly), this 
+ * bot implements higher-level team strategies: Anticipation, Spacing, 
+ * and Zone Defense.
+ * 
+ * Key Human-Like Behaviors Introduced:
+ * 
+ * 1. ANTICIPATION (Reading the play):
+ *    Humans don't run to where a flying ball IS, they run to where 
+ *    it WILL BE. When the ball is free, the bot calculates a simple 
+ *    parabolic trajectory to intercept it upon landing.
+ * 
+ * 2. SPACING (Offensive Spread):
+ *    If an ally has the ball, bots won't swarm the exact same bucket.
+ *    They penalize buckets that are already covered by teammates, 
+ *    naturally spreading across the court to provide multiple passing 
+ *    options and stretch the enemy defense.
+ * 
+ * 3. ZONE DEFENSE (Protecting the paint):
+ *    When an enemy has the ball, only the closest defender presses them.
+ *    The others fall back to protect the most vulnerable (closest) 
+ *    buckets. This cuts off passing lanes and prevents easy dunks.
+ * 
+ * 4. IMPERFECTION & MOMENTUM (Deadzones):
+ *    Added horizontal deadzones so the bot doesn't jitter left/right 
+ *    pixel-perfectly, mimicking a human's analog movement.
  * ================================================================
  */
 
-/** Static "keyboard-like" inputs, reused every tick to avoid re-allocating. */
 const INPUTS = {
 	jump: { jump: {}, action: 'jump' },
 	downOn: { downOn: {}, action: 'downOn' },
@@ -80,19 +56,13 @@ const INPUTS = {
 	throwOff: { throwOff: {}, action: 'throwOff' },
 };
 
-/** Tunable bot parameters - all distances are kept squared where possible to avoid sqrt(). */
 const STATS = {
-	FOCUS_Y: 200,   // vertical slack before we start dashing down towards a target
-	JUMP_VY: 600,   // don't spam-jump if we're already rising faster than this
-
-	// If a free bucket is within this range while we hold the ball, just
-	// walk onto it (a "dunk") instead of risking a throw.
+	FOCUS_Y: 200,    
+	JUMP_VY: 600,    
 	DUNK_RANGE: 260,
-
-	// A bucket or teammate is considered "guarded" if an opponent is
-	// standing within this range of it - throwing there risks a mid-air
-	// interception.
-	THREAT_RADIUS: 380,
+	THREAT_RADIUS: 450, // Slightly expanded to account for human anticipation
+	DEADZONE_X: 20,     // Prevents pixel-perfect robotic jittering
+	INTERCEPT_TIME: 0.6 // Time in seconds to look ahead for ball prediction
 };
 const DUNK_RANGE_SQ = STATS.DUNK_RANGE * STATS.DUNK_RANGE;
 const THREAT_RADIUS_SQ = STATS.THREAT_RADIUS * STATS.THREAT_RADIUS;
@@ -102,32 +72,63 @@ class Data {
 	private dir = 0;
 	private pushDownStates: Record<number, boolean> = {};
 
-	// ------------------------------------------------------------------
-	// Generic movement primitives (safety + steering). These don't know
-	// anything about baskets/balls - just "how do I move towards a point".
-	// ------------------------------------------------------------------
+	/**
+	 * HARD BOUNDS SAFETY SYSTEM:
+	 * Prevents players from dying or going out of bounds.
+	 * Overrides all tactical movement if dangerously close to limits.
+	 */
+	avoidOOB(game: GMAirBasket, player: Player, inputs: Fields[]): { overrideX: boolean; nearBottom: boolean } {
+		if (game.internalFrameTick === this.lastAvoidOOBTick) {
+			const nearBottom = player.y >= GMAirBasket.DATA.Y_LIMIT - 650;
+			return { overrideX: this.isNearXBounds(player), nearBottom };
+		}
+		this.lastAvoidOOBTick = game.internalFrameTick;
 
-	/** Keeps the bot away from the level's out-of-bounds edges. Runs once per game tick. */
-	avoidOOB(game: GMAirBasket, player: Player, inputs: Fields[]) {
-		if (game.internalFrameTick === this.lastAvoidOOBTick) return; // already handled this tick
-		const LIMIT = 150;
+		// Large safety margins to counter heavy momentum and gravity acceleration
+		const MARGIN_X = 500;
+		const MARGIN_Y_BOTTOM = 650;
+		const MARGIN_Y_TOP = 300;
 
-		if (player.y <= -GMAirBasket.DATA.Y_LIMIT + LIMIT) {
-			this.pushDown(true, 0, inputs); // too high -> come back down
+		let overrideX = false;
+
+		// --- 1. HORIZONTAL SAFETY (X BOUNDS) ---
+		if (player.x >= GMAirBasket.DATA.X_LIMIT - MARGIN_X) {
+			this.goLeft(inputs);
+			overrideX = true;
+		} else if (player.x <= -GMAirBasket.DATA.X_LIMIT + MARGIN_X) {
+			this.goRight(inputs);
+			overrideX = true;
+		}
+
+		// --- 2. VERTICAL SAFETY (Y BOUNDS & PIT DEATH) ---
+		const nearBottom = player.y >= GMAirBasket.DATA.Y_LIMIT - MARGIN_Y_BOTTOM;
+
+		if (nearBottom) {
+			// Hard cut-off: kill all active push-down flags immediately
+			this.pushDownStates[0] = false;
+			this.pushDownStates[1] = false;
+			inputs.push(INPUTS.downOff);
+
+			// Spam jump aggressively to overcome downward velocity
+			inputs.push(INPUTS.jump);
+		} else if (player.y <= -GMAirBasket.DATA.Y_LIMIT + MARGIN_Y_TOP) {
+			// Too high: push down to stay in play area
+			this.pushDown(true, 0, inputs);
 		} else {
 			this.pushDown(false, 0, inputs);
 		}
-		if (player.y >= GMAirBasket.DATA.Y_LIMIT - LIMIT) {
-			inputs.push(INPUTS.jump); // too low -> bounce back up
-		}
-		this.lastAvoidOOBTick = game.internalFrameTick;
+
+		return { overrideX, nearBottom };
 	}
 
-	/**
-	 * Multiple callers (avoidOOB uses slot 0, reach() uses slot 1) may want
-	 * to dash down at the same time; we only emit downOn/downOff when the
-	 * *combined* state actually changes, to avoid spamming redundant inputs.
-	 */
+	private isNearXBounds(player: Player): boolean {
+		const MARGIN_X = 500;
+		return (
+			player.x >= GMAirBasket.DATA.X_LIMIT - MARGIN_X ||
+			player.x <= -GMAirBasket.DATA.X_LIMIT + MARGIN_X
+		);
+	}
+
 	pushDown(active: boolean, slot: number, inputs: Fields[]) {
 		if (active) {
 			const wasIdle = Object.values(this.pushDownStates).every(v => !v);
@@ -144,67 +145,76 @@ class Data {
 	goStop(inputs: Fields[]) { if (this.dir === 0) return; this.dir = 0; inputs.push(INPUTS.stop); }
 
 	/**
-	 * Steers the player towards an arbitrary (x, y) point: left/right to
-	 * close the horizontal gap, jump if the target is above us, dash down
-	 * if it's clearly below. Works for chasing the ball, a bucket, an
-	 * opponent or a teammate alike - it only needs x/y.
-	 *
-	 * NOTE: while we're holding the ball, the game silently ignores jump
-	 * inputs (you can't jump with the ball). That means a bucket sitting
-	 * above us while dunking may be unreachable this way - acceptable
-	 * limitation given the bucket layout is mostly on a few horizontal
-	 * bands.
+	 * Steers towards target, yielding control if safety overrides are active.
 	 */
-	reach(player: Player, target: { x: number; y: number }, inputs: Fields[]) {
+	reach(
+		player: Player,
+		target: { x: number; y: number },
+		inputs: Fields[],
+		safety: { overrideX: boolean; nearBottom: boolean }
+	) {
 		const dx = target.x - player.x;
 		const dy = target.y - player.y;
 
-		if (dx < -1) this.goLeft(inputs);
-		else if (dx > 1) this.goRight(inputs);
-		else this.goStop(inputs);
+		// Only apply horizontal tactical steering if horizontal safety override is inactive
+		if (!safety.overrideX) {
+			if (dx < -STATS.DEADZONE_X) this.goLeft(inputs);
+			else if (dx > STATS.DEADZONE_X) this.goRight(inputs);
+			else this.goStop(inputs);
+		}
 
+		// Vertical steering with absolute ban on pushDown near the pit
 		if (dy < 0) {
-			// Target is above us: hop towards it (unless already rising fast).
 			if (player.vy > -STATS.JUMP_VY) inputs.push(INPUTS.jump);
 			this.pushDown(false, 1, inputs);
-		} else if (dy > STATS.FOCUS_Y) {
-			// Target is clearly below us: dash down to close the gap faster.
+		} else if (dy > STATS.FOCUS_Y && !safety.nearBottom) {
 			this.pushDown(true, 1, inputs);
 		} else {
 			this.pushDown(false, 1, inputs);
 		}
 	}
 
-	// ------------------------------------------------------------------
-	// Game-state analysis helpers - these are what actually implement
-	// the DUNK / SHOOT / PASS decision tree described above.
-	// ------------------------------------------------------------------
+	predictBallLocation(ball: Ball): { x: number; y: number } {
+		const t = STATS.INTERCEPT_TIME;
+		const predictedX = ball.x + (ball.vx * t);
+		const predictedY = ball.y + (ball.vy * t) + (0.5 * GMAirBasket.DATA.GRAVITY * t * t);
+		
+		// Clamp predictions strictly inside safe limits (margin of 600px)
+		const SAFE_X = GMAirBasket.DATA.X_LIMIT - 600;
+		const SAFE_Y = GMAirBasket.DATA.Y_LIMIT - 700;
 
-	/** Is any *alive opponent* of `selfTeam` standing within `radiusSq` of (x, y)? */
+		return {
+			x: Math.max(-SAFE_X, Math.min(SAFE_X, predictedX)),
+			y: Math.max(-SAFE_Y, Math.min(SAFE_Y, predictedY))
+		};
+	}
+
 	isGuardedByOpponent(game: GMAirBasket, x: number, y: number, selfTeam: 'red' | 'blue', radiusSq: number) {
 		for (const p of game.players) {
-			if (p.team === selfTeam) continue; // teammates can't "steal" from us on purpose here
-			if (!p.isAlive()) continue;
+			if (p.team === selfTeam || !p.isAlive()) continue;
 			if (norm2(p.x - x, p.y - y) <= radiusSq) return true;
 		}
 		return false;
 	}
 
-	/** Closest bucket that hasn't been claimed yet, ignoring how dangerous it is. Used for DUNK range checks and as a last-resort fallback target. */
-	findNearestBucket(game: GMAirBasket, player: Player) {
+	findStrategicBucket(game: GMAirBasket, player: Player, selfTeam: 'red' | 'blue') {
 		const u = getBestInArray(game.buckets, (b: Bucket) => {
-			if (b.team !== null) return -Infinity; // already claimed, skip
-			return -norm2(b.x - player.x, b.y - player.y);
+			if (b.team !== null) return -Infinity;
+			let score = -norm2(b.x - player.x, b.y - player.y);
+			
+			for (const p of game.players) {
+				if (p === player || p.team !== selfTeam || !p.isAlive()) continue;
+				const allyDistSq = norm2(b.x - p.x, b.y - p.y);
+				if (allyDistSq < -score) {
+					score -= 10000000;
+				}
+			}
+			return score;
 		});
-		if (!Number.isFinite(u.score)) return null; // no bucket left at all
+		if (!Number.isFinite(u.score)) return null;
 		return { bucket: game.buckets[u.index], index: u.index, distSq: -u.score };
 	}
 
-	/**
-	 * Closest bucket that is BOTH available and currently unguarded.
-	 * This is what we throw at for the SHOOT option - throwing at a
-	 * guarded bucket is how you hand the ball straight to the defense.
-	 */
 	findSafeBucket(game: GMAirBasket, player: Player, selfTeam: 'red' | 'blue') {
 		const u = getBestInArray(game.buckets, (b: Bucket) => {
 			if (b.team !== null) return -Infinity;
@@ -215,15 +225,6 @@ class Data {
 		return { bucket: game.buckets[u.index], index: u.index };
 	}
 
-	/**
-	 * Best teammate to PASS to when no bucket is safe to shoot at
-	 * directly: must be alive, not already holding the ball, and
-	 * unguarded (never pass into a contested teammate - that's just
-	 * gifting the ball to the defense one step later). Among the valid
-	 * candidates we prefer whoever is closest to an available bucket,
-	 * since they'll be best placed to follow up with their own
-	 * dunk/shot.
-	 */
 	findOpenTeammate(game: GMAirBasket, selfIdx: number, selfTeam: 'red' | 'blue') {
 		let best: { mate: Player; index: number } | null = null;
 		let bestScore = -Infinity;
@@ -234,8 +235,9 @@ class Data {
 			if (mate.team !== selfTeam || !mate.isAlive()) continue;
 			if (this.isGuardedByOpponent(game, mate.x, mate.y, selfTeam, THREAT_RADIUS_SQ)) continue;
 
-			const nearestBucket = this.findNearestBucket(game, mate);
-			const score = nearestBucket ? -nearestBucket.distSq : 0; // closer-to-a-bucket teammate wins
+			const u = getBestInArray(game.buckets, (b: Bucket) => b.team === null ? -norm2(b.x - mate.x, b.y - mate.y) : -Infinity);
+			const score = Number.isFinite(u.score) ? u.score : 0;
+			
 			if (score > bestScore) {
 				bestScore = score;
 				best = { mate, index: idx };
@@ -249,56 +251,47 @@ function dataConstructor(): Data {
 	return new Data();
 }
 
-// ========================================================================
-// Main per-tick decision loop. One call per bot per frame.
-// ========================================================================
 const method = runner((game, data, playerIdx) => {
 	const inputs: Fields[] = [];
 	const player = game.players[playerIdx];
 	const selfTeam = player.team;
 
-	// Safety first, regardless of role.
-	data.avoidOOB(game, player, inputs);
+	// Execute safety check first and capture active overrides
+	const safety = data.avoidOOB(game, player, inputs);
 
 	let threwThisTick = false;
 
+	let amIClosestToBall = true;
+	const myDistToBallSq = norm2(game.ball.x - player.x, game.ball.y - player.y);
+	for (const p of game.players) {
+		if (p === player || p.team !== selfTeam || !p.isAlive()) continue;
+		if (norm2(game.ball.x - p.x, game.ball.y - p.y) < myDistToBallSq) {
+			amIClosestToBall = false;
+			break;
+		}
+	}
+
 	if (game.ball.grabber === playerIdx) {
-		// ====================================================================
-		// ROLE: ATTACK - we are holding the ball.
-		// Priority: 1) DUNK  2) SHOOT (safe bucket)  3) PASS (open mate)  4) STALL
-		// ====================================================================
-		const nearest = data.findNearestBucket(game, player);
+		// ROLE: CARRIER
+		const nearest = data.findStrategicBucket(game, player, selfTeam);
 
 		if (nearest && nearest.distSq <= DUNK_RANGE_SQ) {
-			// --- 1) DUNK -------------------------------------------------
-			// Close enough to just walk it in: guaranteed score, no risk.
-			logger.debug(`#${playerIdx} dunking bucket ${nearest.index}`);
-			data.reach(player, nearest.bucket, inputs);
+			data.reach(player, nearest.bucket, inputs, safety);
 		} else {
-			// Only release a throw once we're falling/level (vy >= 0), so the
-			// resulting arc is predictable instead of being thrown mid-jump.
-			const readyToThrow = player.vy >= 0;
+			const apexReached = player.vy >= -100; 
 			const safe = data.findSafeBucket(game, player, selfTeam);
 
-			if (safe && readyToThrow) {
-				// --- 2) SHOOT ------------------------------------------------
-				logger.debug(`#${playerIdx} shooting at bucket ${safe.index}`);
+			if (safe && apexReached) {
 				inputs.push({ throwTarget: { x: safe.bucket.x, y: safe.bucket.y }, action: 'throwTarget' });
 				threwThisTick = true;
 			} else {
 				const mate = data.findOpenTeammate(game, playerIdx, selfTeam);
 
-				if (mate && readyToThrow) {
-					// --- 3) PASS ---------------------------------------------
-					logger.debug(`#${playerIdx} passing to #${mate.index}`);
+				if (mate && apexReached) {
 					inputs.push({ throwTarget: { x: mate.mate.x, y: mate.mate.y }, action: 'throwTarget' });
 					threwThisTick = true;
 				} else if (nearest) {
-					// --- 4) STALL ----------------------------------------------
-					// Nothing safe to do yet: don't throw blindly into a
-					// contested bucket/teammate. Keep closing the distance to
-					// the nearest bucket while we wait for an opening.
-					data.reach(player, nearest.bucket, inputs);
+					data.reach(player, nearest.bucket, inputs, safety);
 				}
 			}
 		}
@@ -306,33 +299,45 @@ const method = runner((game, data, playerIdx) => {
 		const grabber = game.players[game.ball.grabber];
 
 		if (grabber.team === selfTeam) {
-			// ====================================================================
-			// ROLE: SUPPORT - a teammate has the ball.
-			// Get open near an unguarded bucket so we're a good pass target.
-			// ====================================================================
-			const target = data.findSafeBucket(game, player, selfTeam) ?? data.findNearestBucket(game, player);
-			if (target) data.reach(player, target.bucket, inputs);
+			// ROLE: WINGER
+			const target = data.findStrategicBucket(game, player, selfTeam);
+			if (target) data.reach(player, target.bucket, inputs, safety);
 		} else {
-			// ====================================================================
-			// ROLE: DEFEND - an opponent has the ball.
-			// We can't steal it directly (only a *free* ball can be grabbed), so
-			// the best we can do is press the carrier to make their throw
-			// harder to place, and be close enough to contest it once released.
-			// ====================================================================
-			data.reach(player, grabber, inputs);
+			// ROLE: DEFENDER
+			if (amIClosestToBall) {
+				data.reach(player, grabber, inputs, safety);
+			} else {
+				const vulnerableBucket = getBestInArray(game.buckets, (b) => {
+					return b.team === null ? -norm2(b.x - grabber.x, b.y - grabber.y) : -Infinity;
+				});
+				
+				if (Number.isFinite(vulnerableBucket.score)) {
+					const targetBucket = game.buckets[vulnerableBucket.index];
+					data.reach(player, { x: targetBucket.x, y: targetBucket.y - 150 }, inputs, safety);
+				} else {
+					data.reach(player, grabber, inputs, safety);
+				}
+			}
 		}
 	} else {
-		// ====================================================================
-		// ROLE: CHASE - the ball is free, go grab it.
-		// ====================================================================
-		data.reach(player, game.ball, inputs);
+		// ROLE: CHASER
+		if (amIClosestToBall) {
+			const distSq = norm2(game.ball.x - player.x, game.ball.y - player.y);
+			
+			// Switch to direct pursuit when close enough to guarantee grab
+			if (distSq < 400 * 400) {
+				data.reach(player, game.ball, inputs, safety);
+			} else {
+				const predictedLocation = data.predictBallLocation(game.ball);
+				data.reach(player, predictedLocation, inputs, safety);
+			}
+		} else {
+			const transitionTarget = data.findStrategicBucket(game, player, selfTeam);
+			if (transitionTarget) data.reach(player, transitionTarget.bucket, inputs, safety);
+		}
 	}
 
 	if (!threwThisTick) {
-		// Always clear any stale throw target when we're not actively
-		// throwing this tick. Without this, an old target left over from a
-		// previous hold could trigger an unwanted instant re-throw the
-		// moment we grab the ball again.
 		inputs.push(INPUTS.throwOff);
 	}
 
@@ -341,9 +346,6 @@ const method = runner((game, data, playerIdx) => {
 
 const root = all([method]);
 
-
 export default describeBot(
 	[{root, data: dataConstructor}]
 );
-
-
