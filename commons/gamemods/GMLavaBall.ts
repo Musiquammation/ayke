@@ -513,6 +513,17 @@ class ClientData {
 	lastSentAimX: number | null = null;
 	lastSentAimY: number | null = null;
 
+	/**
+	 * ID of the finger currently controlling the aim.
+	 * This lets us distinguish a new touch from a finger that is still held.
+	 */
+	mobileAimTouchId: number | null = null;
+
+	/**
+	 * Whether the current mobile aim touch has already produced a throw.
+	 */
+	mobileAimTouchActive = false;
+
 	readonly camera = new Camera();
 
 	readonly html: HTMLDivElement;
@@ -1311,32 +1322,125 @@ export class GMLavaBall extends GameMode {
 		const data = _data as ClientData;
 		const inputs: Fields[] = [];
 
-		// Only the local player sends aim/throw inputs, and only while it is
-		// their turn (mirrors the server-side guard, purely to save bandwidth
-		// - the server re-validates everything anyway).
+		// Only the local player can control the ball during their aiming phase.
 		const isMyTurn = this.turnPhase === PHASE_AIMING;
-		if (!isMyTurn) return inputs;
+		if (!isMyTurn) {
+			if (mobile) {
+				// Reset the local touch state when the aiming phase ends.
+				data.mobileAimTouchId = null;
+				data.mobileAimTouchActive = false;
+			}
+			return inputs;
+		}
 
+		if (mobile) {
+			const touches = mobile.getDigits();
+
+			/*
+			* Mobile controls:
+			*
+			* - Touching the screen starts aiming.
+			* - Moving the finger updates the target.
+			* - Keeping the finger down keeps aiming.
+			* - Releasing the finger throws the ball at the last target.
+			*
+			* We deliberately use the touch ID so another finger cannot
+			* accidentally take control of the current aim.
+			*/
+
+			// Start aiming with the first available finger.
+			if (data.mobileAimTouchId === null && touches.length > 0) {
+				const touch = touches[0];
+
+				data.mobileAimTouchId = touch.id;
+				data.mobileAimTouchActive = true;
+
+				const target = this.evalMouseCoords(
+					touch.x,
+					touch.y,
+					0,
+					data
+				);
+
+				data.lastSentAimX = touch.x;
+				data.lastSentAimY = touch.y;
+
+				inputs.push({
+					action: 'aim',
+					aim: {
+						x: touch.x,
+						y: touch.y
+					}
+				});
+			}
+
+			// Find the finger that originally started the aim.
+			const aimTouch = data.mobileAimTouchId === null
+				? null
+				: touches.find(t => t.id === data.mobileAimTouchId);
+
+			if (aimTouch) {
+				// The finger is still held: continuously update the aim target.
+				const target = this.evalMouseCoords(
+					aimTouch.x,
+					aimTouch.y,
+					0,
+					data
+				);
+
+				if (
+					data.lastSentAimX !== aimTouch.x ||
+					data.lastSentAimY !== aimTouch.y
+				) {
+					data.lastSentAimX = aimTouch.x;
+					data.lastSentAimY = aimTouch.y;
+
+					inputs.push({
+						action: 'aim',
+						aim: {
+							x: aimTouch.x,
+							y: aimTouch.y
+						}
+					});
+				}
+			} else if (data.mobileAimTouchActive) {
+				/*
+				* The finger disappeared from getDigits(), meaning it was
+				* released. Throw using the last target received while aiming.
+				*/
+				if (
+					data.lastSentAimX !== null &&
+					data.lastSentAimY !== null
+				) {
+					inputs.push({
+						action: 'throwBall',
+						throwBall: {
+							x: data.lastSentAimX,
+							y: data.lastSentAimY
+						}
+					});
+				}
+
+				// The touch has completed its aim/throw cycle.
+				data.mobileAimTouchId = null;
+				data.mobileAimTouchActive = false;
+			}
+
+			return inputs;
+		}
+
+		// Desktop controls keep the existing mouse behaviour.
 		let targetX: number | null = null;
 		let targetY: number | null = null;
 		let wantsThrow = false;
 
-		if (mobile) {
-			const joystick = mobile.getJoystick('aim');
-			if (joystick.x !== 0 || joystick.y !== 0) {
-				targetX = this.ball.x + joystick.x * 600;
-				targetY = this.ball.y + joystick.y * 600;
-			}
-			if (mobile.first('throw')) {
-				wantsThrow = true;
-			}
-		} else {
-			const coords = mouse.getCoords();
-			targetX = coords.x;
-			targetY = coords.y;
-			if (mouse.first(0)) {
-				wantsThrow = true;
-			}
+		const coords = mouse.getCoords();
+
+		targetX = coords.x;
+		targetY = coords.y;
+
+		if (mouse.first(0)) {
+			wantsThrow = true;
 		}
 
 		if (targetX !== null && targetY !== null) {
@@ -1585,23 +1689,13 @@ export class GMLavaBall extends GameMode {
 	}
 
 	override getMobileDesc(): MobileDescriptor {
+		/*
+		* Mobile aiming is handled directly through touch input.
+		* No virtual joystick or throw button is required.
+		*/
 		return {
-			joysticks: {
-				aim: {
-					x: 0, xp: 'left',
-					y: 0, yp: 'bottom',
-					size: 140,
-					color: '#ffffff88'
-				}
-			},
-			buttons: {
-				throw: {
-					x: 0, xp: 'right',
-					y: 0, yp: 'bottom',
-					size: 100,
-					color: '#ff4444cc'
-				}
-			}
+			joysticks: {},
+			buttons: {}
 		};
 	}
 

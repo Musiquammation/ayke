@@ -144,7 +144,7 @@ const method = runner((game, data, playerIdx) => {
 		// Time is up, lock in the throw
 		inputs.push(buildInput('throwBall', data.targetX!, data.targetY!));
 		data.hasThrownThisTurn = true;
-		logger.info(`Bot threw ball towards X:${data.targetX}, Y:${data.targetY}`);
+		logger.debug(`Bot threw ball towards X:${data.targetX}, Y:${data.targetY}`);
 	}
 
 	return [inputs, 'success'];
