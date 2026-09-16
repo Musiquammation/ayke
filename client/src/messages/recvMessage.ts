@@ -152,7 +152,6 @@ const runners: Record<string, (data: any) => void> = {
 			)
 		};
 
-		console.log(connectedUsersInfo.gamemods);
 		dom.getHomePanel().setConnectedUsersInfo(connectedUsersInfo);
 	}
 };

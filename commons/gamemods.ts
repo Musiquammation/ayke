@@ -211,7 +211,7 @@ export const gamemods: Record<
 		skins: [],
 		collectibles: null,
 		tropheeRoalPixelsPerTrophy: 3.5,
-		iconExtension: 'svg',
+		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_popit
 	},
