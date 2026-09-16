@@ -428,7 +428,7 @@ button.selected {
 	height: 100%;
 
 	object-fit: cover;
-	image-rendering: pixelated;
+	image-rendering: auto;
 
 	transition:
 		filter var(--transition-normal),
