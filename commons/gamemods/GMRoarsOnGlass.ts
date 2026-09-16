@@ -1,6 +1,6 @@
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
-import { FinishGame, GameMode } from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { collisions } from "../util/collisions";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
@@ -360,12 +360,15 @@ export class GMRoarsOnGlass extends GameMode {
 		};
 	}
 	
-	static createClient(data: Uint8Array | null, total: number) {
+	static createClient(
+		{data, origin}: MultiplayerClientEntry,
+		total: number
+	) {
 		const game = new GMRoarsOnGlass(total);
 		const {StartDataClient} = protocols.get();
 		const clientData = new ClientData();
 		
-		if (data) {
+		if (origin === 'server') {
 			const decoded = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of decoded.players.entries()) {
 				game.players[idx].initSpawn(p.x, p.y, p.isRed ? 'red' : 'blue');
@@ -397,8 +400,11 @@ export class GMRoarsOnGlass extends GameMode {
 	
 	// Helper to apply velocity physics based on input direction
 	private applyPhysics(dt: number, velocity: number, dir: number) {
+		const targetVelocity = dir * SPEED;
 		let v = velocity;
+
 		if (dir === 0) {
+
 			if (v > 0) {
 				v -= SOFT_DECELERATION * dt;
 				if (v < 0) v = 0;
@@ -406,29 +412,18 @@ export class GMRoarsOnGlass extends GameMode {
 				v += SOFT_DECELERATION * dt;
 				if (v > 0) v = 0;
 			}
-		} else if (dir > 0) {
-			if (v < 0) {
-				v += QUICK_DECELERATION * dt;
-				if (v > 0) v = 0;
-			} else if (v < SPEED) {
-				v += ACCELERATION * dt;
-				if (v > SPEED) v = SPEED;
-			} else if (v > SPEED) {
-				v -= MIN_DECELERATION * dt;
-				if (v < SPEED) v = SPEED;
-			}
-		} else { // dir < 0
-			if (v > 0) {
-				v -= QUICK_DECELERATION * dt;
-				if (v < 0) v = 0;
-			} else if (v > -SPEED) {
-				v -= ACCELERATION * dt;
-				if (v < -SPEED) v = -SPEED;
-			} else if (v < -SPEED) {
-				v += MIN_DECELERATION * dt;
-				if (v > -SPEED) v = -SPEED;
-			}
+
+		} else if (v < targetVelocity) {
+
+			v += ACCELERATION * dt;
+			if (v > targetVelocity) v = targetVelocity;
+
+		} else if (v > targetVelocity) {
+
+			v -= ACCELERATION * dt;
+			if (v < targetVelocity) v = targetVelocity;
 		}
+
 		return v;
 	}
 
@@ -593,7 +588,6 @@ export class GMRoarsOnGlass extends GameMode {
 								r: ROAR_RADIUS
 							}
 						)) {
-							console.log("coll", p.team);
 							const dx = e.x - p.x;
 							const dy = e.y - p.y;
 							const invNorm = PUSH_SPEED / Math.sqrt(dx * dx + dy * dy);
@@ -715,6 +709,13 @@ export class GMRoarsOnGlass extends GameMode {
 		if (input.action === 'move') {
 			p.dirX = input.move.dx || 0;
 			p.dirY = input.move.dy || 0;
+
+			const norm2 = p.dirX * p.dirX + p.dirY * p.dirY;
+			if (norm2 > 1) {
+				const inv = 1/Math.sqrt(norm2);
+				p.dirX *= inv;
+				p.dirY *= inv;
+			}
 		}
 		
 		if (input.action === 'roar') {
@@ -863,11 +864,27 @@ export class GMRoarsOnGlass extends GameMode {
 		}
 		
 		// Draw Players
-		for (let p of this.players) {
-			if (!p.isAlive()) continue;
-			
-			ctx.fillStyle = p.team === 'red' ? '#ff4444' : '#44ff44';
+		for (let i = 0; i < this.players.length; i++) {
+			const p = this.players[i];
 
+			if (!p.isAlive()) continue;
+
+			const isLocalPlayer = i === playerIdx;
+			const playerColor = p.team === 'red' ? '#ff4444' : '#44ff44';
+
+			// Draw a subtle shadow underneath the player.
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+			this.drawRoundedRect(
+				ctx,
+				p.x + 8,
+				p.y + 8,
+				PLAYER_SIZE,
+				PLAYER_ROUND
+			);
+			ctx.fill();
+
+			// Draw the player's body.
+			ctx.fillStyle = playerColor;
 			this.drawRoundedRect(
 				ctx,
 				p.x,
@@ -875,13 +892,29 @@ export class GMRoarsOnGlass extends GameMode {
 				PLAYER_SIZE,
 				PLAYER_ROUND
 			);
-
 			ctx.fill();
 
-			// Visual indicator for roar
+			// Add a bright outline to make the local player immediately recognizable.
+			if (isLocalPlayer) {
+				ctx.strokeStyle = '#ffffff';
+				ctx.lineWidth = 14;
+				this.drawRoundedRect(
+					ctx,
+					p.x,
+					p.y,
+					PLAYER_SIZE,
+					PLAYER_ROUND
+				);
+				ctx.stroke();
+			}
+
+			// Visual indicator for an active roar.
 			if (p.roarTimer > 0) {
-				ctx.strokeStyle = "rgba(255, 255, 0, 0.5)";
-				ctx.lineWidth = 10;
+				ctx.strokeStyle = isLocalPlayer
+					? 'rgba(255, 255, 255, 0.85)'
+					: 'rgba(255, 255, 0, 0.5)';
+				ctx.lineWidth = isLocalPlayer ? 14 : 10;
+
 				ctx.beginPath();
 				ctx.arc(
 					p.x,
@@ -892,7 +925,6 @@ export class GMRoarsOnGlass extends GameMode {
 				);
 				ctx.stroke();
 			}
-
 		}
 		
 		ctx.restore();
@@ -945,7 +977,7 @@ export class GMRoarsOnGlass extends GameMode {
 				move: {
 					x: 100,
 					xp: 'left',
-					y: 100,
+					y: 200,
 					yp: 'bottom',
 					size: 100,
 					color: "#007700"
@@ -956,7 +988,7 @@ export class GMRoarsOnGlass extends GameMode {
 				roar: {
 					x: 100,
 					xp: 'right',
-					y: 100,
+					y: 200,
 					yp: 'bottom',
 					size: 100,
 					color: "#ff00ff"

@@ -2,6 +2,11 @@ syntax = "proto3";
 
 package game;
 
+
+message ServerVersion {
+	int32 versionCode = 1;
+}
+
 message Empty {}
 
 message ClientMessage {
@@ -22,6 +27,7 @@ message ClientMessage {
 		AskProgression askProgression = 14;
 		UnlockCollectible unlockCollectible = 15;
 		Empty askAccountInfo = 16;
+		bool subscribeConnectedUsersInfo = 17;
 	}
 }
 
@@ -107,7 +113,7 @@ message ServerMessage {
 		ProgressionResult progressionResult = 15;
 		UnlockCollectibleResult unlockCollectibleResult = 16;
 		AccountInfoResult accountInfoResult = 17;
-
+		ConnectedUsersInfo connectedUsersInfo = 18;
 	}
 }
 
@@ -214,3 +220,14 @@ message AccountInfoResult {
 	int32 coins = 2;
 	int32 globalRank = 3;
 }
+
+message ConnectedUsersInfoElement {
+	string gamemode = 1;
+	int32 total = 2;
+}
+
+message ConnectedUsersInfo {
+	int32 total = 1;
+	repeated ConnectedUsersInfoElement gamemods = 2;
+}
+

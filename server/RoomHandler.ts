@@ -121,9 +121,31 @@ export class Room {
 	}
 
 	disconnect(idx: number) {
-		if (this.players[idx].connection) {
-			this.gamemode.onDisconnection(idx);
-			this.players[idx].connection = null;
+		const player = this.players[idx];
+
+		if (!player.connection)
+			return;
+
+		this.gamemode.onDisconnection(idx);
+		player.connection = null;
+
+		// No human player remains connected: stop the room.
+		if (this.players.every(p => p.connection === null)) {
+			this.stop();
+		}
+	}
+
+	private stop() {
+		if (this.isFinished())
+			return;
+
+		this.finished = true;
+		this.onfinish();
+
+		for (const p of this.players) {
+			if (p.connection) {
+				p.connection.roomInfo = null;
+			}
 		}
 	}
 
@@ -392,6 +414,10 @@ export class Room {
 	isFinished() {
 		return this.finished;
 	}
+
+	getPlayerCount() {
+		return this.players.length;
+	}
 }
 
 
@@ -438,6 +464,16 @@ class RoomHandler {
 			return;
 
 		connection.roomInfo.room.disconnect(connection.roomInfo.idx);
+	}
+
+	askConnectedUsers() {
+		const result: Record<string, number> = {};
+
+		for (const room of this.rooms) {
+			result[room.gamemodeId] = (result[room.gamemodeId] ?? 0) + room.getPlayerCount();
+		}
+
+		return result;
 	}
 }
 

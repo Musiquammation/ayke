@@ -58,8 +58,10 @@ export class MobileController implements IMobileController {
 	private firsts: Set<number | string> = new Set();
 	private kills: Set<number | string> = new Set();
 
-	// Joystick offset state map: key -> { x: -1 to 1, y: -1 to 1 }
 	private joystickValues: Map<string, { x: number; y: number }> = new Map();
+
+	// Tracks the dynamic floating center of active joysticks
+	private activeJoyCenters: Map<string, { x: number; y: number }> = new Map();
 
 	// Dynamic UI visibility control
 	private hiddenButtons: Set<string> = new Set();
@@ -202,8 +204,12 @@ export class MobileController implements IMobileController {
 				const { centerX, centerY, radius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
 				const dx = screenX - centerX;
 				const dy = screenY - centerY;
+				
+				// Enlarge the detection zone by a factor (e.g., 2.5x the drawn radius)
+				// so the user doesn't have to touch perfectly on the small drawn area.
+				const detectionRadius = radius * 2.5;
 
-				if (dx * dx + dy * dy <= radius * radius) {
+				if (dx * dx + dy * dy <= detectionRadius * detectionRadius) {
 					return key;
 				}
 			}
@@ -223,9 +229,11 @@ export class MobileController implements IMobileController {
 		const screenWidth = window.innerWidth;
 		const screenHeight = window.innerHeight;
 
+		const MAX_CENTER_DRIFT_MULTIPLIER = 1.5; 
+
 		// Reset all joysticks to neutral (0,0) before updating from active touches
 		for (const key of Object.keys(mobileData.joysticks)) {
-			this.joystickValues.set(key, { x: 0, y: 0 });
+			this.joystickValues.set(key, { x: 0, y: 0});
 		}
 
 		// Calculate displacement for joysticks currently bound to a touch
@@ -234,27 +242,70 @@ export class MobileController implements IMobileController {
 				const joyKey = touch.target;
 				const joy = mobileData.joysticks[joyKey];
 
-				const { centerX, centerY, radius: maxRadius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
+				const staticPos = this.resolveJoyPosition(joy, screenWidth, screenHeight);
+				const maxRadius = staticPos.radius;
 
-				const dx = touch.screenX - centerX;
-				const dy = touch.screenY - centerY;
-				const distance = Math.sqrt(dx * dx + dy * dy);
+				// Initialize dynamic center at static center upon first touch
+				if (!this.activeJoyCenters.has(joyKey)) {
+					this.activeJoyCenters.set(joyKey, { x: staticPos.centerX, y: staticPos.centerY });
+				}
+				const center = this.activeJoyCenters.get(joyKey)!;
+
+				let dx = touch.screenX - center.x;
+				let dy = touch.screenY - center.y;
+				let distance = Math.sqrt(dx * dx + dy * dy);
+
+				// If the finger moves outside the visual boundary, pull the joystick's center 
+				// toward the finger so the finger stays exactly on the boundary limit.
+				if (distance > maxRadius) {
+					center.x = touch.screenX - (dx / distance) * maxRadius;
+					center.y = touch.screenY - (dy / distance) * maxRadius;
+					
+					// --- LIMIT FLOATING CENTER DRIFT ---
+					const maxDriftDistance = maxRadius * MAX_CENTER_DRIFT_MULTIPLIER;
+					
+					const driftX = center.x - staticPos.centerX;
+					const driftY = center.y - staticPos.centerY;
+					const driftDistance = Math.sqrt(driftX * driftX + driftY * driftY);
+					
+					// If the dynamic center drifts further than the allowed limit, clamp it back
+					if (driftDistance > maxDriftDistance) {
+						center.x = staticPos.centerX + (driftX / driftDistance) * maxDriftDistance;
+						center.y = staticPos.centerY + (driftY / driftDistance) * maxDriftDistance;
+					}
+					// -----------------------------------
+
+					// Recompute offset relative to the newly shifted (and clamped) center
+					dx = touch.screenX - center.x;
+					dy = touch.screenY - center.y;
+					distance = Math.sqrt(dx * dx + dy * dy); 
+					
+					// Cap the final distance so the knob doesn't exceed the visual base,
+					// which can happen now because we clamped the center's movement.
+					if (distance > maxRadius) {
+						dx = (dx / distance) * maxRadius;
+						dy = (dy / distance) * maxRadius;
+						distance = maxRadius;
+					}
+				}
 
 				if (distance === 0) {
-					this.joystickValues.set(joyKey, { x: 0, y: 0 });
+					this.joystickValues.set(joyKey, {x: 0, y: 0});
 				} else {
-					const clampDist = Math.min(distance, maxRadius);
-					const normX = (dx / distance) * (clampDist / maxRadius);
-					const normY = (dy / distance) * (clampDist / maxRadius);
-					this.joystickValues.set(joyKey, { x: normX, y: normY });
+					const x = dx / maxRadius;
+					const y = dy / maxRadius;
+					
+					// Assign the calculated values back to the map
+					this.joystickValues.set(joyKey, { x, y });
 				}
 			}
 		}
 	}
 
-	// Public getter for joystick axes value
+	// Public getter for joystick axes value (returns logical, precision-scaled coordinates)
 	getJoystick(name: string): { x: number; y: number } {
-		return this.joystickValues.get(name) || { x: 0, y: 0 };
+		const val = this.joystickValues.get(name);
+		return val ? { x: val.x, y: val.y } : { x: 0, y: 0 };
 	}
 
 	// Render overlay UI directly on the full-screen canvas context
@@ -274,8 +325,20 @@ export class MobileController implements IMobileController {
 			for (const [key, joy] of Object.entries(mobileData.joysticks)) {
 				if (this.hiddenButtons.has(key)) continue;
 
-				const { centerX, centerY, radius } = this.resolveJoyPosition(joy, screenWidth, screenHeight);
-				const values = this.getJoystick(key);
+				const staticPos = this.resolveJoyPosition(joy, screenWidth, screenHeight);
+				const radius = staticPos.radius;
+
+				// Use the dynamic floating center if active, otherwise static position
+				let centerX = staticPos.centerX;
+				let centerY = staticPos.centerY;
+				
+				if (this.activeJoyCenters.has(key)) {
+					const dynamicCenter = this.activeJoyCenters.get(key)!;
+					centerX = dynamicCenter.x;
+					centerY = dynamicCenter.y;
+				}
+
+				const values = this.joystickValues.get(key) || { x: 0, y: 0};
 
 				// Outer Ring / Base
 				ctx.beginPath();
@@ -286,7 +349,7 @@ export class MobileController implements IMobileController {
 				ctx.strokeStyle = joy.color;
 				ctx.stroke();
 
-				// Inner Stick / Knob
+				// Inner Stick / Knob - Use visual offsets so it sits directly under the finger
 				const knobX = centerX + values.x * radius;
 				const knobY = centerY + values.y * radius;
 				const knobRadius = radius * 0.4;
@@ -382,6 +445,7 @@ export class MobileController implements IMobileController {
 		window.removeEventListener("touchmove", this.handleTouchMove);
 		window.removeEventListener("touchend", this.handleTouchEnd);
 		window.removeEventListener("touchcancel", this.handleTouchEnd);
+		this.activeJoyCenters.clear();
 	}
 
 	// --- Touch Event Handlers ---
@@ -439,6 +503,11 @@ export class MobileController implements IMobileController {
 				this.presses.delete(target);
 				this.kills.add(target);
 				this.touches.delete(touch.identifier);
+
+				// Reset joystick dynamic center position when touch is released
+				if (typeof target === 'string') {
+					this.activeJoyCenters.delete(target);
+				}
 			}
 		}
 		this.updateJoystickValues();

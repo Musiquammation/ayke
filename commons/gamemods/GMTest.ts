@@ -1,7 +1,7 @@
 import { MobileDescriptor } from "../../client/src/controllers/MobileController";
 import { Fields } from "../Fields";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
-import { FinishGame, GameMode} from "../GameMode";
+import { FinishGame, GameMode, MultiplayerClientEntry} from "../GameMode";
 import { getProtocol } from "../protocolLoader";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { ImageLoader } from "../util/ImageLoader";
@@ -90,7 +90,11 @@ export class GMTest extends GameMode {
 		}
 	}
 
-	static createClient(data: Uint8Array | null, total: number) {
+	static createClient(
+		{data, origin}: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number
+	) {
 		const game = new GMTest(total);
 		for (let i = 0; i < game.players.length; i++) {
 			const p = game.players[i];

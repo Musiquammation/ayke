@@ -1,4 +1,6 @@
+import { marked } from "marked";
 import Alpine from "alpinejs";
+
 import { gamemods, getGmFactory, getMultiGmFactory, getSoloGmFactory } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
 import { sendMessage } from "../messages/sendMessage";
@@ -13,6 +15,9 @@ import { SoloGameHandler } from "../handlers/SoloGameHandler";
 import { waitSkinsResponsePromise } from "../messages/recvMessage";
 import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 import { FinishGame } from "../../../commons/GameMode";
+import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
+import { CHANGELOGS } from "./changelogs";
+
 
 declare global {
 	interface Window {
@@ -92,6 +97,24 @@ function isFragmentSavable(panel: Panel): panel is Panel & FragmentSavable {
 	);
 }
 
+type PanelComponent = (
+	GamePanelComponent |
+	SoloGamePanelComponent |
+	WaitPlayPanelComponent |
+	PlayResultsComponent |
+	SoloPlayResultComponent |
+	PlayComponent |
+	SoloPlayComponent |
+	LoginComponent |
+	SigninComponent |
+	HomeComponent |
+	LocalPlayComponent |
+	LeaderboardComponent |
+	SoloLeaderboardComponent |
+	ChangelogsComponent |
+	null
+);
+
 class MainComponent {
 	private _currentPage = "home";
 	private templateLoader = new TemplateLoader();
@@ -101,22 +124,25 @@ class MainComponent {
 	isAuthenticated = false;
 	pseudo: string | null = null;
 
-	panel: (
-		GamePanelComponent |
-		SoloGamePanelComponent |
-		WaitPlayPanelComponent |
-		PlayResultsComponent |
-		SoloPlayResultComponent |
-		PlayComponent |
-		SoloPlayComponent |
-		LoginComponent |
-		SigninComponent |
-		HomeComponent |
-		LocalPlayComponent |
-		LeaderboardComponent |
-		SoloLeaderboardComponent |
-		null
-	) = new HomeComponent();
+	panel: PanelComponent = new HomeComponent();
+
+	constructor() {
+		sendMessage({subscribeConnectedUsersInfo: true});
+	}
+
+	private setPanel(panel: PanelComponent) {
+		const h1 = this.panel instanceof HomeComponent;
+		const h2 = panel instanceof HomeComponent;
+		if (h1 && !h2) {
+			sendMessage({subscribeConnectedUsersInfo: false});
+		}
+
+		this.panel = panel;
+
+		if (h2 && !h1) {
+			sendMessage({subscribeConnectedUsersInfo: true});
+		}
+	}
 
 	// Test data
 	y0 = 0;
@@ -144,7 +170,7 @@ class MainComponent {
 	}
 
 	openHome() {
-		this.panel = new HomeComponent();
+		this.setPanel(new HomeComponent());
 		this.currentPage = "home";
 		pushUrlStack(this);
 	}
@@ -156,13 +182,13 @@ class MainComponent {
 	}
 
 	openLogin() {
-		this.panel = new LoginComponent();
+		this.setPanel(new LoginComponent());
 		this.currentPage = "login";
 		pushUrlStack(this);
 	}
 
 	openSignin() {
-		this.panel = new SigninComponent();
+		this.setPanel(new SigninComponent());
 		this.currentPage = "signin";
 		pushUrlStack(this);
 	}
@@ -221,17 +247,17 @@ class MainComponent {
 
 		if (factory.type === 'multiplayer') {
 			const data = factory.dom(unlockedSkins);
-			this.panel = new GamePanelComponent(gamemode, data, html);
+			this.setPanel(new GamePanelComponent(gamemode, data, html));
 		} else {
 			const category = factory.dom();
-			this.panel = new SoloGamePanelComponent(gamemode, category, html);
+			this.setPanel(new SoloGamePanelComponent(gamemode, category, html));
 		}
 
 		pushUrlStack(this);
 	}
 
 	async openWaitPlayPanel(gamemode: string) {
-		this.panel = new WaitPlayPanelComponent(gamemode);
+		this.setPanel(new WaitPlayPanelComponent(gamemode));
 		this.currentPage = "wait-play";
 		pushUrlStack(this);
 	}
@@ -265,29 +291,29 @@ class MainComponent {
 	}
 
 	openSoloComponent(result: number) {
-		this.panel = new SoloPlayResultComponent(result);
+		this.setPanel(new SoloPlayResultComponent(result));
 		this.currentPage = "play-solo-results";
 		pushUrlStack(this);
 	}
 
-	openLocalInPlay(gamemode: string) {
+	openLocalInPlay(gamemode: string, startData: Uint8Array) {
 		this.currentPage = "play";
-		this.panel = new LocalPlayComponent(
-			new LocalGameHandler(gamemode, false)
-		);
+		this.setPanel(new LocalPlayComponent(
+			new LocalGameHandler(gamemode, false, startData)
+		));
 		pushUrlStack(this);
 	}
 
-	openVsBotsInPlay(gamemode: string) {
+	openVsBotsInPlay(gamemode: string, startData: Uint8Array) {
 		this.currentPage = "play";
-		this.panel = new LocalPlayComponent(
-			new LocalGameHandler(gamemode, true)
-		);
+		this.setPanel(new LocalPlayComponent(
+			new LocalGameHandler(gamemode, true, startData)
+		));
 		pushUrlStack(this);
 	}
 
 	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, category: string) {
-		this.panel = new SoloPlayComponent(gamemodeId, game, category);
+		this.setPanel(new SoloPlayComponent(gamemodeId, game, category));
 		this.currentPage = "play";
 		pushUrlStack(this);
 	}
@@ -305,6 +331,13 @@ class MainComponent {
 		this.panel = panel;
 		this.currentPage = "solo-leaderboard";
 		panel.fetchRecords();
+		pushUrlStack(this);
+	}
+
+	openChangelog() {
+		const panel = new ChangelogsComponent();
+		this.panel = panel;
+		this.currentPage = "changelog";
 		pushUrlStack(this);
 	}
 
@@ -408,7 +441,7 @@ class GamePanelComponent {
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 
-		dom.openLocalInPlay(this.gamemode);
+		dom.openLocalInPlay(this.gamemode, this.data.produce());
 	}
 
 	async againstBots() {
@@ -419,7 +452,7 @@ class GamePanelComponent {
 		await dynamicCssHandler.load(this.gamemode);
 		dom.stopLoading();
 
-		dom.openVsBotsInPlay(this.gamemode);
+		dom.openVsBotsInPlay(this.gamemode, this.data.produce());
 	}
 
 	// Called by x-init when the trophy road mounts (only if authenticated).
@@ -876,6 +909,11 @@ class SigninComponent {
 	}
 }
 
+interface ConnectedUsersInfo {
+	total: number;
+	gamemods: Record<string, number>;
+}
+
 class HomeComponent {
 	// --- Fragment-savable marker. ---
 	static readonly fragmentName = "home";
@@ -895,6 +933,15 @@ class HomeComponent {
 	totalTrophees = "(?)";
 	coins = "(?)";
 	globalRank = "(?)";
+
+	private connectedUsersInfo: ConnectedUsersInfo = {
+		total: 0,
+		gamemods: Object.fromEntries(
+			Object.entries(gamemods)
+				.filter(([, i]) => i.type === 'multiplayer')
+				.map(([gamemode]) => [gamemode, -1])
+		)
+	};
 
 	constructor() {
 		this.games = [];
@@ -963,6 +1010,17 @@ class HomeComponent {
 		this.globalRank = String(d.globalRank);
 	}
 
+	setConnectedUsersInfo(info: ConnectedUsersInfo) {
+		for (const _span of document.querySelectorAll(".connectedUsersIndicator")) {
+			const span = _span as HTMLElement;
+			const k = info.gamemods[span.dataset.key as string];
+			if (k === undefined) {
+				span.innerText = ""
+			} else {
+				span.innerText = "🟢 " + k;
+			}
+		}
+	}
 }
 
 
@@ -1027,7 +1085,9 @@ class LeaderboardComponent {
 	page: number = 0;
 
 	// Exposing imported gamemods for the UI dropdown
-	gamemods = gamemods;
+	gamemods = Object.fromEntries(
+		Object.entries(gamemods).filter(([, gamemod]) => gamemod.type === 'multiplayer')
+	);;
 
 	/**
 	 * Requests the latest leaderboard slice from the server based on current filters.
@@ -1197,6 +1257,43 @@ class SoloLeaderboardComponent {
 		this.entries = d.entries;
 	}
 }
+
+class ChangelogsComponent {
+	// --- Fragment-savable marker: gamemode + page fully describe this panel. ---
+	static readonly fragmentName = "changelog";
+
+	saveFragment(): Record<string, string> {
+		return {};
+	}
+
+	static openFragment(_: Record<string, string>) {
+		const panel = new ChangelogsComponent();
+		return panel;
+	}
+	readonly changelogs = CHANGELOGS;
+
+	formatDate(timestamp: number): string {
+		const language = "en" /*navigator.language*/;
+		const formatted = new Intl.DateTimeFormat(language, {
+			weekday: "long",
+			day: "numeric",
+			month: "long",
+			hour: "numeric",
+			minute: "2-digit",
+		}).format(new Date(timestamp));
+
+		return formatted;
+	}
+
+	showLine(line: string) {
+		return marked.parseInline(line);
+	}
+
+}
+
+
+
+
 
 /* -------------------------------------------------------------------------------------------
  * Fragment registry: maps a URL fragment name (e.g. "leaderboard") to the page string and the

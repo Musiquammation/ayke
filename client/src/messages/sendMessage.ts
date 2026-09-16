@@ -5,6 +5,7 @@ declare global {
 	interface Window {
 		SERVER_ADDRESS: string;
 		PROTOCOL_FILE: string;
+		VERSION_CODE: number;
 	}
 }
 
@@ -30,16 +31,31 @@ export const msgtypes = (async function() {
 
 	const ClientMessage = root.lookupType("game.ClientMessage");
 	const ServerMessage = root.lookupType("game.ServerMessage");
+	const ServerVersion = root.lookupType("game.ServerVersion");
 
 	const socket = new WebSocket(window.SERVER_ADDRESS);
 
 	await new Promise<void>((resolve, reject) => {
 		socket.addEventListener("open", () => {
-			resolve();
+			
 		});
 
+		let firstMessage = true;
 		socket.addEventListener("message", async (event: MessageEvent) => {
 			try {
+				if (firstMessage) {
+					const buffer = new Uint8Array(await event.data.arrayBuffer());
+					const msg = ServerVersion.decode(buffer);
+					if (msg.versionCode !== window.VERSION_CODE) {
+						alert("Please update Ayke");
+						reject(`Version mismatch (${msg.versionCode} vs ${window.VERSION_CODE})`);
+					}
+
+					console.log("Version code successfully checked", msg.versionCode);
+
+					resolve();
+					firstMessage = false;
+				}
 				const buffer = new Uint8Array(await event.data.arrayBuffer());
 				const msg = ServerMessage.decode(buffer);
 

@@ -1,0 +1,133 @@
+/* ============================================================================
+ * ROOT OVERLAY
+ * All classes are prefixed `-game-lavaBall-` and sized with vw/vh so the HUD
+ * scales consistently across screen sizes. This is the CSS used by
+ * ClientData.html (the in-canvas HUD), not example.html (the pre-match
+ * setup form, which carries its own <style> tag).
+ * ==========================================================================*/
+
+.game-lavaBall-root {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+	right: 2vw;
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+
+	font-family: sans-serif;
+	pointer-events: none;
+}
+
+/* Turn indicator: "1 2 3 4" with the active player underlined, the local
+   player shown as "M", team color per player, greyed out when eliminated. */
+.game-lavaBall-turn-indicator {
+	display: flex;
+	gap: 1.5vw;
+
+	font-size: 3vh;
+	font-weight: bold;
+
+	background: rgba(0, 0, 0, 0.35);
+	border-radius: 1vh;
+	padding: 0.5vh 1.5vw;
+}
+
+.game-lavaBall-turn-slot {
+	color: white;
+	padding-bottom: 0.3vh;
+	border-bottom: 0.4vh solid transparent;
+	transition: color 0.2s, border-color 0.2s;
+}
+
+/* Team color is always visible, even for eliminated players, so identity
+   is never lost - only the text itself dims to grey. */
+.game-lavaBall-turn-slot.is-red {
+	border-color: #ff4444;
+}
+
+.game-lavaBall-turn-slot.is-blue {
+	border-color: #4477ff;
+}
+
+.game-lavaBall-turn-slot.is-turn {
+	border-bottom-width: 0.6vh;
+	text-decoration: underline;
+}
+
+.game-lavaBall-turn-slot.is-eliminated {
+	color: #999999;
+	opacity: 0.6;
+}
+
+/* Scoreboard: always visible on the side, independent of camera movement
+   since it lives in the fixed HTML overlay, not the scrolling canvas. */
+.game-lavaBall-scoreboard {
+	position: fixed;
+	top: 2vh;
+	right: 2vw;
+
+	display: flex;
+	flex-direction: column;
+	gap: 0.5vh;
+
+	font-size: 2.2vh;
+
+	background: rgba(0, 0, 0, 0.35);
+	border-radius: 1vh;
+	padding: 1vh 1vw;
+}
+
+.game-lavaBall-score-row {
+	color: white;
+	padding-left: 0.6vw;
+	border-left: 0.5vh solid transparent;
+}
+
+.game-lavaBall-score-row.is-red {
+	border-left-color: #ff4444;
+}
+
+.game-lavaBall-score-row.is-blue {
+	border-left-color: #4477ff;
+}
+
+.game-lavaBall-score-row.is-eliminated {
+	color: #999999;
+	opacity: 0.6;
+}
+
+/* Turn timer: shows only the remaining whole seconds of the current turn. */
+.game-lavaBall-timer {
+	margin-top: 1vh;
+
+	font-size: 4vh;
+	font-weight: bold;
+	color: #ffee55;
+
+	text-shadow: 0 0 0.5vh black;
+}
+
+/* Round-over banner, shown centered during the short pause between rounds. */
+.game-lavaBall-round-banner {
+	position: fixed;
+	top: 45vh;
+	left: 0;
+	right: 0;
+
+	text-align: center;
+	font-size: 3.5vh;
+	font-weight: bold;
+	color: white;
+
+	text-shadow: 0 0 1vh black;
+
+	opacity: 0;
+	transition: opacity 0.3s;
+}
+
+.game-lavaBall-round-banner.visible {
+	opacity: 1;
+}

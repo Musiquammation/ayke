@@ -1,21 +1,99 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="0" fill="#000000"/>
-  <circle cx="50" cy="20" r="15" fill="#44ff44"/>
-  <path d="
-		M 10 100
-		C 40 80, 30 40, 40 30
-		L 40 100
-  " fill="#44ff44"/>
-  <rect
-	x="40"
-	y="30"
-	width="20"
-	height="70"
-	fill="#44ff44"
-/>
-  <path d="
-	M 90 100
-	C 60 80, 70 40, 60 30
-	L 60 100
-" fill="#44ff44"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+	<!-- Ground shadow -->
+	<ellipse cx="200" cy="345" rx="125" ry="25" fill="#000" opacity="0.2"/>
+
+	<!-- Base -->
+	<path
+		d="M90 300 L110 345 Q200 375 290 345 L310 300 Z"
+		fill="#555"
+		stroke="#222"
+		stroke-width="8"
+	/>
+
+	<!-- Base upper ring -->
+	<ellipse
+		cx="200"
+		cy="300"
+		rx="110"
+		ry="35"
+		fill="#777"
+		stroke="#222"
+		stroke-width="8"
+	/>
+
+	<!-- Turret body -->
+	<path
+		d="M120 180
+		   Q125 140 160 125
+		   Q200 110 240 125
+		   Q275 140 280 180
+		   L270 290
+		   Q200 320 130 290 Z"
+		fill="#666"
+		stroke="#222"
+		stroke-width="8"
+	/>
+
+	<!-- Turret head -->
+	<ellipse
+		cx="200"
+		cy="175"
+		rx="90"
+		ry="55"
+		fill="#888"
+		stroke="#222"
+		stroke-width="8"
+	/>
+
+	<!-- Cannon -->
+	<rect
+		x="190"
+		y="85"
+		width="125"
+		height="38"
+		rx="12"
+		fill="#444"
+		stroke="#222"
+		stroke-width="8"
+		transform="rotate(-12 200 105)"
+	/>
+
+	<!-- Cannon muzzle -->
+	<rect
+		x="290"
+		y="70"
+		width="35"
+		height="55"
+		rx="6"
+		fill="#333"
+		stroke="#222"
+		stroke-width="8"
+		transform="rotate(-12 305 97)"
+	/>
+
+	<!-- Front plate -->
+	<circle
+		cx="200"
+		cy="175"
+		r="38"
+		fill="#444"
+		stroke="#222"
+		stroke-width="7"
+	/>
+
+	<!-- Core -->
+	<circle
+		cx="200"
+		cy="175"
+		r="17"
+		fill="#222"
+	/>
+
+	<!-- Small details -->
+	<circle cx="145" cy="250" r="9" fill="#aaa"/>
+	<circle cx="255" cy="250" r="9" fill="#aaa"/>
+
+	<!-- Base bolts -->
+	<circle cx="130" cy="315" r="8" fill="#aaa" stroke="#222" stroke-width="4"/>
+	<circle cx="270" cy="315" r="8" fill="#aaa" stroke="#222" stroke-width="4"/>
 </svg>

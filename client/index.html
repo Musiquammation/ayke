@@ -66,6 +66,7 @@
 											@pointerup="playGame(game.key)"
 											>
 											<span x-text="game.name"></span>
+											<span class="connectedUsersIndicator" :data-key="game.key"></span>
 
 											<img class="pixel-image" :src="getImageSrc(game.key)">
 										</div>
@@ -79,6 +80,11 @@
 						<h2>Community</h2>
 						<button @pointerup="openLeaderboard()">View Leaderboard</button>
 						<button @pointerup="openSoloLeaderboard()">View Solo Leaderboard</button>
+					</section>
+
+					<section class="home-changelogs">
+						<h2>Changelog</h2>
+						<button @pointerup="openChangelog()">View changelog</button>
 					</section>
 
 				</div>
@@ -392,8 +398,32 @@
 						x-show="panel.text && panel.text.length !== 0"
 					></div>
 				</template>
+				<div id="game-ping"></div>
 				<div id="game-html"></div>
 			</div>
+
+			<template x-if="uses('changelog')">
+				<div id="changelog-page" class="page">
+					<h1>Changelog</h1>
+
+					<div x-data="panel">
+						<template x-for="changelog in changelogs" :key="changelog.version">
+							<section>
+								<h2 x-text="`${changelog.version} — ${formatDate(changelog.date)}`"></h2>
+								<h3 x-text="changelog.title"></h3>
+
+								<ul>
+									<template x-for="line in changelog.lines" :key="line">
+										<li x-html="showLine(line)"></li>
+									</template>
+								</ul>
+							</section>
+						</template>
+					</div>
+
+					<button type="button" @pointerup="openHome()">Go home</button>
+				</div>
+			</template>
 		</div>
 
 
@@ -404,6 +434,7 @@
 			window.SERVER_ADDRESS = "ws://localhost:8020";
 			window.PROTOCOL_FILE = "/protocols/game.proto";
 			window.PROTOCOLS_FOLDER = "/protocols/games/";
+			window.VERSION_CODE = -1;
 
 			document.addEventListener("DOMContentLoaded", async () => {
 				const { init } = await import("/src/index.ts");

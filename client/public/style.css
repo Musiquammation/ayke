@@ -107,6 +107,10 @@ body {
 	overflow-y: auto;
 }
 
+ust {
+	font-weight: bold;
+	text-decoration: underline;	
+}
 
 img.pixel-image {
 	image-rendering: pixelated;
@@ -343,6 +347,23 @@ button.selected {
    Play section
    ============================================================ */
 
+#game-ping {
+	display: block;
+	position: absolute;
+	right: 0.5em;
+	bottom: 0.3em;
+	text-align: right;
+	color: green;
+	background-color: #000a;
+	font-family: 'Courier New', Courier, monospace;
+	font-size: 1.5vmin;
+}
+
+#game-ping.disconnected {
+	color: red;
+	font-size: 3vmin;
+}
+
 .home-play {
 	display: flex;
 	flex-direction: column;
@@ -428,7 +449,7 @@ button.selected {
 	height: 100%;
 
 	object-fit: cover;
-	image-rendering: pixelated;
+	image-rendering: auto;
 
 	transition:
 		filter var(--transition-normal),
@@ -465,7 +486,15 @@ button.selected {
 	pointer-events: none;
 }
 
-.home-play > div > div > div > span::after {
+
+.home-play > div > div > div > span.connectedUsersIndicator {
+	left: 12px;
+	text-align: left;	
+	color: var(--color-success);
+	right: auto;
+}
+
+.home-play > div > div > div > :nth-child(1)::after {
 	content: "";
 
 	position: absolute;
@@ -483,7 +512,7 @@ button.selected {
 	transition: transform 0.25s ease;
 }
 
-.home-play > div > div > div:hover > span::after {
+.home-play > div > div > div:hover > :nth-child(1)::after {
 	transform: scaleX(1);
 }
 
@@ -522,6 +551,7 @@ button.selected {
 .home-play > div > div > div.play-disabled:hover > img {
 	filter: grayscale(1);
 }
+
 
 
 
@@ -1148,6 +1178,7 @@ canvas {
 
 .tutorialText {
 	position: absolute;
+	z-index: 10;
 
 	top: 7vh;
 	left: 50%;
@@ -1504,4 +1535,12 @@ canvas {
 
 .collectible-node button:hover {
 	filter: brightness(1.15);
+}
+
+
+/* ============================================================
+   Changelog
+   ============================================================ */
+#changelog-page li {
+	margin-bottom: .28em;
 }
