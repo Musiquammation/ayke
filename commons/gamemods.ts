@@ -125,23 +125,6 @@ export const gamemods: Record<
 		nodes: bots_airbasket
 	},
 
-	moveArmy: {
-		type: 'multiplayer',
-		server: GMMoveArmy.createServ,
-		client: GMMoveArmy.createClient,
-		dom: GMMoveArmy.generateClientDom,
-		textures: GMMoveArmy.TEXTURES,
-		name: "Move army",
-		tropheesPerPlayer: 20,
-		computerOnly: true,
-		skins: [],
-		collectibles: null,
-		tropheeRoalPixelsPerTrophy: 3.5,
-		iconExtension: 'png',
-		defaultPlayerCount: 4,
-		nodes: bots_moveArmy
-	},
-
 	turrets: {
 		type: 'multiplayer',
 		server: GMTurrets.createServ,
@@ -248,6 +231,28 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_lavaBall
+	},
+
+	separator_comingSoon: {
+		type: 'ui-separator',
+		category: "Coming soon..."
+	},
+
+	moveArmy: {
+		type: 'multiplayer',
+		server: GMMoveArmy.createServ,
+		client: GMMoveArmy.createClient,
+		dom: GMMoveArmy.generateClientDom,
+		textures: GMMoveArmy.TEXTURES,
+		name: "Move army",
+		tropheesPerPlayer: 20,
+		computerOnly: true,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_moveArmy
 	},
 
 	separator_solo: {
