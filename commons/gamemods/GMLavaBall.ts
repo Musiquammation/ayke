@@ -620,14 +620,29 @@ class ClientData {
 
 class TutorialData {
 	private step = 0;
+	private wakeUp = 0;
 
 	constructor(private readonly game: GMLavaBall) {}
 
 	frame(dt: number, clock: number) {
+		const MSG_0 = "Aim with your mouse/finger, then click/tap to throw the ball!";
+		const MSG_1 = "Time slows down at 4,3,2 and auto-throws at 1";
+		
 		if (this.step === 0) {
-			return "Aim with your mouse/finger, then click/tap to throw the ball!";
+			this.wakeUp = clock + 9;
+			this.step = 1;
+			return MSG_0;
 		}
-		return "";
+
+		if (this.step === 1) {
+			if (clock >= this.wakeUp) {
+				this.step = 2;
+			}
+			
+			return MSG_0;
+		}
+
+		return MSG_1;
 	}
 }
 
