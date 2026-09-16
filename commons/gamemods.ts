@@ -11,6 +11,7 @@ import { GMWoodSword } from "./gamemods/GMWoodSword";
 import { SoloGameMode } from "./SoloGameMode";
 import { GMMoveArmy } from "./gamemods/GMMoveArmy";
 import { GMPopit } from "./gamemods/GMPopit";
+import { GMLavaBall } from "./gamemods/GMLavaBall";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -20,6 +21,7 @@ import bots_roarsOnGlass from "./bots/bots-roarsOnGlass";
 import bots_woodSword from "./bots/bots-woodSword";
 import bots_moveArmy from "./bots/bots-moveArmy";
 import bots_popit from "./bots/bots-popit";
+import bots_lavaBall from "./bots/bots-lavaBall";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
@@ -229,6 +231,23 @@ export const gamemods: Record<
 		iconExtension: 'svg',
 		defaultPlayerCount: 2,
 		nodes: bots_popit
+	},
+	
+	lavaBall: {
+		type: 'multiplayer',
+		server: GMLavaBall.createServ,
+		client: GMLavaBall.createClient,
+		dom: GMLavaBall.generateClientDom,
+		textures: GMLavaBall.TEXTURES,
+		name: "Lava ball",
+		tropheesPerPlayer: 3,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_lavaBall
 	},
 
 	separator_solo: {
