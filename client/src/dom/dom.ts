@@ -3,7 +3,7 @@ import Alpine from "alpinejs";
 
 import { gamemods, getGmFactory, getMultiGmFactory, getSoloGmFactory } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
-import { sendMessage } from "../messages/sendMessage";
+import { isSocketConnectedToServer, sendMessage } from "../messages/sendMessage";
 import { escapeHTML } from "../../../commons/util/escapeHTML";
 import { deleteGameHandler } from "../handlers/GameHandler";
 import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../handlers/WaitingPlayHandler";
@@ -224,6 +224,13 @@ class MainComponent {
 		this.openHome();
 	}
 
+	isSocketConnectedToServer() {
+		return isSocketConnectedToServer();
+	}
+
+
+
+
 	async openGamePanel(gamemode: string) {
 		this.currentPage = "loading";
 
@@ -417,6 +424,11 @@ class GamePanelComponent {
 	}
 
 	async play() {
+		if (!isSocketConnectedToServer()) {
+			alert("You are not connected to the server. You can play against bots instead.");
+			throw "You are not connected to the server. You can play against bots instead.";
+		}
+
 		const factory = getMultiGmFactory(this.gamemode);
 		dom.startLoading();
 		await imageLoader.load(factory.textures, this.gamemode);
