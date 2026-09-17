@@ -8,6 +8,16 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.4.1",
+		date: 1789650000000, // Thu. 17 sept 2026 at 2:00 PM
+		title: "Improve UI and bots",
+		lines: [
+			"Hide *play* button when client offline and rework `game-panel-page`",
+			"Remove `endTurn` btn for mobile users *(it was not used)*",
+			"Improve roarsOnGlass bots"
+		]
+	},
+	{
 		version: "1.4.0",
 		date: 1789552800000, // Wed. 16 sept 2026 at 12h
 		title: "Add gamemods and improve ayke",
@@ -39,4 +49,7 @@ export const CHANGELOGS: Changelog[] = [
 
 		]
 	}   
-]
+];
+
+
+// (1+Math.floor(Date.now()/3600000))*3600000
