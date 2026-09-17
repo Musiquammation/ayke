@@ -21,6 +21,7 @@ function calculateDeltaTime(servDate: number) {
 	console.log("Delta time:", _deltaTime.toFixed(4));
 }
 
+let _isSocketConnectedToServer = false;
 
 export const msgtypes = (async function() {
 	const root = await (async function () {
@@ -52,6 +53,7 @@ export const msgtypes = (async function() {
 					}
 
 					console.log("Version code successfully checked", msg.versionCode);
+					_isSocketConnectedToServer = true;
 
 					resolve();
 					firstMessage = false;
@@ -109,4 +111,8 @@ export function sendMessage(message: {[k: string]: any}) {
 
 export function getNow() {
 	return performance.now() + _deltaTime;
+}
+
+export function isSocketConnectedToServer() {
+	return _isSocketConnectedToServer;
 }

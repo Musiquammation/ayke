@@ -983,16 +983,7 @@ export class GMPopit extends GameMode {
 	override getMobileDesc(): MobileDescriptor {
 		return {
 			joysticks: {},
-			buttons: {
-				'end_turn': {
-					x: 100,
-					xp: 'right',
-					y: 100,
-					yp: 'bottom',
-					size: 80,
-					color: '#34C759'
-				}
-			}
+			buttons: {}
 		};
 	}
 
