@@ -18671,14 +18671,7 @@ var GMPopit = class GMPopit extends GameMode {
 	getMobileDesc() {
 		return {
 			joysticks: {},
-			buttons: { "end_turn": {
-				x: 100,
-				xp: "right",
-				y: 100,
-				yp: "bottom",
-				size: 80,
-				color: "#34C759"
-			} }
+			buttons: {}
 		};
 	}
 	createTutorial() {
@@ -20987,16 +20980,24 @@ function dataConstructor$4() {
 	return new Data$4();
 }
 /**
+* Score function calculating tile safety rating between 0 and 1.
+* Any tile with health >= 1.5 returns a maximum score of 1.0.
+*/
+function getTileScore(health) {
+	if (health <= 0) return 0;
+	if (health >= 1.5) return 1;
+	return health / 1.5;
+}
+/**
 * Main behavior runner for the GMRoarsOnGlass bot.
 * 
 * Strategy breakdown:
-* 1. Self-Preservation: Check local glass tiles beneath and around the player. 
-*    If the current tile is breaking or broken, steer towards solid glass (value 3.0).
-* 2. Target Acquisition: Find the closest alive enemy player on the opposing team.
-* 3. Combat Positioning & Offense: 
-*    - Align with the enemy so that a roar or movement push can send them flying into a gap or off the map.
-*    - Trigger a roar (`roar = true`) when close enough to an enemy to push them backwards, provided the roar is off cooldown.
-* 4. Input Emission: Send movement and action updates only when states change to optimize performance.
+* 1. Global Pathfinding: Compute shortest weighted paths from bot position to all reachable tiles.
+* 2. Targeted Enemy Pursuit: Evaluate enemies using path travel times, attack readiness upon arrival,
+*    and push safety (ensuring enemy counter-attack won't push us into a tile with current health < 1).
+* 3. Fallback & Fleeing: If no enemy is targeted, locate the reachable tile with the best
+*    health score, actively fleeing nearby enemies by maximizing our distance from them.
+* 4. Input Emission: Send updates only when movement or action states change.
 */
 var method$4 = runner$4((game, data, playerIdx) => {
 	const inputs = [];
@@ -21004,70 +21005,211 @@ var method$4 = runner$4((game, data, playerIdx) => {
 	if (!bot || !bot.isAlive()) return [inputs, "success"];
 	const TILE_SIZE = 150;
 	const GRID_PADDING = 1.5;
-	let closestEnemy = null;
-	let minEnemyDistSq = Infinity;
+	const TICKS_PER_TILE = TILE_SIZE / 10;
+	const gridHeight = game.grid.length;
+	const gridWidth = game.grid[0] ? game.grid[0].length : 0;
+	if (gridHeight === 0 || gridWidth === 0) return [inputs, "success"];
+	const botGx = Math.floor(bot.x / TILE_SIZE - GRID_PADDING);
+	const botGy = Math.floor(bot.y / TILE_SIZE - GRID_PADDING);
+	const startGx = Math.max(0, Math.min(gridWidth - 1, botGx));
+	const startGy = Math.max(0, Math.min(gridHeight - 1, botGy));
+	const dist = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(Infinity));
+	const timeTicks = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(Infinity));
+	const firstStep = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(null));
+	dist[startGy][startGx] = 0;
+	timeTicks[startGy][startGx] = 0;
+	const pq = [{
+		gx: startGx,
+		gy: startGy,
+		cost: 0
+	}];
+	const neighbors = [
+		{
+			dx: 1,
+			dy: 0,
+			costMult: 1
+		},
+		{
+			dx: -1,
+			dy: 0,
+			costMult: 1
+		},
+		{
+			dx: 0,
+			dy: 1,
+			costMult: 1
+		},
+		{
+			dx: 0,
+			dy: -1,
+			costMult: 1
+		},
+		{
+			dx: 1,
+			dy: 1,
+			costMult: 1.414
+		},
+		{
+			dx: -1,
+			dy: 1,
+			costMult: 1.414
+		},
+		{
+			dx: 1,
+			dy: -1,
+			costMult: 1.414
+		},
+		{
+			dx: -1,
+			dy: -1,
+			costMult: 1.414
+		}
+	];
+	while (pq.length > 0) {
+		pq.sort((a, b) => a.cost - b.cost);
+		const curr = pq.shift();
+		if (curr.cost > dist[curr.gy][curr.gx]) continue;
+		for (const n of neighbors) {
+			const ngx = curr.gx + n.dx;
+			const ngy = curr.gy + n.dy;
+			if (ngy >= 0 && ngy < gridHeight && ngx >= 0 && ngx < gridWidth) {
+				const health = game.grid[ngy][ngx];
+				if (health <= 0) continue;
+				const healthPenalty = Math.max(0, 3 - health);
+				const stepCost = n.costMult * (1 + healthPenalty * 1.5);
+				const newCost = dist[curr.gy][curr.gx] + stepCost;
+				if (newCost < dist[ngy][ngx]) {
+					dist[ngy][ngx] = newCost;
+					timeTicks[ngy][ngx] = timeTicks[curr.gy][curr.gx] + n.costMult * TICKS_PER_TILE;
+					if (curr.gx === startGx && curr.gy === startGy) firstStep[ngy][ngx] = {
+						dx: n.dx,
+						dy: n.dy
+					};
+					else firstStep[ngy][ngx] = firstStep[curr.gy][curr.gx];
+					pq.push({
+						gx: ngx,
+						gy: ngy,
+						cost: newCost
+					});
+				}
+			}
+		}
+	}
+	let targetDx = 0;
+	let targetDy = 0;
+	let bestEnemy = null;
+	let minEnemyPathCost = Infinity;
 	for (let i = 0; i < game.players.length; i++) {
 		const other = game.players[i];
 		if (i === playerIdx || !other.isAlive() || other.team === bot.team) continue;
-		const dx = other.x - bot.x;
-		const dy = other.y - bot.y;
-		const distSq = dx * dx + dy * dy;
-		if (distSq < minEnemyDistSq) {
-			minEnemyDistSq = distSq;
-			closestEnemy = other;
+		const egx = Math.floor(other.x / TILE_SIZE - GRID_PADDING);
+		const egy = Math.floor(other.y / TILE_SIZE - GRID_PADDING);
+		if (egy < 0 || egy >= gridHeight || egx < 0 || egx >= gridWidth) continue;
+		const pathCost = dist[egy][egx];
+		if (pathCost === Infinity) continue;
+		const travelTime = timeTicks[egy][egx];
+		const weCanAttack = (bot.roarCooldown ?? 0) - travelTime <= 0;
+		if (!weCanAttack) continue;
+		const enemyCanAttack = (other.roarCooldown ?? 0) - travelTime <= 0;
+		let safeFromEnemyAttack = true;
+		if (enemyCanAttack) {
+			const PUSH_DISTANCE = 300;
+			let pushDx = bot.x - other.x;
+			let pushDy = bot.y - other.y;
+			let pushLen = Math.sqrt(pushDx * pushDx + pushDy * pushDy);
+			if (pushLen < .001) {
+				pushDx = 1;
+				pushDy = 0;
+				pushLen = 1;
+			}
+			const pushedX = other.x + pushDx / pushLen * PUSH_DISTANCE;
+			const pushedY = other.y + pushDy / pushLen * PUSH_DISTANCE;
+			const pushedGx = Math.floor(pushedX / TILE_SIZE - GRID_PADDING);
+			const pushedGy = Math.floor(pushedY / TILE_SIZE - GRID_PADDING);
+			if (pushedGy < 0 || pushedGy >= gridHeight || pushedGx < 0 || pushedGx >= gridWidth) safeFromEnemyAttack = false;
+			else if (game.grid[pushedGy][pushedGx] < 1) safeFromEnemyAttack = false;
+		}
+		if (weCanAttack && safeFromEnemyAttack) {
+			if (pathCost < minEnemyPathCost) {
+				minEnemyPathCost = pathCost;
+				bestEnemy = other;
+				const step = firstStep[egy][egx];
+				if (step) {
+					targetDx = step.dx;
+					targetDy = step.dy;
+				}
+			}
 		}
 	}
-	let targetDirX = 0;
-	let targetDirY = 0;
-	const currentGridX = Math.floor(bot.x / TILE_SIZE - GRID_PADDING);
-	const currentGridY = Math.floor(bot.y / TILE_SIZE - GRID_PADDING);
-	let bestTileX = bot.x;
-	let bestTileY = bot.y;
-	let highestGlassHealth = -1;
-	let currentTileHealth = 0;
-	for (let gy = currentGridY - 1; gy <= currentGridY + 1; gy++) for (let gx = currentGridX - 1; gx <= currentGridX + 1; gx++) if (gy >= 0 && gy < game.grid.length && gx >= 0 && gx < game.grid[0].length) {
-		const health = game.grid[gy][gx];
-		if (gx === currentGridX && gy === currentGridY) currentTileHealth = health;
-		if (health > highestGlassHealth) {
-			highestGlassHealth = health;
-			bestTileX = (gx + GRID_PADDING + .5) * TILE_SIZE;
-			bestTileY = (gy + GRID_PADDING + .5) * TILE_SIZE;
+	if (!bestEnemy) {
+		let maxCompositeScore = -1;
+		let minCostToBestScore = Infinity;
+		const enemyPositions = [];
+		for (let i = 0; i < game.players.length; i++) {
+			const other = game.players[i];
+			if (i === playerIdx || !other.isAlive() || other.team === bot.team) continue;
+			enemyPositions.push({
+				gx: Math.floor(other.x / TILE_SIZE - GRID_PADDING),
+				gy: Math.floor(other.y / TILE_SIZE - GRID_PADDING)
+			});
+		}
+		for (let gy = 0; gy < gridHeight; gy++) for (let gx = 0; gx < gridWidth; gx++) {
+			if (dist[gy][gx] === Infinity) continue;
+			const health = game.grid[gy][gx];
+			const healthScore = getTileScore(health);
+			let minEnemyDistSq = Infinity;
+			for (const ep of enemyPositions) {
+				const dx = gx - ep.gx;
+				const dy = gy - ep.gy;
+				minEnemyDistSq = Math.min(minEnemyDistSq, dx * dx + dy * dy);
+			}
+			const minEnemyDist = minEnemyDistSq === Infinity ? Infinity : Math.sqrt(minEnemyDistSq);
+			const dangerRadius = 6;
+			let distanceBonus = 0;
+			if (minEnemyDist === Infinity) distanceBonus = 1;
+			else if (minEnemyDist < dangerRadius) distanceBonus = minEnemyDist / dangerRadius;
+			else distanceBonus = 1;
+			const compositeScore = healthScore * 10 + distanceBonus;
+			if (compositeScore > maxCompositeScore + 1e-4) {
+				maxCompositeScore = compositeScore;
+				minCostToBestScore = dist[gy][gx];
+				const step = firstStep[gy][gx];
+				targetDx = step ? step.dx : 0;
+				targetDy = step ? step.dy : 0;
+			} else if (Math.abs(compositeScore - maxCompositeScore) < 1e-4) {
+				if (dist[gy][gx] < minCostToBestScore) {
+					minCostToBestScore = dist[gy][gx];
+					const step = firstStep[gy][gx];
+					targetDx = step ? step.dx : 0;
+					targetDy = step ? step.dy : 0;
+				}
+			}
 		}
 	}
-	if (currentTileHealth < 1.5 && highestGlassHealth > currentTileHealth) {
-		const escapeDx = bestTileX - bot.x;
-		const escapeDy = bestTileY - bot.y;
-		const escapeDist = Math.sqrt(escapeDx * escapeDx + escapeDy * escapeDy);
-		if (escapeDist > 1) {
-			targetDirX = escapeDx / escapeDist;
-			targetDirY = escapeDy / escapeDist;
-		}
-	} else if (closestEnemy) {
-		const enemyDx = closestEnemy.x - bot.x;
-		const enemyDy = closestEnemy.y - bot.y;
-		const distanceToEnemy = Math.sqrt(minEnemyDistSq);
-		if (distanceToEnemy > 1) {
-			targetDirX = enemyDx / distanceToEnemy;
-			targetDirY = enemyDy / distanceToEnemy;
-		}
-	}
-	const finalDx = Math.abs(targetDirX) > .3 ? Math.sign(targetDirX) : 0;
-	const finalDy = Math.abs(targetDirY) > .3 ? Math.sign(targetDirY) : 0;
 	let triggerRoar = false;
 	const ROAR_TRIGGER_DISTANCE = 450;
-	if (closestEnemy && minEnemyDistSq <= ROAR_TRIGGER_DISTANCE * ROAR_TRIGGER_DISTANCE) {
-		if (bot.roarCooldown <= 0) triggerRoar = true;
+	for (let i = 0; i < game.players.length; i++) {
+		const other = game.players[i];
+		if (i === playerIdx || !other.isAlive() || other.team === bot.team) continue;
+		const edx = other.x - bot.x;
+		const edy = other.y - bot.y;
+		if (edx * edx + edy * edy <= ROAR_TRIGGER_DISTANCE * ROAR_TRIGGER_DISTANCE) {
+			if ((bot.roarCooldown ?? 0) <= 0) {
+				triggerRoar = true;
+				break;
+			}
+		}
 	}
-	if (finalDx !== data.lastDx || finalDy !== data.lastDy) {
+	if (targetDx !== data.lastDx || targetDy !== data.lastDy) {
 		inputs.push({
 			action: "move",
 			move: {
-				dx: finalDx,
-				dy: finalDy
+				dx: targetDx,
+				dy: targetDy
 			}
 		});
-		data.lastDx = finalDx;
-		data.lastDy = finalDy;
+		data.lastDx = targetDx;
+		data.lastDy = targetDy;
 	}
 	if (triggerRoar !== data.lastRoar) {
 		inputs.push({
@@ -28068,6 +28210,7 @@ function calculateDeltaTime(servDate) {
 	_deltaTime = serverTime - (_deltaSendDate + rtt / 2);
 	console.log("Delta time:", _deltaTime.toFixed(4));
 }
+var _isSocketConnectedToServer = false;
 var msgtypes = (async function() {
 	const root = await (async function() {
 		const protoText = await (await fetch(window.PROTOCOL_FILE)).text();
@@ -28090,6 +28233,7 @@ var msgtypes = (async function() {
 						reject(`Version mismatch (${msg.versionCode} vs ${window.VERSION_CODE})`);
 					}
 					console.log("Version code successfully checked", msg.versionCode);
+					_isSocketConnectedToServer = true;
 					resolve();
 					firstMessage = false;
 				}
@@ -28130,6 +28274,9 @@ function sendMessage(message) {
 }
 function getNow() {
 	return performance.now() + _deltaTime;
+}
+function isSocketConnectedToServer() {
+	return _isSocketConnectedToServer;
 }
 //#endregion
 //#region commons/util/escapeHTML.ts
@@ -28542,35 +28689,48 @@ var DynamicCssHandler = class {
 var dynamicCssHandler = new DynamicCssHandler();
 //#endregion
 //#region client/src/dom/changelogs.ts
-var CHANGELOGS = [{
-	version: "1.4.0",
-	date: 17895528e5,
-	title: "Add gamemods and improve ayke",
-	lines: [
-		"<ust>Tutorial / vs Bots:</ust> skin & team selection",
-		"<ust>Controls:</ust> improve joystick",
-		"<ust>RoarsOnGlass:</ust> fix `dirX` / `dirY`",
-		"<ust>WoodSword:</ust> show opponent sword; balance streams; add bot",
-		"<ust>AirBasket:</ust> smarter bots; SPACE to target bucket area",
-		"<ust>Rooms:</ust> show connected users per gamemode/total; destroy empty rooms",
-		"<ust>RoarsOnGlass:</ust> bright player outline",
-		"<ust>Leaderboard:</ust> only suggest multiplayer gamemodes",
-		"<ust>UI:</ust> show ping; blur icons",
-		"<ust>Turrets:</ust> add icon",
-		"<ust>New games:</ust> Popit, LavaBall, MoveArmy*(still bugged)*",
-		"Versioned changelogs;"
-	]
-}, {
-	version: "1.3.0",
-	date: 17891208e5,
-	title: "Trophee road",
-	lines: [
-		"Trophee road",
-		"Collectibles, coins",
-		"Improve `game-result` page",
-		"RNG API (applied to *woodSword*)"
-	]
-}];
+var CHANGELOGS = [
+	{
+		version: "1.4.1",
+		date: 178965e7,
+		title: "Improve UI and bots",
+		lines: [
+			"Hide *play* button when client offline and rework `game-panel-page`",
+			"Remove `endTurn` btn for mobile users *(it was not used)*",
+			"Improve roarsOnGlass bots"
+		]
+	},
+	{
+		version: "1.4.0",
+		date: 17895528e5,
+		title: "Add gamemods and improve ayke",
+		lines: [
+			"<ust>Tutorial / vs Bots:</ust> skin & team selection",
+			"<ust>Controls:</ust> improve joystick",
+			"<ust>RoarsOnGlass:</ust> fix `dirX` / `dirY`",
+			"<ust>WoodSword:</ust> show opponent sword; balance streams; add bot",
+			"<ust>AirBasket:</ust> smarter bots; SPACE to target bucket area",
+			"<ust>Rooms:</ust> show connected users per gamemode/total; destroy empty rooms",
+			"<ust>RoarsOnGlass:</ust> bright player outline",
+			"<ust>Leaderboard:</ust> only suggest multiplayer gamemodes",
+			"<ust>UI:</ust> show ping; blur icons",
+			"<ust>Turrets:</ust> add icon",
+			"<ust>New games:</ust> Popit, LavaBall, MoveArmy*(still bugged)*",
+			"Versioned changelogs;"
+		]
+	},
+	{
+		version: "1.3.0",
+		date: 17891208e5,
+		title: "Trophee road",
+		lines: [
+			"Trophee road",
+			"Collectibles, coins",
+			"Improve `game-result` page",
+			"RNG API (applied to *woodSword*)"
+		]
+	}
+];
 //#endregion
 //#region client/src/dom/dom.ts
 var STORAGE_KEY_CONNECTION = "ayke_connectionKey";
@@ -28652,6 +28812,9 @@ var MainComponent = class {
 		}
 		this.isAuthenticated = false;
 		this.openHome();
+	}
+	isSocketConnectedToServer() {
+		return isSocketConnectedToServer();
 	}
 	async openGamePanel(gamemode) {
 		this.currentPage = "loading";
@@ -28796,6 +28959,10 @@ var GamePanelComponent = class {
 		return this.gamemode === gamemode;
 	}
 	async play() {
+		if (!isSocketConnectedToServer()) {
+			alert("You are not connected to the server. You can play against bots instead.");
+			throw "You are not connected to the server. You can play against bots instead.";
+		}
 		const factory = getMultiGmFactory(this.gamemode);
 		dom.startLoading();
 		await imageLoader.load(factory.textures, this.gamemode);
