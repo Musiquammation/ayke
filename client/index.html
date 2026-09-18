@@ -99,62 +99,76 @@
 			</template>
 
 			<template x-if="uses('game-panel')">
-				<div id="test-page" class="page" x-data="panel">
+				<div id="game-panel-page" class="page" x-data="panel">
 					<h1 x-text="gamemodeName"></h1>
 
-					<div class="trophee-road" x-show="isAuthenticated" x-init="initTrophyRoad()">
-						<!-- Scrollable track container referenced for auto-scrolling -->
-						<div class="trophee-road-track" x-ref="track">
-							
-							<!-- Completion gauge background spanning the full width of the road -->
-							<div class="gauge-bar" :style="`width: ${trackWidth}px; left: ${paddingStart}px;`">
-								<!-- Dark-yellow fill: bestTrophees progress -->
-								<div class="gauge-fill-best" :style="`width: ${bestPx}px`"></div>
-								<!-- Yellow fill: current trophees progress -->
-								<div class="gauge-fill-current" :style="`width: ${currentPx}px`">
-									<!-- Badge displaying current trophies directly on the gauge -->
-									<div class="current-trophy-badge">
-										<span x-text="`${trophees} 🏆`"></span>
-									</div>
-								</div>
-							</div>
-
-							<!-- Collectible nodes dynamically positioned according to trophy requirement -->
-							<template x-for="item in collectibleItems" :key="item.id">
-								<div class="collectible-node"
-									:data-unlocked="item.unlocked"
-									:data-unlockable="item.unlockable"
-									:class="{ 'collectible-unlockable': item.unlockable, 'collectible-unlocked': item.unlocked }"
-									:style="`left: ${getItemLeftPx(item.trophees)}px`">
-									
-									<!-- Canvas container -->
-									<div class="icon-wrapper">
-										<canvas width="40" height="40" x-init="drawCollectibleIcon($el, item)"></canvas>
-									</div>
-
-									<!-- Display required trophies for each collectible -->
-									<div class="trophy-requirement" x-text="`${item.trophees} 🏆`"></div>
-
-									<!-- Unlock button: shown ONLY if item is not unlocked AND bestTrophees >= item.trophees -->
-									<button x-show="item.unlockable" 
-											@pointerup="unlockCollectible(item)">
-										Unlock
-									</button>
-								</div>
-							</template>
-						</div>
-					</div>
-					
-					<div x-ref="gamePanel" x-html="htmlContent"></div>
-
-					<div class="footer">
-						<button class="play-btn" @pointerup="play()">Play</button>
+					<div>
+						<button
+							class="play-btn"
+							@pointerup="play()"
+							:disabled="!isSocketConnectedToServer()"
+						>
+							Play
+						</button>
+						<template x-if="typeof againstBots === 'function'">
+							<button @pointerup="againstBots()" :class="{'play-btn': !isSocketConnectedToServer()}">vs. Bots</button>
+						</template>
 						<template x-if="typeof tutorial === 'function'">
 							<button @pointerup="tutorial()">Tutorial</button>
 						</template>
-						<template x-if="typeof againstBots === 'function'">
-							<button @pointerup="againstBots()">vs. Bots</button>
-						</template>
+					</div>
+
+					<div>
+						<div class="trophee-road" x-show="isAuthenticated" x-init="initTrophyRoad()">
+							<!-- Scrollable track container referenced for auto-scrolling -->
+							<div class="trophee-road-track" x-ref="track">
+								
+								<!-- Completion gauge background spanning the full width of the road -->
+								<div class="gauge-bar" :style="`width: ${trackWidth}px; left: ${paddingStart}px;`">
+									<!-- Dark-yellow fill: bestTrophees progress -->
+									<div class="gauge-fill-best" :style="`width: ${bestPx}px`"></div>
+									<!-- Yellow fill: current trophees progress -->
+									<div class="gauge-fill-current" :style="`width: ${currentPx}px`">
+										<!-- Badge displaying current trophies directly on the gauge -->
+										<div class="current-trophy-badge">
+											<span x-text="`${trophees} 🏆`"></span>
+										</div>
+									</div>
+								</div>
+	
+								<!-- Collectible nodes dynamically positioned according to trophy requirement -->
+								<template x-for="item in collectibleItems" :key="item.id">
+									<div class="collectible-node"
+										:data-unlocked="item.unlocked"
+										:data-unlockable="item.unlockable"
+										:class="{ 'collectible-unlockable': item.unlockable, 'collectible-unlocked': item.unlocked }"
+										:style="`left: ${getItemLeftPx(item.trophees)}px`">
+										
+										<!-- Canvas container -->
+										<div class="icon-wrapper">
+											<canvas width="40" height="40" x-init="drawCollectibleIcon($el, item)"></canvas>
+										</div>
+	
+										<!-- Display required trophies for each collectible -->
+										<div class="trophy-requirement" x-text="`${item.trophees} 🏆`"></div>
+	
+										<!-- Unlock button: shown ONLY if item is not unlocked AND bestTrophees >= item.trophees -->
+										<button x-show="item.unlockable" 
+												@pointerup="unlockCollectible(item)">
+											Unlock
+										</button>
+									</div>
+								</template>
+							</div>
+						</div>
+						
+						<div x-data="{ showOptions: false }">
+							<button @pointerup="showOptions = !showOptions">
+								Options
+							</button>
+
+							<div x-show="showOptions" x-ref="gamePanel" x-html="htmlContent"></div>
+						</div>
 					</div>
 				</div>
 			</template>

@@ -46,6 +46,12 @@
 	background-color: var(--color-success);
 }
 
+.play-btn:disabled {
+	background-color: var(--color-disabled);
+	color: var(--color-text-muted);
+	cursor: not-allowed;
+}
+
 /* Dark theme */
 
 @media (prefers-color-scheme: dark) {
@@ -156,6 +162,12 @@ button:disabled {
 }
 
 button.selected {
+	background: var(--color-success);
+	color: #111;
+	border-color: var(--color-success);
+}
+
+button.selected:hover {
 	background: var(--color-success);
 	color: #111;
 	border-color: var(--color-success);
@@ -594,7 +606,7 @@ button.selected {
    Game configuration menu
    ============================================================ */
 
-#test-page [x-data="data"] {
+#game-panel-page [x-data="data"] {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
@@ -604,10 +616,13 @@ button.selected {
 	width: 100%;
 }
 
+#game-panel-page h1 {
+	text-align: center;
+}
 
 /* Each configuration row */
 
-#test-page [x-data="data"] > div {
+#game-panel-page [x-data="data"] > div {
 	display: flex;
 	align-items: center;
 	justify-content: flex-start;
@@ -620,7 +635,7 @@ button.selected {
 
 /* Labels */
 
-#test-page [x-data="data"] > div > span {
+#game-panel-page [x-data="data"] > div > span {
 	flex: 0 0 auto;
 
 	white-space: nowrap;
@@ -631,21 +646,46 @@ button.selected {
 
 /* Skin selector */
 
-#test-page .skin-select {
+#game-panel-page .skin-select {
 	flex: 0 0 220px;
 }
 
 
 /* Preferred team buttons */
 
-#test-page [x-data="data"] > div > button {
+#game-panel-page [x-data="data"] > div > button {
 	flex: 0 0 auto;
 }
 
 
-#test-page .footer {
-	margin: 1em;
+#game-panel-page > :nth-child(2) {
+	padding-bottom: 3em;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 10px;
+	border-bottom: 1px solid black;
 }
+
+#game-panel-page > :nth-child(3) {
+	margin-top: 3em;
+}
+
+
+#game-panel-page > :nth-child(2) > button {
+	min-width: 20vw;
+}
+
+#game-panel-page > :nth-child(3) > :nth-child(1) {
+	margin-bottom: 3em;
+}
+
+#game-panel-page > :nth-child(3) > :nth-child(2) > :nth-child(1) {
+	width: 100%;
+	margin-bottom: 2em;
+}
+
+
 
 /* ============================================================
    Waiting for players
