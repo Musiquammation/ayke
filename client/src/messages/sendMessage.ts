@@ -2,6 +2,7 @@ import protobuf from "protobufjs";
 import { recvMessage } from "./recvMessage";
 import { getMobile } from "../getMobile";
 import { STORAGE_KEY_CONNECTION } from "./STORAGE_KEY_CONNECTION";
+import { dom } from "../dom/dom";
 
 declare global {
 	interface Window {
@@ -57,14 +58,7 @@ export const msgtypes = (async function() {
 					console.log("Version code successfully checked", msg.versionCode);
 					_isSocketConnectedToServer = true;
 
-					if (localStorage.getItem(STORAGE_KEY_CONNECTION) === null) {
-						getMobile().then(m => {
-							if (m) {
-								m.askCreateAccount();
-							}
-						});
-
-					}	
+					askCreateAccount();
 					resolve();
 					firstMessage = false;
 				}
@@ -125,4 +119,21 @@ export function getNow() {
 
 export function isSocketConnectedToServer() {
 	return _isSocketConnectedToServer;
+}
+
+function askCreateAccount() {
+	const STORAGE_KEY_LAST = "ayke_lastActivityDate";
+	const COOLDOWN = 24 * 3600*1000; // 24 hours
+
+	const last = localStorage.getItem(STORAGE_KEY_LAST);
+	localStorage.setItem(STORAGE_KEY_LAST, Date.now().toString())
+
+	if (localStorage.getItem(STORAGE_KEY_CONNECTION))
+		return;
+
+	if (last && (Date.now() - parseInt(last)) > COOLDOWN) {
+		if (confirm("Do you can to create an account?")) {
+			dom.openLogin();
+		}
+	}
 }
