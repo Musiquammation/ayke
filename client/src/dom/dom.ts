@@ -17,6 +17,7 @@ import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 import { FinishGame } from "../../../commons/GameMode";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { CHANGELOGS } from "./changelogs";
+import { STORAGE_KEY_CONNECTION } from "../messages/STORAGE_KEY_CONNECTION";
 
 
 declare global {
@@ -47,7 +48,6 @@ interface PlayResults {
 	}[];
 }
 
-const STORAGE_KEY_CONNECTION = "ayke_connectionKey";
 
 /* -------------------------------------------------------------------------------------------
  * URL fragment handling.

@@ -1,5 +1,7 @@
 import protobuf from "protobufjs";
 import { recvMessage } from "./recvMessage";
+import { getMobile } from "../getMobile";
+import { STORAGE_KEY_CONNECTION } from "./STORAGE_KEY_CONNECTION";
 
 declare global {
 	interface Window {
@@ -55,6 +57,14 @@ export const msgtypes = (async function() {
 					console.log("Version code successfully checked", msg.versionCode);
 					_isSocketConnectedToServer = true;
 
+					if (localStorage.getItem(STORAGE_KEY_CONNECTION) === null) {
+						getMobile().then(m => {
+							if (m) {
+								m.askCreateAccount();
+							}
+						});
+
+					}	
 					resolve();
 					firstMessage = false;
 				}

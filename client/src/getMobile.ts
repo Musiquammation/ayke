@@ -1,5 +1,6 @@
 interface IMobile {
 	setScreenOrientation(o: 'landscape' | 'portrait'): Promise<void>;
+	askCreateAccount(): void;
 }
 
 
