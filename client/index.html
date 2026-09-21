@@ -77,6 +77,11 @@
 					<!-- Main title -->
 					<h1>AYKE</h1>
 
+					<div id="sub-home-main-title" class="hidden">
+						<span>(?)</span>
+						<span> users are connected</span>
+					</div>
+
 					<!-- Main game section connected to the panel -->
 					<section x-data="panel">
 						<template x-for="category in games" :key="category.category">
@@ -246,7 +251,7 @@
 										class="game-button"
 										type="button"
 										@pointerup="play()"
-										:disabled="!isSocketConnectedToServer()"
+										:disabled="!isSocketConnectedToServer"
 									>
 										<span class="game-icon">⚔</span>
 

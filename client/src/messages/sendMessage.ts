@@ -58,6 +58,7 @@ export const msgtypes = (async function() {
 					console.log("Version code successfully checked", msg.versionCode);
 					_isSocketConnectedToServer = true;
 
+
 					askCreateAccount();
 					resolve();
 					firstMessage = false;

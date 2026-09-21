@@ -247,6 +247,11 @@ button.selected:hover {
 	overflow-x: hidden;
 }
 
+#sub-home-main-title {
+	color: var(--color-success);
+	text-align: center;
+	font-size: 0.8rem;
+}
 
 /* ============================================================
    Main Title
@@ -848,10 +853,12 @@ button.selected:hover {
 /* ============================================================
    Connected Users Indicator
    ============================================================ */
-
 #home-page > section > div > div > div > span.connectedUsersIndicator {
 	left: 12px;
 	right: auto;
+
+	top: 10px;
+	bottom: auto;
 
 	text-align: left;
 

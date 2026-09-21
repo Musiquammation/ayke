@@ -225,7 +225,7 @@ class MainComponent {
 		this.openHome();
 	}
 
-	isSocketConnectedToServer() {
+	get isSocketConnectedToServer() {
 		return isSocketConnectedToServer();
 	}
 
@@ -504,6 +504,7 @@ class GamePanelComponent {
 			this.previousExplanationSlide();
 		}
 	}
+
 
 	async play() {
 		if (!isSocketConnectedToServer()) {
@@ -1119,6 +1120,11 @@ class HomeComponent {
 	}
 
 	setConnectedUsersInfo(info: ConnectedUsersInfo) {
+		const t = document.getElementById("sub-home-main-title")!;
+		
+		t.classList.remove("hidden");
+		t.children[0].textContent = String(info.total ?? "No");
+
 		for (const _span of document.querySelectorAll(".connectedUsersIndicator")) {
 			const span = _span as HTMLElement;
 			const k = info.gamemods[span.dataset.key as string];
