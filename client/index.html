@@ -111,78 +111,287 @@
 			</template>
 
 			<template x-if="uses('game-panel')">
-				<div id="game-panel-page" class="page" x-data="panel">
-					<h1 x-text="gamemodeName"></h1>
+				<div id="game-panel-page" class="page game-screen" x-data="panel">
+					<!-- Dynamic game icon background -->
+					<div class="background" :style="`background-image: url(${getImageSrc(gamemode)})`"></div>
+					<div class="background-overlay"></div>
 
-					<div>
-						<button
-							class="play-btn"
-							@pointerup="play()"
-							:disabled="!isSocketConnectedToServer()"
+					<!-- Back button -->
+					<button class="back-button" type="button" aria-label="Go back" @pointerup="openHome()">
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M15 18l-6-6 6-6" />
+						</svg>
+					</button>
+
+					<section class="menu">
+						<!-- Game Header -->
+						<header class="header">
+							<h1 x-text="gamemodeName"></h1>
+						</header>
+
+						<!-- Trophy Road Track Section -->
+						<div
+							class="trophee-road"
+							x-show="panelView === 'main' && isAuthenticated && hasCollectibles"
+							x-init="initTrophyRoad()"
 						>
-							Play
-						</button>
-						<template x-if="typeof againstBots === 'function'">
-							<button @pointerup="againstBots()" :class="{'play-btn': !isSocketConnectedToServer()}">vs. Bots</button>
-						</template>
-						<template x-if="typeof tutorial === 'function'">
-							<button @pointerup="tutorial()">Tutorial</button>
-						</template>
-					</div>
-
-					<div>
-						<div class="trophee-road" x-show="isAuthenticated" x-init="initTrophyRoad()">
-							<!-- Scrollable track container used for automatic scrolling -->
 							<div class="trophee-road-track" x-ref="track">
-								
-								<!-- Completion gauge background spanning the full trophy road -->
-								<div class="gauge-bar" :style="`width: ${trackWidth}px; left: ${paddingStart}px;`">
-									<!-- Dark yellow fill representing the best trophy progress -->
-									<div class="gauge-fill-best" :style="`width: ${bestPx}px`"></div>
+								<div
+									class="gauge-bar"
+									:style="`width: ${trackWidth}px; left: ${paddingStart}px;`"
+								>
+									<div
+										class="gauge-fill-best"
+										:style="`width: ${bestPx}px`"
+									></div>
 
-									<!-- Yellow fill representing the current trophy progress -->
-									<div class="gauge-fill-current" :style="`width: ${currentPx}px`">
-										<!-- Badge displaying the current trophy count -->
+									<div
+										class="gauge-fill-current"
+										:style="`width: ${currentPx}px`"
+									>
 										<div class="current-trophy-badge">
 											<span x-text="`${trophees} 🏆`"></span>
 										</div>
 									</div>
 								</div>
-	
-								<!-- Collectible nodes positioned according to their trophy requirement -->
-								<template x-for="item in collectibleItems" :key="item.id">
-									<div class="collectible-node"
+
+								<template
+									x-for="item in collectibleItems"
+									:key="item.id"
+								>
+									<div
+										class="collectible-node"
 										:data-unlocked="item.unlocked"
 										:data-unlockable="item.unlockable"
-										:class="{ 'collectible-unlockable': item.unlockable, 'collectible-unlocked': item.unlocked }"
-										:style="`left: ${getItemLeftPx(item.trophees)}px`">
-										
-										<!-- Canvas container -->
+										:class="{
+											'collectible-unlockable': item.unlockable,
+											'collectible-unlocked': item.unlocked
+										}"
+										:style="`left: ${getItemLeftPx(item.trophees)}px`"
+									>
 										<div class="icon-wrapper">
-											<canvas width="40" height="40" x-init="drawCollectibleIcon($el, item)"></canvas>
+											<canvas
+												width="40"
+												height="40"
+												x-init="drawCollectibleIcon($el, item)"
+											></canvas>
 										</div>
-	
-										<!-- Display the trophy requirement for each collectible -->
-										<div class="trophy-requirement" x-text="`${item.trophees} 🏆`"></div>
-	
-										<!-- Unlock button shown only when the item is not unlocked and the player has enough trophies -->
-										<button x-show="item.unlockable" 
-												@pointerup="unlockCollectible(item)">
+
+										<div
+											class="trophy-requirement"
+											x-text="`${item.trophees} 🏆`"
+										></div>
+
+										<button
+											x-show="item.unlockable"
+											@pointerup="unlockCollectible(item)"
+										>
 											Unlock
 										</button>
 									</div>
 								</template>
 							</div>
 						</div>
-						
-						<div x-data="{ showOptions: false }">
-							<button @pointerup="showOptions = !showOptions">
-								Options
-							</button>
 
-							<div x-show="showOptions" x-ref="gamePanel" x-html="htmlContent"></div>
+
+						<!-- ========================================================
+							Main Game Panel
+							======================================================== -->
+
+						<div
+							class="content-card"
+							x-show="panelView === 'main'"
+						>
+
+							<!-- Game Description -->
+							<div class="description-container">
+								<p
+									class="description"
+									x-html="gamemodeDescription"
+								></p>
+							</div>
+
+
+							<!-- Primary and Secondary Actions -->
+							<div class="actions">
+
+								<div class="secondary-actions">
+
+									<button
+										class="small-button options-small-button"
+										type="button"
+										@pointerup="openOptions()"
+									>
+										<span class="icon">⚙</span>
+										<span>OPTIONS</span>
+									</button>
+
+									<template x-if="typeof tutorial === 'function'">
+										<button
+											class="small-button howToPlay-small-button"
+											type="button"
+											@pointerup="howToPlay()"
+										>
+											<span class="icon">?</span>
+											<span>HOW TO PLAY</span>
+										</button>
+									</template>
+
+								</div>
+
+
+								<div class="main-actions">
+
+									<button
+										class="game-button"
+										type="button"
+										@pointerup="play()"
+										:disabled="!isSocketConnectedToServer()"
+									>
+										<span class="game-icon">⚔</span>
+
+										<span>
+											<span>PLAY</span>
+											<span>ONLINE</span>
+										</span>
+									</button>
+
+
+									<template x-if="typeof againstBots === 'function'">
+										<button
+											class="game-button"
+											type="button"
+											@pointerup="againstBots()"
+										>
+											<span class="game-icon">⎈</span>
+
+											<span>
+												<span>PLAY VS.</span>
+												<span>BOTS</span>
+											</span>
+										</button>
+									</template>
+
+								</div>
+
+							</div>
 						</div>
-					</div>
+
+
+						<!-- ========================================================
+							How To Play / Explanation Slides
+							======================================================== -->
+
+						<div
+							class="content-card explanation-card"
+							x-show="panelView === 'tutorial'"
+						>
+
+							<div class="explanation-header">
+								<h2>How to play</h2>
+
+								<span
+									x-text="`${currentExplanationSlide + 1} / ${explanationSlides}`"
+								></span>
+							</div>
+
+
+							<div
+								class="explanation-viewer"
+								@pointerdown="startExplanationSwipe($event)"
+								@pointerup="endExplanationSwipe($event)"
+								@pointercancel="explanationPointerStartX = null"
+							>
+
+								<button
+									class="explanation-arrow explanation-arrow-left"
+									type="button"
+									aria-label="Previous slide"
+									@click.stop="previousExplanationSlide()"
+									:disabled="currentExplanationSlide === 0"
+								>
+									‹
+								</button>
+
+
+								<img
+									class="explanation-slide"
+									:src="explanationSlideSrc"
+									:alt="`How to play slide ${currentExplanationSlide + 1}`"
+									draggable="false"
+								>
+
+
+								<button
+									class="explanation-arrow explanation-arrow-right"
+									type="button"
+									aria-label="Next slide"
+									@click.stop="nextExplanationSlide()"
+									:disabled="currentExplanationSlide === explanationSlides - 1"
+								>
+									›
+								</button>
+
+							</div>
+
+
+							<div class="explanation-actions">
+
+								<button
+									class="explanation-play-button"
+									type="button"
+									@pointerup="tutorial()"
+								>
+									Play tutorial
+								</button>
+
+								<button
+									class="explanation-back-button"
+									type="button"
+									@pointerup="goBackToMain()"
+								>
+									Go back
+								</button>
+
+							</div>
+
+						</div>
+
+
+						<!-- ========================================================
+							Options
+							======================================================== -->
+
+						<div
+							class="content-card options-card"
+							x-show="panelView === 'options'"
+						>
+
+							<div class="options-header">
+								<h2>Options</h2>
+							</div>
+
+
+							<div
+								class="game-options-panel"
+								x-ref="gamePanel"
+								x-html="htmlContent"
+							></div>
+
+
+							<div class="options-actions">
+								<button
+									class="options-back-button"
+									type="button"
+									@pointerup="goBackToMain()"
+								>
+									Go back
+								</button>
+							</div>
+
+						</div>
+
+					</section>
 				</div>
 			</template>
 

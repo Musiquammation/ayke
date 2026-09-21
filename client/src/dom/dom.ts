@@ -408,6 +408,13 @@ interface CollectibleItem {
 }
 
 class GamePanelComponent {
+	// --- Current game panel view ---
+	panelView: "main" | "tutorial" | "options" = "main";
+
+	// --- Explanation slides ---
+	currentExplanationSlide = 0;
+	private explanationPointerStartX: number | null = null;
+
 	// --- Trophy road state ---
 	trophees = 0;
 	bestTrophees = 0;
@@ -416,8 +423,8 @@ class GamePanelComponent {
 
 	// --- Trophy Road Layout Configuration ---
 	readonly pixelsPerTrophy;
-	readonly paddingStart = 60;     // Initial padding (px) before 0 trophies
-	readonly paddingEnd = 120;      // Extra padding (px) extending past the last collectible
+	readonly paddingStart = 60;
+	readonly paddingEnd = 120;
 
 	constructor(
 		public readonly gamemode: string,
@@ -429,6 +436,73 @@ class GamePanelComponent {
 
 	uses(gamemode: string) {
 		return this.gamemode === gamemode;
+	}
+
+	// Returns the number of explanation slides available for this game mode.
+	get explanationSlides() {
+		return getMultiGmFactory(this.gamemode).explainationSlides;
+	}
+
+	// Opens the appropriate How To Play screen.
+	howToPlay() {
+		if (this.explanationSlides > 0) {
+			this.currentExplanationSlide = 0;
+			this.panelView = "tutorial";
+			return;
+		}
+
+		this.tutorial();
+	}
+
+	// Opens the game options.
+	openOptions() {
+		this.panelView = "options";
+	}
+
+	// Returns to the main game panel.
+	goBackToMain() {
+		this.panelView = "main";
+	}
+
+	// Returns the path of the current explanation slide.
+	get explanationSlideSrc() {
+		return `${window.IMG_ROOT_PATH}/assets/games/${this.gamemode}/explainationSlides/${this.currentExplanationSlide}.png`;
+	}
+
+	// Moves to the previous explanation slide.
+	previousExplanationSlide() {
+		if (this.currentExplanationSlide <= 0) return;
+
+		this.currentExplanationSlide--;
+	}
+
+	// Moves to the next explanation slide.
+	nextExplanationSlide() {
+		if (this.currentExplanationSlide >= this.explanationSlides - 1) return;
+
+		this.currentExplanationSlide++;
+	}
+
+	// Starts tracking a possible swipe.
+	startExplanationSwipe(event: PointerEvent) {
+		this.explanationPointerStartX = event.clientX;
+	}
+
+	// Handles the end of a possible swipe.
+	endExplanationSwipe(event: PointerEvent) {
+		if (this.explanationPointerStartX === null) return;
+
+		const deltaX = event.clientX - this.explanationPointerStartX;
+		this.explanationPointerStartX = null;
+
+		// Ignore small movements.
+		if (Math.abs(deltaX) < 40) return;
+
+		if (deltaX < 0) {
+			this.nextExplanationSlide();
+		} else {
+			this.previousExplanationSlide();
+		}
 	}
 
 	async play() {
@@ -473,6 +547,16 @@ class GamePanelComponent {
 		dom.stopLoading();
 
 		dom.openVsBotsInPlay(this.gamemode, this.data.produce());
+	}
+
+	getImageSrc(gamemode: string) {
+		const ext = getGmFactory(gamemode).iconExtension;
+		return `${window.IMG_ROOT_PATH}/assets/games/${gamemode}/icon.${ext}`;
+	}
+
+	get hasCollectibles() {
+		const factory = getMultiGmFactory(this.gamemode);
+		return factory.collectibles !== null;
 	}
 
 	// Called by x-init when the trophy road mounts (only if authenticated).
@@ -534,6 +618,10 @@ class GamePanelComponent {
 
 	get gamemodeName() {
 		return getGmFactory(this.gamemode).name;
+	}
+
+	get gamemodeDescription() {
+		return marked.parseInline(getGmFactory(this.gamemode).description);
 	}
 
 	// Highest trophy threshold on the road
