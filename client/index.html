@@ -11,50 +11,74 @@
 
 		<div id="main" x-data="main">
 			<template x-if="uses('home')">
-				<div id="home-page" class="page" x-data="panel">
-					<h1>Ayke</h1>
+				<div id="home-page" class="page" x-data="{ ...panel, menuOpen: false }">
+					
+					<!-- Bandeau supérieur fixe -->
+					<header>
+						<div>
+							<!-- Bouton menu burger -->
+							<button type="button" @pointerup="menuOpen = !menuOpen" aria-label="Menu">
+								<span></span>
+								<span></span>
+								<span></span>
+							</button>
 
-					<section class="home-account">
-						<h2>Account</h2>
+							<!-- Nom d'utilisateur -->
+							<template x-if="isAuthenticated">
+								<div>
+									<span>👤</span>
+									<i x-text="pseudo"></i>
+								</div>
+							</template>
+						</div>
+
+						<!-- Statistiques utilisateur (émojis uniquement) -->
+						<template x-if="isAuthenticated">
+							<div x-data="panel">
+								<span>🏆 <span x-text="totalTrophees"></span></span>
+								<span>🪙 <span x-text="coins"></span></span>
+								<span>🥇#<span x-text="globalRank"></span></span>
+							</div>
+						</template>
+					</header>
+
+					<!-- Overlay & Tiroir du Menu Burger -->
+					<div x-show="menuOpen" x-transition.opacity @pointerup="menuOpen = false"></div>
+					
+					<nav
+						x-show="menuOpen"
+						x-transition:enter="menu-enter"
+						x-transition:enter-start="menu-enter-start"
+						x-transition:enter-end="menu-enter-end"
+						x-transition:leave="menu-leave"
+						x-transition:leave-start="menu-leave-start"
+						x-transition:leave-end="menu-leave-end"
+					>
+						<h2>Menu</h2>
+
+						<template x-if="!isAuthenticated">
+							<button type="button" @pointerup="openSignin(); menuOpen = false">Create account</button>
+						</template>
+
+						<template x-if="!isAuthenticated">
+							<button type="button" @pointerup="openLogin(); menuOpen = false">Login</button>
+						</template>
+
+						<button type="button" @pointerup="openLeaderboard(); menuOpen = false">Leaderboard</button>
+						<button type="button" @pointerup="openSoloLeaderboard(); menuOpen = false">Solo Leaderboard</button>
+						<button type="button" @pointerup="openChangelog(); menuOpen = false">Changelog</button>
+						<button type="button" @pointerup="openContact(); menuOpen = false">Contact</button>
 
 						<template x-if="isAuthenticated">
-							<div>
-								<div>
-									<div>
-										<span>Connected as</span>
-										<i x-text="pseudo"></i>
-									</div>
-									<div x-data="panel">
-										<span>
-											<span x-text="totalTrophees"></span>
-											<span> trophees</span>
-										</span>
-
-										<span>
-											<span x-text="coins"></span>
-											<span> coins</span>
-										</span>
-
-										<span>
-											<span>Rank #</span>
-											<span x-text="globalRank"></span>
-										</span>
-									</div>
-								</div>
-								<button @pointerup="disconnect()">Disconnect</button>
-							</div>
+							<button type="button" @pointerup="disconnect(); menuOpen = false">Disconnect</button>
 						</template>
-						<template x-if="!isAuthenticated">
-							<div>
-								<button @pointerup="openLogin()">Login</button>
-								<button @pointerup="openSignin()">Create account</button>
-							</div>
-						</template>
-					</section>
+					</nav>
 
-					<section class="home-play">
-						<h2>Play</h2>
+					<!-- Titre principal -->
+					<h1>Ayke</h1>
 
+					<!-- Section principale de jeux (reconnectée à panel) -->
+					<section x-data="panel">
 						<template x-for="category in games" :key="category.category">
 							<div>
 								<h3 x-text="category.category"></h3>
@@ -64,27 +88,15 @@
 										<div
 											:class="{ 'play-disabled': isDisabled(game.key) }"
 											@pointerup="playGame(game.key)"
-											>
+										>
 											<span x-text="game.name"></span>
 											<span class="connectedUsersIndicator" :data-key="game.key"></span>
-
 											<img class="pixel-image" :src="getImageSrc(game.key)">
 										</div>
 									</template>
 								</div>
 							</div>
 						</template>
-					</section>
-
-					<section class="home-community">
-						<h2>Community</h2>
-						<button @pointerup="openLeaderboard()">View Leaderboard</button>
-						<button @pointerup="openSoloLeaderboard()">View Solo Leaderboard</button>
-					</section>
-
-					<section class="home-changelogs">
-						<h2>Changelog</h2>
-						<button @pointerup="openChangelog()">View changelog</button>
 					</section>
 
 				</div>
@@ -433,6 +445,44 @@
 								</ul>
 							</section>
 						</template>
+					</div>
+
+					<button type="button" @pointerup="openHome()">Go home</button>
+				</div>
+			</template>
+
+			<template x-if="uses('contact')">
+				<div id="contact-page" class="page">
+					<h1>Contact</h1>
+
+					<div>
+						<div>
+							<div>
+								<span>Mail</span>
+								<a href="mailto:bryan.musiquammation@gmail.com">
+									bryan.musiquammation@gmail.com
+								</a>
+							</div>
+
+							<div>
+								<span>Privacy</span>
+								<a href="https://musiquammation.github.io/ayke/privacy.html" target="_blank" rel="noopener">
+									Privacy Policy
+								</a>
+							</div>
+
+							<div>
+								<span>Discord</span>
+								<a href="https://discord.gg/xMPNwxXayH" target="_blank" rel="noopener">
+									Join our Discord
+								</a>
+							</div>
+
+							<div>
+								<span>Android</span>
+								<span><i>Coming soon...</i></span>
+							</div>
+						</div>
 					</div>
 
 					<button type="button" @pointerup="openHome()">Go home</button>

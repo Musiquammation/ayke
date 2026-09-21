@@ -34,7 +34,8 @@
 	--transition-fast: 120ms ease;
 	--transition-normal: 200ms ease;
 
-	--page-padding: clamp(16px, 4vw, 60px);
+	/* Global horizontal page padding */
+	--page-padding: clamp(12px, 3vw, 20px);
 	--content-width: 1200px;
 }
 
@@ -206,154 +207,703 @@ button.selected:hover {
 }
 
 
+
 /* ============================================================
-   Home page
+   Home Page Layout & Containers
    ============================================================ */
 
 #home-page {
-	display: flex;
-	flex-direction: column;
-	gap: 34px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
 
-	padding-top: clamp(24px, 5vh, 60px);
-	overflow-y: auto;
+    width: 100%;
+
+    /* Prevent horizontal overflow on small screens */
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
+
+/* ============================================================
+   Main Title
+   ============================================================ */
 
 #home-page > h1 {
-	margin: 0 0 5px;
+	padding-top: 64px;
+    margin: 0 0 10px;
 
-	text-align: center;
+    text-align: center;
 
-	font-size: clamp(2.5rem, 7vw, 4.5rem);
-	font-weight: 800;
-	letter-spacing: -0.04em;
+    font-size: clamp(3.5rem, 10vw, 6rem);
+    font-weight: 900;
+    letter-spacing: -0.05em;
+
+    color: var(--color-text);
 }
 
 
 /* ============================================================
-   Home sections
+   Sections
    ============================================================ */
 
-#home-page section {
+#home-page > section {
+    position: static;
+
+    width: 100%;
+    padding: 28px 16px 18px;
+
+    border: none;
+    border-radius: 0;
+
+    background: transparent;
+    box-shadow: none;
+
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+}
+
+
+/* ============================================================
+   Section Category Titles
+   ============================================================ */
+
+#home-page > section > div > h3 {
 	position: relative;
 
-	width: 100%;
-
-	padding: 30px 24px 24px;
-
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-medium);
-
-	background: var(--color-surface);
-	box-shadow: 0 5px 20px var(--color-shadow);
-}
-
-
-/*
- * Section titles overlap the border.
- * The background behind the title hides the border.
- */
-
-#home-page section > h2 {
-	position: absolute;
-
-	top: 0;
-	left: 22px;
-
-	margin: 0;
-	padding: 10px 10px;
-
-	transform: translateY(-50%);
-
-	background: var(--color-surface);
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-medium);
-
-	color: var(--color-text);
-
-	font-size: 1.1rem;
-	font-weight: 700;
-
-	line-height: 1.2;
-}
-
-
-/* ============================================================
-   Account section
-   ============================================================ */
-
-.home-account > template > div,
-.home-account > div {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 20px;
-}
-
-.home-account > div > div {
 	display: flex;
 	align-items: center;
 	gap: 16px;
 
-	min-width: 0;
+	margin: 0 0 20px;
+	padding: 0;
+
+	color: var(--color-text-muted);
+
+	font-size: clamp(1.1rem, 3vw, 1.4rem);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	text-align: center;
+	white-space: nowrap;
 }
 
-/* User identity */
-.home-account i {
-	color: var(--color-primary);
+/* Horizontal lines on both sides */
+#home-page > section > div > h3::before,
+#home-page > section > div > h3::after {
+	content: "";
 
-	font-style: normal;
-	font-weight: 600;
+	flex: 1;
+	height: 1px;
 
+	background: var(--color-border);
+}
+
+/* Prevent the title from becoming too large on small screens */
+#home-page > section > div > h3 {
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+}
+
+
+/* ============================================================
+   Top Bar Header
+   ============================================================ */
+
+#home-page > header {
+    position: fixed;
+
+    top: 0;
+    left: 0;
+    right: 0;
+
+    height: 64px;
+
+    /*
+     * Use a responsive horizontal padding.
+     * On very small screens, the padding becomes very small.
+     */
+    padding: 0 clamp(8px, 3vw, 24px);
+
+    background: var(--color-surface);
+
+    border-bottom: 1px solid var(--color-border);
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    /*
+     * Allows the left and right parts to shrink instead
+     * of overflowing the viewport.
+     */
+    gap: 8px;
+
+    /*
+     * Important for flex children on narrow screens.
+     */
+    min-width: 0;
+
+    z-index: 100;
+
+    box-shadow: 0 4px 12px var(--color-shadow);
+}
+
+
+/* ============================================================
+   Header Left Side
+   ============================================================ */
+
+#home-page > header > div:first-child {
+    display: flex;
+    align-items: center;
+
+    /*
+     * The gap also becomes smaller on narrow screens.
+     */
+    gap: clamp(6px, 2vw, 16px);
+
+    /*
+     * Allows the username container to shrink.
+     */
+    min-width: 0;
+
+    /*
+     * Prevent this side from forcing the right side
+     * outside of the viewport.
+     */
+    flex: 1 1 auto;
+}
+
+
+/* ============================================================
+   Hamburger Button
+   ============================================================ */
+
+#home-page > header > div:first-child > button {
+    flex: 0 0 auto;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+
+    width: 32px;
+    height: 32px;
+
+    background: transparent;
+    border: none;
+    padding: 0;
+
+    cursor: pointer;
+}
+
+
+/* Hamburger Lines */
+
+#home-page > header > div:first-child > button > span {
+    width: 100%;
+    height: 3px;
+
+    background-color: var(--color-text);
+
+    border-radius: 2px;
+
+    transition: background-color var(--transition-fast);
+}
+
+
+/* Hamburger Hover */
+
+#home-page > header > div:first-child > button:hover > span {
+    background-color: var(--color-primary);
+}
+
+
+/* ============================================================
+   Username
+   ============================================================ */
+
+#home-page > header > div:first-child > div {
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    /*
+     * The username must be allowed to shrink.
+     */
+    min-width: 0;
+
+	font-size: clamp(1.105rem, 3.9vw, 1.43rem);
+    font-weight: 700;
+}
+
+
+/*
+ * Prevent a long username from pushing the statistics
+ * outside of the viewport.
+ */
+
+#home-page > header > div:first-child > div > i {
+    min-width: 0;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+}
+
+
+/* ============================================================
+   User Statistics
+   ============================================================ */
+
+#home-page > header > div:last-child {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+
+    /*
+     * Allows the statistics container to shrink.
+     */
+    min-width: 0;
+
+    /*
+     * Responsive spacing between statistics.
+     */
+    gap: clamp(6px, 2vw, 16px);
+
+    /*
+     * Responsive font size.
+     */
+    font-size: clamp(0.8rem, 3vw, 1.1rem);
+
+    font-weight: 700;
+
+    /*
+     * Each statistic stays on one line.
+     */
+    white-space: nowrap;
+
+    /*
+     * Never allow this element to grow beyond
+     * the available space.
+     */
+    flex: 0 1 auto;
+}
+
+
+/* Individual Statistic */
+
+#home-page > header > div:last-child > span {
+    display: flex;
+    align-items: center;
+
+    gap: 4px;
+
+    /*
+     * Prevent an individual statistic from
+     * unexpectedly growing.
+     */
+    flex: 0 0 auto;
 }
 
 /* ============================================================
-   Account stats
+   Side Menu Transition
    ============================================================ */
 
-.home-account > div > div > div[x-data="panel"] {
-	display: grid;
-	grid-template-columns: repeat(3, auto);
-	gap: 8px;
-
-	margin-top: 4px;
+#home-page > nav {
+	transition:
+		transform 250ms ease,
+		opacity 250ms ease;
 }
 
-.home-account > div > div > div[x-data="panel"] > span {
-	display: flex;
-	align-items: baseline;
-	gap: 4px;
+/* Opening */
 
-	padding: 6px 10px;
-
-	background: var(--color-surface);
-	border: 1px solid var(--color-border);
-	border-radius: 6px;
-
-	white-space: nowrap;
+#home-page > nav.menu-enter {
+	transition:
+		transform 250ms ease,
+		opacity 250ms ease;
 }
 
-.home-account > div > div > div[x-data="panel"] > span > span:first-child {
-	font-size: 1.1em;
-	color: var(--color-text-muted);
+#home-page > nav.menu-enter-start {
+	transform: translateX(-100%);
+	opacity: 0;
 }
 
-.home-account > div > div > div[x-data="panel"] > span > span:last-child {
+#home-page > nav.menu-enter-end {
+	transform: translateX(0);
+	opacity: 1;
+}
+
+/* Closing */
+
+#home-page > nav.menu-leave {
+	transition:
+		transform 250ms ease,
+		opacity 250ms ease;
+}
+
+#home-page > nav.menu-leave-start {
+	transform: translateX(0);
+	opacity: 1;
+}
+
+#home-page > nav.menu-leave-end {
+	transform: translateX(-100%);
+	opacity: 0;
+}
+
+
+/* ============================================================
+   Small Screens
+   ============================================================ */
+
+@media (max-width: 450px) {
+
+    #home-page > header {
+        /*
+         * Slightly shorter header on very small screens.
+         */
+        height: 56px;
+
+        padding: 0 8px;
+    }
+
+
+    #home-page > header > div:first-child {
+        gap: 6px;
+    }
+
+
+    #home-page > header > div:last-child {
+        gap: 6px;
+
+        font-size: 0.8rem;
+    }
+
+
+    #home-page > header > div:last-child > span {
+        gap: 2px;
+    }
+}
+
+
+/* ============================================================
+   Extremely Small Screens
+   ============================================================ */
+
+@media (max-width: 350px) {
+
+    /*
+     * Hide the username text when there is not enough
+     * horizontal space.
+     *
+     * The user icon remains visible.
+     */
+    #home-page > header > div:first-child > div > i {
+        display: none;
+    }
+
+
+    #home-page > header > div:last-child {
+        gap: 4px;
+
+        font-size: 0.75rem;
+    }
+}
+
+
+/* ============================================================
+   Navigation Drawer Backdrop
+   ============================================================ */
+
+#home-page > div[x-show="menuOpen"] {
+    position: fixed;
+
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.5);
+
+    backdrop-filter: blur(2px);
+
+    z-index: 200;
+}
+
+
+/* ============================================================
+   Navigation Drawer
+   ============================================================ */
+
+#home-page > nav {
+    position: fixed;
+
+    top: 0;
+    left: 0;
+    bottom: 0;
+
+    width: 280px;
+    max-width: 80vw;
+
+    background: var(--color-surface);
+
+    z-index: 201;
+
+    padding: 32px 20px;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 10px;
+
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+}
+
+
+/* Navigation Title */
+
+#home-page > nav > h2 {
+    margin: 0 0 16px;
+
+    font-size: 1.5rem;
+
+    border-bottom: 1px solid var(--color-border);
+
+    padding-bottom: 8px;
+}
+
+
+/* Navigation Buttons */
+
+#home-page > nav > button {
+    width: 100%;
+
+    text-align: left;
+
+    padding: 12px 16px;
+
+    font-size: 1rem;
+    font-weight: 600;
+
+    border-radius: var(--radius-small);
+}
+
+
+/* ============================================================
+   Logout Button
+   ============================================================ */
+
+#home-page > nav > button:last-child,
+#home-page > nav > template:last-child + button {
+    margin-top: auto;
+
+    background-color: transparent;
+
+    color: var(--color-danger);
+
+    border: 1px solid var(--color-danger);
+}
+
+
+/* Logout Hover */
+
+#home-page > nav > button:last-child:hover,
+#home-page > nav > template:last-child + button:hover {
+    background-color: var(--color-danger);
+
+    color: #ffffff;
+}
+
+
+/* ============================================================
+   Game Cards Layout
+   ============================================================ */
+
+#home-page > section > div > div {
+    display: grid;
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 16px;
+}
+
+
+/* Three columns on medium screens */
+
+@media (min-width: 700px) {
+    #home-page > section > div > div {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+
+/* Four columns on large screens */
+
+@media (min-width: 1100px) {
+    #home-page > section > div > div {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+
+/* ============================================================
+   Game Card
+   ============================================================ */
+
+#home-page > section > div > div > div {
+    position: relative;
+
+    overflow: hidden;
+
+    min-width: 0;
+    min-height: 140px;
+
+    border: 1px solid var(--color-border);
+
+    border-radius: var(--radius-small);
+
+    background: var(--color-bg);
+
+    cursor: pointer;
+
+    transition:
+        border-color var(--transition-normal),
+        transform var(--transition-normal),
+        box-shadow var(--transition-normal);
+}
+
+
+/* ============================================================
+   Game Image
+   ============================================================ */
+
+#home-page > section > div > div > div > img {
+    display: block;
+
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    transition:
+        filter var(--transition-normal),
+        transform var(--transition-normal);
+}
+
+
+/* ============================================================
+   Game Name
+   ============================================================ */
+
+#home-page > section > div > div > div > span {
+	position: absolute;
+
+	right: 12px;
+	bottom: 10px;
+
+	margin: 0;
+
+	color: white;
+	font-size: 1.05rem;
 	font-weight: 700;
-	font-size: 1.1em;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	text-align: right;
+
+	text-shadow:
+		1px 1px 0 #000,
+		2px 2px 0 #000;
+
+	pointer-events: none;
+
+	/* Anchor the text block from its bottom */
+	transform: translateY(0);
 }
 
 
-/* Buttons inside account */
+/* ============================================================
+   Connected Users Indicator
+   ============================================================ */
 
-.home-account button {
-	min-height: 40px;
+#home-page > section > div > div > div > span.connectedUsersIndicator {
+    left: 12px;
+    right: auto;
+
+    text-align: left;
+
+    color: var(--color-success);
 }
 
+
+/* ============================================================
+   Hover Underline
+   ============================================================ */
+
+#home-page > section > div > div > div > :nth-child(1)::after {
+    content: "";
+
+    position: absolute;
+
+    left: 0;
+    bottom: -1px;
+
+    width: 100%;
+    height: 2px;
+
+    background: white;
+
+    transform: scaleX(0);
+
+    transform-origin: left;
+
+    transition: transform 0.25s ease;
+}
+
+
+#home-page > section > div > div > div:hover > :nth-child(1)::after {
+    transform: scaleX(1);
+}
+
+
+/* ============================================================
+   Game Card Hover Effects
+   ============================================================ */
+
+#home-page > section > div > div > div:hover {
+    border-color: var(--color-border-strong);
+
+    transform: translateY(-2px);
+
+    box-shadow: 0 5px 15px var(--color-shadow);
+}
+
+
+/* ============================================================
+   Disabled Games
+   ============================================================ */
+
+#home-page > section > div > div > div.play-disabled {
+    opacity: 0.45;
+
+    cursor: not-allowed;
+}
+
+
+/* Disable hover movement */
+
+#home-page > section > div > div > div.play-disabled:hover {
+    transform: none;
+
+    box-shadow: none;
+}
+
+
+/* Grayscale disabled game image */
+
+#home-page > section > div > div > div.play-disabled:hover > img {
+    filter: grayscale(1);
+}
 
 /* ============================================================
    Play section
@@ -1265,20 +1815,12 @@ canvas {
    ============================================================ */
 
 @media (max-width: 500px) {
-	:root {
-		--page-padding: 14px;
-	}
-
 	.page {
 		padding-top: 24px;
 	}
 
 	#home-page {
 		gap: 26px;
-	}
-
-	#home-page section {
-		padding: 28px 16px 18px;
 	}
 
 	#home-page section > h2 {

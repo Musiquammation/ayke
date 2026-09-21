@@ -112,6 +112,7 @@ type PanelComponent = (
 	LeaderboardComponent |
 	SoloLeaderboardComponent |
 	ChangelogsComponent |
+	ContactComponent |
 	null
 );
 
@@ -345,6 +346,13 @@ class MainComponent {
 		const panel = new ChangelogsComponent();
 		this.panel = panel;
 		this.currentPage = "changelog";
+		pushUrlStack(this);
+	}
+
+	openContact() {
+		const panel = new ContactComponent();
+		this.panel = panel;
+		this.currentPage = "contact";
 		pushUrlStack(this);
 	}
 
@@ -1300,7 +1308,19 @@ class ChangelogsComponent {
 	showLine(line: string) {
 		return marked.parseInline(line);
 	}
+}
 
+class ContactComponent {
+	static readonly fragmentName = "changelog";
+
+	saveFragment(): Record<string, string> {
+		return {};
+	}
+
+	static openFragment(_: Record<string, string>) {
+		const panel = new ChangelogsComponent();
+		return panel;
+	}
 }
 
 
