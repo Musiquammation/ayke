@@ -28,6 +28,15 @@ export namespace collisions {
 		radius: number;
 	}
 
+	export interface RotatedRoundedRect {
+		x: number; // Center X
+		y: number; // Center Y
+		w: number;
+		h: number;
+		radius: number;
+		a: number;
+	}
+
 	// ==========================================
 	// EXISTING COLLISIONS
 	// ==========================================
@@ -229,5 +238,168 @@ export namespace collisions {
 		}
 
 		return false;
+	}
+
+	export function RotatedRoundedRectCircle(rect: RotatedRoundedRect, circle: Circle): boolean {
+		// 1. Transform the circle into the local coordinate system of the RotatedRoundedRect
+		const dx = circle.x - rect.x;
+		const dy = circle.y - rect.y;
+
+		const cos = Math.cos(-rect.a);
+		const sin = Math.sin(-rect.a);
+		const localX = dx * cos - dy * sin;
+		const localY = dx * sin + dy * cos;
+
+		// 2. A local RotatedRoundedRect is equivalent to an axis-aligned RoundedRect centered at (0, 0)
+		const localRounded: RoundedRect = {
+			x: 0,
+			y: 0,
+			w: rect.w,
+			h: rect.h,
+			radius: rect.radius
+		};
+
+		const localCircle: Circle = {
+			x: localX,
+			y: localY,
+			r: circle.r
+		};
+
+		return RoundedRectCircle(localRounded, localCircle);
+	}
+
+	export function RotatedRoundedRectRotatedRoundedRect(a: RotatedRoundedRect, b: RotatedRoundedRect): boolean {
+		// A RotatedRoundedRect is the union of:
+		// - An inner vertical rectangle
+		// - An inner horizontal rectangle
+		// - 4 corner circles
+
+		const innerWA = Math.max(0, a.w / 2 - a.radius);
+		const innerHA = Math.max(0, a.h / 2 - a.radius);
+
+		const cosA = Math.cos(a.a);
+		const sinA = Math.sin(a.a);
+
+		// Sub-shapes of A
+		const subShapesA: (RotatedRect | Circle)[] = [];
+
+		// Inner vertical rectangle of A
+		if (innerWA > 0) {
+			subShapesA.push({
+				x: a.x,
+				y: a.y,
+				w: innerWA * 2,
+				h: a.h,
+				angle: a.a
+			} as RotatedRect);
+		}
+
+		// Inner horizontal rectangle of A
+		if (innerHA > 0) {
+			subShapesA.push({
+				x: a.x,
+				y: a.y,
+				w: a.w,
+				h: innerHA * 2,
+				angle: a.a
+			} as RotatedRect);
+		}
+
+		// Four corner circles of A
+		const cornerOffsetsA = [
+			{ x: -innerWA, y: -innerHA },
+			{ x: innerWA, y: -innerHA },
+			{ x: -innerWA, y: innerHA },
+			{ x: innerWA, y: innerHA }
+		];
+
+		for (const offset of cornerOffsetsA) {
+			// Apply the rotation of rectangle A to the circle centers
+			const worldX = a.x + (offset.x * cosA - offset.y * sinA);
+			const worldY = a.y + (offset.x * sinA + offset.y * cosA);
+
+			subShapesA.push({
+				x: worldX,
+				y: worldY,
+				r: a.radius
+			} as Circle);
+		}
+
+		// Check for collisions between each sub-shape of A and rectangle/circle B
+		for (const shapeA of subShapesA) {
+			if ('r' in shapeA) {
+				// This is a Circle: Circle vs RotatedRoundedRect collision
+				if (RotatedRoundedRectCircle(b, shapeA)) return true;
+			} else {
+				// This is a RotatedRect: RotatedRect vs RotatedRoundedRect collision
+				if (RotatedRectRotatedRoundedRect(shapeA, b)) return true;
+			}
+		}
+
+		return false;
+	}
+
+	// Helper to test collision between a RotatedRect and a RotatedRoundedRect
+	export function RotatedRectRotatedRoundedRect(rect: RotatedRect, rounded: RotatedRoundedRect): boolean {
+		// Transform 'rect' into the local coordinate system of 'rounded'
+		const dx = rect.x - rounded.x;
+		const dy = rect.y - rounded.y;
+
+		const cos = Math.cos(-rounded.a);
+		const sin = Math.sin(-rounded.a);
+
+		const localX = dx * cos - dy * sin;
+		const localY = dx * sin + dy * cos;
+		const localAngle = rect.angle - rounded.a;
+
+		const localRotatedRect: RotatedRect = {
+			x: localX,
+			y: localY,
+			w: rect.w,
+			h: rect.h,
+			angle: localAngle
+		};
+
+		const localRounded: RoundedRect = {
+			x: 0,
+			y: 0,
+			w: rounded.w,
+			h: rounded.h,
+			radius: rounded.radius
+		};
+
+		return RotatedRectRoundedRect(localRotatedRect, localRounded);
+	}
+
+	export function RotatedRoundedRectRect(rotatedRounded: RotatedRoundedRect, rect: Rect): boolean {
+		// 1. Transform the Rect into the local coordinate system of the RotatedRoundedRect
+		const dx = rect.x - rotatedRounded.x;
+		const dy = rect.y - rotatedRounded.y;
+
+		const cos = Math.cos(-rotatedRounded.a);
+		const sin = Math.sin(-rotatedRounded.a);
+
+		const localX = dx * cos - dy * sin;
+		const localY = dx * sin + dy * cos;
+
+		// In the local coordinate system of the RotatedRoundedRect, the Rect (without rotation) acquires an angle of -rotatedRounded.a
+		const localRotatedRect: RotatedRect = {
+			x: localX,
+			y: localY,
+			w: rect.w,
+			h: rect.h,
+			angle: -rotatedRounded.a
+		};
+
+		// The RotatedRoundedRect becomes an axis-aligned RoundedRect centered at (0, 0)
+		const localRounded: RoundedRect = {
+			x: 0,
+			y: 0,
+			w: rotatedRounded.w,
+			h: rotatedRounded.h,
+			radius: rotatedRounded.radius
+		};
+
+		return RotatedRectRoundedRect(localRotatedRect, localRounded);
 	}
 }
