@@ -710,6 +710,29 @@
 					<button type="button" @pointerup="openHome()">Go home</button>
 				</div>
 			</template>
+
+			<!-- 
+			Transition Component 
+			Listens to the 'transitionState' variable in MainComponent.
+			States: 'idle' | 'closing' | 'loading' | 'opening' 
+			-->
+			<div id="transition-component" :data-state="transitionState">
+				<img :src="AYKE_ICON_URL"></img> <!-- 1: Yellow Circle -->
+				<div></div> <!-- 2: Left Panel -->
+				<div></div> <!-- 3: Right Panel -->
+				<span
+					x-data="{ dots: 0, interval: null }"
+					x-init="
+						interval = setInterval(() => {
+							dots = (dots + 1) % 4;
+						}, 400);
+					"
+					x-effect="$el.textContent = 'loading' + '.'.repeat(dots)"
+					x-text="'loading' + '.'.repeat(dots)"
+				>
+					loading
+				</span>
+			</div>
 		</div>
 
 

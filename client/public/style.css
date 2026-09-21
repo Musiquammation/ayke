@@ -2792,3 +2792,428 @@ canvas {
 #changelog-page li {
 	margin-bottom: .28em;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================================
+   TRANSITION COMPONENT (No Classes Used)
+   ========================================================= */
+
+#transition-component {
+	position: fixed;
+	inset: 0;
+	overflow: hidden;
+	pointer-events: none;
+	z-index: 9999;
+
+	--hole-radius: 120px;
+	--duration: 0.4s;
+	--easing: cubic-bezier(.76, 0, .24, 1);
+
+	/* Randomized by JavaScript */
+	--transition-hue: 250;
+}
+
+/* Block clicks during active animation states */
+#transition-component[data-state="closing"],
+#transition-component[data-state="loading"],
+#transition-component[data-state="opening"] {
+	pointer-events: all;
+}
+
+/* Enable smooth transitions on children */
+#transition-component > :is(div, img) {
+	transition: transform var(--duration) var(--easing);
+	will-change: transform;
+}
+
+/* Disable transition on idle so elements reset position instantly off-screen */
+#transition-component[data-state="idle"] > :is(div, img) {
+	transition: none !important;
+}
+
+/* ----------------------------------
+   1: YELLOW CIRCLE
+   ---------------------------------- */
+#transition-component > :nth-child(1) {
+	position: absolute;
+	width: calc(var(--hole-radius) * 2);
+	height: calc(var(--hole-radius) * 2);
+	left: 50%;
+	top: 50%;
+	border-radius: 50%;
+	background: #ffd900;
+	z-index: 1;
+	/* Default idle position: off-screen left */
+	transform: translate(calc(-100vw - 100%), -50%);
+}
+
+/* ----------------------------------
+   2: LEFT PANEL
+   ---------------------------------- */
+#transition-component > :nth-child(2) {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 50%;
+	height: 100%;
+
+	background:
+		linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 25%,
+			transparent 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		),
+		repeating-linear-gradient(
+			-45deg,
+			transparent 0,
+			transparent 12px,
+			rgba(255, 255, 255, 0.15) 12px,
+			rgba(255, 255, 255, 0.15) 14px
+		),
+		linear-gradient(
+			180deg,
+			hsl(var(--transition-hue) 100% 62%) 0%,
+			hsl(var(--transition-hue) 100% 43%) 50%,
+			hsl(var(--transition-hue) 100% 30%) 100%
+		);
+
+	z-index: 2;
+
+	--hole-x: 100%;
+
+	transform: translateX(-100%);
+
+	-webkit-mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+	mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+}
+
+
+/* ----------------------------------
+   3: RIGHT PANEL
+   ---------------------------------- */
+#transition-component > :nth-child(3) {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 50%;
+	height: 100%;
+
+	background:
+		linear-gradient(
+			225deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 25%,
+			transparent 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		),
+		repeating-linear-gradient(
+			45deg,
+			transparent 0,
+			transparent 12px,
+			rgba(255, 255, 255, 0.15) 12px,
+			rgba(255, 255, 255, 0.15) 14px
+		),
+		linear-gradient(
+			180deg,
+			hsl(var(--transition-hue) 100% 62%) 0%,
+			hsl(var(--transition-hue) 100% 43%) 50%,
+			hsl(var(--transition-hue) 100% 30%) 100%
+		);
+
+	z-index: 2;
+
+	--hole-x: 0%;
+
+	transform: translateX(100%);
+
+	-webkit-mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+	mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+}
+
+
+
+/* =========================================================
+   TRANSITION COMPONENT
+   ========================================================= */
+
+/* ----------------------------------
+   2: LEFT PANEL
+   ---------------------------------- */
+#transition-component > :nth-child(2) {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 50%;
+	height: 100%;
+
+	background:
+		linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 25%,
+			transparent 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		),
+		linear-gradient(
+			180deg,
+			hsl(var(--transition-hue) 100% 62%) 0%,
+			hsl(var(--transition-hue) 100% 43%) 50%,
+			hsl(var(--transition-hue) 100% 30%) 100%
+		);
+
+	z-index: 2;
+
+	--hole-x: 100%;
+
+	transform: translateX(-100%);
+
+	-webkit-mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+
+	overflow: hidden;
+}
+
+
+/* ----------------------------------
+   3: RIGHT PANEL
+   ---------------------------------- */
+#transition-component > :nth-child(3) {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 50%;
+	height: 100%;
+
+	background:
+		linear-gradient(
+			225deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 25%,
+			transparent 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		),
+		linear-gradient(
+			180deg,
+			hsl(var(--transition-hue) 100% 62%) 0%,
+			hsl(var(--transition-hue) 100% 43%) 50%,
+			hsl(var(--transition-hue) 100% 30%) 100%
+		);
+
+	z-index: 2;
+
+	--hole-x: 0%;
+
+	transform: translateX(100%);
+
+	-webkit-mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+
+	overflow: hidden;
+}
+
+
+/* =========================================================
+   MOVING STRIPES
+   ========================================================= */
+
+#transition-component > :nth-child(2)::before,
+#transition-component > :nth-child(3)::before {
+	content: "";
+
+	position: absolute;
+
+	/*
+	 * Extend the texture outside the panel so that
+	 * no edge of the animated layer can become visible.
+	 */
+	top: -100%;
+	left: -100%;
+	width: 300%;
+	height: 300%;
+
+	pointer-events: none;
+
+	/*
+	 * One complete repeating unit.
+	 */
+	background-size: 28px 28px;
+
+	background-repeat: repeat;
+
+	animation:
+		transition-stripes-up
+		0.25s
+		linear
+		infinite;
+}
+
+
+/* ----------------------------------
+   LEFT STRIPES
+   ---------------------------------- */
+
+#transition-component > :nth-child(2)::before {
+	background-image:
+		repeating-linear-gradient(
+			-45deg,
+			transparent 0,
+			transparent 12px,
+			rgba(255, 255, 255, 0.15) 12px,
+			rgba(255, 255, 255, 0.15) 14px
+		);
+}
+
+
+/* ----------------------------------
+   RIGHT STRIPES
+   ---------------------------------- */
+
+#transition-component > :nth-child(3)::before {
+	background-image:
+		repeating-linear-gradient(
+			45deg,
+			transparent 0,
+			transparent 12px,
+			rgba(255, 255, 255, 0.15) 12px,
+			rgba(255, 255, 255, 0.15) 14px
+		);
+}
+
+
+/* =========================================================
+   STRIPE ANIMATION
+   ========================================================= */
+
+@keyframes transition-stripes-up {
+	from {
+		transform: translateY(0);
+	}
+
+	to {
+		transform: translateY(-28px);
+	}
+}
+
+/* ----------------------------------
+   4: LOADING TEXT
+   ---------------------------------- */
+#transition-component > span:nth-child(4) {
+	position: absolute;
+	top: calc(50% + var(--hole-radius) + 30px);
+	left: 50%;
+	transform: translateX(-50%);
+	color: white;
+	font-family: sans-serif;
+	font-size: 1.5rem;
+	font-weight: bold;
+	z-index: 3;
+	display: none;
+}
+
+/* =========================================================
+   ANIMATION STATES
+   ========================================================= */
+
+/* STATE: CLOSING & LOADING (Panels move to center, circle enters from left) */
+#transition-component[data-state="closing"] > :nth-child(1),
+#transition-component[data-state="loading"] > :nth-child(1) {
+	transform: translate(-50%, -50%);
+}
+
+#transition-component[data-state="closing"] > :nth-child(2),
+#transition-component[data-state="loading"] > :nth-child(2),
+#transition-component[data-state="closing"] > :nth-child(3),
+#transition-component[data-state="loading"] > :nth-child(3) {
+	transform: translateX(0);
+}
+
+/* STATE: OPENING (Panels retract, circle exits to the right) */
+#transition-component[data-state="opening"] > :nth-child(1) {
+	transform: translate(calc(100vw + 100%), -50%);
+}
+
+#transition-component[data-state="opening"] > :nth-child(2) {
+	transform: translateX(-100%);
+}
+
+#transition-component[data-state="opening"] > :nth-child(3) {
+	transform: translateX(100%);
+}
+
+/* Show loading text only during loading state */
+#transition-component[data-state="loading"] > span:nth-child(4) {
+	display: block;
+	animation: transitionPulse 1.5s infinite;
+}
+
+@keyframes transitionPulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
+}
