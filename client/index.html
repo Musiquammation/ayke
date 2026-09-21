@@ -402,7 +402,11 @@
 
 			<template x-if="uses('wait-play')">
 				<div id="wait-play-page" class="page" x-data="panel">
-					<h1>Waiting for players</h1>
+					<h1
+						x-data="{ dots: 1 }"
+						x-init="setInterval(() => dots = dots % 3 + 1, 900)"
+						x-text="'Waiting for players' + '.'.repeat(dots)"
+					></h1>
 					<div>
 						<span>
 							Allow bots?
