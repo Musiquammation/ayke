@@ -458,7 +458,7 @@ button.selected:hover {
 	min-width: 0;
 
 	font-size: clamp(1.105rem, 3.9vw, 1.43rem);
-	font-weight: 700;
+	font-weight: 100;
 }
 
 
