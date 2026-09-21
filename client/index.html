@@ -75,7 +75,7 @@
 					</nav>
 
 					<!-- Main title -->
-					<h1>Ayke</h1>
+					<h1>AYKE</h1>
 
 					<!-- Main game section connected to the panel -->
 					<section x-data="panel">
@@ -716,6 +716,18 @@
 			window.PROTOCOL_FILE = "/protocols/game.proto";
 			window.PROTOCOLS_FOLDER = "/protocols/games/";
 			window.VERSION_CODE = -1;
+
+			// Set "Rye" font
+			{
+				const font = new FontFace(
+					"Rye",
+					"url(/fonts/Rye-Regular.ttf) format('truetype')"
+				);
+	
+				font.load().then(
+					() => document.fonts.add(font)
+ 				);
+			}
 
 			// Initialize the application after the DOM has been fully loaded
 			document.addEventListener("DOMContentLoaded", async () => {
