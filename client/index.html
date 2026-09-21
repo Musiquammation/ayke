@@ -13,17 +13,17 @@
 			<template x-if="uses('home')">
 				<div id="home-page" class="page" x-data="{ ...panel, menuOpen: false }">
 					
-					<!-- Bandeau supérieur fixe -->
+					<!-- Fixed top bar -->
 					<header>
 						<div>
-							<!-- Bouton menu burger -->
+							<!-- Burger menu button -->
 							<button type="button" @pointerup="menuOpen = !menuOpen" aria-label="Menu">
 								<span></span>
 								<span></span>
 								<span></span>
 							</button>
 
-							<!-- Nom d'utilisateur -->
+							<!-- Username -->
 							<template x-if="isAuthenticated">
 								<div>
 									<span>👤</span>
@@ -32,7 +32,7 @@
 							</template>
 						</div>
 
-						<!-- Statistiques utilisateur (émojis uniquement) -->
+						<!-- User statistics (emojis only) -->
 						<template x-if="isAuthenticated">
 							<div x-data="panel">
 								<span>🏆 <span x-text="totalTrophees"></span></span>
@@ -42,7 +42,7 @@
 						</template>
 					</header>
 
-					<!-- Overlay & Tiroir du Menu Burger -->
+					<!-- Overlay and burger menu drawer -->
 					<div x-show="menuOpen" x-transition.opacity @pointerup="menuOpen = false"></div>
 					
 					<nav
@@ -74,10 +74,10 @@
 						</template>
 					</nav>
 
-					<!-- Titre principal -->
+					<!-- Main title -->
 					<h1>Ayke</h1>
 
-					<!-- Section principale de jeux (reconnectée à panel) -->
+					<!-- Main game section connected to the panel -->
 					<section x-data="panel">
 						<template x-for="category in games" :key="category.category">
 							<div>
@@ -132,23 +132,24 @@
 
 					<div>
 						<div class="trophee-road" x-show="isAuthenticated" x-init="initTrophyRoad()">
-							<!-- Scrollable track container referenced for auto-scrolling -->
+							<!-- Scrollable track container used for automatic scrolling -->
 							<div class="trophee-road-track" x-ref="track">
 								
-								<!-- Completion gauge background spanning the full width of the road -->
+								<!-- Completion gauge background spanning the full trophy road -->
 								<div class="gauge-bar" :style="`width: ${trackWidth}px; left: ${paddingStart}px;`">
-									<!-- Dark-yellow fill: bestTrophees progress -->
+									<!-- Dark yellow fill representing the best trophy progress -->
 									<div class="gauge-fill-best" :style="`width: ${bestPx}px`"></div>
-									<!-- Yellow fill: current trophees progress -->
+
+									<!-- Yellow fill representing the current trophy progress -->
 									<div class="gauge-fill-current" :style="`width: ${currentPx}px`">
-										<!-- Badge displaying current trophies directly on the gauge -->
+										<!-- Badge displaying the current trophy count -->
 										<div class="current-trophy-badge">
 											<span x-text="`${trophees} 🏆`"></span>
 										</div>
 									</div>
 								</div>
 	
-								<!-- Collectible nodes dynamically positioned according to trophy requirement -->
+								<!-- Collectible nodes positioned according to their trophy requirement -->
 								<template x-for="item in collectibleItems" :key="item.id">
 									<div class="collectible-node"
 										:data-unlocked="item.unlocked"
@@ -161,10 +162,10 @@
 											<canvas width="40" height="40" x-init="drawCollectibleIcon($el, item)"></canvas>
 										</div>
 	
-										<!-- Display required trophies for each collectible -->
+										<!-- Display the trophy requirement for each collectible -->
 										<div class="trophy-requirement" x-text="`${item.trophees} 🏆`"></div>
 	
-										<!-- Unlock button: shown ONLY if item is not unlocked AND bestTrophees >= item.trophees -->
+										<!-- Unlock button shown only when the item is not unlocked and the player has enough trophies -->
 										<button x-show="item.unlockable" 
 												@pointerup="unlockCollectible(item)">
 											Unlock
@@ -227,24 +228,24 @@
 			<template x-if="uses('play-results')">
 				<div id="play-results-page" class="page" x-data="panel">
 					<div class="results-container">
-						<!-- Iterate over each player score entry with its index to bind the ranking -->
+						<!-- Iterate over each player score and its index to determine the ranking -->
 						<template x-for="(score, index) in panel.results.scores" :key="score.identifier">
-							<!-- Add the 'play-results-me' class if the score belongs to the current user -->
+							<!-- Highlight the current user's result -->
 							<div class="result-row" :class="{ 'play-results-me': score.identifier === panel.me }">
 								
-								<!-- Display rank column (1st, 2nd, 3rd...) -->
+								<!-- Display the player's rank -->
 								<span x-text="panel.formatRank(panel.rankings[index])"></span>
 
-								<!-- Display player pseudo or fallback to anonymous if null -->
+								<!-- Display the player's username, or a fallback for anonymous players -->
 								<span 
 									:class="{ 'noTrophees': panel.pseudos[score.identifier] === null }" 
 									x-html="panel.showPseudo(panel.pseudos[score.identifier])">
 								</span>
 
-								<!-- Display trophies score -->
+								<!-- Display the trophy score -->
 								<span x-text="score.result < 0 ? '' : score.result">123</span>
 
-								<!-- Display score variation (delta) -->
+								<!-- Display the score variation -->
 								<span x-text="(score.delta >= 0 ? '+' : '') + score.delta"></span>
 							</div>
 						</template>
@@ -264,7 +265,7 @@
 				</div>
 			</template>
 
-			<!-- Login Page Template -->
+			<!-- Login page -->
 			<template x-if="uses('login')">
 				<div id="login-page" class="page">
 					<h2>Login</h2>
@@ -299,7 +300,7 @@
 				</div>
 			</template>
 
-			<!-- Signin / Create Account Page Template -->
+			<!-- Sign-up / account creation page -->
 			<template x-if="uses('signin')">
 				<div id="signin-page" class="page">
 					<h2>Create Account</h2>
@@ -341,7 +342,8 @@
 					<div class="leaderboard-controls">
 						<select x-model="gamemode" @change="setGamemode(gamemode === '' ? null : gamemode)">
 							<option value="">Total Trophies</option>
-							<!-- Map dynamically over available gamemodes -->
+
+							<!-- Generate an option for each available game mode -->
 							<template x-for="key in Object.keys(gamemods)" :key="key">
 								<option :value="key" x-text="gamemods[key].name"></option>
 							</template>
@@ -353,7 +355,7 @@
 					</div>
 
 					<div class="leaderboard-list">
-						<!-- Apply .leaderboard-me class if logged in and the name matches the root pseudo -->
+						<!-- Highlight the current user when logged in -->
 						<template x-for="(entry, index) in entries" :key="index">
 							<div 
 								class="leaderboard-entry"
@@ -417,6 +419,8 @@
 
 			<div x-show="uses('play')">
 				<canvas id="play-canvas"></canvas>
+
+				<!-- Display tutorial text when the current game provides a tutorial marker -->
 				<template x-if="panel && panel.TUTORIAL_MARKER">
 					<div
 						class="tutorialText" 
@@ -424,7 +428,11 @@
 						x-show="panel.text && panel.text.length !== 0"
 					></div>
 				</template>
+
+				<!-- Display the current network latency -->
 				<div id="game-ping"></div>
+
+				<!-- Container for game-specific HTML content -->
 				<div id="game-html"></div>
 			</div>
 
@@ -500,6 +508,7 @@
 			window.PROTOCOLS_FOLDER = "/protocols/games/";
 			window.VERSION_CODE = -1;
 
+			// Initialize the application after the DOM has been fully loaded
 			document.addEventListener("DOMContentLoaded", async () => {
 				const { init } = await import("/src/index.ts");
 				window.dom = init();
