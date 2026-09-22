@@ -234,7 +234,6 @@ button.selected:hover {
 /* ============================================================
    Home Page Layout & Containers
    ============================================================ */
-
 #home-page {
 	display: flex;
 	flex-direction: column;
@@ -242,9 +241,30 @@ button.selected:hover {
 
 	width: 100%;
 
-	/* Prevent horizontal overflow on small screens */
 	overflow-y: auto;
 	overflow-x: hidden;
+
+	position: relative;
+	--home-background: "";
+}
+
+#home-page::before {
+	content: "";
+
+	position: absolute;
+	inset: 0;
+
+	background-image: var(--home-background);
+	background-size: 2000px 2000px;
+	background-repeat: repeat;
+
+	opacity: 0.8;
+
+	pointer-events: none;
+}
+
+#home-page > * {
+	position: relative;
 }
 
 #sub-home-main-title {
