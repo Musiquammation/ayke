@@ -282,35 +282,49 @@ class MainComponent {
 		}
 	}
 
-	/**
-	 * Execute an asynchronous operation while displaying the loading page.
-	 *
-	 * The sequence is:
-	 *
-	 * 1. Close the current page.
-	 * 2. Display the loading page.
-	 * 3. Wait for the provided asynchronous operation to finish.
-	 * 4. Open the page prepared by that operation.
-	 *
-	 * The callback is responsible for preparing and selecting the final page.
-	 */
-	async withLoading(action: () => void | Promise<void>) {
-		// Close the current page and display the loading page.
-		await this.changePageWithTransition(() => {
-			this.currentPage = "loading";
-		});
+	async withLoading<T>(
+		action: (panelVisiblePromise: Promise<void>) => Promise<T>
+	): Promise<T> {
+		// Start the timer immediately when withLoading starts.
+		const panelVisiblePromise = new Promise<void>(resolve =>
+			setTimeout(
+				resolve,
+				MainComponent.TRANSITION_DURATION_MS / 2
+			)
+		);
 
-		// Wait until the asynchronous operation is completely finished.
-		await action();
+		// Start the loading operation immediately.
+		const actionPromise = Promise.resolve().then(() =>
+			action(panelVisiblePromise)
+		);
 
-		// Open the page prepared by the operation.
-		this.transitionState = 'opening';
+		// Start closing the current page.
+		this.randomizeTransitionColor();
+		this.transitionState = 'closing';
 
+		// Wait until the current panel is completely hidden.
 		await new Promise(resolve =>
 			setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS)
 		);
 
-		this.transitionState = 'idle';
+		// The current panel is now hidden.
+		this.transitionState = 'loading';
+
+		// Wait for the loading operation to complete.
+		const result = await actionPromise;
+
+		// Start opening the prepared page, but do not wait for the animation.
+		void (async () => {
+			this.transitionState = 'opening';
+
+			await new Promise(resolve =>
+				setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS)
+			);
+
+			this.transitionState = 'idle';
+		})();
+
+		return result;
 	}
 
 	/**
@@ -320,11 +334,9 @@ class MainComponent {
 	 * remains visible.
 	 */
 	async openGamePanel(gamemode: string) {
-		await this.withLoading(async () => {
-			const factory = getGmFactory(gamemode);
-
-			let unlockedSkins: string[] = [];
-
+		const factory = getGmFactory(gamemode);
+		let unlockedSkins: string[] = [];
+		const html = await this.withLoading(async () => {
 			// Retrieve the skins available to the current player.
 			if (factory.type === 'multiplayer') {
 				if (factory.skins.length === 0) {
@@ -341,35 +353,34 @@ class MainComponent {
 			}
 
 			// Load the game template while the loading page is displayed.
-			const html = await this.templateLoader.load(gamemode);
-
-			// Prepare the final page.
-			this.currentPage = "game-panel";
-
-			if (factory.type === 'multiplayer') {
-				const data = factory.dom(unlockedSkins);
-
-				this.setPanel(
-					new GamePanelComponent(
-						gamemode,
-						data,
-						html
-					)
-				);
-			} else {
-				const category = factory.dom();
-
-				this.setPanel(
-					new SoloGamePanelComponent(
-						gamemode,
-						category,
-						html
-					)
-				);
-			}
-
-			pushUrlStack(this);
+			return await this.templateLoader.load(gamemode);
 		});
+
+		// Prepare the final page.
+		this.currentPage = "game-panel";
+
+		let panel;
+		if (factory.type === 'multiplayer') {
+			const data = factory.dom(unlockedSkins);
+
+			panel = new GamePanelComponent(
+				gamemode,
+				data,
+				html
+			);
+			
+		} else {
+			const category = factory.dom();
+			panel = new SoloGamePanelComponent(
+				gamemode,
+				category,
+				html
+			);
+		}
+
+		this.setPanel(panel);
+
+		pushUrlStack(this);
 	}
 
 	async openWaitPlayPanel(gamemode: string) {
@@ -418,40 +429,43 @@ class MainComponent {
 		pushUrlStack(this);
 	}
 
-	openLocalInPlay(
+	async openLocalInPlay(
 		gamemode: string,
 		startData: Uint8Array
 	) {
 		this.currentPage = "play";
 
-		this.setPanel(
-			new LocalPlayComponent(
-				new LocalGameHandler(
-					gamemode,
-					false,
-					startData
-				)
-			)
+		const h = new LocalGameHandler(
+			gamemode,
+			false,
+			startData
 		);
 
+		this.setPanel(
+			new LocalPlayComponent(h)
+		);
+
+		await h.start();
 		pushUrlStack(this);
 	}
 
-	openVsBotsInPlay(
+	async openVsBotsInPlay(
 		gamemode: string,
 		startData: Uint8Array
 	) {
 		this.currentPage = "play";
 
-		this.setPanel(
-			new LocalPlayComponent(
-				new LocalGameHandler(
-					gamemode,
-					true,
-					startData
-				)
-			)
+		const h = new LocalGameHandler(
+			gamemode,
+			true,
+			startData
 		);
+		this.setPanel(
+			new LocalPlayComponent(h)
+		);
+
+		await h.start();
+		alert("ok");
 
 		pushUrlStack(this);
 	}
@@ -597,14 +611,46 @@ class GamePanelComponent {
 	}
 
 	// Opens the appropriate How To Play screen.
-	howToPlay() {
-		if (this.explanationSlides) {
-			this.currentExplanationSlide = 0;
-			this.panelView = "tutorial";
+	// Preloads all explanation slide images before opening the tutorial.
+	private async loadExplanationSlides() {
+		if (this.explanationSlides === null) return;
+
+		const promises = this.explanationSlides.map(filename => {
+			const src =
+				`${window.IMG_ROOT_PATH}/assets/games/` +
+				`${this.gamemode}/explainationSlides/${filename}`;
+
+			return new Promise<void>((resolve, reject) => {
+				const image = new Image();
+
+				image.onload = () => resolve();
+				image.onerror = () => reject(
+					new Error(`Failed to load explanation slide: ${src}`)
+				);
+
+				image.src = src;
+			});
+		});
+
+		await Promise.all(promises);
+	}
+
+	// Opens the appropriate How To Play screen.
+	async howToPlay() {
+		if (!this.explanationSlides) {
+			await this.tutorial();
 			return;
 		}
 
-		this.tutorial();
+		// Keep the current menu hidden while the explanation images load.
+		await dom.withLoading(async () => {
+			await this.loadExplanationSlides();
+
+			// Only open the tutorial after every image has been loaded.
+			this.currentExplanationSlide = 0;
+		});
+
+		this.panelView = "tutorial";
 	}
 
 	// Opens the game options.
@@ -663,47 +709,51 @@ class GamePanelComponent {
 	}
 
 
-	play() {
+	async play() {
 		if (!isSocketConnectedToServer()) {
 			alert("You are not connected to the server. You can play against bots instead.");
 			throw "You are not connected to the server. You can play against bots instead.";
 		}
 
 		const factory = getMultiGmFactory(this.gamemode);
-		dom.withLoading(async () => {
+		await dom.withLoading(async () => {
 			await imageLoader.load(factory.textures, this.gamemode);
 			await dynamicCssHandler.load(this.gamemode);
-			dom.openWaitPlayPanel(this.gamemode);
-			
-			sendMessage({
-				startGame: {
-					gamemode: this.gamemode,
-					data: this.data.produce()
-				}
-			});
 		});
 
+		dom.openWaitPlayPanel(this.gamemode);
+
+		sendMessage({
+			startGame: {
+				gamemode: this.gamemode,
+				data: this.data.produce()
+			}
+		});
 
 	}
 
 	async tutorial() {
 		const factory = getMultiGmFactory(this.gamemode);
 
-		await dom.withLoading(async () => {
+		await dom.withLoading(async panelVisiblePromise => {
 			await imageLoader.load(factory.textures, this.gamemode);
 			await dynamicCssHandler.load(this.gamemode);
-			dom.openLocalInPlay(this.gamemode, this.data.produce());
+			await panelVisiblePromise;
+			await dom.openLocalInPlay(this.gamemode, this.data.produce());
 		});
+
 	}
 
 	async againstBots() {
 		const factory = getMultiGmFactory(this.gamemode);
 
-		await dom.withLoading(async () => {
+		await dom.withLoading(async panelVisiblePromise => {
 			await imageLoader.load(factory.textures, this.gamemode);
 			await dynamicCssHandler.load(this.gamemode);
-			dom.openVsBotsInPlay(this.gamemode, this.data.produce());
+			await panelVisiblePromise;
+			await dom.openVsBotsInPlay(this.gamemode, this.data.produce());
 		});
+
 	}
 
 	getImageSrc(gamemode: string) {
@@ -986,7 +1036,6 @@ class SoloPlayComponent {
 
 	constructor(gamemodeId: string, game: SoloGameMode, category: string) {
 		this.game = new SoloGameHandler(gamemodeId, game, category);
-		this.game.start();
 	}
 }
 
@@ -1297,9 +1346,7 @@ class LocalPlayComponent {
 
 	private text = "";
 
-	constructor(public readonly game: LocalGameHandler) {
-		dom.withLoading(async () => game.start());
-	}
+	constructor(public readonly game: LocalGameHandler) {}
 
 	setText(text: string) {
 		this.text = text;
