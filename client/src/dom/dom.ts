@@ -155,9 +155,6 @@ class MainComponent {
 		}
 	}
 
-	// Test data.
-	y0 = 0;
-	y1 = 0;
 
 	get currentPage() {
 		return this._currentPage;
@@ -392,7 +389,7 @@ class MainComponent {
 	openPlay() {
 		const panel = this.getWaitPlayPanel();
 
-		this.panel = panel.createPlay();
+		this.setPanel(panel.createPlay());
 		this.currentPage = "play";
 
 		deleteWaitingPlayHandler();
@@ -408,7 +405,7 @@ class MainComponent {
 
 		const playPanel = this.getPanel(PlayComponent);
 
-		this.panel = playPanel.createPlayResults(results);
+		this.setPanel(playPanel.createPlayResults(results));
 		this.currentPage = "play-results";
 
 		pushUrlStack(this);
@@ -418,7 +415,7 @@ class MainComponent {
 		const playPanel = this.getPanel(LocalPlayComponent);
 		return this.withLoading(async panelVisiblePromise => {
 			await panelVisiblePromise;
-			this.panel = playPanel.createPlayResults(results);
+			this.setPanel(playPanel.createPlayResults(results));
 			this.currentPage = "play-results";
 			pushUrlStack(this);
 		});
@@ -490,7 +487,7 @@ class MainComponent {
 	openLeaderboard() {
 		const panel = new LeaderboardComponent();
 
-		this.panel = panel;
+		this.setPanel(panel);
 		this.currentPage = "leaderboard";
 
 		panel.fetchLeaderboard();
@@ -500,7 +497,7 @@ class MainComponent {
 	openSoloLeaderboard() {
 		const panel = new SoloLeaderboardComponent();
 
-		this.panel = panel;
+		this.setPanel(panel);
 		this.currentPage = "solo-leaderboard";
 
 		panel.fetchRecords();
@@ -510,7 +507,7 @@ class MainComponent {
 	openChangelog() {
 		const panel = new ChangelogsComponent();
 
-		this.panel = panel;
+		this.setPanel(panel);
 		this.currentPage = "changelog";
 
 		pushUrlStack(this);
@@ -519,7 +516,7 @@ class MainComponent {
 	openContact() {
 		const panel = new ContactComponent();
 
-		this.panel = panel;
+		this.setPanel(panel);
 		this.currentPage = "contact";
 
 		pushUrlStack(this);
@@ -1605,14 +1602,14 @@ class ChangelogsComponent {
 }
 
 class ContactComponent {
-	static readonly fragmentName = "changelog";
+	static readonly fragmentName = "contact";
 
 	saveFragment(): Record<string, string> {
 		return {};
 	}
 
 	static openFragment(_: Record<string, string>) {
-		const panel = new ChangelogsComponent();
+		const panel = new ContactComponent();
 		return panel;
 	}
 }
@@ -1641,12 +1638,16 @@ registerFragment(SigninComponent.fragmentName, "signin", SigninComponent.openFra
 registerFragment(SoloPlayResultComponent.fragmentName, "play-solo-results", SoloPlayResultComponent.openFragment);
 registerFragment(LeaderboardComponent.fragmentName, "leaderboard", LeaderboardComponent.openFragment);
 registerFragment(SoloLeaderboardComponent.fragmentName, "solo-leaderboard", SoloLeaderboardComponent.openFragment);
+registerFragment(ChangelogsComponent.fragmentName, "changelog", ChangelogsComponent.openFragment);
+registerFragment(ContactComponent.fragmentName, "contact", ContactComponent.openFragment);
 
 /** One entry of the in-memory navigation stack (for panels that can't be serialized). */
 interface StackEntry {
 	page: string;
 	panel: Panel;
 }
+
+
 
 class UrlFragmentManager {
 	/** Non-serializable panels kept alive so we can navigate back/forward to them. */
@@ -1795,13 +1796,13 @@ _internalDom = dom;
 
 export function initDom() {
 	document.addEventListener("alpine:init", () => {
-		Alpine.data("main", () => dom);
+		// Remplacer : Alpine.data("main", () => dom);
+		Alpine.data("main", () => Object.create(dom));
 	});
 
 	window.Alpine = Alpine;
 	window.dom = dom;
 
 	Alpine.start();
-
 	urlFragmentManager.init();
 }

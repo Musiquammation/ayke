@@ -8,7 +8,6 @@
 		<link rel="icon" href="favicon.ico">
 	</head>
 	<body>
-
 		<div id="main" x-data="main">
 			<template x-if="uses('home')">
 				<div id="home-page" class="page" x-data="{ ...panel, menuOpen: false }">
@@ -83,7 +82,7 @@
 					</div>
 
 					<!-- Main game section connected to the panel -->
-					<section x-data="panel">
+					<section x-data="Object.create(panel)">
 						<template x-for="category in games" :key="category.category">
 							<div>
 								<h3 x-text="category.category"></h3>
@@ -116,7 +115,7 @@
 			</template>
 
 			<template x-if="uses('game-panel')">
-				<div id="game-panel-page" class="page game-screen" x-data="panel">
+				<div id="game-panel-page" class="page game-screen" x-data="Object.create(panel)">
 					<!-- Dynamic game icon background -->
 					<div class="background" :style="`background-image: url(${getImageSrc(gamemode)})`"></div>
 					<div class="background-overlay"></div>
@@ -448,7 +447,7 @@
 			</template>
 
 			<template x-if="uses('play-results')">
-				<div id="play-results-page" class="page" x-data="panel">
+				<div id="play-results-page" class="page" x-data="Object.create(panel)">
 					<div class="results-container">
 						<!-- Iterate over each player score and its index to determine the ranking -->
 						<template x-for="(score, index) in panel.results.scores" :key="score.identifier">
