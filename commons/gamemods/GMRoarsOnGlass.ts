@@ -133,6 +133,14 @@ class ClientData {
 	prevX = 0;
 	prevY = 0;
 	prevRoar = false;
+
+	private clientWasDead = false;
+	private deathTime = performance.now();
+	private youOpacity = 1;
+
+	static readonly YOU_AFTER_DEATH = 5000;
+	static readonly FADE_SPEED = 0.08;
+
 	readonly html: HTMLDivElement;
 	readonly time: HTMLDivElement;
 	readonly redScore: HTMLDivElement;
@@ -141,34 +149,86 @@ class ClientData {
 	constructor() {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-roarsOnGlass-root");
+
 		this.time = document.createElement("div");
 		this.time.classList.add("game-roarsOnGlass-time");
+
 		const scores = document.createElement("div");
 		scores.classList.add("game-roarsOnGlass-scores");
+
 		this.redScore = document.createElement("div");
 		this.blueScore = document.createElement("div");
+
 		this.redScore.classList.add("game-roarsOnGlass-red-score");
 		this.blueScore.classList.add("game-roarsOnGlass-blue-score");
+
 		const tiret = document.createElement("div");
 		tiret.textContent = "-";
+
 		scores.appendChild(this.redScore);
 		scores.appendChild(tiret);
 		scores.appendChild(this.blueScore);
+
 		this.html.appendChild(scores);
 		this.html.appendChild(this.time);
 	}
+
 	static showTime(time: number) {
 		const minutes = Math.floor(time / 60);
 		const seconds = (time % 60).toFixed(1);
+
 		return `${minutes}:${seconds.padStart(4, "0")}`;
 	}
+
 	update(game: GMRoarsOnGlass, playerIdx: number) {
 		if (game.time < 60) {
 			this.time.innerText = ClientData.showTime(game.time);
 		}
-		this.redScore.innerText = String(game.redScore).padStart(2, "0");
-		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
+
+		this.redScore.innerText =
+			String(game.redScore).padStart(2, "0");
+
+		this.blueScore.innerText =
+			String(game.blueScore).padStart(2, "0");
+
 		const player = game.players[playerIdx];
+
+		// Detect the moment the local player dies.
+		if (this.clientWasDead && !player.isAlive()) {
+			this.deathTime = performance.now();
+		}
+
+		this.clientWasDead = player.isAlive();
+	}
+
+	getYouAlpha(
+		game: GMRoarsOnGlass,
+		playerIdx: number
+	): number {
+		const player = game.players[playerIdx];
+
+		let shouldShow;
+		if (player.isAlive()) {
+			shouldShow = (
+				performance.now() - this.deathTime <= ClientData.YOU_AFTER_DEATH
+			);
+		} else {
+			shouldShow = false;
+		}
+
+
+		if (shouldShow) {
+			this.youOpacity = Math.min(1, this.youOpacity + ClientData.FADE_SPEED);
+		} else {
+			this.youOpacity = Math.max(0, this.youOpacity - ClientData.FADE_SPEED);
+		}
+
+		return ClientData.animateOpacity(this.youOpacity);
+	}
+
+	static animateOpacity(x: number): number {
+		const k = 5;
+		return (1 - Math.exp(-k * x)) / (1 - Math.exp(-k));
 	}
 }
 
@@ -1011,6 +1071,40 @@ export class GMRoarsOnGlass extends GameMode {
 				);
 				ctx.stroke();
 			}
+
+			ctx.restore();
+		}
+
+
+		const youAlpha = data.getYouAlpha(this, playerIdx);
+		if (youAlpha > 0) {
+			const p = this.players[playerIdx];
+			ctx.save();
+
+			ctx.globalAlpha = youAlpha;
+
+			ctx.font = "bold 50px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "bottom";
+
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = "#333";
+			ctx.lineWidth = 8;
+
+			const labelY =
+				p.y - PLAYER_SIZE / 2 - 12;
+
+			ctx.strokeText(
+				"You",
+				p.x,
+				labelY
+			);
+
+			ctx.fillText(
+				"You",
+				p.x,
+				labelY
+			);
 
 			ctx.restore();
 		}

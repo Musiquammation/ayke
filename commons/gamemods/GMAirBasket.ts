@@ -623,7 +623,6 @@ class ClientData {
 			this.youOpacity = Math.max(0, this.youOpacity - ClientData.FADE_SPEED);
 		}
 
-		console.log(ClientData.animateOpacity(this.youOpacity), this.youOpacity);
 		return ClientData.animateOpacity(this.youOpacity);
 	}
 
