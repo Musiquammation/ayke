@@ -1,6 +1,8 @@
+import { getLogger } from "../commons/ILogger";
 import { Connection } from "./Connection";
 import { matchmaking } from "./Matchmaking";
 import { roomHandler } from "./RoomHandler";
+
 
 class ConnectedUsersInfoHandler {
 	private sharedMessage: ArrayBuffer | null = null;
