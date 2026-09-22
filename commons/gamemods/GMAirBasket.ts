@@ -1277,6 +1277,14 @@ export class GMAirBasket extends GameMode {
 		'skin-joe': getTexturePath('joe')
 	};
 
+	static readonly EXPLAINATION_SLIDES = [
+		"0.gif",
+		"1.png",
+		"2.png",
+		"3.png",
+		"4.png"
+	];
+
 
 	override init(): void {
 		

@@ -332,6 +332,13 @@ export class GMSuperTicTacToe extends GameMode {
 	// drawn procedurally with canvas primitives, so no textures are loaded.
 	static readonly TEXTURES = {};
 
+	static readonly EXPLAINATION_SLIDES = [
+		"0.png",
+		"1.png",
+		"2.png",
+		"3.png"
+	];
+
 	override init(): void {
 		// Nothing to set up beyond what the constructor already initializes:
 		// the board starts empty, red plays first, and no sub-grid is forced.
