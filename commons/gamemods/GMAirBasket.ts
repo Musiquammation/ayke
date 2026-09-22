@@ -1369,10 +1369,6 @@ export class GMAirBasket extends GameMode {
 	}
 
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
-		if (this.timeStep <= 1) {
-			dt *= 100;
-		}
-
 		// Time
 		this.time -= dt;
 		if (this.time <= 0) {
