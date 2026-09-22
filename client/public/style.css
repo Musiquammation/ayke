@@ -258,7 +258,7 @@ button.selected:hover {
 	background-size: 2000px 2000px;
 	background-repeat: repeat;
 
-	opacity: 0.8;
+	opacity: 0.3;
 
 	pointer-events: none;
 }
