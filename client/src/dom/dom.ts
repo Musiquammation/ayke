@@ -565,7 +565,7 @@ class GamePanelComponent {
 	panelView: "main" | "tutorial" | "options" = "main";
 
 	// --- Explanation slides ---
-	currentExplanationSlide = 0;
+	currentExplanationSlide = -1;
 	private explanationPointerStartX: number | null = null;
 
 	// --- Trophy road state ---
@@ -598,7 +598,7 @@ class GamePanelComponent {
 
 	// Opens the appropriate How To Play screen.
 	howToPlay() {
-		if (this.explanationSlides > 0) {
+		if (this.explanationSlides) {
 			this.currentExplanationSlide = 0;
 			this.panelView = "tutorial";
 			return;
@@ -619,7 +619,8 @@ class GamePanelComponent {
 
 	// Returns the path of the current explanation slide.
 	get explanationSlideSrc() {
-		return `${window.IMG_ROOT_PATH}/assets/games/${this.gamemode}/explainationSlides/${this.currentExplanationSlide}.png`;
+		if (this.explanationSlides === null) {return null;}
+		return `${window.IMG_ROOT_PATH}/assets/games/${this.gamemode}/explainationSlides/${this.explanationSlides[this.currentExplanationSlide]}`;
 	}
 
 	// Moves to the previous explanation slide.
@@ -631,7 +632,10 @@ class GamePanelComponent {
 
 	// Moves to the next explanation slide.
 	nextExplanationSlide() {
-		if (this.currentExplanationSlide >= this.explanationSlides - 1) return;
+		if (this.explanationSlides === null)
+			return 0;
+
+		if (this.currentExplanationSlide >= this.explanationSlides.length - 1) return;
 
 		this.currentExplanationSlide++;
 	}

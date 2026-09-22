@@ -296,7 +296,7 @@
 								<h2>How to play</h2>
 
 								<span
-									x-text="`${currentExplanationSlide + 1} / ${explanationSlides}`"
+									x-text="`${currentExplanationSlide + 1} / ${explanationSlides.length}`"
 								></span>
 							</div>
 
@@ -313,9 +313,11 @@
 									type="button"
 									aria-label="Previous slide"
 									@click.stop="previousExplanationSlide()"
-									:disabled="currentExplanationSlide === 0"
+									:disabled="currentExplanationSlide <= 0"
 								>
-									‹
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<path d="M15 4L7 12L15 20" />
+									</svg>
 								</button>
 
 
@@ -332,9 +334,11 @@
 									type="button"
 									aria-label="Next slide"
 									@click.stop="nextExplanationSlide()"
-									:disabled="currentExplanationSlide === explanationSlides - 1"
+									:disabled="currentExplanationSlide >= explanationSlides.length - 1"
 								>
-									›
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<path d="M9 4L17 12L9 20" />
+									</svg>
 								</button>
 
 							</div>

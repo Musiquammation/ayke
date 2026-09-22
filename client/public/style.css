@@ -1590,7 +1590,6 @@ button.selected:hover {
 	pointer-events: none;
 }
 
-
 /* ============================================================
    Explanation Navigation Arrows
    ============================================================ */
@@ -1603,8 +1602,8 @@ button.selected:hover {
 
 	transform: translateY(-50%);
 
-	width: clamp(2.4em, 8vw, 3.2em);
-	height: clamp(2.4em, 8vw, 3.2em);
+	width: clamp(2rem, 6vw, 2.8rem);
+	height: clamp(2rem, 6vw, 2.8rem);
 
 	display: flex;
 	align-items: center;
@@ -1615,40 +1614,61 @@ button.selected:hover {
 	border: none;
 	border-radius: 50%;
 
-	background: rgba(0, 0, 0, 0.55);
-	color: white;
+	background: rgba(0, 0, 0, 0.3);
 
-	font-size: clamp(1.8rem, 6vw, 2.5rem);
-	font-weight: 400;
-	line-height: 1;
+	color: white;
 
 	cursor: pointer;
 
-	box-shadow: 0 0.2em 0.6em rgba(0, 0, 0, 0.25);
+	transition:
+		background 0.15s ease,
+		transform 0.15s ease,
+		opacity 0.15s ease;
+
+	box-shadow: 0 0.15em 0.4em rgba(0, 0, 0, 0.15);
+}
+
+
+#game-panel-page .explanation-arrow svg {
+	width: 55%;
+	height: 55%;
+
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+
+	pointer-events: none;
 }
 
 
 #game-panel-page .explanation-arrow:hover:not(:disabled) {
-	background: rgba(0, 0, 0, 0.75);
+	background: rgba(0, 0, 0, 0.55);
 
-	border-color: transparent;
+	transform: translateY(-50%) scale(1.08);
+}
+
+
+#game-panel-page .explanation-arrow:active:not(:disabled) {
+	transform: translateY(-50%) scale(0.95);
 }
 
 
 #game-panel-page .explanation-arrow:disabled {
-	opacity: 0.2;
+	opacity: 0.15;
+	cursor: default;
 }
 
 
 #game-panel-page .explanation-arrow-left {
-	left: 0.5em;
+	left: 0.4em;
 }
 
 
 #game-panel-page .explanation-arrow-right {
-	right: 0.5em;
+	right: 0.4em;
 }
-
 
 /* ============================================================
    Explanation Actions
