@@ -1369,6 +1369,10 @@ export class GMAirBasket extends GameMode {
 	}
 
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
+		if (this.timeStep <= 1) {
+			dt *= 100;
+		}
+
 		// Time
 		this.time -= dt;
 		if (this.time <= 0) {
@@ -1819,7 +1823,9 @@ export class GMAirBasket extends GameMode {
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
 		_data: any,
-		_imageLoader: ImageLoader
+		_imageLoader: ImageLoader,
+		addCamZ: number,
+		dt: number
 	) {
 		const imageLoader = _imageLoader.getFolder('airbasket');
 
@@ -1854,11 +1860,14 @@ export class GMAirBasket extends GameMode {
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
 		// Center the camera on the current player
-		const cameraCoords = data.camera.getCoords();
-		ctx.save();
-		ctx.translate(WIDTH / 2, HEIGHT / 2);
-		ctx.scale(Camera.SCALE, Camera.SCALE);
-		ctx.translate(-cameraCoords.x, -cameraCoords.y);
+		{
+			const cameraCoords = data.camera.getCoords();
+			ctx.save();
+			ctx.translate(WIDTH / 2, HEIGHT / 2);
+			const scale = Camera.SCALE * (1 - addCamZ * 0.3);
+			ctx.scale(scale, scale);
+			ctx.translate(-cameraCoords.x, -cameraCoords.y);
+		}
 
 		// Background
 		for (let y = 0; y < 3; y++) {

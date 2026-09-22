@@ -37,7 +37,7 @@ interface SoloGamePanelData {
 }
 
 
-interface PlayResults {
+export interface PlayResults {
 	results: number[][];
 	teamEqualities: number[];
 	playerEqualities: number[];
@@ -403,24 +403,25 @@ class MainComponent {
 	 * Transition to the play-results page using the current PlayComponent
 	 * context to preserve pseudos and player metadata.
 	 */
-	openPlayResults(results: PlayResults) {
+	async openPlayResults(results: PlayResults) {
+		await deleteGameHandler();
+
 		const playPanel = this.getPanel(PlayComponent);
 
 		this.panel = playPanel.createPlayResults(results);
 		this.currentPage = "play-results";
 
-		deleteGameHandler();
 		pushUrlStack(this);
 	}
 
 	openLocalPlayResults(results: FinishGame) {
 		const playPanel = this.getPanel(LocalPlayComponent);
-
-		this.panel = playPanel.createPlayResults(results);
-		this.currentPage = "play-results";
-
-		deleteGameHandler();
-		pushUrlStack(this);
+		return this.withLoading(async panelVisiblePromise => {
+			await panelVisiblePromise;
+			this.panel = playPanel.createPlayResults(results);
+			this.currentPage = "play-results";
+			pushUrlStack(this);
+		});
 	}
 
 	openSoloComponent(result: number) {
