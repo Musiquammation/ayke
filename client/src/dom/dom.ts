@@ -465,7 +465,6 @@ class MainComponent {
 		);
 
 		await h.start();
-		alert("ok");
 
 		pushUrlStack(this);
 	}

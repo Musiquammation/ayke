@@ -496,14 +496,21 @@ class ClientData {
 
 	readonly time: HTMLDivElement;
 	readonly period: HTMLDivElement;
-	
+
 	readonly redScore: HTMLDivElement;
 	readonly blueScore: HTMLDivElement;
 
 	readonly camera = new Camera();
 
 	private clientWasDead = true;
+	private deathTime = performance.now();
 	private lastDirs: Record<number, boolean> = {};
+	private youOpacity = 1;
+
+	static readonly YOU_AFTER_DEATH = 5000;
+	static readonly YOU_NEAR_MATE_DISTANCE = 600;
+	static readonly FADE_SPEED = 0.08;
+
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -545,7 +552,7 @@ class ClientData {
 	}
 
 	update(game: GMAirBasket, playerIdx: number) {
-		this.time.innerText = 
+		this.time.innerText =
 			ClientData.showTime(game.time);
 
 		this.period.innerText =
@@ -562,11 +569,69 @@ class ClientData {
 		const player = game.players[playerIdx];
 		if (this.clientWasDead && player.alive < 0) {
 			this.camera.teleport(player.x, player.y)
+			this.deathTime = performance.now();
 		}
 		this.clientWasDead = (player.alive >= 0);
 
 		this.camera.update(player.x, player.y, 1/60);
 	}
+
+	getYouAlpha(
+		game: GMAirBasket,
+		playerIdx: number
+	): number {
+		const player = game.players[playerIdx];
+
+		let shouldShow = false;
+
+		// Show after 5 seconds of death
+		if (
+			player.alive < 0 &&
+			performance.now() - this.deathTime <= ClientData.YOU_AFTER_DEATH
+		) {
+			shouldShow = true;
+		}
+
+		// Show when close to a teammate
+		for (let i = 0; i < game.players.length; i++) {
+			if (i === playerIdx) {
+				continue;
+			}
+
+			const mate = game.players[i];
+
+			if (mate.team !== player.team || mate.alive >= 0) {
+				continue;
+			}
+
+			const dx = mate.x - player.x;
+			const dy = mate.y - player.y;
+
+			if (
+				dx * dx + dy * dy <=
+				ClientData.YOU_NEAR_MATE_DISTANCE *
+				ClientData.YOU_NEAR_MATE_DISTANCE
+			) {
+				shouldShow = true;
+				break;
+			}
+		}
+
+		if (shouldShow) {
+			this.youOpacity = Math.min(1, this.youOpacity + ClientData.FADE_SPEED);
+		} else {
+			this.youOpacity = Math.max(0, this.youOpacity - ClientData.FADE_SPEED);
+		}
+
+		console.log(ClientData.animateOpacity(this.youOpacity), this.youOpacity);
+		return ClientData.animateOpacity(this.youOpacity);
+	}
+
+	static animateOpacity(x: number): number {
+		const k = 5;
+		return (1 - Math.exp(-k * x)) / (1 - Math.exp(-k));
+	}
+
 
 	getPlayerTextureCode(
 		grabbing: boolean,
@@ -1815,17 +1880,6 @@ export class GMAirBasket extends GameMode {
 
 		// Draw players
 		for (const [idx, p] of this.players.entries()) {
-			if (idx === playerIdx) {
-				ctx.fillStyle = "#0f0";
-				const r = 1.3;
-				ctx.fillRect(
-					p.x - r*Player.WIDTH/2,
-					p.y - r*Player.HEIGHT/2,
-					r*Player.WIDTH,
-					r*Player.HEIGHT
-				);
-			}
-
 			ctx.fillStyle = p.team;
 
 			let [tx, ty, dir] = data.getPlayerTextureCode(
@@ -1877,6 +1931,40 @@ export class GMAirBasket extends GameMode {
 				);
 			}
 
+			ctx.restore();
+		}
+
+		const youAlpha = data.getYouAlpha(this, playerIdx);
+
+		if (youAlpha > 0) {
+			const p = this.players[playerIdx];
+
+			ctx.save();
+
+			ctx.globalAlpha = youAlpha;
+
+			ctx.font = "bold 50px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "bottom";
+
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = "#333";
+			ctx.lineWidth = 8;
+
+			const labelY =
+				p.y - Player.HEIGHT / 2 - 12;
+
+			ctx.strokeText(
+				"You",
+				p.x,
+				labelY
+			);
+
+			ctx.fillText(
+				"You",
+				p.x,
+				labelY
+			);
 
 			ctx.restore();
 		}
