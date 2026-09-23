@@ -13,7 +13,6 @@ import { evalWonTrophees } from "./evalWonTrophees";
 import { database } from "./Database";
 import { getLogger } from "../commons/ILogger";
 import { Bot, generateBot } from "../commons/Bot";
-import Prando from "prando";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -70,7 +69,6 @@ export class Room {
 	private botsInstant: number = 0;
 	private readonly inputs = new Array<Fields>();
 	private finished = false;
-	private readonly prando = new Prando(performance.now());
 
 	constructor(
 		public readonly gamemodeId: string,
@@ -215,7 +213,7 @@ export class Room {
 				lastDate,
 				nextDate,
 				this.inputs as EmulationInput[],
-				() => this.prando.next(),
+				Math.random,
 				preprocess,
 				f => {finish = f;}
 			);
