@@ -659,7 +659,9 @@ class Matchmaking {
 
 		logger.info(
 			`Starting game #${gameIdentifier} for mode '${waitingRoom.gamemode}' ` +
-			`Receive [${waitingRoom.players.map(i => i.pseudo)}] ` +
+			`Receive ${JSON.stringify(
+				waitingRoom.players.map(i => i.pseudo)
+			)} ` +
 			`(of ${waitingRoom.excepted}) players`
 		);
 
