@@ -102,6 +102,8 @@ message State {
 
 	bool gameOver = 16;
 	bool thrownThisTurn = 17;
+
+	float phaseTimer = 18;
 }
 
 

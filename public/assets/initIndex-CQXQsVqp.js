@@ -10267,6 +10267,122 @@ var collisions;
 		return false;
 	}
 	_collisions.RotatedRectRoundedRect = RotatedRectRoundedRect;
+	function RotatedRoundedRectCircle(rect, circle) {
+		const dx = circle.x - rect.x;
+		const dy = circle.y - rect.y;
+		const cos = Math.cos(-rect.a);
+		const sin = Math.sin(-rect.a);
+		const localX = dx * cos - dy * sin;
+		const localY = dx * sin + dy * cos;
+		return RoundedRectCircle({
+			x: 0,
+			y: 0,
+			w: rect.w,
+			h: rect.h,
+			radius: rect.radius
+		}, {
+			x: localX,
+			y: localY,
+			r: circle.r
+		});
+	}
+	_collisions.RotatedRoundedRectCircle = RotatedRoundedRectCircle;
+	function RotatedRoundedRectRotatedRoundedRect(a, b) {
+		const innerWA = Math.max(0, a.w / 2 - a.radius);
+		const innerHA = Math.max(0, a.h / 2 - a.radius);
+		const cosA = Math.cos(a.a);
+		const sinA = Math.sin(a.a);
+		const subShapesA = [];
+		if (innerWA > 0) subShapesA.push({
+			x: a.x,
+			y: a.y,
+			w: innerWA * 2,
+			h: a.h,
+			angle: a.a
+		});
+		if (innerHA > 0) subShapesA.push({
+			x: a.x,
+			y: a.y,
+			w: a.w,
+			h: innerHA * 2,
+			angle: a.a
+		});
+		const cornerOffsetsA = [
+			{
+				x: -innerWA,
+				y: -innerHA
+			},
+			{
+				x: innerWA,
+				y: -innerHA
+			},
+			{
+				x: -innerWA,
+				y: innerHA
+			},
+			{
+				x: innerWA,
+				y: innerHA
+			}
+		];
+		for (const offset of cornerOffsetsA) {
+			const worldX = a.x + (offset.x * cosA - offset.y * sinA);
+			const worldY = a.y + (offset.x * sinA + offset.y * cosA);
+			subShapesA.push({
+				x: worldX,
+				y: worldY,
+				r: a.radius
+			});
+		}
+		for (const shapeA of subShapesA) if ("r" in shapeA) {
+			if (RotatedRoundedRectCircle(b, shapeA)) return true;
+		} else if (RotatedRectRotatedRoundedRect(shapeA, b)) return true;
+		return false;
+	}
+	_collisions.RotatedRoundedRectRotatedRoundedRect = RotatedRoundedRectRotatedRoundedRect;
+	function RotatedRectRotatedRoundedRect(rect, rounded) {
+		const dx = rect.x - rounded.x;
+		const dy = rect.y - rounded.y;
+		const cos = Math.cos(-rounded.a);
+		const sin = Math.sin(-rounded.a);
+		const localX = dx * cos - dy * sin;
+		const localY = dx * sin + dy * cos;
+		const localAngle = rect.angle - rounded.a;
+		return RotatedRectRoundedRect({
+			x: localX,
+			y: localY,
+			w: rect.w,
+			h: rect.h,
+			angle: localAngle
+		}, {
+			x: 0,
+			y: 0,
+			w: rounded.w,
+			h: rounded.h,
+			radius: rounded.radius
+		});
+	}
+	_collisions.RotatedRectRotatedRoundedRect = RotatedRectRotatedRoundedRect;
+	function RotatedRoundedRectRect(rotatedRounded, rect) {
+		const dx = rect.x - rotatedRounded.x;
+		const dy = rect.y - rotatedRounded.y;
+		const cos = Math.cos(-rotatedRounded.a);
+		const sin = Math.sin(-rotatedRounded.a);
+		return RotatedRectRoundedRect({
+			x: dx * cos - dy * sin,
+			y: dx * sin + dy * cos,
+			w: rect.w,
+			h: rect.h,
+			angle: -rotatedRounded.a
+		}, {
+			x: 0,
+			y: 0,
+			w: rotatedRounded.w,
+			h: rotatedRounded.h,
+			radius: rotatedRounded.radius
+		});
+	}
+	_collisions.RotatedRoundedRectRect = RotatedRoundedRectRect;
 })(collisions || (collisions = {}));
 //#endregion
 //#region commons/util/decodeFullMessage.ts
@@ -10658,7 +10774,12 @@ var ClientData$9 = class ClientData$9 {
 	blueScore;
 	camera = new Camera$3();
 	clientWasDead = true;
+	deathTime = performance.now();
 	lastDirs = {};
+	youOpacity = 1;
+	static YOU_AFTER_DEATH = 5e3;
+	static YOU_NEAR_MATE_DISTANCE = 600;
+	static FADE_SPEED = .08;
 	constructor() {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-airbasket-root");
@@ -10693,9 +10814,34 @@ var ClientData$9 = class ClientData$9 {
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
 		const player = game.players[playerIdx];
-		if (this.clientWasDead && player.alive < 0) this.camera.teleport(player.x, player.y);
+		if (this.clientWasDead && player.alive < 0) {
+			this.camera.teleport(player.x, player.y);
+			this.deathTime = performance.now();
+		}
 		this.clientWasDead = player.alive >= 0;
 		this.camera.update(player.x, player.y, 1 / 60);
+	}
+	getYouAlpha(game, playerIdx) {
+		const player = game.players[playerIdx];
+		let shouldShow = false;
+		if (player.alive < 0 && performance.now() - this.deathTime <= ClientData$9.YOU_AFTER_DEATH) shouldShow = true;
+		for (let i = 0; i < game.players.length; i++) {
+			if (i === playerIdx) continue;
+			const mate = game.players[i];
+			if (mate.team !== player.team || mate.alive >= 0) continue;
+			const dx = mate.x - player.x;
+			const dy = mate.y - player.y;
+			if (dx * dx + dy * dy <= ClientData$9.YOU_NEAR_MATE_DISTANCE * ClientData$9.YOU_NEAR_MATE_DISTANCE) {
+				shouldShow = true;
+				break;
+			}
+		}
+		if (shouldShow) this.youOpacity = Math.min(1, this.youOpacity + ClientData$9.FADE_SPEED);
+		else this.youOpacity = Math.max(0, this.youOpacity - ClientData$9.FADE_SPEED);
+		return ClientData$9.animateOpacity(this.youOpacity);
+	}
+	static animateOpacity(x) {
+		return (1 - Math.exp(-5 * x)) / (1 - Math.exp(-5));
 	}
 	getPlayerTextureCode(grabbing, player, idx) {
 		let first;
@@ -11107,6 +11253,13 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		"sky": "/assets/games/airbasket/sky.png",
 		"skin-joe": getTexturePath("joe")
 	};
+	static EXPLAINATION_SLIDES = [
+		"0.gif",
+		"1.png",
+		"2.png",
+		"3.png",
+		"4.png"
+	];
 	init() {}
 	getBotIds(count) {
 		return Array.from({ length: count }, () => 0);
@@ -11402,7 +11555,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		ctx.lineWidth = 2;
 		ctx.strokeRect(MINIMAP_X$1, MINIMAP_Y$1, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 	}
-	draw(ctx, playerIdx, _data, _imageLoader) {
+	draw(ctx, playerIdx, _data, _imageLoader, addCamZ, dt) {
 		const imageLoader = _imageLoader.getFolder("airbasket");
 		const data = _data;
 		if (data.firstFrame) {
@@ -11422,22 +11575,20 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#333";
 		ctx.fillRect(0, 0, WIDTH$6, HEIGHT$6);
-		const cameraCoords = data.camera.getCoords();
-		ctx.save();
-		ctx.translate(WIDTH$6 / 2, HEIGHT$6 / 2);
-		ctx.scale(Camera$3.SCALE, Camera$3.SCALE);
-		ctx.translate(-cameraCoords.x, -cameraCoords.y);
+		{
+			const cameraCoords = data.camera.getCoords();
+			ctx.save();
+			ctx.translate(WIDTH$6 / 2, HEIGHT$6 / 2);
+			const scale = Camera$3.SCALE * (1 - addCamZ * .3);
+			ctx.scale(scale, scale);
+			ctx.translate(-cameraCoords.x, -cameraCoords.y);
+		}
 		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) ctx.drawImage(imageLoader.get("sky", y * 5 + x), (x - 2.5) * WIDTH$6, (y - 1.5) * HEIGHT$6, WIDTH$6, HEIGHT$6);
 		for (const bucket of this.buckets) {
 			const b = "bucket-" + (bucket.team ?? "mid");
 			ctx.drawImage(imageLoader.get(b), bucket.x - Bucket.SIZE / 2, bucket.y - Bucket.SIZE / 2, Bucket.SIZE, Bucket.SIZE);
 		}
 		for (const [idx, p] of this.players.entries()) {
-			if (idx === playerIdx) {
-				ctx.fillStyle = "#0f0";
-				const r = 1.3;
-				ctx.fillRect(p.x - r * Player$8.WIDTH / 2, p.y - r * Player$8.HEIGHT / 2, r * Player$8.WIDTH, r * Player$8.HEIGHT);
-			}
 			ctx.fillStyle = p.team;
 			let [tx, ty, dir] = data.getPlayerTextureCode(this.ball.grabber === idx, p, idx);
 			if (p.team === "red") tx += 3;
@@ -11451,6 +11602,22 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 				ctx.scale(-1, 1);
 				ctx.drawImage(playerTexture, tx * w, ty * h, w, h, 0, 0, width, Player$8.HEIGHT);
 			} else ctx.drawImage(playerTexture, tx * w, ty * h, w, h, p.x - width / 2, p.y - Player$8.HEIGHT / 2, width, Player$8.HEIGHT);
+			ctx.restore();
+		}
+		const youAlpha = data.getYouAlpha(this, playerIdx);
+		if (youAlpha > 0) {
+			const p = this.players[playerIdx];
+			ctx.save();
+			ctx.globalAlpha = youAlpha;
+			ctx.font = "bold 50px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "bottom";
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = "#333";
+			ctx.lineWidth = 8;
+			const labelY = p.y - Player$8.HEIGHT / 2 - 12;
+			ctx.strokeText("You", p.x, labelY);
+			ctx.fillText("You", p.x, labelY);
 			ctx.restore();
 		}
 		if (this.ball.grabber < 0) {
@@ -11587,6 +11754,7 @@ var Player$7 = class {
 	roarTimer = 0;
 	roarCooldown = 0;
 	pushTimer = 0;
+	prevRotation = 0;
 	constructor(x, y) {
 		this.x = x;
 		this.y = y;
@@ -11603,6 +11771,7 @@ var Player$7 = class {
 		this.roarTimer = 0;
 		this.roarCooldown = 0;
 		this.pushTimer = 0;
+		this.prevRotation = team === "red" ? +Math.PI / 2 : -Math.PI / 2;
 	}
 	isAlive() {
 		return this.alive > 0;
@@ -11618,6 +11787,7 @@ var Player$7 = class {
 		this.roarCooldown = obj.roarCooldown;
 		this.pushTimer = obj.pushTimer;
 		this.team = obj.isRed ? "red" : "blue";
+		this.prevRotation = obj.prevRotation;
 	}
 	save() {
 		return {
@@ -11630,8 +11800,17 @@ var Player$7 = class {
 			roarTimer: this.roarTimer,
 			roarCooldown: this.roarCooldown,
 			pushTimer: this.pushTimer,
+			prevRotation: this.prevRotation,
 			isRed: this.team === "red"
 		};
+	}
+	getRotation() {
+		if (this.pushTimer > 0) return Math.atan2(this.vy, this.vx) + Math.PI;
+		if (this.dirX !== 0 || this.dirY !== 0) {
+			const a = Math.atan2(this.dirY, this.dirX);
+			this.prevRotation = a;
+		}
+		return this.prevRotation;
 	}
 };
 var ClientData$8 = class ClientData$8 {
@@ -11642,6 +11821,11 @@ var ClientData$8 = class ClientData$8 {
 	prevX = 0;
 	prevY = 0;
 	prevRoar = false;
+	clientWasDead = false;
+	deathTime = performance.now();
+	youOpacity = 1;
+	static YOU_AFTER_DEATH = 5e3;
+	static FADE_SPEED = .08;
 	html;
 	time;
 	redScore;
@@ -11672,7 +11856,21 @@ var ClientData$8 = class ClientData$8 {
 		if (game.time < 60) this.time.innerText = ClientData$8.showTime(game.time);
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
-		game.players[playerIdx];
+		const player = game.players[playerIdx];
+		if (this.clientWasDead && !player.isAlive()) this.deathTime = performance.now();
+		this.clientWasDead = player.isAlive();
+	}
+	getYouAlpha(game, playerIdx) {
+		const player = game.players[playerIdx];
+		let shouldShow;
+		if (player.isAlive()) shouldShow = performance.now() - this.deathTime <= ClientData$8.YOU_AFTER_DEATH;
+		else shouldShow = false;
+		if (shouldShow) this.youOpacity = Math.min(1, this.youOpacity + ClientData$8.FADE_SPEED);
+		else this.youOpacity = Math.max(0, this.youOpacity - ClientData$8.FADE_SPEED);
+		return ClientData$8.animateOpacity(this.youOpacity);
+	}
+	static animateOpacity(x) {
+		return (1 - Math.exp(-5 * x)) / (1 - Math.exp(-5));
 	}
 };
 function generateClientDom$8(unlockedSkins) {
@@ -11736,7 +11934,9 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 	}
 	static TEXTURES = {
 		"broken": "/assets/games/roarsOnGlass/broken-glass.svg",
-		"glass": "/assets/games/roarsOnGlass/glass.svg"
+		"glass": "/assets/games/roarsOnGlass/glass.svg",
+		"red-player": "/assets/games/roarsOnGlass/red-player.svg",
+		"blue-player": "/assets/games/roarsOnGlass/blue-player.svg"
 	};
 	initGrid() {
 		this.grid = [];
@@ -11866,6 +12066,9 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		return v;
 	}
 	handlePlayerCollisions() {
+		const halfW = PLAYER_SIZE / 2;
+		const innerW = Math.max(0, 30);
+		const innerH = Math.max(0, 30);
 		for (let i = 0; i < this.players.length; i++) {
 			const a = this.players[i];
 			if (!a.isAlive()) continue;
@@ -11874,39 +12077,82 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 				if (!b.isAlive()) continue;
 				const dx = b.x - a.x;
 				const dy = b.y - a.y;
-				const maxDistance = PLAYER_SIZE;
-				if (Math.abs(dx) >= maxDistance || Math.abs(dy) >= maxDistance) continue;
-				const ax = Math.abs(dx);
-				const ay = Math.abs(dy);
-				const px = Math.max(0, ax - 60);
-				const py = Math.max(0, ay - 60);
-				const dist2 = px * px + py * py;
-				const radius = 40;
-				if (dist2 >= 1600) continue;
-				let nx;
-				let ny;
-				let penetration;
-				if (dist2 === 0) {
-					if (ax > ay) {
-						nx = Math.sign(dx) || 1;
-						ny = 0;
-						penetration = PLAYER_SIZE - ax;
-					} else {
-						nx = 0;
-						ny = Math.sign(dy) || 1;
-						penetration = PLAYER_SIZE - ay;
+				const maxRadius = Math.SQRT2 * halfW;
+				if (dx * dx + dy * dy >= maxRadius * 2 * (maxRadius * 2)) continue;
+				const angleA = a.getRotation();
+				const angleB = b.getRotation();
+				const axX = Math.cos(angleA);
+				const axY = Math.sin(angleA);
+				const ayX = -Math.sin(angleA);
+				const ayY = Math.cos(angleA);
+				const bxX = Math.cos(angleB);
+				const bxY = Math.sin(angleB);
+				const byX = -Math.sin(angleB);
+				const byY = Math.cos(angleB);
+				const axes = [
+					{
+						x: axX,
+						y: axY
+					},
+					{
+						x: ayX,
+						y: ayY
+					},
+					{
+						x: bxX,
+						y: bxY
+					},
+					{
+						x: byX,
+						y: byY
 					}
-				} else {
-					const dist = Math.sqrt(dist2);
-					nx = dx / dist;
-					ny = dy / dist;
-					penetration = radius - dist;
+				];
+				let minOverlap = Infinity;
+				let normalX = 0;
+				let normalY = 0;
+				let separated = false;
+				for (let k = 0; k < axes.length; k++) {
+					const axis = axes[k];
+					const centerDist = Math.abs(dx * axis.x + dy * axis.y);
+					const overlap = innerW * Math.abs(axX * axis.x + axY * axis.y) + innerH * Math.abs(ayX * axis.x + ayY * axis.y) + (innerW * Math.abs(bxX * axis.x + bxY * axis.y) + innerH * Math.abs(byX * axis.x + byY * axis.y)) + 40 - centerDist;
+					if (overlap <= 0) {
+						separated = true;
+						break;
+					}
+					if (overlap < minOverlap) {
+						minOverlap = overlap;
+						const sign = dx * axis.x + dy * axis.y >= 0 ? 1 : -1;
+						normalX = axis.x * sign;
+						normalY = axis.y * sign;
+					}
 				}
-				const correction = penetration / 2;
-				a.x -= nx * correction;
-				a.y -= ny * correction;
-				b.x += nx * correction;
-				b.y += ny * correction;
+				if (separated) continue;
+				const signA_X = dx * axX + dy * axY >= 0 ? 1 : -1;
+				const signA_Y = dx * ayX + dy * ayY >= 0 ? 1 : -1;
+				const cornerA_X = a.x + (axX * innerW * signA_X + ayX * innerH * signA_Y);
+				const cornerA_Y = a.y + (axY * innerW * signA_X + ayY * innerH * signA_Y);
+				const signB_X = -dx * bxX - dy * bxY >= 0 ? 1 : -1;
+				const signB_Y = -dx * byX - dy * byY >= 0 ? 1 : -1;
+				const cornerB_X = b.x + (bxX * innerW * signB_X + byX * innerH * signB_Y);
+				const cornerB_Y = b.y + (bxY * innerW * signB_X + byY * innerH * signB_Y);
+				const cDx = cornerB_X - cornerA_X;
+				const cDy = cornerB_Y - cornerA_Y;
+				const cornerDistSq = cDx * cDx + cDy * cDy;
+				const cornerRadiusSum = 40;
+				if (cornerDistSq > 0 && cornerDistSq < 1600) {
+					const cornerDist = Math.sqrt(cornerDistSq);
+					const cornerOverlap = cornerRadiusSum - cornerDist;
+					if (cornerOverlap < minOverlap) {
+						minOverlap = cornerOverlap;
+						normalX = cDx / cornerDist;
+						normalY = cDy / cornerDist;
+					}
+				}
+				const correction = minOverlap / 2;
+				a.x -= normalX * correction;
+				a.y -= normalY * correction;
+				b.x += normalX * correction;
+				b.y += normalY * correction;
 			}
 		}
 	}
@@ -11928,12 +12174,13 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 				w: TILE_SIZE,
 				h: TILE_SIZE
 			};
-			for (let p of this.players) if (p.isAlive() && collisions.RoundedRectRect({
+			for (let p of this.players) if (p.isAlive() && collisions.RotatedRoundedRectRect({
 				x: p.x,
 				y: p.y,
 				w: PLAYER_SIZE,
 				h: PLAYER_SIZE,
-				radius: PLAYER_ROUND
+				radius: PLAYER_ROUND,
+				a: p.getRotation()
 			}, tileRect)) {
 				touched = true;
 				break;
@@ -11955,12 +12202,13 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 				p.roarTimer = ROAR_CAST_TIME;
 				p.roarCooldown = ROAR_COOLDOWN;
 				for (let e of this.players) if (e !== p && e.team !== p.team && e.isAlive()) {
-					if (collisions.RoundedRectCircle({
+					if (collisions.RotatedRoundedRectCircle({
 						x: e.x,
 						y: e.y,
 						w: PLAYER_SIZE,
 						h: PLAYER_SIZE,
-						radius: PLAYER_ROUND
+						radius: PLAYER_ROUND,
+						a: p.getRotation()
 					}, {
 						x: p.x,
 						y: p.y,
@@ -11992,12 +12240,13 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 						w: TILE_SIZE,
 						h: TILE_SIZE
 					};
-					if (collisions.RoundedRectRect({
+					if (collisions.RotatedRoundedRectRect({
 						x: p.x,
 						y: p.y,
 						w: PLAYER_SIZE,
 						h: PLAYER_SIZE,
-						radius: PLAYER_ROUND
+						radius: PLAYER_ROUND,
+						a: p.getRotation()
 					}, tileRect)) {
 						touchesAnyGlass = true;
 						break;
@@ -12147,30 +12396,50 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			else ctx.fillStyle = `rgba(150, 200, 255, ${alpha})`;
 			ctx.drawImage(cell < 3 ? brokenTexture : glassTexture, (x + GRID_PADDING) * TILE_SIZE + SPACING + dx, (y + GRID_PADDING) * TILE_SIZE + SPACING + dy, 146, 146);
 		}
+		const redPlayer = imageLoader.get("red-player");
+		const bluePlayer = imageLoader.get("blue-player");
 		for (let i = 0; i < this.players.length; i++) {
 			const p = this.players[i];
 			if (!p.isAlive()) continue;
 			const isLocalPlayer = i === playerIdx;
-			const playerColor = p.team === "red" ? "#ff4444" : "#44ff44";
+			p.team;
+			ctx.save();
+			ctx.translate(p.x, p.y);
+			ctx.rotate(p.getRotation());
 			ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
-			this.drawRoundedRect(ctx, p.x + 8, p.y + 8, PLAYER_SIZE, PLAYER_ROUND);
+			this.drawRoundedRect(ctx, 8, 8, PLAYER_SIZE, PLAYER_ROUND);
 			ctx.fill();
-			ctx.fillStyle = playerColor;
-			this.drawRoundedRect(ctx, p.x, p.y, PLAYER_SIZE, PLAYER_ROUND);
-			ctx.fill();
+			ctx.drawImage(p.team === "red" ? redPlayer : bluePlayer, -50, -50, PLAYER_SIZE, PLAYER_SIZE);
 			if (isLocalPlayer) {
 				ctx.strokeStyle = "#ffffff";
 				ctx.lineWidth = 14;
-				this.drawRoundedRect(ctx, p.x, p.y, PLAYER_SIZE, PLAYER_ROUND);
+				this.drawRoundedRect(ctx, 0, 0, PLAYER_SIZE, PLAYER_ROUND);
 				ctx.stroke();
 			}
 			if (p.roarTimer > 0) {
 				ctx.strokeStyle = isLocalPlayer ? "rgba(255, 255, 255, 0.85)" : "rgba(255, 255, 0, 0.5)";
 				ctx.lineWidth = isLocalPlayer ? 14 : 10;
 				ctx.beginPath();
-				ctx.arc(p.x, p.y, ROAR_RADIUS, 0, 2 * Math.PI);
+				ctx.arc(0, 0, ROAR_RADIUS, 0, 2 * Math.PI);
 				ctx.stroke();
 			}
+			ctx.restore();
+		}
+		const youAlpha = data.getYouAlpha(this, playerIdx);
+		if (youAlpha > 0) {
+			const p = this.players[playerIdx];
+			ctx.save();
+			ctx.globalAlpha = youAlpha;
+			ctx.font = "bold 50px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "bottom";
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = "#333";
+			ctx.lineWidth = 8;
+			const labelY = p.y - PLAYER_SIZE / 2 - 12;
+			ctx.strokeText("You", p.x, labelY);
+			ctx.fillText("You", p.x, labelY);
+			ctx.restore();
 		}
 		ctx.restore();
 	}
@@ -12459,6 +12728,12 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 	}
 	static generateClientDom = generateClientDom$7;
 	static TEXTURES = {};
+	static EXPLAINATION_SLIDES = [
+		"0.png",
+		"1.png",
+		"2.png",
+		"3.png"
+	];
 	init() {}
 	getBotIds(count) {
 		return Array.from({ length: count }, () => 0);
@@ -18716,9 +18991,10 @@ var LAST_SURVIVOR_MULTIPLIER = 1.2;
 var WIN_SCORE_LIMIT = 1e4;
 var TOP_OF_LEVEL_BONUS = 5e3;
 var ROUND_END_DELAY = 3;
-var OBSTACLE_CHECK_INTERVAL = .65;
-var OBSTACLE_SPAWN_DELAY = .5;
-var OBSTACLE_SPAWN_CHANCE = .65;
+var OBSTACLE_CHECK_INTERVAL = .3;
+var OBSTACLE_SPAWN_DELAY = .2;
+var OBSTACLE_SPAWN_CHANCE_START = .1;
+var OBSTACLE_SPAWN_CHANCE_RAMP_DURATION = 30;
 var OBSTACLE_SPAWN_YRANGE = 800;
 var OBSTACLE_CLEANUP_MARGIN = SCREEN_HEIGHT;
 var OBSTACLE_GRAVITY = BALL_GRAVITY / 3;
@@ -18736,6 +19012,9 @@ var TEAM_COLORS = {
 	blue: "#4477ff"
 };
 var OBSTACLE_COLOR = "#ff0000";
+function getObstacleSpawnChance(t) {
+	return OBSTACLE_SPAWN_CHANCE_START + .9 * Math.min(1, t / OBSTACLE_SPAWN_CHANCE_RAMP_DURATION);
+}
 /**
 * Maps aiming-phase local time t in [0, TURN_AIM_DURATION] to a game speed
 * multiplier in [SLOW_MOTION_MIN_SPEED, 1]. The curve starts and ends at 1
@@ -19238,6 +19517,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 	currentPlayer = 0;
 	turnPhase = PHASE_WAIT_BEFORE;
 	turnTimer = 0;
+	phaseTimer = 0;
 	/** True once the current turn's ball has already been thrown (prevents double-throw / late auto-throw). */
 	thrownThisTurn = false;
 	roundNumber = 0;
@@ -19336,6 +19616,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		}
 		this.roundStartPlayer = firstRound ? 0 : (this.roundStartPlayer + 1) % this.players.length;
 		this.currentPlayer = this.firstAlivePlayerFrom(this.roundStartPlayer);
+		this.phaseTimer = 0;
 		this.resetBallToStart();
 		this.beginTurn();
 	}
@@ -19401,6 +19682,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 			currentPlayer.askThrow = false;
 		}
 		this.turnTimer += dt;
+		this.phaseTimer += scaledDt;
 		if (this.turnPhase === PHASE_AIMING$1 && this.turnTimer >= 4) {
 			this.turnPhase = PHASE_WAIT_AFTER;
 			if (!this.thrownThisTurn) this.autoThrow();
@@ -19428,6 +19710,11 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		} else if (this.ball.x > limit) {
 			this.ball.x = limit;
 			this.ball.vx = -Math.abs(this.ball.vx);
+		}
+		const ceiling = this.yLevel + SCREEN_HEIGHT / (2 * Camera.SCALE) - BALL_RADIUS;
+		if (this.ball.y > ceiling && this.ball.vy > 0) {
+			this.ball.y = ceiling;
+			this.ball.vy = -Math.abs(this.ball.vy);
 		}
 		if (this.ball.y > this.yLevel) this.yLevel = this.ball.y;
 		if (this.ball.vy <= 0) for (const platform of this.platforms) {
@@ -19458,23 +19745,27 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 			return;
 		}
 		for (const obstacle of this.obstacles) if (obstacle.collidesWithBall(this.ball.x, this.ball.y, BALL_RADIUS)) {
+			this.eliminateCurrentPlayer(obstacle);
+			return;
+		}
+		const yLim = this.yLevel + (BALL_RADIUS - SCREEN_HEIGHT / 2) / Camera.SCALE;
+		if (this.ball.y < yLim) {
+			this.ball.y = yLim;
+			this.ball.vy = Math.abs(this.ball.vy);
 			this.eliminateCurrentPlayer();
 			return;
 		}
-		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT * Camera.SCALE) this.eliminateCurrentPlayer();
 	}
-	/** Removes the current player from the round and resets the ball to the last checkpoint. */
-	eliminateCurrentPlayer() {
+	eliminateCurrentPlayer(killingObstacle) {
 		const player = this.players[this.currentPlayer];
 		if (player.eliminated) return;
 		player.eliminated = true;
 		player.score += this.yLevel;
 		this.lastEliminatedYLevel = this.yLevel;
-		this.ball.x = this.checkpointX;
-		this.ball.y = this.checkpointY;
-		this.ball.vx = 0;
-		this.ball.vy = 0;
-		this.ball.inFlight = false;
+		if (killingObstacle) this.obstacles = this.obstacles.filter((obstacle) => obstacle.id !== killingObstacle.id);
+		player.aiming = false;
+		player.askThrow = false;
+		if (this.countAlive() > 1) this.advanceTurn();
 	}
 	/** Handles a player reaching the top of the level: they win the round instantly. */
 	handleTopOfLevelReached() {
@@ -19488,7 +19779,8 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		this.obstacleSpawnTimer += dt;
 		if (this.obstacleSpawnTimer >= OBSTACLE_CHECK_INTERVAL) {
 			this.obstacleSpawnTimer -= OBSTACLE_CHECK_INTERVAL;
-			if (rng() < OBSTACLE_SPAWN_CHANCE) this.waitingObstacles.push(pickRandomObstacle(this.nextObstacleId++, this.yLevel));
+			const spawnChance = getObstacleSpawnChance(this.phaseTimer);
+			if (rng() < spawnChance) this.waitingObstacles.push(pickRandomObstacle(this.nextObstacleId++, this.yLevel));
 		}
 		const stillWaiting = [];
 		for (const w of this.waitingObstacles) {
@@ -19717,6 +20009,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 			currentPlayer: this.currentPlayer,
 			turnPhase: this.turnPhase,
 			turnTimer: this.turnTimer,
+			phaseTimer: this.phaseTimer,
 			roundNumber: this.roundNumber,
 			roundEnding: this.roundEnding,
 			roundEndTimer: this.roundEndTimer,
@@ -19753,6 +20046,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		this.currentPlayer = obj.currentPlayer;
 		this.turnPhase = obj.turnPhase;
 		this.turnTimer = obj.turnTimer;
+		this.phaseTimer = obj.phaseTimer;
 		this.roundNumber = obj.roundNumber;
 		this.roundEnding = obj.roundEnding;
 		this.roundEndTimer = obj.roundEndTimer;
@@ -21819,6 +22113,8 @@ var gamemods = {
 		dom: GMTest.generateClientDom,
 		textures: GMTest.TEXTURES,
 		name: "Test",
+		description: "A test game mode.",
+		explainationSlides: null,
 		computerOnly: false,
 		tropheesPerPlayer: 2,
 		skins: [],
@@ -21835,7 +22131,9 @@ var gamemods = {
 		dom: GMAirBasket.generateClientDom,
 		textures: GMAirBasket.TEXTURES,
 		name: "Air Basket",
+		description: "Throw the ball into the basket and score more points than your opponents.",
 		tropheesPerPlayer: 20,
+		explainationSlides: GMAirBasket.EXPLAINATION_SLIDES,
 		computerOnly: true,
 		skins: GMAirBasket.SKINS_IDS,
 		collectibles,
@@ -21851,7 +22149,9 @@ var gamemods = {
 		dom: GMTurrets.generateClientDom,
 		textures: GMTurrets.TEXTURES,
 		name: "Turrets",
+		description: "Build and defend your turret while trying to destroy your opponents using items.",
 		tropheesPerPlayer: 20,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -21870,8 +22170,10 @@ var gamemods = {
 		client: GMSuperTicTacToe.createClient,
 		dom: GMSuperTicTacToe.generateClientDom,
 		textures: GMSuperTicTacToe.TEXTURES,
-		name: "Super tic tac toe",
+		name: "Super Tic Tac Toe",
+		description: "Your move determines the board your opponent must play in next. Win 3 boards in a row to win.",
 		tropheesPerPlayer: 3,
+		explainationSlides: GMSuperTicTacToe.EXPLAINATION_SLIDES,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -21886,8 +22188,10 @@ var gamemods = {
 		client: GMRoarsOnGlass.createClient,
 		dom: GMRoarsOnGlass.generateClientDom,
 		textures: GMRoarsOnGlass.TEXTURES,
-		name: "Roars on glass",
+		name: "Roars on Glass",
+		description: "Stay on the glass and don't fall! Roar to push your opponents off.",
 		tropheesPerPlayer: 3,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -21903,7 +22207,9 @@ var gamemods = {
 		dom: GMWoodSword.generateClientDom,
 		textures: GMWoodSword.TEXTURES,
 		name: "Wood Sword",
+		description: "Throw all your on the log",
 		tropheesPerPlayer: 3,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -21918,8 +22224,10 @@ var gamemods = {
 		client: GMPopit.createClient,
 		dom: GMPopit.generateClientDom,
 		textures: GMPopit.TEXTURES,
-		name: "Pop it",
+		name: "Pop It",
+		description: "",
 		tropheesPerPlayer: 3,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -21934,8 +22242,10 @@ var gamemods = {
 		client: GMLavaBall.createClient,
 		dom: GMLavaBall.generateClientDom,
 		textures: GMLavaBall.TEXTURES,
-		name: "Lava ball",
+		name: "Lava Ball",
+		description: "",
 		tropheesPerPlayer: 3,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -21954,8 +22264,10 @@ var gamemods = {
 		client: GMMoveArmy.createClient,
 		dom: GMMoveArmy.generateClientDom,
 		textures: GMMoveArmy.TEXTURES,
-		name: "Move army",
+		name: "Move Army",
+		description: "Command your army, destroy enemy towers, and lead your team to victory.",
 		tropheesPerPlayer: 0,
+		explainationSlides: null,
 		computerOnly: true,
 		skins: [],
 		collectibles: null,
@@ -21971,6 +22283,8 @@ var gamemods = {
 	testSolo: {
 		type: "solo",
 		name: "Test Solo",
+		description: "A test solo game mode.",
+		explainationSlides: null,
 		computerOnly: false,
 		dom: GMTestSolo.generateClientDom,
 		textures: GMTestSolo.TEXTURES,
@@ -27838,6 +28152,10 @@ canvas.oncontextmenu = (e) => {
 };
 var PING_LIMIT = 2e3;
 var pingElement = document.getElementById("game-ping");
+/**
+* Adjusts the canvas resolution and CSS size based on the device pixel ratio
+* to ensure crisp rendering on high-DPI displays.
+*/
 function resizeCanvas() {
 	const dpr = window.devicePixelRatio || 1;
 	const width = window.innerWidth;
@@ -27850,25 +28168,33 @@ function resizeCanvas() {
 }
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
+/**
+* Helper to sort inputs chronologically by timestamp.
+*/
 function compareInputs(a, b) {
 	return a.timestamp - b.timestamp;
 }
-var GameHandler = class {
+var GameHandler = class GameHandler {
 	gamemodeId;
 	gamemode;
 	playerIdx;
 	protocols;
 	clientData;
-	lastEmulation = 0;
 	userInputs = [];
 	gameWidth;
 	gameHeight;
 	prevDraw = null;
 	allowsMobile;
+	lastEmulation = getNow();
+	emulationTime = getNow();
 	lastReceive = getNow();
 	pingSum = 0;
 	pingCount = 0;
 	lastPingUpdate = getNow();
+	finishTimer = null;
+	finishingGame = false;
+	resolveClose = null;
+	interrupted = false;
 	constructor(gamemodeId, gamemode, playerIdx, protocols, clientData) {
 		this.gamemodeId = gamemodeId;
 		this.gamemode = gamemode;
@@ -27885,6 +28211,22 @@ var GameHandler = class {
 		} else this.allowsMobile = false;
 		pingElement.textContent = "";
 	}
+	/**
+	* Computes the local simulated time delta speed factor.
+	* Used to slow down time when the game is finishing.
+	*/
+	static dtSpeedFn(t) {
+		return Math.pow(t + .5, -1.6) / (Math.pow(.5, -1.6) * 1.1) + .1;
+	}
+	/**
+	* Computes the zoom progression based on the finish timer.
+	*/
+	static zoomFn(x) {
+		return Math.sin(x * (Math.PI / 2 / 3));
+	}
+	/**
+	* Evaluates and displays the current network ping to the server.
+	*/
 	updatePing() {
 		const now = getNow();
 		this.pingSum += now - this.lastReceive;
@@ -27898,12 +28240,15 @@ var GameHandler = class {
 			this.lastPingUpdate = now;
 		}
 	}
+	/**
+	* Handles data packets received from the server.
+	*/
 	receive(gdata) {
 		this.updatePing();
 		const msg = decodeFullMessage(this.protocols.ServerMessage.decode(gdata));
 		this.gamemode.load(msg.state);
 		const now = getNow();
-		this.lastEmulation = now;
+		if (this.finishTimer === null) this.emulationTime = now;
 		const inputs = mergeSortedArrays(msg.inputs.map((i) => ({
 			...i.data,
 			player: i.player
@@ -27911,7 +28256,7 @@ var GameHandler = class {
 			...i,
 			player: this.playerIdx
 		})), compareInputs);
-		this.gamemode.emulate(msg.timestamp, now, inputs, null);
+		this.gamemode.emulate(msg.timestamp, this.emulationTime, inputs, null);
 		const output = this.protocols.ClientMessage.encode({
 			timestamp: now,
 			inputs: this.userInputs
@@ -27919,7 +28264,10 @@ var GameHandler = class {
 		this.userInputs.length = 0;
 		return output;
 	}
-	draw(dt) {
+	/**
+	* Renders the current game frame on the canvas.
+	*/
+	draw(dt, addCamZ) {
 		const scaleX = innerWidth / this.gameWidth;
 		const scaleY = innerHeight / this.gameHeight;
 		const scale = Math.min(scaleX, scaleY);
@@ -27929,7 +28277,7 @@ var GameHandler = class {
 		ctx$2.clearRect(0, 0, innerWidth, innerHeight);
 		ctx$2.translate(offsetX, offsetY);
 		ctx$2.scale(scale, scale);
-		this.gamemode.draw(ctx$2, this.playerIdx, this.clientData, imageLoader, dt);
+		this.gamemode.draw(ctx$2, this.playerIdx, this.clientData, imageLoader, addCamZ, dt);
 		ctx$2.restore();
 		ctx$2.fillStyle = "black";
 		if (offsetX > 0) {
@@ -27942,28 +28290,61 @@ var GameHandler = class {
 		}
 		if (this.allowsMobile) mobileController.draw(ctx$2);
 	}
+	/**
+	* Main execution loop managing emulation and rendering.
+	*/
 	frame() {
+		if (this.interrupted) return;
 		const now = getNow();
-		if (now - this.lastReceive >= PING_LIMIT) {
+		if (this.finishTimer === null && now - this.lastReceive >= PING_LIMIT) {
 			pingElement.textContent = "(disconnected)";
 			pingElement.classList.add("disconnected");
 		}
-		const newInputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData).map((data) => ({
-			...data,
-			timestamp: now
-		}));
-		this.userInputs.push(...newInputs);
-		keyboardController.frame();
-		mouseController.frame();
-		mobileController.frame();
-		this.gamemode.emulate(this.lastEmulation, now, newInputs.map((i) => ({
-			...i,
-			player: this.playerIdx
-		})), null);
-		this.lastEmulation = now;
-		this.draw(this.prevDraw === null ? 1 / 60 : now - this.prevDraw);
+		let dt = this.prevDraw === null ? 1 / 60 : (now - this.prevDraw) / 1e3;
 		this.prevDraw = now;
+		if (this.finishTimer !== null) {
+			this.finishTimer += dt;
+			dt *= GameHandler.dtSpeedFn(this.finishTimer);
+			if (this.finishTimer >= 3 && this.resolveClose) {
+				this.resolveClose();
+				this.resolveClose = null;
+			}
+		}
+		const emulationDtMs = dt * 1e3;
+		const nextEmulationTime = this.emulationTime + emulationDtMs;
+		if (this.finishTimer === null) {
+			const newInputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData).map((data) => ({
+				...data,
+				timestamp: nextEmulationTime
+			}));
+			this.userInputs.push(...newInputs);
+			keyboardController.frame();
+			mouseController.frame();
+			mobileController.frame();
+			this.gamemode.emulate(this.emulationTime, nextEmulationTime, newInputs.map((i) => ({
+				...i,
+				player: this.playerIdx
+			})), null);
+		} else this.gamemode.emulate(this.emulationTime, nextEmulationTime, [], null);
+		this.emulationTime = nextEmulationTime;
+		this.draw(dt, this.finishTimer === null ? 0 : GameHandler.zoomFn(this.finishTimer));
 		if (_gameHandler) requestAnimationFrame(() => this.frame());
+	}
+	/**
+	* Initiates the 3-second closing sequence, slowing time and zooming in.
+	* Resolves completely once the visual transition and cleanup are complete.
+	*/
+	async close() {
+		if (this.finishingGame) return;
+		this.finishingGame = true;
+		this.finishTimer = 0;
+		await new Promise((resolve) => {
+			this.resolveClose = resolve;
+		});
+		await dom.withLoading(async (panelVisiblePromise) => {
+			await panelVisiblePromise;
+			this.interrupted = true;
+		});
 	}
 };
 var _gameHandler = null;
@@ -27988,7 +28369,9 @@ async function setGameHandler(gamemode, playerIdx, startData, total) {
 	dom.openPlay();
 	return _gameHandler;
 }
-function deleteGameHandler() {
+async function deleteGameHandler() {
+	if (_gameHandler === null) return;
+	await _gameHandler.close();
 	fullScreenHandler.closeFull();
 	_gameHandler = null;
 }
@@ -28200,6 +28583,9 @@ function recvMessage(msg) {
 	runners[msg.message](msg[msg.message]);
 }
 //#endregion
+//#region client/src/messages/STORAGE_KEY_CONNECTION.ts
+var STORAGE_KEY_CONNECTION = "ayke_connectionKey";
+//#endregion
 //#region client/src/messages/sendMessage.ts
 var _deltaTime = 0;
 var _deltaSendDate = 0;
@@ -28234,6 +28620,7 @@ var msgtypes = (async function() {
 					}
 					console.log("Version code successfully checked", msg.versionCode);
 					_isSocketConnectedToServer = true;
+					askCreateAccount();
 					resolve();
 					firstMessage = false;
 				}
@@ -28278,6 +28665,16 @@ function getNow() {
 function isSocketConnectedToServer() {
 	return _isSocketConnectedToServer;
 }
+function askCreateAccount() {
+	const STORAGE_KEY_LAST = "ayke_lastActivityDate";
+	const COOLDOWN = 864e5;
+	const last = localStorage.getItem(STORAGE_KEY_LAST);
+	localStorage.setItem(STORAGE_KEY_LAST, Date.now().toString());
+	if (localStorage.getItem("ayke_connectionKey")) return;
+	if (last && Date.now() - parseInt(last) > COOLDOWN) {
+		if (confirm("Do you can to create an account?")) dom.openLogin();
+	}
+}
 //#endregion
 //#region commons/util/escapeHTML.ts
 function escapeHTML(str) {
@@ -28289,6 +28686,141 @@ function escapeHTML(str) {
 		"'": "&#39;"
 	})[char]);
 }
+//#endregion
+//#region client/src/handlers/LocalGameHandler.ts
+var ctx$1 = document.getElementById("play-canvas").getContext("2d");
+var LocalGameHandler = class LocalGameHandler {
+	clock = 0;
+	lastTime = 0;
+	gamemode;
+	interrupted = false;
+	finishingGame = false;
+	tutorial;
+	clientData;
+	gameWidth;
+	gameHeight;
+	allowsMobile;
+	imageLoaderPromise;
+	bots;
+	playerCount;
+	finishTimer = null;
+	finishResult = null;
+	constructor(gamemodeId, addBots, startData, seed = Math.random()) {
+		const factory = getMultiGmFactory(gamemodeId);
+		this.playerCount = addBots ? factory.defaultPlayerCount : 2;
+		const { game, data, html, skins } = factory.client({
+			data: startData,
+			origin: "client"
+		}, this.playerCount, 0);
+		const gameHtml = document.getElementById("game-html");
+		gameHtml.innerHTML = "";
+		if (html) gameHtml.appendChild(html);
+		this.gamemode = game;
+		if (addBots) this.tutorial = null;
+		else this.tutorial = this.gamemode.createTutorial();
+		this.clientData = data;
+		if (addBots) this.bots = this.gamemode.getBotIds(factory.defaultPlayerCount - 1).map((i, index) => generateBot(factory.nodes, i, 1 + index));
+		else this.bots = [];
+		const gsize = this.gamemode.getSize();
+		this.gameWidth = gsize.width;
+		this.gameHeight = gsize.height;
+		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
+		if (this.gamemode.getMobileDesc() && hasNavigatorMobile()) {
+			this.allowsMobile = true;
+			mobileController.setScreenCoordsAdapter(this.gamemode, 0, data);
+		} else this.allowsMobile = false;
+		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
+		document.getElementById("game-ping").textContent = "";
+	}
+	async start() {
+		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
+		await this.imageLoaderPromise;
+		this.clock = 0;
+		this.lastTime = performance.now();
+		requestAnimationFrame(() => this.frame());
+	}
+	draw(dt, addCamZ) {
+		const scaleX = innerWidth / this.gameWidth;
+		const scaleY = innerHeight / this.gameHeight;
+		let scale = Math.min(scaleX, scaleY);
+		if (this.finishTimer !== null) {}
+		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
+		const offsetY = (innerHeight - this.gameHeight * scale) / 2;
+		ctx$1.save();
+		ctx$1.clearRect(0, 0, innerWidth, innerHeight);
+		ctx$1.translate(offsetX, offsetY);
+		ctx$1.scale(scale, scale);
+		this.gamemode.draw(ctx$1, 0, this.clientData, imageLoader, addCamZ, dt);
+		ctx$1.restore();
+		ctx$1.fillStyle = "black";
+		if (offsetX > 0) {
+			ctx$1.fillRect(0, 0, offsetX, innerHeight);
+			ctx$1.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight);
+		}
+		if (offsetY > 0) {
+			ctx$1.fillRect(0, 0, innerWidth, offsetY);
+			ctx$1.fillRect(0, innerHeight - offsetY, innerWidth, offsetY);
+		}
+		if (this.allowsMobile) mobileController.draw(ctx$1);
+	}
+	static dtSpeedFn(t) {
+		return Math.pow(t + .5, -1.6) / (Math.pow(.5, -1.6) * 1.1) + .1;
+	}
+	static zoomFn(x) {
+		return Math.sin(x * (Math.PI / 2 / 3));
+	}
+	frame() {
+		if (this.interrupted) return;
+		const now = performance.now();
+		let dt = (now - this.lastTime) / 1e3;
+		const realDt = dt;
+		this.lastTime = now;
+		this.clock += realDt;
+		if (this.finishTimer !== null) {
+			this.finishTimer += realDt;
+			dt *= LocalGameHandler.dtSpeedFn(this.finishTimer);
+			if (this.finishTimer >= 3) this.finishGame(this.finishResult);
+		}
+		if (this.finishTimer === null) {
+			const inputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData);
+			keyboardController.frame();
+			mouseController.frame();
+			mobileController.frame();
+			for (const input of inputs) this.gamemode.runInput(0, input);
+			const collected = {};
+			for (const bot of this.bots) collected[bot.playerIdx] = bot.play(this.gamemode);
+			for (const [playerIdx, inputs] of Object.entries(collected)) for (const input of inputs) this.gamemode.runInput(Number(playerIdx), input);
+		}
+		if (this.tutorial) {
+			const tutorialResult = this.tutorial.frame(dt, this.clock);
+			if (tutorialResult === null) {
+				this.interrupted = true;
+				dom.openHome();
+				return;
+			} else dom.getTutorialInplayComponent().setText(tutorialResult);
+		}
+		const rng = Math.random;
+		const finish = this.gamemode.quickEmulate(dt, this.finishTimer === null, rng);
+		if (finish && this.finishTimer === null) {
+			this.finishTimer = 0;
+			this.finishResult = finish;
+		}
+		this.draw(dt, this.finishTimer === null ? 0 : LocalGameHandler.zoomFn(this.finishTimer));
+		requestAnimationFrame(() => this.frame());
+	}
+	async finishGame(finish) {
+		if (this.finishingGame) return;
+		this.finishingGame = true;
+		await dom.openLocalPlayResults(finish);
+		this.interrupted = true;
+	}
+	generateBotLocalUsers() {
+		const pseudos = {};
+		pseudos[0] = "You";
+		for (let i = 1; i < this.playerCount; i++) pseudos[i] = "bot #" + i;
+		return pseudos;
+	}
+};
 //#endregion
 //#region node_modules/prando/dist/Prando.es.js
 var Prando = function() {
@@ -28441,125 +28973,6 @@ var Prando = function() {
 	return Prando;
 }();
 //#endregion
-//#region client/src/handlers/LocalGameHandler.ts
-var ctx$1 = document.getElementById("play-canvas").getContext("2d");
-var LocalGameHandler = class {
-	clock = 0;
-	lastTime = 0;
-	gamemode;
-	interrupted = false;
-	tutorial;
-	clientData;
-	gameWidth;
-	gameHeight;
-	allowsMobile;
-	imageLoaderPromise;
-	bots;
-	prando;
-	playerCount;
-	constructor(gamemodeId, addBots, startData, seed = Math.random()) {
-		const factory = getMultiGmFactory(gamemodeId);
-		this.prando = new Prando(seed);
-		console.log("Current seed is " + Math.random());
-		this.playerCount = addBots ? factory.defaultPlayerCount : 2;
-		const { game, data, html, skins } = factory.client({
-			data: startData,
-			origin: "client"
-		}, this.playerCount, 0);
-		const gameHtml = document.getElementById("game-html");
-		gameHtml.innerHTML = "";
-		if (html) gameHtml.appendChild(html);
-		this.gamemode = game;
-		if (addBots) this.tutorial = null;
-		else this.tutorial = this.gamemode.createTutorial();
-		this.clientData = data;
-		if (addBots) this.bots = this.gamemode.getBotIds(factory.defaultPlayerCount - 1).map((i, index) => generateBot(factory.nodes, i, 1 + index));
-		else this.bots = [];
-		const gsize = this.gamemode.getSize();
-		this.gameWidth = gsize.width;
-		this.gameHeight = gsize.height;
-		mouseController.setScreenCoordsAdapter(this.gamemode, 0, data);
-		if (this.gamemode.getMobileDesc() && hasNavigatorMobile()) {
-			this.allowsMobile = true;
-			mobileController.setScreenCoordsAdapter(this.gamemode, 0, data);
-		} else this.allowsMobile = false;
-		this.imageLoaderPromise = imageLoader.load(skins, gamemodeId);
-		document.getElementById("game-ping").textContent = "";
-	}
-	async start() {
-		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
-		await this.imageLoaderPromise;
-		this.clock = 0;
-		this.lastTime = performance.now();
-		requestAnimationFrame(() => this.frame());
-	}
-	draw(dt) {
-		const scaleX = innerWidth / this.gameWidth;
-		const scaleY = innerHeight / this.gameHeight;
-		const scale = Math.min(scaleX, scaleY);
-		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
-		const offsetY = (innerHeight - this.gameHeight * scale) / 2;
-		ctx$1.save();
-		ctx$1.clearRect(0, 0, innerWidth, innerHeight);
-		ctx$1.translate(offsetX, offsetY);
-		ctx$1.scale(scale, scale);
-		this.gamemode.draw(ctx$1, 0, this.clientData, imageLoader, dt);
-		ctx$1.restore();
-		ctx$1.fillStyle = "black";
-		if (offsetX > 0) {
-			ctx$1.fillRect(0, 0, offsetX, innerHeight);
-			ctx$1.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight);
-		}
-		if (offsetY > 0) {
-			ctx$1.fillRect(0, 0, innerWidth, offsetY);
-			ctx$1.fillRect(0, innerHeight - offsetY, innerWidth, offsetY);
-		}
-		if (this.allowsMobile) mobileController.draw(ctx$1);
-	}
-	frame() {
-		if (this.interrupted) return;
-		const now = performance.now();
-		const dt = (now - this.lastTime) / 1e3;
-		this.lastTime = now;
-		this.clock += dt;
-		const inputs = this.gamemode.collectInputs(keyboardController, mouseController, this.allowsMobile && !hasNavigatorMouse() ? mobileController : null, this.clientData);
-		keyboardController.frame();
-		mouseController.frame();
-		mobileController.frame();
-		for (const input of inputs) this.gamemode.runInput(0, input);
-		const collected = {};
-		for (const bot of this.bots) collected[bot.playerIdx] = bot.play(this.gamemode);
-		for (const [playerIdx, inputs] of Object.entries(collected)) for (const input of inputs) this.gamemode.runInput(Number(playerIdx), input);
-		if (this.tutorial) {
-			const tutorialResult = this.tutorial.frame(dt, this.clock);
-			if (tutorialResult === null) {
-				this.interrupted = true;
-				dom.openHome();
-				return;
-			} else dom.getTutorialInplayComponent().setText(tutorialResult);
-		}
-		const rng = () => this.prando.next();
-		const finish = this.gamemode.quickEmulate(dt, true, rng);
-		if (finish) {
-			this.finishGame(finish);
-			return;
-		}
-		this.draw(dt);
-		requestAnimationFrame(() => this.frame());
-	}
-	finishGame(finish) {
-		this.interrupted = true;
-		deleteGameHandler();
-		dom.openLocalPlayResults(finish);
-	}
-	generateBotLocalUsers() {
-		const pseudos = {};
-		pseudos[0] = "You";
-		for (let i = 1; i < this.playerCount; i++) pseudos[i] = "bot #" + i;
-		return pseudos;
-	}
-};
-//#endregion
 //#region client/src/handlers/SoloGameHandler.ts
 var ctx = document.getElementById("play-canvas").getContext("2d");
 var SoloGameHandler = class {
@@ -28691,6 +29104,29 @@ var dynamicCssHandler = new DynamicCssHandler();
 //#region client/src/dom/changelogs.ts
 var CHANGELOGS = [
 	{
+		version: "1.5.0",
+		date: 17901756e5,
+		title: "Graphic improvements",
+		lines: [
+			"Encourage players to create an account 24 hours after their last connection, if they are not logged in",
+			"Rework the `#home-page` layout and styling",
+			"Add a contact page",
+			"Rework the `#game-panel-page` layout and styling",
+			"Add gamemode descriptions",
+			"Improve graphics and collision handling in `roarsOnGlass`",
+			"Switch to the \"Rye\" font",
+			"Display the total number of connected users",
+			"Add transitions during loading screens",
+			"Add gamemode explanation screens",
+			"Add specific explanation screens for `airbasket` and `superTicTacToe`",
+			"Display \"You\" above your own player in `airbasket` and `roarsOnGlass`",
+			"Add a game-end animation",
+			"Fix and improve *Alpine.js* issues",
+			"Add server logs for connections and matching user lists",
+			"Improve `lavaBall`"
+		]
+	},
+	{
 		version: "1.4.1",
 		date: 178965e7,
 		title: "Improve UI and bots",
@@ -28733,19 +29169,20 @@ var CHANGELOGS = [
 ];
 //#endregion
 //#region client/src/dom/dom.ts
-var STORAGE_KEY_CONNECTION = "ayke_connectionKey";
 /** Runtime check for the "type 1" marker described above. */
 function isFragmentSavable(panel) {
 	const ctor = panel.constructor;
 	return typeof panel.saveFragment === "function" && typeof ctor.openFragment === "function" && typeof ctor.fragmentName === "string";
 }
-var MainComponent = class {
+var MainComponent = class MainComponent {
 	_currentPage = "home";
 	templateLoader = new TemplateLoader();
-	loadingContext = "home";
+	static TRANSITION_DURATION_MS = 800;
 	isAuthenticated = false;
 	pseudo = null;
 	panel = new HomeComponent();
+	transitionState = "idle";
+	AYKE_ICON_URL = `${window.IMG_ROOT_PATH}/assets/ayke.png`;
 	constructor() {
 		sendMessage({ subscribeConnectedUsersInfo: true });
 	}
@@ -28756,20 +29193,11 @@ var MainComponent = class {
 		this.panel = panel;
 		if (h2 && !h1) sendMessage({ subscribeConnectedUsersInfo: true });
 	}
-	y0 = 0;
-	y1 = 0;
 	get currentPage() {
 		return this._currentPage;
 	}
 	set currentPage(value) {
 		this._currentPage = value;
-	}
-	startLoading() {
-		this.loadingContext = this.currentPage;
-		this.currentPage = "loading";
-	}
-	stopLoading() {
-		this.currentPage = this.loadingContext;
 	}
 	uses(page) {
 		return this.currentPage === page;
@@ -28813,30 +29241,75 @@ var MainComponent = class {
 		this.isAuthenticated = false;
 		this.openHome();
 	}
-	isSocketConnectedToServer() {
+	get isSocketConnectedToServer() {
 		return isSocketConnectedToServer();
 	}
+	randomizeTransitionColor() {
+		const hue = Math.floor(Math.random() * 360);
+		document.getElementById("transition-component")?.style.setProperty("--transition-hue", `${hue}`);
+	}
+	/**
+	* Perform a page transition.
+	*
+	* The transition first closes the current page, executes the
+	* provided action, then opens the resulting page.
+	*
+	* If the resulting page is "loading", the transition remains
+	* closed until the loading operation is finished.
+	*/
+	async changePageWithTransition(action) {
+		if (this.transitionState !== "idle") return;
+		this.randomizeTransitionColor();
+		this.transitionState = "closing";
+		await new Promise((resolve) => setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS));
+		await action();
+		if (this.currentPage === "loading") this.transitionState = "loading";
+		else {
+			this.transitionState = "opening";
+			await new Promise((resolve) => setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS));
+			this.transitionState = "idle";
+		}
+	}
+	async withLoading(action) {
+		const panelVisiblePromise = new Promise((resolve) => setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS / 2));
+		const actionPromise = Promise.resolve().then(() => action(panelVisiblePromise));
+		this.randomizeTransitionColor();
+		this.transitionState = "closing";
+		await new Promise((resolve) => setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS));
+		this.transitionState = "loading";
+		const result = await actionPromise;
+		(async () => {
+			this.transitionState = "opening";
+			await new Promise((resolve) => setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS));
+			this.transitionState = "idle";
+		})();
+		return result;
+	}
+	/**
+	* Open a game panel.
+	*
+	* Game-specific resources are loaded while the loading page
+	* remains visible.
+	*/
 	async openGamePanel(gamemode) {
-		this.currentPage = "loading";
 		const factory = getGmFactory(gamemode);
-		let unlockedSkins;
-		if (factory.type === "multiplayer") {
-			if (factory.skins.length === 0) unlockedSkins = [];
-			else if (this.pseudo === null) unlockedSkins = [factory.skins[0]];
-			else {
-				sendMessage({ askSkins: gamemode });
-				unlockedSkins = await waitSkinsResponsePromise();
+		let unlockedSkins = [];
+		const html = await this.withLoading(async () => {
+			if (factory.type === "multiplayer") {
+				if (factory.skins.length === 0) unlockedSkins = [];
+				else if (this.pseudo === null) unlockedSkins = [factory.skins[0]];
+				else {
+					sendMessage({ askSkins: gamemode });
+					unlockedSkins = await waitSkinsResponsePromise();
+				}
 			}
-		}
-		const html = await this.templateLoader.load(gamemode);
+			return await this.templateLoader.load(gamemode);
+		});
 		this.currentPage = "game-panel";
-		if (factory.type === "multiplayer") {
-			const data = factory.dom(unlockedSkins);
-			this.setPanel(new GamePanelComponent(gamemode, data, html));
-		} else {
-			const category = factory.dom();
-			this.setPanel(new SoloGamePanelComponent(gamemode, category, html));
-		}
+		let panel;
+		if (factory.type === "multiplayer") panel = new GamePanelComponent(gamemode, factory.dom(unlockedSkins), html);
+		else panel = new SoloGamePanelComponent(gamemode, factory.dom(), html);
+		this.setPanel(panel);
 		pushUrlStack(this);
 	}
 	async openWaitPlayPanel(gamemode) {
@@ -28846,7 +29319,7 @@ var MainComponent = class {
 	}
 	openPlay() {
 		const panel = this.getWaitPlayPanel();
-		this.panel = panel.createPlay();
+		this.setPanel(panel.createPlay());
 		this.currentPage = "play";
 		deleteWaitingPlayHandler();
 		pushUrlStack(this);
@@ -28855,33 +29328,39 @@ var MainComponent = class {
 	* Transition to the play-results page using the current PlayComponent
 	* context to preserve pseudos and player metadata.
 	*/
-	openPlayResults(results) {
+	async openPlayResults(results) {
+		await deleteGameHandler();
 		const playPanel = this.getPanel(PlayComponent);
-		this.panel = playPanel.createPlayResults(results);
+		this.setPanel(playPanel.createPlayResults(results));
 		this.currentPage = "play-results";
-		deleteGameHandler();
 		pushUrlStack(this);
 	}
 	openLocalPlayResults(results) {
 		const playPanel = this.getPanel(LocalPlayComponent);
-		this.panel = playPanel.createPlayResults(results);
-		this.currentPage = "play-results";
-		deleteGameHandler();
-		pushUrlStack(this);
+		return this.withLoading(async (panelVisiblePromise) => {
+			await panelVisiblePromise;
+			this.setPanel(playPanel.createPlayResults(results));
+			this.currentPage = "play-results";
+			pushUrlStack(this);
+		});
 	}
 	openSoloComponent(result) {
 		this.setPanel(new SoloPlayResultComponent(result));
 		this.currentPage = "play-solo-results";
 		pushUrlStack(this);
 	}
-	openLocalInPlay(gamemode, startData) {
+	async openLocalInPlay(gamemode, startData) {
 		this.currentPage = "play";
-		this.setPanel(new LocalPlayComponent(new LocalGameHandler(gamemode, false, startData)));
+		const h = new LocalGameHandler(gamemode, false, startData);
+		this.setPanel(new LocalPlayComponent(h));
+		await h.start();
 		pushUrlStack(this);
 	}
-	openVsBotsInPlay(gamemode, startData) {
+	async openVsBotsInPlay(gamemode, startData) {
 		this.currentPage = "play";
-		this.setPanel(new LocalPlayComponent(new LocalGameHandler(gamemode, true, startData)));
+		const h = new LocalGameHandler(gamemode, true, startData);
+		this.setPanel(new LocalPlayComponent(h));
+		await h.start();
 		pushUrlStack(this);
 	}
 	openSoloPlayComponent(gamemodeId, game, category) {
@@ -28891,22 +29370,28 @@ var MainComponent = class {
 	}
 	openLeaderboard() {
 		const panel = new LeaderboardComponent();
-		this.panel = panel;
+		this.setPanel(panel);
 		this.currentPage = "leaderboard";
 		panel.fetchLeaderboard();
 		pushUrlStack(this);
 	}
 	openSoloLeaderboard() {
 		const panel = new SoloLeaderboardComponent();
-		this.panel = panel;
+		this.setPanel(panel);
 		this.currentPage = "solo-leaderboard";
 		panel.fetchRecords();
 		pushUrlStack(this);
 	}
 	openChangelog() {
 		const panel = new ChangelogsComponent();
-		this.panel = panel;
+		this.setPanel(panel);
 		this.currentPage = "changelog";
+		pushUrlStack(this);
+	}
+	openContact() {
+		const panel = new ContactComponent();
+		this.setPanel(panel);
+		this.currentPage = "contact";
 		pushUrlStack(this);
 	}
 	getPanel(type) {
@@ -28942,6 +29427,9 @@ var GamePanelComponent = class {
 	gamemode;
 	data;
 	htmlContent;
+	panelView = "main";
+	currentExplanationSlide = -1;
+	explanationPointerStartX = null;
 	trophees = 0;
 	bestTrophees = 0;
 	unlockedCollectibleIds = null;
@@ -28958,16 +29446,73 @@ var GamePanelComponent = class {
 	uses(gamemode) {
 		return this.gamemode === gamemode;
 	}
+	get explanationSlides() {
+		return getMultiGmFactory(this.gamemode).explainationSlides;
+	}
+	async loadExplanationSlides() {
+		if (this.explanationSlides === null) return;
+		const promises = this.explanationSlides.map((filename) => {
+			const src = `${window.IMG_ROOT_PATH}/assets/games/${this.gamemode}/explainationSlides/${filename}`;
+			return new Promise((resolve, reject) => {
+				const image = new Image();
+				image.onload = () => resolve();
+				image.onerror = () => reject(/* @__PURE__ */ new Error(`Failed to load explanation slide: ${src}`));
+				image.src = src;
+			});
+		});
+		await Promise.all(promises);
+	}
+	async howToPlay() {
+		if (!this.explanationSlides) {
+			await this.tutorial();
+			return;
+		}
+		await dom.withLoading(async () => {
+			await this.loadExplanationSlides();
+			this.currentExplanationSlide = 0;
+		});
+		this.panelView = "tutorial";
+	}
+	openOptions() {
+		this.panelView = "options";
+	}
+	goBackToMain() {
+		this.panelView = "main";
+	}
+	get explanationSlideSrc() {
+		if (this.explanationSlides === null) return null;
+		return `${window.IMG_ROOT_PATH}/assets/games/${this.gamemode}/explainationSlides/${this.explanationSlides[this.currentExplanationSlide]}`;
+	}
+	previousExplanationSlide() {
+		if (this.currentExplanationSlide <= 0) return;
+		this.currentExplanationSlide--;
+	}
+	nextExplanationSlide() {
+		if (this.explanationSlides === null) return 0;
+		if (this.currentExplanationSlide >= this.explanationSlides.length - 1) return;
+		this.currentExplanationSlide++;
+	}
+	startExplanationSwipe(event) {
+		this.explanationPointerStartX = event.clientX;
+	}
+	endExplanationSwipe(event) {
+		if (this.explanationPointerStartX === null) return;
+		const deltaX = event.clientX - this.explanationPointerStartX;
+		this.explanationPointerStartX = null;
+		if (Math.abs(deltaX) < 40) return;
+		if (deltaX < 0) this.nextExplanationSlide();
+		else this.previousExplanationSlide();
+	}
 	async play() {
 		if (!isSocketConnectedToServer()) {
 			alert("You are not connected to the server. You can play against bots instead.");
 			throw "You are not connected to the server. You can play against bots instead.";
 		}
 		const factory = getMultiGmFactory(this.gamemode);
-		dom.startLoading();
-		await imageLoader.load(factory.textures, this.gamemode);
-		await dynamicCssHandler.load(this.gamemode);
-		dom.stopLoading();
+		await dom.withLoading(async () => {
+			await imageLoader.load(factory.textures, this.gamemode);
+			await dynamicCssHandler.load(this.gamemode);
+		});
 		dom.openWaitPlayPanel(this.gamemode);
 		sendMessage({ startGame: {
 			gamemode: this.gamemode,
@@ -28976,19 +29521,28 @@ var GamePanelComponent = class {
 	}
 	async tutorial() {
 		const factory = getMultiGmFactory(this.gamemode);
-		dom.startLoading();
-		await imageLoader.load(factory.textures, this.gamemode);
-		await dynamicCssHandler.load(this.gamemode);
-		dom.stopLoading();
-		dom.openLocalInPlay(this.gamemode, this.data.produce());
+		await dom.withLoading(async (panelVisiblePromise) => {
+			await imageLoader.load(factory.textures, this.gamemode);
+			await dynamicCssHandler.load(this.gamemode);
+			await panelVisiblePromise;
+			await dom.openLocalInPlay(this.gamemode, this.data.produce());
+		});
 	}
 	async againstBots() {
 		const factory = getMultiGmFactory(this.gamemode);
-		dom.startLoading();
-		await imageLoader.load(factory.textures, this.gamemode);
-		await dynamicCssHandler.load(this.gamemode);
-		dom.stopLoading();
-		dom.openVsBotsInPlay(this.gamemode, this.data.produce());
+		await dom.withLoading(async (panelVisiblePromise) => {
+			await imageLoader.load(factory.textures, this.gamemode);
+			await dynamicCssHandler.load(this.gamemode);
+			await panelVisiblePromise;
+			await dom.openVsBotsInPlay(this.gamemode, this.data.produce());
+		});
+	}
+	getImageSrc(gamemode) {
+		const ext = getGmFactory(gamemode).iconExtension;
+		return `${window.IMG_ROOT_PATH}/assets/games/${gamemode}/icon.${ext}`;
+	}
+	get hasCollectibles() {
+		return getMultiGmFactory(this.gamemode).collectibles !== null;
 	}
 	initTrophyRoad() {
 		const factory = getMultiGmFactory(this.gamemode);
@@ -29020,6 +29574,9 @@ var GamePanelComponent = class {
 	}
 	get gamemodeName() {
 		return getGmFactory(this.gamemode).name;
+	}
+	get gamemodeDescription() {
+		return f.parseInline(getGmFactory(this.gamemode).description);
 	}
 	get collectiblesTotal() {
 		if (this.collectibleItems.length === 0) return 0;
@@ -29088,11 +29645,11 @@ var SoloGamePanelComponent = class {
 	}
 	async play() {
 		const factory = getSoloGmFactory(this.gamemode);
-		dom.startLoading();
-		await imageLoader.load(factory.textures);
-		await dynamicCssHandler.load(this.gamemode);
-		dom.stopLoading();
-		dom.openSoloPlayComponent(this.gamemode, factory.create(), this.data.produce());
+		await dom.withLoading(async () => {
+			await imageLoader.load(factory.textures);
+			await dynamicCssHandler.load(this.gamemode);
+			dom.openSoloPlayComponent(this.gamemode, factory.create(), this.data.produce());
+		});
 	}
 };
 var WaitPlayPanelComponent = class {
@@ -29175,7 +29732,6 @@ var SoloPlayComponent = class {
 	text = "";
 	constructor(gamemodeId, game, category) {
 		this.game = new SoloGameHandler(gamemodeId, game, category);
-		this.game.start();
 	}
 };
 var PlayResultsComponent = class {
@@ -29360,6 +29916,9 @@ var HomeComponent = class HomeComponent {
 		this.globalRank = String(d.globalRank);
 	}
 	setConnectedUsersInfo(info) {
+		const t = document.getElementById("sub-home-main-title");
+		t.classList.remove("hidden");
+		t.children[0].textContent = String(info.total ?? "No");
 		for (const _span of document.querySelectorAll(".connectedUsersIndicator")) {
 			const span = _span;
 			const k = info.gamemods[span.dataset.key];
@@ -29374,8 +29933,6 @@ var LocalPlayComponent = class {
 	text = "";
 	constructor(game) {
 		this.game = game;
-		dom.startLoading();
-		game.start().finally(() => dom.stopLoading());
 	}
 	setText(text) {
 		this.text = text;
@@ -29556,6 +30113,15 @@ var ChangelogsComponent = class ChangelogsComponent {
 		return f.parseInline(line);
 	}
 };
+var ContactComponent = class ContactComponent {
+	static fragmentName = "contact";
+	saveFragment() {
+		return {};
+	}
+	static openFragment(_) {
+		return new ContactComponent();
+	}
+};
 var fragmentRegistry = /* @__PURE__ */ new Map();
 function registerFragment(name, page, openFragment) {
 	fragmentRegistry.set(name, {
@@ -29569,6 +30135,8 @@ registerFragment(SigninComponent.fragmentName, "signin", SigninComponent.openFra
 registerFragment(SoloPlayResultComponent.fragmentName, "play-solo-results", SoloPlayResultComponent.openFragment);
 registerFragment(LeaderboardComponent.fragmentName, "leaderboard", LeaderboardComponent.openFragment);
 registerFragment(SoloLeaderboardComponent.fragmentName, "solo-leaderboard", SoloLeaderboardComponent.openFragment);
+registerFragment(ChangelogsComponent.fragmentName, "changelog", ChangelogsComponent.openFragment);
+registerFragment(ContactComponent.fragmentName, "contact", ContactComponent.openFragment);
 var UrlFragmentManager = class {
 	/** Non-serializable panels kept alive so we can navigate back/forward to them. */
 	stack = [];
@@ -29676,7 +30244,7 @@ var dom = module_default.reactive(new MainComponent());
 _internalDom = dom;
 function initDom() {
 	document.addEventListener("alpine:init", () => {
-		module_default.data("main", () => dom);
+		module_default.data("main", () => Object.create(dom));
 	});
 	window.Alpine = module_default;
 	window.dom = dom;
