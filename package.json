@@ -1,0 +1,9 @@
+{
+  "name": "ayke-log-analyzer",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {"dev":"vite","build":"tsc && vite build","preview":"vite preview"},
+  "dependencies": {"@types/chart.js":"^2.9.41","chart.js":"^4.5.0","typescript":"^5.9.2","vite":"^7.1.5"},
+  "devDependencies": {}
+}

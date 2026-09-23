@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Log Analyzer Dashboard</title>
+	<link rel="stylesheet" href="style.css">
+	<!-- Chart.js and Date adapter for time scales -->
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body>
+	<div class="container">
+		<header>
+			<h1>Server Log Analyzer</h1>
+			<p>Paste your server logs below to generate metrics and charts.</p>
+		</header>
+
+		<section class="input-section">
+			<textarea id="logInput" placeholder="Paste your logs here... [2026-06-21T13:15:14.343Z] [INFO]..."></textarea>
+			<div class="controls">
+				<button id="parseBtn">Analyze Logs</button>
+				<div class="filters">
+					<label>Filter Users (Regex): <input type="text" id="userRegex" placeholder="e.g. ^test" value=""></label>
+					<label>Filter Gamemode (Regex): <input type="text" id="gameRegex" placeholder="e.g. airbasket" value=""></label>
+				</div>
+			</div>
+		</section>
+
+		<section class="charts-section" id="chartsSection" style="display: none;">
+			<div class="chart-container">
+				<h2>Server Status (Running / Offline)</h2>
+				<canvas id="serverStatusChart"></canvas>
+			</div>
+			
+			<div class="chart-container">
+				<h2>Connected Users</h2>
+				<canvas id="usersChart"></canvas>
+			</div>
+
+			<div class="chart-container">
+				<h2>Active Games</h2>
+				<canvas id="gamesChart"></canvas>
+			</div>
+
+			<!-- Future charts for Skins and Trophies can be added here -->
+			<div class="chart-container">
+				<h2>Rewards (Skins / Trophies)</h2>
+				<canvas id="rewardsChart"></canvas>
+			</div>
+		</section>
+	</div>
+
+	<!-- Compile your TS files and include the bundle here, or use module script if using a bundler like Vite/Webpack -->
+	<script type="module" src="./src/main.ts"></script>
+</body>
+</html>
