@@ -1,0 +1,85 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- Head / Skull -->
+    <rect
+        width="100"
+        height="100"
+        rx="20"
+        ry="20"
+        fill="#ff0044"
+    />
+
+    <!-- Main circular body -->
+    <circle
+        cx="50"
+        cy="50"
+        r="47"
+        fill="#ff3366"
+    />
+
+    <!-- Chest marking -->
+    <path
+        d="M 25 13
+           Q 62 50 25 87
+           Q 8 50 25 13 Z"
+        fill="#ffb3c6"
+        opacity="0.28"
+    />
+
+    <!-- Eyes -->
+    <ellipse
+        cx="62"
+        cy="27"
+        rx="13"
+        ry="9"
+        fill="#ffffff"
+    />
+
+    <ellipse
+        cx="62"
+        cy="73"
+        rx="13"
+        ry="9"
+        fill="#ffffff"
+    />
+
+    <!-- Pupils -->
+    <ellipse
+        cx="65"
+        cy="27"
+        rx="6.5"
+        ry="6"
+        fill="#24000a"
+    />
+
+    <ellipse
+        cx="65"
+        cy="73"
+        rx="6.5"
+        ry="6"
+        fill="#24000a"
+    />
+
+    <!-- Eye highlights -->
+    <circle
+        cx="67.5"
+        cy="24.5"
+        r="2.2"
+        fill="#ffffff"
+    />
+
+    <circle
+        cx="67.5"
+        cy="70.5"
+        r="2.2"
+        fill="#ffffff"
+    />
+
+    <!-- Beak -->
+    <path
+        d="M 77 42
+           Q 91 44 99 50
+           Q 91 56 77 58
+           Q 81 50 77 42 Z"
+        fill="#ffcc00"
+    />
+</svg>

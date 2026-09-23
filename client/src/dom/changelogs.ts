@@ -8,6 +8,29 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.0",
+		date: 1790175600000, // Wed. 23 sept 2026 at 5:00 PM
+		title: "Graphic improvements",
+		lines: [
+			"Encourage players to create an account 24 hours after their last connection, if they are not logged in",
+			"Rework the `#home-page` layout and styling",
+			"Add a contact page",
+			"Rework the `#game-panel-page` layout and styling",
+			"Add gamemode descriptions",
+			"Improve graphics and collision handling in `roarsOnGlass`",
+			"Switch to the \"Rye\" font",
+			"Display the total number of connected users",
+			"Add transitions during loading screens",
+			"Add gamemode explanation screens",
+			"Add specific explanation screens for `airbasket` and `superTicTacToe`",
+			"Display \"You\" above your own player in `airbasket` and `roarsOnGlass`",
+			"Add a game-end animation",
+			"Fix and improve *Alpine.js* issues",
+			"Add server logs for connections and matching user lists",
+			"Improve `lavaBall`"
+		]
+	},
+	{
 		version: "1.4.1",
 		date: 1789650000000, // Thu. 17 sept 2026 at 2:00 PM
 		title: "Improve UI and bots",
