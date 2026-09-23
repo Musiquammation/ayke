@@ -8,53 +8,81 @@
 		<link rel="icon" href="favicon.ico">
 	</head>
 	<body>
-
 		<div id="main" x-data="main">
 			<template x-if="uses('home')">
-				<div id="home-page" class="page" x-data="panel">
-					<h1>Ayke</h1>
+				<div id="home-page" class="page" x-data="{ ...panel, menuOpen: false }">
+					
+					<!-- Fixed top bar -->
+					<header>
+						<div>
+							<!-- Burger menu button -->
+							<button type="button" @pointerup="menuOpen = !menuOpen" aria-label="Menu">
+								<span></span>
+								<span></span>
+								<span></span>
+							</button>
 
-					<section class="home-account">
-						<h2>Account</h2>
+							<!-- Username -->
+							<template x-if="isAuthenticated">
+								<div>
+									<span>👤</span>
+									<i x-text="pseudo"></i>
+								</div>
+							</template>
+						</div>
+
+						<!-- User statistics (emojis only) -->
+						<template x-if="isAuthenticated">
+							<div x-data="panel">
+								<span>🏆 <span x-text="totalTrophees"></span></span>
+								<span>🪙 <span x-text="coins"></span></span>
+								<span>🥇#<span x-text="globalRank"></span></span>
+							</div>
+						</template>
+					</header>
+
+					<!-- Overlay and burger menu drawer -->
+					<div x-show="menuOpen" x-transition.opacity @pointerup="menuOpen = false"></div>
+					
+					<nav
+						x-show="menuOpen"
+						x-transition:enter="menu-enter"
+						x-transition:enter-start="menu-enter-start"
+						x-transition:enter-end="menu-enter-end"
+						x-transition:leave="menu-leave"
+						x-transition:leave-start="menu-leave-start"
+						x-transition:leave-end="menu-leave-end"
+					>
+						<h2>Menu</h2>
+
+						<template x-if="!isAuthenticated">
+							<button type="button" @pointerup="openSignin(); menuOpen = false">Create account</button>
+						</template>
+
+						<template x-if="!isAuthenticated">
+							<button type="button" @pointerup="openLogin(); menuOpen = false">Login</button>
+						</template>
+
+						<button type="button" @pointerup="openLeaderboard(); menuOpen = false">Leaderboard</button>
+						<button type="button" @pointerup="openSoloLeaderboard(); menuOpen = false">Solo Leaderboard</button>
+						<button type="button" @pointerup="openChangelog(); menuOpen = false">Changelog</button>
+						<button type="button" @pointerup="openContact(); menuOpen = false">Contact</button>
 
 						<template x-if="isAuthenticated">
-							<div>
-								<div>
-									<div>
-										<span>Connected as</span>
-										<i x-text="pseudo"></i>
-									</div>
-									<div x-data="panel">
-										<span>
-											<span x-text="totalTrophees"></span>
-											<span> trophees</span>
-										</span>
-
-										<span>
-											<span x-text="coins"></span>
-											<span> coins</span>
-										</span>
-
-										<span>
-											<span>Rank #</span>
-											<span x-text="globalRank"></span>
-										</span>
-									</div>
-								</div>
-								<button @pointerup="disconnect()">Disconnect</button>
-							</div>
+							<button type="button" @pointerup="disconnect(); menuOpen = false">Disconnect</button>
 						</template>
-						<template x-if="!isAuthenticated">
-							<div>
-								<button @pointerup="openLogin()">Login</button>
-								<button @pointerup="openSignin()">Create account</button>
-							</div>
-						</template>
-					</section>
+					</nav>
 
-					<section class="home-play">
-						<h2>Play</h2>
+					<!-- Main title -->
+					<h1>AYKE</h1>
 
+					<div id="sub-home-main-title" class="hidden">
+						<span>(?)</span>
+						<span> users are connected</span>
+					</div>
+
+					<!-- Main game section connected to the panel -->
+					<section x-data="Object.create(panel)">
 						<template x-for="category in games" :key="category.category">
 							<div>
 								<h3 x-text="category.category"></h3>
@@ -64,27 +92,15 @@
 										<div
 											:class="{ 'play-disabled': isDisabled(game.key) }"
 											@pointerup="playGame(game.key)"
-											>
+										>
 											<span x-text="game.name"></span>
 											<span class="connectedUsersIndicator" :data-key="game.key"></span>
-
 											<img class="pixel-image" :src="getImageSrc(game.key)">
 										</div>
 									</template>
 								</div>
 							</div>
 						</template>
-					</section>
-
-					<section class="home-community">
-						<h2>Community</h2>
-						<button @pointerup="openLeaderboard()">View Leaderboard</button>
-						<button @pointerup="openSoloLeaderboard()">View Solo Leaderboard</button>
-					</section>
-
-					<section class="home-changelogs">
-						<h2>Changelog</h2>
-						<button @pointerup="openChangelog()">View changelog</button>
 					</section>
 
 				</div>
@@ -99,83 +115,301 @@
 			</template>
 
 			<template x-if="uses('game-panel')">
-				<div id="game-panel-page" class="page" x-data="panel">
-					<h1 x-text="gamemodeName"></h1>
+				<div id="game-panel-page" class="page game-screen" x-data="Object.create(panel)">
+					<!-- Dynamic game icon background -->
+					<div class="background" :style="`background-image: url(${getImageSrc(gamemode)})`"></div>
+					<div class="background-overlay"></div>
 
-					<div>
-						<button
-							class="play-btn"
-							@pointerup="play()"
-							:disabled="!isSocketConnectedToServer()"
+					<!-- Back button -->
+					<button class="back-button" type="button" aria-label="Go back" @pointerup="openHome()">
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M15 18l-6-6 6-6" />
+						</svg>
+					</button>
+
+					<section class="menu">
+						<!-- Game Header -->
+						<header class="header">
+							<h1 x-text="gamemodeName"></h1>
+						</header>
+
+						<!-- Trophy Road Track Section -->
+						<div
+							class="trophee-road"
+							x-show="panelView === 'main' && isAuthenticated && hasCollectibles"
+							x-init="initTrophyRoad()"
 						>
-							Play
-						</button>
-						<template x-if="typeof againstBots === 'function'">
-							<button @pointerup="againstBots()" :class="{'play-btn': !isSocketConnectedToServer()}">vs. Bots</button>
-						</template>
-						<template x-if="typeof tutorial === 'function'">
-							<button @pointerup="tutorial()">Tutorial</button>
-						</template>
-					</div>
-
-					<div>
-						<div class="trophee-road" x-show="isAuthenticated" x-init="initTrophyRoad()">
-							<!-- Scrollable track container referenced for auto-scrolling -->
 							<div class="trophee-road-track" x-ref="track">
-								
-								<!-- Completion gauge background spanning the full width of the road -->
-								<div class="gauge-bar" :style="`width: ${trackWidth}px; left: ${paddingStart}px;`">
-									<!-- Dark-yellow fill: bestTrophees progress -->
-									<div class="gauge-fill-best" :style="`width: ${bestPx}px`"></div>
-									<!-- Yellow fill: current trophees progress -->
-									<div class="gauge-fill-current" :style="`width: ${currentPx}px`">
-										<!-- Badge displaying current trophies directly on the gauge -->
+								<div
+									class="gauge-bar"
+									:style="`width: ${trackWidth}px; left: ${paddingStart}px;`"
+								>
+									<div
+										class="gauge-fill-best"
+										:style="`width: ${bestPx}px`"
+									></div>
+
+									<div
+										class="gauge-fill-current"
+										:style="`width: ${currentPx}px`"
+									>
 										<div class="current-trophy-badge">
 											<span x-text="`${trophees} 🏆`"></span>
 										</div>
 									</div>
 								</div>
-	
-								<!-- Collectible nodes dynamically positioned according to trophy requirement -->
-								<template x-for="item in collectibleItems" :key="item.id">
-									<div class="collectible-node"
+
+								<template
+									x-for="item in collectibleItems"
+									:key="item.id"
+								>
+									<div
+										class="collectible-node"
 										:data-unlocked="item.unlocked"
 										:data-unlockable="item.unlockable"
-										:class="{ 'collectible-unlockable': item.unlockable, 'collectible-unlocked': item.unlocked }"
-										:style="`left: ${getItemLeftPx(item.trophees)}px`">
-										
-										<!-- Canvas container -->
+										:class="{
+											'collectible-unlockable': item.unlockable,
+											'collectible-unlocked': item.unlocked
+										}"
+										:style="`left: ${getItemLeftPx(item.trophees)}px`"
+									>
 										<div class="icon-wrapper">
-											<canvas width="40" height="40" x-init="drawCollectibleIcon($el, item)"></canvas>
+											<canvas
+												width="40"
+												height="40"
+												x-init="drawCollectibleIcon($el, item)"
+											></canvas>
 										</div>
-	
-										<!-- Display required trophies for each collectible -->
-										<div class="trophy-requirement" x-text="`${item.trophees} 🏆`"></div>
-	
-										<!-- Unlock button: shown ONLY if item is not unlocked AND bestTrophees >= item.trophees -->
-										<button x-show="item.unlockable" 
-												@pointerup="unlockCollectible(item)">
+
+										<div
+											class="trophy-requirement"
+											x-text="`${item.trophees} 🏆`"
+										></div>
+
+										<button
+											x-show="item.unlockable"
+											@pointerup="unlockCollectible(item)"
+										>
 											Unlock
 										</button>
 									</div>
 								</template>
 							</div>
 						</div>
-						
-						<div x-data="{ showOptions: false }">
-							<button @pointerup="showOptions = !showOptions">
-								Options
-							</button>
 
-							<div x-show="showOptions" x-ref="gamePanel" x-html="htmlContent"></div>
+
+						<!-- ========================================================
+							Main Game Panel
+							======================================================== -->
+
+						<div
+							class="content-card"
+							x-show="panelView === 'main'"
+						>
+
+							<!-- Game Description -->
+							<div class="description-container">
+								<p
+									class="description"
+									x-html="gamemodeDescription"
+								></p>
+							</div>
+
+
+							<!-- Primary and Secondary Actions -->
+							<div class="actions">
+
+								<div class="secondary-actions">
+
+									<button
+										class="small-button options-small-button"
+										type="button"
+										@pointerup="openOptions()"
+									>
+										<span class="icon">⚙</span>
+										<span>OPTIONS</span>
+									</button>
+
+									<template x-if="typeof tutorial === 'function'">
+										<button
+											class="small-button howToPlay-small-button"
+											type="button"
+											@pointerup="howToPlay()"
+										>
+											<span class="icon">?</span>
+											<span>HOW TO PLAY</span>
+										</button>
+									</template>
+
+								</div>
+
+
+								<div class="main-actions">
+
+									<button
+										class="game-button"
+										type="button"
+										@pointerup="play()"
+										:disabled="!isSocketConnectedToServer"
+									>
+										<span class="game-icon">⚔</span>
+
+										<span>
+											<span>PLAY</span>
+											<span>ONLINE</span>
+										</span>
+									</button>
+
+
+									<template x-if="typeof againstBots === 'function'">
+										<button
+											class="game-button"
+											type="button"
+											@pointerup="againstBots()"
+										>
+											<span class="game-icon">⎈</span>
+
+											<span>
+												<span>PLAY VS.</span>
+												<span>BOTS</span>
+											</span>
+										</button>
+									</template>
+
+								</div>
+
+							</div>
 						</div>
-					</div>
+
+
+						<!-- ========================================================
+							How To Play / Explanation Slides
+							======================================================== -->
+
+						<div
+							class="content-card explanation-card"
+							x-show="panelView === 'tutorial'"
+						>
+
+							<div class="explanation-header">
+								<h2>How to play</h2>
+
+								<span
+									x-text="`${currentExplanationSlide + 1} / ${explanationSlides.length}`"
+								></span>
+							</div>
+
+
+							<div
+								class="explanation-viewer"
+								@pointerdown="startExplanationSwipe($event)"
+								@pointerup="endExplanationSwipe($event)"
+								@pointercancel="explanationPointerStartX = null"
+							>
+
+								<button
+									class="explanation-arrow explanation-arrow-left"
+									type="button"
+									aria-label="Previous slide"
+									@click.stop="previousExplanationSlide()"
+									:disabled="currentExplanationSlide <= 0"
+								>
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<path d="M15 4L7 12L15 20" />
+									</svg>
+								</button>
+
+
+								<img
+									class="explanation-slide"
+									:src="explanationSlideSrc"
+									:alt="`How to play slide ${currentExplanationSlide + 1}`"
+									draggable="false"
+								>
+
+
+								<button
+									class="explanation-arrow explanation-arrow-right"
+									type="button"
+									aria-label="Next slide"
+									@click.stop="nextExplanationSlide()"
+									:disabled="currentExplanationSlide >= explanationSlides.length - 1"
+								>
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<path d="M9 4L17 12L9 20" />
+									</svg>
+								</button>
+
+							</div>
+
+
+							<div class="explanation-actions">
+
+								<button
+									class="explanation-play-button"
+									type="button"
+									@pointerup="tutorial()"
+								>
+									Play tutorial
+								</button>
+
+								<button
+									class="explanation-back-button"
+									type="button"
+									@pointerup="goBackToMain()"
+								>
+									Go back
+								</button>
+
+							</div>
+
+						</div>
+
+
+						<!-- ========================================================
+							Options
+							======================================================== -->
+
+						<div
+							class="content-card options-card"
+							x-show="panelView === 'options'"
+						>
+
+							<div class="options-header">
+								<h2>Options</h2>
+							</div>
+
+
+							<div
+								class="game-options-panel"
+								x-ref="gamePanel"
+								x-html="htmlContent"
+							></div>
+
+
+							<div class="options-actions">
+								<button
+									class="options-back-button"
+									type="button"
+									@pointerup="goBackToMain()"
+								>
+									Go back
+								</button>
+							</div>
+
+						</div>
+
+					</section>
 				</div>
 			</template>
 
 			<template x-if="uses('wait-play')">
 				<div id="wait-play-page" class="page" x-data="panel">
-					<h1>Waiting for players</h1>
+					<h1
+						x-data="{ dots: 1 }"
+						x-init="setInterval(() => dots = dots % 3 + 1, 900)"
+						x-text="'Waiting for players' + '.'.repeat(dots)"
+					></h1>
 					<div>
 						<span>
 							Allow bots?
@@ -213,26 +447,26 @@
 			</template>
 
 			<template x-if="uses('play-results')">
-				<div id="play-results-page" class="page" x-data="panel">
+				<div id="play-results-page" class="page" x-data="Object.create(panel)">
 					<div class="results-container">
-						<!-- Iterate over each player score entry with its index to bind the ranking -->
+						<!-- Iterate over each player score and its index to determine the ranking -->
 						<template x-for="(score, index) in panel.results.scores" :key="score.identifier">
-							<!-- Add the 'play-results-me' class if the score belongs to the current user -->
+							<!-- Highlight the current user's result -->
 							<div class="result-row" :class="{ 'play-results-me': score.identifier === panel.me }">
 								
-								<!-- Display rank column (1st, 2nd, 3rd...) -->
+								<!-- Display the player's rank -->
 								<span x-text="panel.formatRank(panel.rankings[index])"></span>
 
-								<!-- Display player pseudo or fallback to anonymous if null -->
+								<!-- Display the player's username, or a fallback for anonymous players -->
 								<span 
 									:class="{ 'noTrophees': panel.pseudos[score.identifier] === null }" 
 									x-html="panel.showPseudo(panel.pseudos[score.identifier])">
 								</span>
 
-								<!-- Display trophies score -->
+								<!-- Display the trophy score -->
 								<span x-text="score.result < 0 ? '' : score.result">123</span>
 
-								<!-- Display score variation (delta) -->
+								<!-- Display the score variation -->
 								<span x-text="(score.delta >= 0 ? '+' : '') + score.delta"></span>
 							</div>
 						</template>
@@ -252,7 +486,7 @@
 				</div>
 			</template>
 
-			<!-- Login Page Template -->
+			<!-- Login page -->
 			<template x-if="uses('login')">
 				<div id="login-page" class="page">
 					<h2>Login</h2>
@@ -287,7 +521,7 @@
 				</div>
 			</template>
 
-			<!-- Signin / Create Account Page Template -->
+			<!-- Sign-up / account creation page -->
 			<template x-if="uses('signin')">
 				<div id="signin-page" class="page">
 					<h2>Create Account</h2>
@@ -329,7 +563,8 @@
 					<div class="leaderboard-controls">
 						<select x-model="gamemode" @change="setGamemode(gamemode === '' ? null : gamemode)">
 							<option value="">Total Trophies</option>
-							<!-- Map dynamically over available gamemodes -->
+
+							<!-- Generate an option for each available game mode -->
 							<template x-for="key in Object.keys(gamemods)" :key="key">
 								<option :value="key" x-text="gamemods[key].name"></option>
 							</template>
@@ -341,7 +576,7 @@
 					</div>
 
 					<div class="leaderboard-list">
-						<!-- Apply .leaderboard-me class if logged in and the name matches the root pseudo -->
+						<!-- Highlight the current user when logged in -->
 						<template x-for="(entry, index) in entries" :key="index">
 							<div 
 								class="leaderboard-entry"
@@ -405,6 +640,8 @@
 
 			<div x-show="uses('play')">
 				<canvas id="play-canvas"></canvas>
+
+				<!-- Display tutorial text when the current game provides a tutorial marker -->
 				<template x-if="panel && panel.TUTORIAL_MARKER">
 					<div
 						class="tutorialText" 
@@ -412,7 +649,11 @@
 						x-show="panel.text && panel.text.length !== 0"
 					></div>
 				</template>
+
+				<!-- Display the current network latency -->
 				<div id="game-ping"></div>
+
+				<!-- Container for game-specific HTML content -->
 				<div id="game-html"></div>
 			</div>
 
@@ -438,6 +679,67 @@
 					<button type="button" @pointerup="openHome()">Go home</button>
 				</div>
 			</template>
+
+			<template x-if="uses('contact')">
+				<div id="contact-page" class="page">
+					<h1>Contact</h1>
+
+					<div>
+						<div>
+							<div>
+								<span>Mail</span>
+								<a href="mailto:bryan.musiquammation@gmail.com">
+									bryan.musiquammation@gmail.com
+								</a>
+							</div>
+
+							<div>
+								<span>Privacy</span>
+								<a href="https://musiquammation.github.io/ayke/privacy.html" target="_blank" rel="noopener">
+									Privacy Policy
+								</a>
+							</div>
+
+							<div>
+								<span>Discord</span>
+								<a href="https://discord.gg/xMPNwxXayH" target="_blank" rel="noopener">
+									Join our Discord
+								</a>
+							</div>
+
+							<div>
+								<span>Android</span>
+								<span><i>Coming soon...</i></span>
+							</div>
+						</div>
+					</div>
+
+					<button type="button" @pointerup="openHome()">Go home</button>
+				</div>
+			</template>
+
+			<!-- 
+			Transition Component 
+			Listens to the 'transitionState' variable in MainComponent.
+			States: 'idle' | 'closing' | 'loading' | 'opening' 
+			-->
+			<div id="transition-component" :data-state="transitionState">
+				<img :src="AYKE_ICON_URL"></img> <!-- 1: Yellow Circle -->
+				<div></div> <!-- 2: Left Panel -->
+				<div></div> <!-- 3: Right Panel -->
+				<span
+					x-data="{ dots: 0, interval: null }"
+					x-init="
+						interval = setInterval(() => {
+							dots = (dots + 1) % 4;
+						}, 400);
+					"
+					x-effect="$el.textContent = 'loading' + '.'.repeat(dots)"
+					x-text="'loading' + '.'.repeat(dots)"
+				>
+					loading
+				</span>
+			</div>
 		</div>
 
 
@@ -450,6 +752,19 @@
             window.PROTOCOLS_FOLDER = "/protocols/games/";
 			window.VERSION_CODE = 1;
 
+			// Set "Rye" font
+			{
+				const font = new FontFace(
+					"Rye",
+					"url(/fonts/Rye-Regular.ttf) format('truetype')"
+				);
+	
+				font.load().then(
+					() => document.fonts.add(font)
+ 				);
+			}
+
+			// Initialize the application after the DOM has been fully loaded
 			document.addEventListener("DOMContentLoaded", async () => {
 				const { init } = await import("/src/index.ts");
 				window.dom = init();

@@ -93,9 +93,11 @@ const TOP_OF_LEVEL_BONUS = 5000;       // Instant bonus for reaching MAX_LEVEL_H
 const ROUND_END_DELAY = 3;             // Seconds shown as "round over" screen before next round
 
 // --- Obstacles ---------------------------------------------------------
-const OBSTACLE_CHECK_INTERVAL = 0.65;  // Server checks whether to queue a new obstacle every 0.85s
-const OBSTACLE_SPAWN_DELAY = 0.5;      // Delay between "waiting" obstacle selection and actual spawn
-const OBSTACLE_SPAWN_CHANCE = 0.65;    // Probability of actually spawning something on a given check
+const OBSTACLE_CHECK_INTERVAL = 0.3;  // Server checks whether to queue a new obstacle every 0.85s
+const OBSTACLE_SPAWN_DELAY = 0.2;      // Delay between "waiting" obstacle selection and actual spawn
+const OBSTACLE_SPAWN_CHANCE_START = 0.1;
+const OBSTACLE_SPAWN_CHANCE_END = 1;
+const OBSTACLE_SPAWN_CHANCE_RAMP_DURATION = 30;
 const OBSTACLE_SPAWN_YRANGE = 800;
 const OBSTACLE_CLEANUP_MARGIN = SCREEN_HEIGHT; // Distance outside camera before an obstacle is removed
 const OBSTACLE_GRAVITY = BALL_GRAVITY/3;
@@ -130,6 +132,18 @@ const ELIMINATED_GREY = '#888888';
 /* ============================================================================
  * PURE HELPER FUNCTIONS (math / physics, provided or derived from the spec)
  * ==========================================================================*/
+
+function getObstacleSpawnChance(t: number): number {
+	const progress = Math.min(
+		1,
+		t / OBSTACLE_SPAWN_CHANCE_RAMP_DURATION
+	);
+
+	return (
+		OBSTACLE_SPAWN_CHANCE_START +
+		(OBSTACLE_SPAWN_CHANCE_END - OBSTACLE_SPAWN_CHANCE_START) * progress
+	);
+}
 
 /**
  * Maps aiming-phase local time t in [0, TURN_AIM_DURATION] to a game speed
@@ -834,6 +848,7 @@ export class GMLavaBall extends GameMode {
 	currentPlayer = 0;
 	turnPhase = PHASE_WAIT_BEFORE;
 	turnTimer = 0;
+	phaseTimer = 0;
 
 	/** True once the current turn's ball has already been thrown (prevents double-throw / late auto-throw). */
 	private thrownThisTurn = false;
@@ -981,6 +996,7 @@ export class GMLavaBall extends GameMode {
 		this.roundStartPlayer = firstRound ? 0 : (this.roundStartPlayer + 1) % this.players.length;
 		this.currentPlayer = this.firstAlivePlayerFrom(this.roundStartPlayer);
 
+		this.phaseTimer = 0;
 		this.resetBallToStart();
 		this.beginTurn();
 	}
@@ -1083,6 +1099,7 @@ export class GMLavaBall extends GameMode {
 		// 3) Advance the turn timer using REAL time (the timer itself is
 		//    what defines the slow-motion window, so it can't be scaled).
 		this.turnTimer += dt;
+		this.phaseTimer += scaledDt;
 
 		// 4) Auto-throw if the aiming window just closed without an explicit throw.
 		if (this.turnPhase === PHASE_AIMING &&
@@ -1135,6 +1152,13 @@ export class GMLavaBall extends GameMode {
 			this.ball.vx = -Math.abs(this.ball.vx);
 		}
 
+		// Bounce off the ceiling.
+		const ceiling = this.yLevel + SCREEN_HEIGHT / (2 * Camera.SCALE) - BALL_RADIUS;
+		if (this.ball.y > ceiling && this.ball.vy > 0) {
+			this.ball.y = ceiling;
+			this.ball.vy = -Math.abs(this.ball.vy);
+		}
+
 		// Track the highest point ever reached this round.
 		if (this.ball.y > this.yLevel) {
 			this.yLevel = this.ball.y;
@@ -1170,19 +1194,31 @@ export class GMLavaBall extends GameMode {
 		// Obstacle collision (deadly).
 		for (const obstacle of this.obstacles) {
 			if (obstacle.collidesWithBall(this.ball.x, this.ball.y, BALL_RADIUS)) {
-				this.eliminateCurrentPlayer();
+				this.eliminateCurrentPlayer(obstacle);
 				return;
 			}
 		}
 
 		// Falling behind the camera (off-screen below) is deadly too.
-		if (this.ball.y <= this.yLevel - SCREEN_HEIGHT * Camera.SCALE) {
+		const yLim = this.yLevel + (BALL_RADIUS - SCREEN_HEIGHT/2) / Camera.SCALE;
+		if (this.ball.y < yLim) {
+			this.ball.y = yLim;
+			this.ball.vy = Math.abs(this.ball.vy);
 			this.eliminateCurrentPlayer();
+			return;
 		}
 	}
 
-	/** Removes the current player from the round and resets the ball to the last checkpoint. */
-	private eliminateCurrentPlayer() {
+	/*
+	 * Eliminates the current player.
+	 *
+	 * When an obstacle kills the player, that obstacle is destroyed immediately.
+	 * The ball is NOT reset or moved: it keeps its current position and velocity,
+	 * so the next player immediately continues from the same ball state.
+	 *
+	 * When the player dies by falling off-screen, there is no obstacle to destroy.
+	 */
+	private eliminateCurrentPlayer(killingObstacle?: Obstacle) {
 		const player = this.players[this.currentPlayer];
 		if (player.eliminated) return; // safety guard
 
@@ -1190,12 +1226,24 @@ export class GMLavaBall extends GameMode {
 		player.score += this.yLevel;
 		this.lastEliminatedYLevel = this.yLevel;
 
-		// The ball goes back to the last safe platform for the next player.
-		this.ball.x = this.checkpointX;
-		this.ball.y = this.checkpointY;
-		this.ball.vx = 0;
-		this.ball.vy = 0;
-		this.ball.inFlight = false;
+		// The obstacle that killed the player is destroyed immediately.
+		if (killingObstacle) {
+			this.obstacles = this.obstacles.filter(
+				obstacle => obstacle.id !== killingObstacle.id
+			);
+		}
+
+		// Cancel any pending input from the eliminated player.
+		player.aiming = false;
+		player.askThrow = false;
+
+		// Do NOT reset, stop, or move the ball.
+		// It continues from its current position and velocity.
+
+		// Immediately give the turn to the next alive player.
+		if (this.countAlive() > 1) {
+			this.advanceTurn();
+		}
 	}
 
 	/** Handles a player reaching the top of the level: they win the round instantly. */
@@ -1212,8 +1260,12 @@ export class GMLavaBall extends GameMode {
 		this.obstacleSpawnTimer += dt;
 		if (this.obstacleSpawnTimer >= OBSTACLE_CHECK_INTERVAL) {
 			this.obstacleSpawnTimer -= OBSTACLE_CHECK_INTERVAL;
-			if (rng() < OBSTACLE_SPAWN_CHANCE) {
-				this.waitingObstacles.push(pickRandomObstacle(this.nextObstacleId++, this.yLevel));
+			const spawnChance = getObstacleSpawnChance(this.phaseTimer);
+
+			if (rng() < spawnChance) {
+				this.waitingObstacles.push(
+					pickRandomObstacle(this.nextObstacleId++, this.yLevel)
+				);
 			}
 		}
 
@@ -1617,6 +1669,7 @@ export class GMLavaBall extends GameMode {
 			currentPlayer: this.currentPlayer,
 			turnPhase: this.turnPhase,
 			turnTimer: this.turnTimer,
+			phaseTimer: this.phaseTimer,
 
 			roundNumber: this.roundNumber,
 			roundEnding: this.roundEnding,
@@ -1654,6 +1707,7 @@ export class GMLavaBall extends GameMode {
 		this.currentPlayer = obj.currentPlayer;
 		this.turnPhase = obj.turnPhase;
 		this.turnTimer = obj.turnTimer;
+		this.phaseTimer = obj.phaseTimer;
 
 		this.roundNumber = obj.roundNumber;
 		this.roundEnding = obj.roundEnding;
@@ -1679,6 +1733,7 @@ export class GMLavaBall extends GameMode {
 		this.checkpointY = this.ball.inFlight
 			? platformBelow.y + platformBelow.h / 2 + BALL_RADIUS
 			: this.ball.y;
+
 	}
 
 	override getSize() {

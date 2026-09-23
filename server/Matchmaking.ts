@@ -668,8 +668,8 @@ class Matchmaking {
 
 		logger.info(
 			`Starting game for mode '${waitingRoom.gamemode}' ` +
-			`Receive ${waitingRoom.players.length} (of ${waitingRoom.excepted}) players ` +
-			`(Bots allowed: ${botsAllowed})`
+			`Receive [${waitingRoom.players.map(i => i.pseudo)}] (of ${waitingRoom.excepted}) players ` +
+			(botsAllowed ? "(Bots allowed)" : "")
 		);
 
 		logger.debug(
