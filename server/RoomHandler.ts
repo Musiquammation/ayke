@@ -71,6 +71,7 @@ export class Room {
 	private finished = false;
 
 	constructor(
+		public readonly gameIdentifier: number,
 		public readonly gamemodeId: string,
 		public readonly gamemode: GameMode,
 		players: PlayerInput[],
@@ -139,6 +140,7 @@ export class Room {
 
 		this.finished = true;
 		this.onfinish();
+		logger.info(`Finished game #${this.gameIdentifier} (by deconnection)`);
 
 		for (const p of this.players) {
 			if (p.connection) {
@@ -317,6 +319,7 @@ export class Room {
 
 		this.finished = true;
 		this.onfinish();
+		logger.info(`Finished game #${this.gameIdentifier}`);
 
 
 
@@ -422,7 +425,12 @@ export class Room {
 class RoomHandler {
 	private readonly rooms: Room[] = [];
 
-	async append(gamemode: string, total: number, players: PlayerInput[]) {
+	async append(
+		gameIdentifier: number,
+		gamemode: string,
+		total: number,
+		players: PlayerInput[]
+	) {
 		const factory = getMultiGmFactory(gamemode);
 
 		// Check players are'nt in a room
@@ -442,6 +450,7 @@ class RoomHandler {
 			(gm, skinId, user) => db.hasSkin(gm, skinId, user)
 		);
 		const room = new Room(
+			gameIdentifier,
 			gamemode,
 			created.game,
 			players,

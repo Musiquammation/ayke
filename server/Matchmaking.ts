@@ -29,6 +29,17 @@ function getWaitedPlayers(gamemode: string, data: any): number {
 	return result;
 }
 
+let _nextGameIdentifier = 0;
+
+function generateGameIdentifier() {
+	const identifier = _nextGameIdentifier++;
+
+	if (_nextGameIdentifier >= 2_000_000_000)
+		_nextGameIdentifier = 0;
+
+	return identifier;
+}
+
 interface Player {
 	connection: Connection;
 	pseudo: string | null;
@@ -644,39 +655,16 @@ class Matchmaking {
 	}
 
 	private handleRoom(waitingRoom: WaitingRoom) {
-		logger.debug(
-			`handleWaitingRoom: ` +
-			`gamemode=${waitingRoom.gamemode}, ` +
-			`players=${waitingRoom.players.length}, ` +
-			`excepted=${waitingRoom.excepted}`
-		);
-
-		const botsAllowed = waitingRoom.players.every(
-			p => p.useBots
-		);
-
-		logger.debug(
-			`Bots allowed=${botsAllowed}`
-		);
-
-		logger.debug(
-			`Players in room: ` +
-			waitingRoom.players
-				.map(p => `${p.pseudo ?? "anonymous"}:${p.trophees}`)
-				.join(", ")
-		);
+		const gameIdentifier = generateGameIdentifier();
 
 		logger.info(
-			`Starting game for mode '${waitingRoom.gamemode}' ` +
-			`Receive [${waitingRoom.players.map(i => i.pseudo)}] (of ${waitingRoom.excepted}) players ` +
-			(botsAllowed ? "(Bots allowed)" : "")
-		);
-
-		logger.debug(
-			`Game start handling completed`
+			`Starting game #${gameIdentifier} for mode '${waitingRoom.gamemode}' ` +
+			`Receive [${waitingRoom.players.map(i => i.pseudo)}] ` +
+			`(of ${waitingRoom.excepted}) players`
 		);
 
 		roomHandler.append(
+			gameIdentifier,
 			waitingRoom.gamemode,
 			waitingRoom.excepted,
 			waitingRoom.players.map(p => ({
@@ -686,7 +674,7 @@ class Matchmaking {
 				identifier: p.identifier,
 				pseudo: p.pseudo
 			}))
-		)
+		);
 	}
 
 	private hasConnection(connection: Connection): boolean {

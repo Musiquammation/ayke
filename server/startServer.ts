@@ -67,3 +67,15 @@ initDb(DB_FILE);
 database.then(initDbWithGamemods);
 
 
+
+process.on("SIGINT", () => {
+	logger.info("Server shutting down...");
+	process.exit(0);
+});
+
+process.on("SIGTERM", () => {
+	logger.info("Server shutting down...");
+	process.exit(0);
+});
+
+
