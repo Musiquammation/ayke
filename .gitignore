@@ -1,0 +1,6 @@
+draft/
+node_modules/
+.env
+dist/
+client/dist/
+android/
