@@ -10,7 +10,6 @@ import { hasNavigatorMobile, hasNavigatorMouse } from "../dom/clientNavigatorTyp
 import { deleteGameHandler } from "./GameHandler";
 import { fullScreenHandler } from "./FullScreenHandler";
 import { Bot, generateBot } from "../../../commons/Bot";
-import Prando from "prando";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -20,6 +19,7 @@ export class LocalGameHandler {
 	private lastTime = 0;
 	private gamemode: GameMode;
 	private interrupted = false;
+	private finishingGame = false;
 	private readonly tutorial;
 	private readonly clientData;
 	private readonly gameWidth: number;
@@ -31,9 +31,10 @@ export class LocalGameHandler {
 	// Bots controlled by the local game handler.
 	private readonly bots: Bot<GameMode, any>[];
 
-	private readonly prando;
-
 	private readonly playerCount;
+
+	private finishTimer: number | null = null;
+	private finishResult: FinishGame | null = null;
 
 	constructor(
 		gamemodeId: string,
@@ -42,8 +43,6 @@ export class LocalGameHandler {
 		seed = Math.random()
 	) {
 		const factory = getMultiGmFactory(gamemodeId);
-		this.prando = new Prando(seed);
-		console.log("Current seed is " + Math.random());
 
 		this.playerCount = addBots ? factory.defaultPlayerCount : 2;
 		const {game, data, html, skins} = factory.client(
@@ -112,13 +111,16 @@ export class LocalGameHandler {
 		requestAnimationFrame(() => this.frame());
 	}
 
-	private draw(dt: number) {
-		// Compute the scale needed to fit the game viewport inside the canvas.
+	private draw(dt: number, addCamZ: number) {
 		const scaleX = innerWidth / this.gameWidth;
 		const scaleY = innerHeight / this.gameHeight;
 
 		// Preserve the game's aspect ratio by using the smallest scale.
-		const scale = Math.min(scaleX, scaleY);
+		let scale = Math.min(scaleX, scaleY);
+
+		// Zoom out progressively if the game is finished
+		if (this.finishTimer !== null) {
+		}
 
 		// Center the scaled game viewport inside the canvas.
 		const offsetX = (innerWidth - this.gameWidth * scale) / 2;
@@ -134,7 +136,7 @@ export class LocalGameHandler {
 		ctx.scale(scale, scale);
 
 		// Everything drawn here is affected by the translation and scale.
-		this.gamemode.draw(ctx, 0, this.clientData, imageLoader, dt);
+		this.gamemode.draw(ctx, 0, this.clientData, imageLoader, addCamZ, dt);
 
 		ctx.restore();
 
@@ -158,44 +160,64 @@ export class LocalGameHandler {
 		}
 	}
 
+	private static dtSpeedFn(t: number) {
+		const a = 1.6;
+		return Math.pow(t + 0.5, -a) / (Math.pow(0.5, -a) * 1.1) + 0.1;
+	}
+
+	private static zoomFn(x: number) {
+		return Math.sin(x * ((Math.PI/2)/3));
+	}
+
 	private frame() {
 		if (this.interrupted)
 			return;
 
 		const now = performance.now();
-		const dt = (now - this.lastTime) / 1000;
+		let dt = (now - this.lastTime) / 1000;
+		const realDt = dt; // Keep the real time delta for our 5-second timer
 		this.lastTime = now;
-		this.clock += dt;
+		this.clock += realDt;
 
-		const inputs = this.gamemode.collectInputs(
-			keyboardController,
-			mouseController,
-			(this.allowsMobile && !hasNavigatorMouse()) ? mobileController : null,
-			this.clientData
-		);
+		// Handle the ending sequence
+		if (this.finishTimer !== null) {
+			this.finishTimer += realDt;
+			dt *= LocalGameHandler.dtSpeedFn(this.finishTimer);
 
-		keyboardController.frame();
-		mouseController.frame();
-		mobileController.frame();
-
-		// Apply the local player's inputs.
-		for (const input of inputs) {
-			this.gamemode.runInput(0, input);
+			if (this.finishTimer >= 3.0) {
+				this.finishGame(this.finishResult!);
+			}
 		}
 
-		// Collect and apply all bot inputs for this frame.
-		//
-		// Inputs are collected first and applied afterwards so that every bot
-		// makes its decision from the same game state.
-		const collected: Record<number, Fields[]> = {};
+		// Block inputs if we are in the ending sequence
+		if (this.finishTimer === null) {
+			const inputs = this.gamemode.collectInputs(
+				keyboardController,
+				mouseController,
+				(this.allowsMobile && !hasNavigatorMouse()) ? mobileController : null,
+				this.clientData
+			);
 
-		for (const bot of this.bots) {
-			collected[bot.playerIdx] = bot.play(this.gamemode);
-		}
+			keyboardController.frame();
+			mouseController.frame();
+			mobileController.frame();
 
-		for (const [playerIdx, inputs] of Object.entries(collected)) {
+			// Apply the local player's inputs.
 			for (const input of inputs) {
-				this.gamemode.runInput(Number(playerIdx), input);
+				this.gamemode.runInput(0, input);
+			}
+
+			// Collect and apply all bot inputs for this frame.
+			const collected: Record<number, Fields[]> = {};
+
+			for (const bot of this.bots) {
+				collected[bot.playerIdx] = bot.play(this.gamemode);
+			}
+
+			for (const [playerIdx, inputs] of Object.entries(collected)) {
+				for (const input of inputs) {
+					this.gamemode.runInput(Number(playerIdx), input);
+				}
 			}
 		}
 
@@ -211,22 +233,36 @@ export class LocalGameHandler {
 			}
 		}
 
-		const rng = () => this.prando.next();
-		const finish = this.gamemode.quickEmulate(dt, true, rng);
-		if (finish) {
-			this.finishGame(finish);
-			return;
+		const rng = Math.random;
+		
+		// Run emulation with our modified (potentially slowed down) dt
+		const finish = this.gamemode.quickEmulate(
+			dt,
+			this.finishTimer === null,
+			rng
+		);
+		
+		// If the game finishes, start the 5s sequence instead of exiting immediately
+		if (finish && this.finishTimer === null) {
+			this.finishTimer = 0;
+			this.finishResult = finish;
 		}
 
-		this.draw(dt);
+		this.draw(
+			dt,
+			this.finishTimer === null ? 0 : LocalGameHandler.zoomFn(this.finishTimer)
+		);
 
 		requestAnimationFrame(() => this.frame());
 	}
 
-	private finishGame(finish: FinishGame) {
+	private async finishGame(finish: FinishGame) {
+		if (this.finishingGame) {
+			return;
+		}
+		this.finishingGame = true;
+		await dom.openLocalPlayResults(finish);
 		this.interrupted = true;
-		deleteGameHandler();
-		dom.openLocalPlayResults(finish);
 	}
 
 

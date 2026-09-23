@@ -1,11 +1,11 @@
 import { Fields } from "../../../commons/Fields";
-import { GameMode } from "../../../commons/GameMode";
+import { FinishGame, GameMode } from "../../../commons/GameMode";
 import { gamemods, getMultiGmFactory } from "../../../commons/gamemods";
 import { getNow, msgtypes } from "../messages/sendMessage";
-import { keyboardController } from "../controllers/KeyboardController"
-import { mouseController } from "../controllers/MouseController"
-import { mergeSortedArrays } from "../../../commons/util/mergeSortedArrays"
-import { dom } from "../dom/dom";
+import { keyboardController } from "../controllers/KeyboardController";
+import { mouseController } from "../controllers/MouseController";
+import { mergeSortedArrays } from "../../../commons/util/mergeSortedArrays";
+import { dom, PlayResults } from "../dom/dom";
 import { getProtocol, ProtocolTypes } from "../../../commons/protocolLoader";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { imageLoader } from "./imageLoader";
@@ -13,9 +13,10 @@ import { mobileController } from "../controllers/MobileController";
 import { hasNavigatorMobile, hasNavigatorMouse } from "../dom/clientNavigatorType";
 import { fullScreenHandler } from "./FullScreenHandler";
 
-
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
+
+// Prevent context menu from appearing on right click
 canvas.oncontextmenu = e => {
 	e.preventDefault();
 };
@@ -23,30 +24,31 @@ canvas.oncontextmenu = e => {
 const PING_LIMIT = 2000;
 const pingElement = document.getElementById("game-ping")!;
 
-
+/**
+ * Adjusts the canvas resolution and CSS size based on the device pixel ratio
+ * to ensure crisp rendering on high-DPI displays.
+ */
 function resizeCanvas() {
 	const dpr = window.devicePixelRatio || 1;
 
 	const width = window.innerWidth;
 	const height = window.innerHeight;
 
-	// CSS size
+	// Set CSS display size
 	canvas.style.width = `${width}px`;
 	canvas.style.height = `${height}px`;
 
-	// Internal resolution
+	// Set internal resolution based on DPR
 	canvas.width = Math.round(width * dpr);
 	canvas.height = Math.round(height * dpr);
 
-	// Make drawing coordinates use CSS pixels
+	// Make drawing coordinates use CSS pixels seamlessly
 	const ctx = canvas.getContext("2d")!;
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
-
-
 
 interface Input {
 	timestamp: number;
@@ -57,22 +59,33 @@ interface RealInput {
 	player: number;
 }
 
+/**
+ * Helper to sort inputs chronologically by timestamp.
+ */
 function compareInputs(a: RealInput, b: RealInput) {
 	return a.timestamp - b.timestamp;
 }
 
 class GameHandler {
-	private lastEmulation = 0;
 	private userInputs: Input[] = [];
 	private readonly gameWidth: number;
 	private readonly gameHeight: number;
 	private prevDraw: number | null = null;
 	private readonly allowsMobile;
 	
+	// Networking & Emulation timers
+	private lastEmulation = getNow();
+	private emulationTime = getNow(); // Used to simulate slowed time locally
 	private lastReceive = getNow();
 	private pingSum = 0;
 	private pingCount = 0;
 	private lastPingUpdate = getNow();
+
+	// Ending sequence state variables
+	private finishTimer: number | null = null;
+	private finishingGame = false;
+	private resolveClose: (() => void) | null = null;
+	private interrupted = false;
 
 	constructor(
 		private readonly gamemodeId: string,
@@ -84,6 +97,8 @@ class GameHandler {
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
+
+		// Initialize input controllers with proper coordinate mapping
 		mouseController.setScreenCoordsAdapter(this.gamemode, playerIdx, clientData);
 
 		const mobileDesc = this.gamemode.getMobileDesc();
@@ -97,6 +112,25 @@ class GameHandler {
 		pingElement.textContent = "";
 	}
 
+	/**
+	 * Computes the local simulated time delta speed factor.
+	 * Used to slow down time when the game is finishing.
+	 */
+	private static dtSpeedFn(t: number) {
+		const a = 1.6;
+		return Math.pow(t + 0.5, -a) / (Math.pow(0.5, -a) * 1.1) + 0.1;
+	}
+
+	/**
+	 * Computes the zoom progression based on the finish timer.
+	 */
+	private static zoomFn(x: number) {
+		return Math.sin(x * ((Math.PI/2)/3));
+	}
+
+	/**
+	 * Evaluates and displays the current network ping to the server.
+	 */
 	private updatePing() {
 		const now = getNow();
 
@@ -115,19 +149,27 @@ class GameHandler {
 			pingElement.textContent = averagePing.toFixed(1).padStart(4, "0");
 			pingElement.classList.remove('disconnected');
 
-
 			this.pingSum = 0;
 			this.pingCount = 0;
 			this.lastPingUpdate = now;
 		}
 	}
 
+	/**
+	 * Handles data packets received from the server.
+	 */
 	receive(gdata: Uint8Array) {
 		this.updatePing();
 		const msg = decodeFullMessage(this.protocols.ServerMessage.decode(gdata));
+		
+		// Load the definitive state provided by the server
 		this.gamemode.load(msg.state);
+		
 		const now = getNow();
-		this.lastEmulation = now;
+		// If time hasn't been manually desynchronized by finishTimer, align with reality
+		if (this.finishTimer === null) {
+			this.emulationTime = now;
+		}
 
 		const inputs = mergeSortedArrays(
 			msg.inputs.map((i: any) => ({...(i.data), player: i.player})),
@@ -135,25 +177,28 @@ class GameHandler {
 			compareInputs
 		);
 
+		// Emulate to catch up state from the server state timestamp to local simulated time
 		this.gamemode.emulate(
 			msg.timestamp,
-			now,
+			this.emulationTime,
 			inputs,
 			null
 		);
 
+		// Send accumulated inputs back to the server
 		const output = this.protocols.ClientMessage.encode({
 			timestamp: now,
 			inputs: this.userInputs
 		}).finish();
 
-		this.userInputs.length = 0; // empty userInputs
-
-
+		this.userInputs.length = 0; // flush userInputs after sending
 		return output;
 	}
 
-	private draw(dt: number) {
+	/**
+	 * Renders the current game frame on the canvas.
+	 */
+	private draw(dt: number, addCamZ: number) {
 		// Compute the scale needed to fit the game viewport inside the canvas.
 		const scaleX = innerWidth / this.gameWidth;
 		const scaleY = innerHeight / this.gameHeight;
@@ -175,7 +220,7 @@ class GameHandler {
 		ctx.scale(scale, scale);
 
 		// Everything drawn here is affected by the translation and scale.
-		this.gamemode.draw(ctx, this.playerIdx, this.clientData, imageLoader, dt);
+		this.gamemode.draw(ctx, this.playerIdx, this.clientData, imageLoader, addCamZ, dt);
 
 		// Restore the context to the original canvas coordinates.
 		ctx.restore();
@@ -183,13 +228,11 @@ class GameHandler {
 		// Draw black bars over the unused areas outside the game viewport.
 		ctx.fillStyle = "black";
 
-		// Draw left and right bars when the canvas is wider than the game viewport.
 		if (offsetX > 0) {
 			ctx.fillRect(0, 0, offsetX, innerHeight); // Left bar
 			ctx.fillRect(innerWidth - offsetX, 0, offsetX, innerHeight); // Right bar
 		}
 
-		// Draw top and bottom bars when the canvas is taller than the game viewport.
 		if (offsetY > 0) {
 			ctx.fillRect(0, 0, innerWidth, offsetY); // Top bar
 			ctx.fillRect(0, innerHeight - offsetY, innerWidth, offsetY); // Bottom bar
@@ -200,56 +243,116 @@ class GameHandler {
 		}
 	}
 
+	/**
+	 * Main execution loop managing emulation and rendering.
+	 */
 	frame() {
+		if (this.interrupted) return;
+		
 		const now = getNow();
-		// Check ping
-		if (now - this.lastReceive >= PING_LIMIT) {
+		
+		// Check ping timeout
+		if (this.finishTimer === null && now - this.lastReceive >= PING_LIMIT) {
 			pingElement.textContent = "(disconnected)";
 			pingElement.classList.add('disconnected');
 		}
-		
-		
-		// Collect inputs
-		const newInputs = this.gamemode.collectInputs(
-			keyboardController,
-			mouseController,
-			(this.allowsMobile && !hasNavigatorMouse()) ? mobileController : null,
-			this.clientData
-		).map(data => ({...data, timestamp: now}));
-		this.userInputs.push(...newInputs);
 
-		keyboardController.frame();
-		mouseController.frame();
-		mobileController.frame();
-
-		this.gamemode.emulate(
-			this.lastEmulation,
-			now,
-			newInputs.map(i => ({...i, player: this.playerIdx})),
-			null
-		);
-		this.lastEmulation = now;
-
-
-		this.draw(this.prevDraw === null ? 1/60 : now - this.prevDraw);
+		// Calculate real elapsed time in seconds
+		let dt = this.prevDraw === null ? 1/60 : (now - this.prevDraw) / 1000;
 		this.prevDraw = now;
+		
+		// If finishing the game, slow down the time progression (dt)
+		if (this.finishTimer !== null) {
+			this.finishTimer += dt;
+			dt *= GameHandler.dtSpeedFn(this.finishTimer);
 
+			// Check if the 3-second sequence is over and resolve the promise
+			if (this.finishTimer >= 3.0 && this.resolveClose) {
+				this.resolveClose();
+				this.resolveClose = null; // Prevent multi-calls
+			}
+		}
+
+		// Calculate the new time for the emulation engine based on our modified dt
+		const emulationDtMs = dt * 1000;
+		const nextEmulationTime = this.emulationTime + emulationDtMs;
+		
+		// Block input collection when the end sequence has started
+		if (this.finishTimer === null) {
+			const newInputs = this.gamemode.collectInputs(
+				keyboardController,
+				mouseController,
+				(this.allowsMobile && !hasNavigatorMouse()) ? mobileController : null,
+				this.clientData
+			).map(data => ({...data, timestamp: nextEmulationTime}));
+			
+			this.userInputs.push(...newInputs);
+
+			keyboardController.frame();
+			mouseController.frame();
+			mobileController.frame();
+
+			// Emulate the current frame locally to provide instant feedback
+			this.gamemode.emulate(
+				this.emulationTime,
+				nextEmulationTime,
+				newInputs.map(i => ({...i, player: this.playerIdx})),
+				null
+			);
+		} else {
+			this.gamemode.emulate(
+				this.emulationTime,
+				nextEmulationTime,
+				[],
+				null
+			);
+		}
+
+		this.emulationTime = nextEmulationTime;
+
+		// Draw with the computed delta and zoom values
+		this.draw(
+			dt,
+			this.finishTimer === null ? 0 : GameHandler.zoomFn(this.finishTimer)
+		);
+
+		// Loop while handler is active
 		if (_gameHandler) {
-			requestAnimationFrame(()=>this.frame());
+			requestAnimationFrame(() => this.frame());
 		}
 	}
+
+
+	/**
+	 * Initiates the 3-second closing sequence, slowing time and zooming in.
+	 * Resolves completely once the visual transition and cleanup are complete.
+	 */
+	async close() {
+		if (this.finishingGame) return;
+
+		this.finishingGame = true;
+
+		// 1. Start the 3 seconds timer (which modifies frame()'s dt and zoom)
+		this.finishTimer = 0;
+
+		// Wait for exactly 3 in-game simulation seconds (resolved in frame())
+		await new Promise<void>(resolve => {
+			this.resolveClose = resolve;
+		});
+
+		// 2. Launch the animation wrapper logic as requested
+		await dom.withLoading(async panelVisiblePromise => {
+			await panelVisiblePromise;			
+			this.interrupted = true; 
+		});
+	}
 }
-
-
-
-
 
 let _gameHandler: GameHandler | null = null;
 
 export function getGameHandler() {
 	return _gameHandler;
 }
-
 
 export async function setGameHandler(
 	gamemode: string,
@@ -286,6 +389,8 @@ export async function setGameHandler(
 		protocols.get(),
 		data
 	);
+	
+	// Initiate the main rendering and logic loop
 	_gameHandler.frame();
 
 	dom.openPlay();
@@ -293,7 +398,13 @@ export async function setGameHandler(
 	return _gameHandler;
 }
 
-export function deleteGameHandler() {
+export async function deleteGameHandler() {
+	if (_gameHandler === null)
+		return;
+
+	// Waits for the 3 seconds slowdown/zoom to finish before destroying the handler
+	await _gameHandler.close();
+	
 	fullScreenHandler.closeFull();
 	_gameHandler = null;
 }

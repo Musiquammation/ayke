@@ -57,6 +57,7 @@ export abstract class GameMode {
 		playerIdx: number,
 		data: any,
 		imageLoader: ImageLoader,
+		addCamZ: number,
 		dt: number
 	): void;
 	abstract onDisconnection(id: number): void;

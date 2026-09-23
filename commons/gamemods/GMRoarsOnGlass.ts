@@ -57,6 +57,8 @@ class Player {
 	roarTimer = 0; // if > 0, player is currently roaring
 	roarCooldown = 0;
 	pushTimer = 0; // if > 0, player is being pushed
+
+	prevRotation = 0;
 	
 	constructor(public x: number, public y: number) {}
 	
@@ -72,6 +74,7 @@ class Player {
 		this.roarTimer = 0;
 		this.roarCooldown = 0;
 		this.pushTimer = 0;
+		this.prevRotation = team === 'red' ? +Math.PI/2 : -Math.PI/2;
 	}
 	
 	isAlive() {
@@ -89,6 +92,7 @@ class Player {
 		this.roarCooldown = obj.roarCooldown;
 		this.pushTimer = obj.pushTimer;
 		this.team = obj.isRed ? 'red' : 'blue';
+		this.prevRotation = obj.prevRotation;
 	}
 	
 	save() {
@@ -102,8 +106,22 @@ class Player {
 			roarTimer: this.roarTimer,
 			roarCooldown: this.roarCooldown,
 			pushTimer: this.pushTimer,
+			prevRotation: this.prevRotation,
 			isRed: this.team === 'red'
 		};
+	}
+
+	getRotation() {
+		if (this.pushTimer > 0) {
+			return Math.atan2(this.vy, this.vx) + Math.PI;
+		}
+
+		if (this.dirX !== 0 || this.dirY !== 0) {
+			const a = Math.atan2(this.dirY, this.dirX);
+			this.prevRotation = a;
+		}
+
+		return this.prevRotation;
 	}
 }
 
@@ -115,6 +133,14 @@ class ClientData {
 	prevX = 0;
 	prevY = 0;
 	prevRoar = false;
+
+	private clientWasDead = false;
+	private deathTime = performance.now();
+	private youOpacity = 1;
+
+	static readonly YOU_AFTER_DEATH = 5000;
+	static readonly FADE_SPEED = 0.08;
+
 	readonly html: HTMLDivElement;
 	readonly time: HTMLDivElement;
 	readonly redScore: HTMLDivElement;
@@ -123,34 +149,86 @@ class ClientData {
 	constructor() {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-roarsOnGlass-root");
+
 		this.time = document.createElement("div");
 		this.time.classList.add("game-roarsOnGlass-time");
+
 		const scores = document.createElement("div");
 		scores.classList.add("game-roarsOnGlass-scores");
+
 		this.redScore = document.createElement("div");
 		this.blueScore = document.createElement("div");
+
 		this.redScore.classList.add("game-roarsOnGlass-red-score");
 		this.blueScore.classList.add("game-roarsOnGlass-blue-score");
+
 		const tiret = document.createElement("div");
 		tiret.textContent = "-";
+
 		scores.appendChild(this.redScore);
 		scores.appendChild(tiret);
 		scores.appendChild(this.blueScore);
+
 		this.html.appendChild(scores);
 		this.html.appendChild(this.time);
 	}
+
 	static showTime(time: number) {
 		const minutes = Math.floor(time / 60);
 		const seconds = (time % 60).toFixed(1);
+
 		return `${minutes}:${seconds.padStart(4, "0")}`;
 	}
+
 	update(game: GMRoarsOnGlass, playerIdx: number) {
 		if (game.time < 60) {
 			this.time.innerText = ClientData.showTime(game.time);
 		}
-		this.redScore.innerText = String(game.redScore).padStart(2, "0");
-		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
+
+		this.redScore.innerText =
+			String(game.redScore).padStart(2, "0");
+
+		this.blueScore.innerText =
+			String(game.blueScore).padStart(2, "0");
+
 		const player = game.players[playerIdx];
+
+		// Detect the moment the local player dies.
+		if (this.clientWasDead && !player.isAlive()) {
+			this.deathTime = performance.now();
+		}
+
+		this.clientWasDead = player.isAlive();
+	}
+
+	getYouAlpha(
+		game: GMRoarsOnGlass,
+		playerIdx: number
+	): number {
+		const player = game.players[playerIdx];
+
+		let shouldShow;
+		if (player.isAlive()) {
+			shouldShow = (
+				performance.now() - this.deathTime <= ClientData.YOU_AFTER_DEATH
+			);
+		} else {
+			shouldShow = false;
+		}
+
+
+		if (shouldShow) {
+			this.youOpacity = Math.min(1, this.youOpacity + ClientData.FADE_SPEED);
+		} else {
+			this.youOpacity = Math.max(0, this.youOpacity - ClientData.FADE_SPEED);
+		}
+
+		return ClientData.animateOpacity(this.youOpacity);
+	}
+
+	static animateOpacity(x: number): number {
+		const k = 5;
+		return (1 - Math.exp(-k * x)) / (1 - Math.exp(-k));
 	}
 }
 
@@ -234,6 +312,8 @@ export class GMRoarsOnGlass extends GameMode {
 	static readonly TEXTURES = {
 		'broken': "/assets/games/roarsOnGlass/broken-glass.svg",
 		'glass':  "/assets/games/roarsOnGlass/glass.svg",
+		'red-player':  "/assets/games/roarsOnGlass/red-player.svg",
+		'blue-player': "/assets/games/roarsOnGlass/blue-player.svg",
 	};
 	
 	initGrid() {
@@ -428,8 +508,11 @@ export class GMRoarsOnGlass extends GameMode {
 	}
 
 	private handlePlayerCollisions(): void {
-		const halfSize = PLAYER_SIZE / 2;
 		const round = PLAYER_ROUND;
+		const halfW = PLAYER_SIZE / 2;
+		const halfH = PLAYER_SIZE / 2;
+		const innerW = Math.max(0, halfW - round);
+		const innerH = Math.max(0, halfH - round);
 
 		for (let i = 0; i < this.players.length; i++) {
 			const a = this.players[i];
@@ -442,57 +525,111 @@ export class GMRoarsOnGlass extends GameMode {
 				const dx = b.x - a.x;
 				const dy = b.y - a.y;
 
-				// Les deux carrés arrondis sont séparés
-				const maxDistance = PLAYER_SIZE;
+				// Broad-phase distance check using bounding circle
+				const maxRadius = Math.SQRT2 * halfW;
+				if (dx * dx + dy * dy >= (maxRadius * 2) * (maxRadius * 2)) continue;
 
-				if (Math.abs(dx) >= maxDistance || Math.abs(dy) >= maxDistance)
-					continue;
+				const angleA = a.getRotation();
+				const angleB = b.getRotation();
 
-				// Centre de la hitbox de A vers B
-				const ax = Math.abs(dx);
-				const ay = Math.abs(dy);
+				// Local unit axes for A
+				const axX = Math.cos(angleA);
+				const axY = Math.sin(angleA);
+				const ayX = -Math.sin(angleA);
+				const ayY = Math.cos(angleA);
 
-				// Distance entre les parties "droites" des deux hitbox
-				const px = Math.max(0, ax - (PLAYER_SIZE - round * 2));
-				const py = Math.max(0, ay - (PLAYER_SIZE - round * 2));
+				// Local unit axes for B
+				const bxX = Math.cos(angleB);
+				const bxY = Math.sin(angleB);
+				const byX = -Math.sin(angleB);
+				const byY = Math.cos(angleB);
 
-				const dist2 = px * px + py * py;
-				const radius = round * 2;
+				// Candidate axes for SAT (2 axes from A, 2 axes from B)
+				const axes = [
+					{ x: axX, y: axY },
+					{ x: ayX, y: ayY },
+					{ x: bxX, y: bxY },
+					{ x: byX, y: byY }
+				];
 
-				if (dist2 >= radius * radius)
-					continue;
+				let minOverlap = Infinity;
+				let normalX = 0;
+				let normalY = 0;
+				let separated = false;
 
-				let nx: number;
-				let ny: number;
-				let penetration: number;
+				// 1. SAT check on local axes (evaluating inner rectangles + Minkowski radius sum)
+				for (let k = 0; k < axes.length; k++) {
+					const axis = axes[k];
 
-				if (dist2 === 0) {
-					// Collision dans les parties rectangulaires
-					if (ax > ay) {
-						nx = Math.sign(dx) || 1;
-						ny = 0;
-						penetration = PLAYER_SIZE - ax;
-					} else {
-						nx = 0;
-						ny = Math.sign(dy) || 1;
-						penetration = PLAYER_SIZE - ay;
+					// Project center distance onto the axis
+					const centerDist = Math.abs(dx * axis.x + dy * axis.y);
+
+					// Extents of inner rectangle A projected onto the axis
+					const projA = innerW * Math.abs(axX * axis.x + axY * axis.y) +
+								innerH * Math.abs(ayX * axis.x + ayY * axis.y);
+
+					// Extents of inner rectangle B projected onto the axis
+					const projB = innerW * Math.abs(bxX * axis.x + bxY * axis.y) +
+								innerH * Math.abs(byX * axis.x + byY * axis.y);
+
+					// Total allowed distance (inner extents + sum of rounding radii)
+					const totalExtent = projA + projB + round * 2;
+					const overlap = totalExtent - centerDist;
+
+					if (overlap <= 0) {
+						separated = true;
+						break; // Found separating axis
 					}
-				} else {
-					const dist = Math.sqrt(dist2);
 
-					nx = dx / dist;
-					ny = dy / dist;
-
-					penetration = radius - dist;
+					if (overlap < minOverlap) {
+						minOverlap = overlap;
+						// Store direction pointing from A to B
+						const dot = dx * axis.x + dy * axis.y;
+						const sign = dot >= 0 ? 1 : -1;
+						normalX = axis.x * sign;
+						normalY = axis.y * sign;
+					}
 				}
 
-				const correction = penetration / 2;
+				if (separated) continue;
 
-				a.x -= nx * correction;
-				a.y -= ny * correction;
+				// 2. Corner-to-corner distance check for rounded features
+				// Find the closest corner centers of the inner rectangles
+				const signA_X = (dx * axX + dy * axY) >= 0 ? 1 : -1;
+				const signA_Y = (dx * ayX + dy * ayY) >= 0 ? 1 : -1;
+				const cornerA_X = a.x + (axX * innerW * signA_X + ayX * innerH * signA_Y);
+				const cornerA_Y = a.y + (axY * innerW * signA_X + ayY * innerH * signA_Y);
 
-				b.x += nx * correction;
-				b.y += ny * correction;
+				const signB_X = (-dx * bxX - dy * bxY) >= 0 ? 1 : -1;
+				const signB_Y = (-dx * byX - dy * byY) >= 0 ? 1 : -1;
+				const cornerB_X = b.x + (bxX * innerW * signB_X + byX * innerH * signB_Y);
+				const cornerB_Y = b.y + (bxY * innerW * signB_X + byY * innerH * signB_Y);
+
+				const cDx = cornerB_X - cornerA_X;
+				const cDy = cornerB_Y - cornerA_Y;
+				const cornerDistSq = cDx * cDx + cDy * cDy;
+				const cornerRadiusSum = round * 2;
+
+				// If corner regions are colliding, refine normal and overlap
+				if (cornerDistSq > 0 && cornerDistSq < cornerRadiusSum * cornerRadiusSum) {
+					const cornerDist = Math.sqrt(cornerDistSq);
+					const cornerOverlap = cornerRadiusSum - cornerDist;
+
+					if (cornerOverlap < minOverlap) {
+						minOverlap = cornerOverlap;
+						normalX = cDx / cornerDist;
+						normalY = cDy / cornerDist;
+					}
+				}
+
+				// 3. Apply positional resolution along the minimum penetration vector
+				const correction = minOverlap / 2;
+
+				a.x -= normalX * correction;
+				a.y -= normalY * correction;
+
+				b.x += normalX * correction;
+				b.y += normalY * correction;
 			}
 		}
 	}
@@ -525,13 +662,14 @@ export class GMRoarsOnGlass extends GameMode {
 				};
 
 				for (let p of this.players) {
-					if (p.isAlive() && collisions.RoundedRectRect(
+					if (p.isAlive() && collisions.RotatedRoundedRectRect(
 						{
 							x: p.x,
 							y: p.y,
 							w: PLAYER_SIZE,
 							h: PLAYER_SIZE,
-							radius: PLAYER_ROUND
+							radius: PLAYER_ROUND,
+							a: p.getRotation()
 						},
 						tileRect
 					)) {
@@ -574,13 +712,14 @@ export class GMRoarsOnGlass extends GameMode {
 				// Push enemies in range
 				for (let e of this.players) {
 					if (e !== p && e.team !== p.team && e.isAlive()) {
-						if (collisions.RoundedRectCircle(
+						if (collisions.RotatedRoundedRectCircle(
 							{
 								x: e.x,
 								y: e.y,
 								w: PLAYER_SIZE,
 								h: PLAYER_SIZE,
-								radius: PLAYER_ROUND
+								radius: PLAYER_ROUND,
+								a: p.getRotation()
 							},
 							{
 								x: p.x,
@@ -625,13 +764,14 @@ export class GMRoarsOnGlass extends GameMode {
 							h: TILE_SIZE
 						};
 
-						if (collisions.RoundedRectRect(
+						if (collisions.RotatedRoundedRectRect(
 							{
 								x: p.x,
 								y: p.y,
 								w: PLAYER_SIZE,
 								h: PLAYER_SIZE,
-								radius: PLAYER_ROUND
+								radius: PLAYER_ROUND,
+								a: p.getRotation()
 							},
 							tileRect
 						)) {
@@ -862,6 +1002,9 @@ export class GMRoarsOnGlass extends GameMode {
 				);
 			}
 		}
+
+		const redPlayer = imageLoader.get('red-player');
+		const bluePlayer = imageLoader.get('blue-player');
 		
 		// Draw Players
 		for (let i = 0; i < this.players.length; i++) {
@@ -873,26 +1016,29 @@ export class GMRoarsOnGlass extends GameMode {
 			const playerColor = p.team === 'red' ? '#ff4444' : '#44ff44';
 
 			// Draw a subtle shadow underneath the player.
+			ctx.save();
+			ctx.translate(p.x, p.y);
+			ctx.rotate(p.getRotation());
+
+
+
 			ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
 			this.drawRoundedRect(
 				ctx,
-				p.x + 8,
-				p.y + 8,
+				8,
+				8,
 				PLAYER_SIZE,
 				PLAYER_ROUND
 			);
 			ctx.fill();
 
-			// Draw the player's body.
-			ctx.fillStyle = playerColor;
-			this.drawRoundedRect(
-				ctx,
-				p.x,
-				p.y,
+			ctx.drawImage(
+				p.team === 'red' ? redPlayer : bluePlayer,
+				-PLAYER_SIZE / 2,
+				-PLAYER_SIZE / 2,
 				PLAYER_SIZE,
-				PLAYER_ROUND
+				PLAYER_SIZE
 			);
-			ctx.fill();
 
 			// Add a bright outline to make the local player immediately recognizable.
 			if (isLocalPlayer) {
@@ -900,8 +1046,8 @@ export class GMRoarsOnGlass extends GameMode {
 				ctx.lineWidth = 14;
 				this.drawRoundedRect(
 					ctx,
-					p.x,
-					p.y,
+					0,
+					0,
 					PLAYER_SIZE,
 					PLAYER_ROUND
 				);
@@ -917,14 +1063,50 @@ export class GMRoarsOnGlass extends GameMode {
 
 				ctx.beginPath();
 				ctx.arc(
-					p.x,
-					p.y,
+					0,
+					0,
 					ROAR_RADIUS,
 					0,
 					2 * Math.PI
 				);
 				ctx.stroke();
 			}
+
+			ctx.restore();
+		}
+
+
+		const youAlpha = data.getYouAlpha(this, playerIdx);
+		if (youAlpha > 0) {
+			const p = this.players[playerIdx];
+			ctx.save();
+
+			ctx.globalAlpha = youAlpha;
+
+			ctx.font = "bold 50px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "bottom";
+
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = "#333";
+			ctx.lineWidth = 8;
+
+			const labelY =
+				p.y - PLAYER_SIZE / 2 - 12;
+
+			ctx.strokeText(
+				"You",
+				p.x,
+				labelY
+			);
+
+			ctx.fillText(
+				"You",
+				p.x,
+				labelY
+			);
+
+			ctx.restore();
 		}
 		
 		ctx.restore();

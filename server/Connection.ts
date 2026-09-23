@@ -20,9 +20,15 @@ interface RoomInfo {
 	idx: number;
 }
 
+let nextConnectionId = 0;
+function getNextConnectionId() {
+	return nextConnectionId++;
+}
+
 export class Connection {
 	private pseudo: string | null = null;
 	private alive = true;
+	private connectionId = getNextConnectionId();
 	roomInfo: RoomInfo | null = null;
 
 	static readonly runners: Record<string, (c: Connection, data: any) => void> = {
@@ -58,7 +64,7 @@ export class Connection {
 			let key: string | undefined = undefined;
 
 			if (success) {
-				c.pseudo = d.pseudo;
+				c.setPseudo(d.pseudo);
 				key = await db.createKey(d.pseudo);
 			}
 
@@ -85,7 +91,7 @@ export class Connection {
 			let key: string | undefined = undefined;
 
 			if (success) {
-				c.pseudo = d.pseudo;
+				c.setPseudo(d.pseudo);
 				key = await db.createKey(d.pseudo);
 			}
 
@@ -111,7 +117,7 @@ export class Connection {
 			const pseudo = await db.getUserFromKey(key);
 
 			if (pseudo !== null) {
-				c.pseudo = pseudo;
+				c.setPseudo(pseudo);
 				c.sendMessage({
 					loginResult: {
 						success: true,
@@ -324,6 +330,12 @@ export class Connection {
 		private socket: WebSocket
 	) {
 		connectedUsersInfoHandler.addUser();
+		logger.info("New connection #" + this.connectionId);
+	}
+
+	private setPseudo(pseudo: string) {
+		this.pseudo = pseudo;
+		logger.info(`(hint) #${this.connectionId} is '${pseudo}'`);
 	}
 
 	getPseudo() {
@@ -355,6 +367,7 @@ export class Connection {
 		matchmaking.removeConnection(this);
 		roomHandler.disconnect(this);
 		connectedUsersInfoHandler.remUser(this);
+		logger.info("User '" + this.pseudo + "' has disconnected");
 	}
 
 	isAlive() {

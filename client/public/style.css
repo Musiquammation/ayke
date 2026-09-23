@@ -20,8 +20,22 @@
 
 	--color-success: #61c554;
 	--color-danger: #e05252;
+	--color-danger-hover: #cc4444;
 	--color-warning: #d99a32;
 	--color-highlight-me: #fff3b0;
+
+	/* Game panel actions */
+	--color-play: #3979f6;
+	--color-play-hover: #2868e5;
+
+	--color-bots: #e0527a;
+	--color-bots-hover: #cf4168;
+
+	--color-options: #77f582;
+	--color-options-hover: #61c569;
+
+	--color-tutorial: #20a875;
+	--color-tutorial-hover: #168d62;
 
 	--color-disabled: #aeb2b8;
 
@@ -34,7 +48,7 @@
 	--transition-fast: 120ms ease;
 	--transition-normal: 200ms ease;
 
-	--page-padding: clamp(16px, 4vw, 60px);
+	--page-padding: clamp(12px, 3vw, 20px);
 	--content-width: 1200px;
 }
 
@@ -72,14 +86,25 @@
 
 		--color-success: #65c95a;
 		--color-danger: #e46161;
+		--color-danger-hover: #f07070;
 		--color-warning: #e0a13d;
 		--color-highlight-me: #b8860b;
+
+		/* Game panel actions */
+		--color-play: #4f83f7;
+		--color-play-hover: #6192ff;
+
+		--color-bots: #e76587;
+		--color-bots-hover: #f07898;
+
+		--color-tutorial: #28b982;
+		--color-tutorial-hover: #35c993;
+
 		--color-disabled: #555a63;
 
 		--color-shadow: rgba(0, 0, 0, 0.35);
 	}
 }
-
 
 /* ============================================================
    Global styles
@@ -87,6 +112,10 @@
 
 * {
 	box-sizing: border-box;
+}
+
+body {
+	font-family: "Rye", sans-serif;
 }
 
 html,
@@ -101,12 +130,7 @@ body {
 	background: var(--color-bg);
 	color: var(--color-text);
 
-	font-family:
-		system-ui,
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		sans-serif;
+	font-family: "Rye", sans-serif;
 }
 
 body {
@@ -206,154 +230,710 @@ button.selected:hover {
 }
 
 
+
 /* ============================================================
-   Home page
+   Home Page Layout & Containers
    ============================================================ */
 
 #home-page {
 	display: flex;
 	flex-direction: column;
-	gap: 34px;
-
-	padding-top: clamp(24px, 5vh, 60px);
-	overflow-y: auto;
-}
-
-
-#home-page > h1 {
-	margin: 0 0 5px;
-
-	text-align: center;
-
-	font-size: clamp(2.5rem, 7vw, 4.5rem);
-	font-weight: 800;
-	letter-spacing: -0.04em;
-}
-
-
-/* ============================================================
-   Home sections
-   ============================================================ */
-
-#home-page section {
-	position: relative;
+	gap: 40px;
 
 	width: 100%;
 
-	padding: 30px 24px 24px;
-
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-medium);
-
-	background: var(--color-surface);
-	box-shadow: 0 5px 20px var(--color-shadow);
+	/* Prevent horizontal overflow on small screens */
+	overflow-y: auto;
+	overflow-x: hidden;
 }
 
+#sub-home-main-title {
+	color: var(--color-success);
+	text-align: center;
+	font-size: 0.8rem;
+}
 
-/*
- * Section titles overlap the border.
- * The background behind the title hides the border.
- */
+/* ============================================================
+   Main Title
+   ============================================================ */
 
-#home-page section > h2 {
-	position: absolute;
+#home-page > h1 {
+	padding-top: 64px;
+	margin: 0 0 10px;
 
-	top: 0;
-	left: 22px;
+	text-align: center;
 
-	margin: 0;
-	padding: 10px 10px;
-
-	transform: translateY(-50%);
-
-	background: var(--color-surface);
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-medium);
+	font-size: clamp(3.5rem, 10vw, 6rem);
+	font-weight: 900;
+	letter-spacing: 0.05em;
 
 	color: var(--color-text);
-
-	font-size: 1.1rem;
-	font-weight: 700;
-
-	line-height: 1.2;
 }
 
 
 /* ============================================================
-   Account section
+   Sections
    ============================================================ */
 
-.home-account > template > div,
-.home-account > div {
+#home-page > section {
+	position: static;
+
+	width: 100%;
+	padding: 28px 16px 18px;
+
+	border: none;
+	border-radius: 0;
+
+	background: transparent;
+	box-shadow: none;
+
 	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 20px;
+	flex-direction: column;
+	gap: 40px;
 }
 
-.home-account > div > div {
+
+/* ============================================================
+   Section Category Titles
+   ============================================================ */
+
+#home-page > section > div > h3 {
+	position: relative;
+
 	display: flex;
 	align-items: center;
 	gap: 16px;
 
-	min-width: 0;
+	margin: 0 0 20px;
+	padding: 0;
+
+	color: var(--color-text-muted);
+
+	font-size: clamp(1.1rem, 3vw, 1.4rem);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	text-align: center;
+	white-space: nowrap;
 }
 
-/* User identity */
-.home-account i {
-	color: var(--color-primary);
+/* Horizontal lines on both sides */
+#home-page > section > div > h3::before,
+#home-page > section > div > h3::after {
+	content: "";
 
-	font-style: normal;
-	font-weight: 600;
+	flex: 1;
+	height: 1px;
+
+	background: var(--color-border);
+}
+
+/* Prevent the title from becoming too large on small screens */
+#home-page > section > div > h3 {
+	overflow: hidden;
+}
+
+
+/* ============================================================
+   Top Bar Header
+   ============================================================ */
+
+#home-page > header {
+	position: fixed;
+
+	top: 0;
+	left: 0;
+	right: 0;
+
+	height: 64px;
+
+	/*
+	 * Use a responsive horizontal padding.
+	 * On very small screens, the padding becomes very small.
+	 */
+	padding: 0 clamp(8px, 3vw, 24px);
+
+	background: var(--color-surface);
+
+	border-bottom: 1px solid var(--color-border);
+
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+
+	/*
+	 * Allows the left and right parts to shrink instead
+	 * of overflowing the viewport.
+	 */
+	gap: 8px;
+
+	/*
+	 * Important for flex children on narrow screens.
+	 */
+	min-width: 0;
+
+	z-index: 100;
+
+	box-shadow: 0 4px 12px var(--color-shadow);
+}
+
+
+/* ============================================================
+   Header Left Side
+   ============================================================ */
+
+#home-page > header > div:first-child {
+	display: flex;
+	align-items: center;
+
+	/*
+	 * The gap also becomes smaller on narrow screens.
+	 */
+	gap: clamp(6px, 2vw, 16px);
+
+	/*
+	 * Allows the username container to shrink.
+	 */
+	min-width: 0;
+
+	/*
+	 * Prevent this side from forcing the right side
+	 * outside of the viewport.
+	 */
+	flex: 1 1 auto;
+}
+
+
+/* ============================================================
+   Hamburger Button
+   ============================================================ */
+
+#home-page > header > div:first-child > button {
+	flex: 0 0 auto;
+
+	display: flex;
+	flex-direction: column;
+	justify-content: space-around;
+
+	width: 32px;
+	height: 32px;
+
+	background: transparent;
+	border: none;
+	padding: 0;
+
+	cursor: pointer;
+}
+
+
+/* Hamburger Lines */
+
+#home-page > header > div:first-child > button > span {
+	width: 100%;
+	height: 3px;
+
+	background-color: var(--color-text);
+
+	border-radius: 2px;
+
+	transition: background-color var(--transition-fast);
+}
+
+
+/* Hamburger Hover */
+
+#home-page > header > div:first-child > button:hover > span {
+	background-color: var(--color-primary);
+}
+
+
+/* ============================================================
+   Username
+   ============================================================ */
+
+#home-page > header > div:first-child > div {
+	display: flex;
+	align-items: center;
+
+	gap: 8px;
+
+	/*
+	 * The username must be allowed to shrink.
+	 */
+	min-width: 0;
+
+	font-size: clamp(1.105rem, 3.9vw, 1.43rem);
+	font-weight: 100;
+}
+
+
+/*
+ * Prevent a long username from pushing the statistics
+ * outside of the viewport.
+ */
+
+#home-page > header > div:first-child > div > i {
+	min-width: 0;
 
 	overflow: hidden;
+
 	text-overflow: ellipsis;
+
 	white-space: nowrap;
+}
+
+
+/* ============================================================
+   User Statistics
+   ============================================================ */
+
+#home-page > header > div:last-child {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+
+	/*
+	 * Allows the statistics container to shrink.
+	 */
+	min-width: 0;
+
+	/*
+	 * Responsive spacing between statistics.
+	 */
+	gap: clamp(6px, 2vw, 16px);
+
+	/*
+	 * Responsive font size.
+	 */
+	font-size: clamp(0.8rem, 3vw, 1.1rem);
+
+	font-weight: 700;
+
+	/*
+	 * Each statistic stays on one line.
+	 */
+	white-space: nowrap;
+
+	/*
+	 * Never allow this element to grow beyond
+	 * the available space.
+	 */
+	flex: 0 1 auto;
+}
+
+
+/* Individual Statistic */
+
+#home-page > header > div:last-child > span {
+	display: flex;
+	align-items: center;
+
+	gap: 4px;
+
+	/*
+	 * Prevent an individual statistic from
+	 * unexpectedly growing.
+	 */
+	flex: 0 0 auto;
 }
 
 /* ============================================================
-   Account stats
+   Side Menu Transition
    ============================================================ */
 
-.home-account > div > div > div[x-data="panel"] {
-	display: grid;
-	grid-template-columns: repeat(3, auto);
-	gap: 8px;
-
-	margin-top: 4px;
+#home-page > nav {
+	transition:
+		transform 250ms ease,
+		opacity 250ms ease;
 }
 
-.home-account > div > div > div[x-data="panel"] > span {
-	display: flex;
-	align-items: baseline;
-	gap: 4px;
+/* Opening */
 
-	padding: 6px 10px;
+#home-page > nav.menu-enter {
+	transition:
+		transform 250ms ease,
+		opacity 250ms ease;
+}
+
+#home-page > nav.menu-enter-start {
+	transform: translateX(-100%);
+	opacity: 0;
+}
+
+#home-page > nav.menu-enter-end {
+	transform: translateX(0);
+	opacity: 1;
+}
+
+/* Closing */
+
+#home-page > nav.menu-leave {
+	transition:
+		transform 250ms ease,
+		opacity 250ms ease;
+}
+
+#home-page > nav.menu-leave-start {
+	transform: translateX(0);
+	opacity: 1;
+}
+
+#home-page > nav.menu-leave-end {
+	transform: translateX(-100%);
+	opacity: 0;
+}
+
+
+/* ============================================================
+   Small Screens
+   ============================================================ */
+
+@media (max-width: 450px) {
+
+	#home-page > header {
+		/*
+		 * Slightly shorter header on very small screens.
+		 */
+		height: 56px;
+
+		padding: 0 8px;
+	}
+
+
+	#home-page > header > div:first-child {
+		gap: 6px;
+	}
+
+
+	#home-page > header > div:last-child {
+		gap: 6px;
+
+		font-size: 0.8rem;
+	}
+
+
+	#home-page > header > div:last-child > span {
+		gap: 2px;
+	}
+}
+
+
+/* ============================================================
+   Extremely Small Screens
+   ============================================================ */
+
+@media (max-width: 350px) {
+
+	/*
+	 * Hide the username text when there is not enough
+	 * horizontal space.
+	 *
+	 * The user icon remains visible.
+	 */
+	#home-page > header > div:first-child > div > i {
+		display: none;
+	}
+
+
+	#home-page > header > div:last-child {
+		gap: 4px;
+
+		font-size: 0.75rem;
+	}
+}
+
+
+/* ============================================================
+   Navigation Drawer Backdrop
+   ============================================================ */
+
+#home-page > div[x-show="menuOpen"] {
+	position: fixed;
+
+	inset: 0;
+
+	background: rgba(0, 0, 0, 0.5);
+
+	backdrop-filter: blur(2px);
+
+	z-index: 200;
+}
+
+
+/* ============================================================
+   Navigation Drawer
+   ============================================================ */
+
+#home-page > nav {
+	position: fixed;
+
+	top: 0;
+	left: 0;
+	bottom: 0;
+
+	width: 280px;
+	max-width: 80vw;
 
 	background: var(--color-surface);
+
+	z-index: 201;
+
+	padding: 32px 20px;
+
+	display: flex;
+	flex-direction: column;
+
+	gap: 10px;
+
+	box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+}
+
+
+/* Navigation Title */
+
+#home-page > nav > h2 {
+	margin: 0 0 16px;
+
+	font-size: 1.5rem;
+
+	border-bottom: 1px solid var(--color-border);
+
+	padding-bottom: 8px;
+}
+
+
+/* Navigation Buttons */
+
+#home-page > nav > button {
+	width: 100%;
+
+	text-align: left;
+
+	padding: 12px 16px;
+
+	font-size: 1rem;
+	font-weight: 600;
+
+	border-radius: var(--radius-small);
+}
+
+
+/* ============================================================
+   Logout Button
+   ============================================================ */
+
+#home-page > nav > button:last-child,
+#home-page > nav > template:last-child + button {
+	margin-top: auto;
+
+	background-color: transparent;
+
+	color: var(--color-danger);
+
+	border: 1px solid var(--color-danger);
+}
+
+
+/* Logout Hover */
+
+#home-page > nav > button:last-child:hover,
+#home-page > nav > template:last-child + button:hover {
+	background-color: var(--color-danger);
+
+	color: #ffffff;
+}
+
+
+/* ============================================================
+   Game Cards Layout
+   ============================================================ */
+
+#home-page > section > div > div {
+	display: grid;
+
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+
+	gap: 16px;
+}
+
+
+/* Three columns on medium screens */
+
+@media (min-width: 700px) {
+	#home-page > section > div > div {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+
+/* Four columns on large screens */
+
+@media (min-width: 1100px) {
+	#home-page > section > div > div {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
+
+
+/* ============================================================
+   Game Card
+   ============================================================ */
+
+#home-page > section > div > div > div {
+	position: relative;
+
+	overflow: hidden;
+
+	min-width: 0;
+	min-height: 140px;
+
 	border: 1px solid var(--color-border);
-	border-radius: 6px;
 
-	white-space: nowrap;
+	border-radius: var(--radius-small);
+
+	background: var(--color-bg);
+
+	cursor: pointer;
+
+	transition:
+		border-color var(--transition-normal),
+		transform var(--transition-normal),
+		box-shadow var(--transition-normal);
 }
 
-.home-account > div > div > div[x-data="panel"] > span > span:first-child {
-	font-size: 1.1em;
-	color: var(--color-text-muted);
+
+/* ============================================================
+   Game Image
+   ============================================================ */
+
+#home-page > section > div > div > div > img {
+	display: block;
+
+	width: 100%;
+	height: 100%;
+
+	object-fit: cover;
+
+	transition:
+		filter var(--transition-normal),
+		transform var(--transition-normal);
 }
 
-.home-account > div > div > div[x-data="panel"] > span > span:last-child {
+
+/* ============================================================
+   Game Name
+   ============================================================ */
+
+#home-page > section > div > div > div > span {
+	position: absolute;
+
+	right: 12px;
+	bottom: 10px;
+
+	margin: 0;
+
+	color: white;
+	font-size: 1.05rem;
 	font-weight: 700;
-	font-size: 1.1em;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	text-align: right;
+
+	text-shadow:
+		1px 1px 0 #000,
+		2px 2px 0 #000;
+
+	pointer-events: none;
+
+	/* Anchor the text block from its bottom */
+	transform: translateY(0);
 }
 
 
-/* Buttons inside account */
+/* ============================================================
+   Connected Users Indicator
+   ============================================================ */
+#home-page > section > div > div > div > span.connectedUsersIndicator {
+	left: 12px;
+	right: auto;
 
-.home-account button {
-	min-height: 40px;
+	top: 10px;
+	bottom: auto;
+
+	text-align: left;
+
+	color: var(--color-success);
 }
 
+
+/* ============================================================
+   Hover Underline
+   ============================================================ */
+
+#home-page > section > div > div > div > :nth-child(1)::after {
+	content: "";
+
+	position: absolute;
+
+	left: 0;
+	bottom: -1px;
+
+	width: 100%;
+	height: 2px;
+
+	background: white;
+
+	transform: scaleX(0);
+
+	transform-origin: left;
+
+	transition: transform 0.25s ease;
+}
+
+
+#home-page > section > div > div > div:hover > :nth-child(1)::after {
+	transform: scaleX(1);
+}
+
+
+/* ============================================================
+   Game Card Hover Effects
+   ============================================================ */
+
+#home-page > section > div > div > div:hover {
+	border-color: var(--color-border-strong);
+
+	transform: translateY(-2px);
+
+	box-shadow: 0 5px 15px var(--color-shadow);
+}
+
+
+/* ============================================================
+   Disabled Games
+   ============================================================ */
+
+#home-page > section > div > div > div.play-disabled {
+	opacity: 0.45;
+
+	cursor: not-allowed;
+}
+
+
+/* Disable hover movement */
+
+#home-page > section > div > div > div.play-disabled:hover {
+	transform: none;
+
+	box-shadow: none;
+}
+
+
+/* Grayscale disabled game image */
+
+#home-page > section > div > div > div.play-disabled:hover > img {
+	filter: grayscale(1);
+}
 
 /* ============================================================
    Play section
@@ -603,88 +1183,724 @@ button.selected:hover {
 
 
 /* ============================================================
-   Game configuration menu
+   Game Panel Page (Mockup Implementation)
    ============================================================ */
 
-#game-panel-page [x-data="data"] {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-
-	gap: 16px;
-
+#game-panel-page {
+	position: relative;
 	width: 100%;
-}
+	height: 100dvh;
+	min-height: 0;
 
-#game-panel-page h1 {
-	text-align: center;
-}
-
-/* Each configuration row */
-
-#game-panel-page [x-data="data"] > div {
-	display: flex;
-	align-items: center;
-	justify-content: flex-start;
-
-	gap: 10px;
-
-	width: 100%;
-}
-
-
-/* Labels */
-
-#game-panel-page [x-data="data"] > div > span {
-	flex: 0 0 auto;
-
-	white-space: nowrap;
-
-	font-weight: 600;
-}
-
-
-/* Skin selector */
-
-#game-panel-page .skin-select {
-	flex: 0 0 220px;
-}
-
-
-/* Preferred team buttons */
-
-#game-panel-page [x-data="data"] > div > button {
-	flex: 0 0 auto;
-}
-
-
-#game-panel-page > :nth-child(2) {
-	padding-bottom: 3em;
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	gap: 10px;
-	border-bottom: 1px solid black;
+
+	overflow: hidden;
+	background: #888;
+	padding: 0;
 }
 
-#game-panel-page > :nth-child(3) {
-	margin-top: 3em;
+/* Background image blur effects */
+#game-panel-page .background {
+	position: absolute;
+	inset: -1em;
+	background-position: center;
+	background-size: cover;
+	background-repeat: no-repeat;
+	filter: blur(3px);
+	transform: scale(1.03);
+	pointer-events: none;
 }
 
-
-#game-panel-page > :nth-child(2) > button {
-	min-width: 20vw;
+#game-panel-page .background::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.3);
 }
 
-#game-panel-page > :nth-child(3) > :nth-child(1) {
-	margin-bottom: 3em;
+#game-panel-page .background-overlay {
+	position: absolute;
+	inset: 0;
+	background: rgba(15, 20, 35, 0.1);
+	pointer-events: none;
 }
 
-#game-panel-page > :nth-child(3) > :nth-child(2) > :nth-child(1) {
+/* Central menu structure */
+#game-panel-page .menu {
+	position: relative;
+	width: min(100%, 48em);
+	height: 100%;
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+
+	padding: clamp(1em, 6vh, 4em) clamp(0.5em, 3vw, 1.5em) 0;
+}
+
+/* Header typography */
+#game-panel-page .header {
 	width: 100%;
-	margin-bottom: 2em;
+	text-align: center;
+	margin-bottom: clamp(0.4em, 1.5vh, 0.75em);
+	text-shadow: 0 0.12em 0.2em rgba(0, 0, 0, 0.25);
 }
 
+#game-panel-page .header h1 {
+	max-width: 95%;
+	margin: 0 auto;
+	font-size: clamp(2.8rem, 10vw, 5.8rem);
+	font-weight: normal;
+	line-height: 0.95;
+	text-transform: uppercase;
+	color: #fff;
+	-webkit-text-stroke: 0.01em #000;
+}
+
+/* Central glassmorphism card */
+#game-panel-page .content-card {
+	width: 100%;
+	max-width: 48em;
+	height: min(70%, 48em);
+	min-height: 0;
+	margin-top: auto;
+
+	display: flex;
+	flex-direction: column;
+
+	overflow: hidden;
+
+	padding: clamp(0.8em, 2vw, 1.25em)
+		clamp(0.7em, 3vw, 1.25em)
+		clamp(0.8em, 2vw, 1.25em);
+
+	border: 0.125em solid var(--color-border);
+	border-bottom: 0;
+	border-radius: clamp(1.4em, 4vw, 2em)
+		clamp(1.4em, 4vw, 2em)
+		0 0;
+
+	background: var(--color-surface);
+
+	color: var(--color-text);
+
+	box-shadow: 0 0.875em 2.2em var(--color-shadow);
+}
+
+/* Description text and embedded options container */
+#game-panel-page .description {
+	width: 100%;
+	padding: clamp(0.3em, 1vw, 0.5em)
+		clamp(0.4em, 2vw, 1em);
+
+	text-align: left;
+
+	font-size: clamp(1.3rem, 4.5vw, 2rem);
+	line-height: 1.35;
+
+	color: var(--color-text-muted);
+}
+
+#game-panel-page .game-options-panel {
+	max-height: 200px;
+	overflow-y: auto;
+	padding: 0.5em;
+}
+
+/* Action section styling */
+#game-panel-page .actions {
+	width: 100%;
+	margin-top: auto;
+}
+
+#game-panel-page .secondary-actions {
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: clamp(0.35em, 1vw, 0.5em);
+	margin-bottom: clamp(1.5em, 5vh, 2.25em);
+}
+
+#game-panel-page .small-button {
+	width: min(100%, 24em);
+	height: clamp(2.5em, 7vh, 2.8em);
+
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 0.5em;
+
+	padding: 0.35em clamp(0.65em, 2vw, 0.8em);
+	border: 0;
+	border-radius: 0.6em;
+
+	color: #fff;
+	font-family: inherit;
+	font-size: clamp(0.85rem, 2.5vw, 1rem);
+	font-weight: 900;
+	letter-spacing: 0.03em;
+	cursor: pointer;
+
+	box-shadow: 0 0.25em 0.7em rgba(0, 0, 0, 0.16);
+}
+
+#game-panel-page .options-small-button {
+	background: var(--color-options);
+}
+
+#game-panel-page .options-small-button:hover {
+	background: var(--color-options-hover);
+}
+
+#game-panel-page .howToPlay-small-button {
+	background: var(--color-tutorial);
+}
+
+#game-panel-page .howToPlay-small-button:hover {
+	background: var(--color-tutorial-hover);
+}
+
+#game-panel-page .icon {
+	width: 1.4em;
+	height: 1.4em;
+	flex: 0 0 1.4em;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	border-radius: 0;
+	font-size: 1rem;
+	font-weight: 900;
+}
+
+#game-panel-page .main-actions {
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: clamp(0.45em, 1.5vh, 0.65em);
+}
+
+#game-panel-page .game-button {
+	width: 100%;
+	min-height: clamp(3.8em, 11vh, 4.8em);
+
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: clamp(0.35em, 2vw, 0.65em);
+
+	padding: 0.35em clamp(0.5em, 2vw, 0.75em);
+	border: 0;
+	border-radius: clamp(0.75em, 2vw, 1em);
+
+	color: #fff;
+	font-family: inherit;
+	font-size: clamp(1.15rem, 4.5vw, 1.6rem);
+	font-weight: 900;
+	line-height: 1.05;
+	text-align: left;
+	letter-spacing: 0.035em;
+	cursor: pointer;
+
+	box-shadow: 0 0.3em 0.8em rgba(0, 0, 0, 0.18);
+}
+
+#game-panel-page .main-actions > :nth-child(1) {
+	background: var(--color-play);
+}
+
+#game-panel-page .main-actions > :nth-child(1):hover {
+	background: var(--color-play-hover);
+}
+
+#game-panel-page .main-actions > :nth-child(3) {
+	background: var(--color-bots);
+}
+
+#game-panel-page .main-actions > :nth-child(3):hover {
+	background: var(--color-bots-hover);
+}
+
+#game-panel-page .game-icon {
+	width: 2.5em;
+	height: 2.5em;
+	flex: 0 0 2.5em;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+
+	font-size: 1.65rem;
+	transform: scale(2);
+	pointer-events: none;
+}
+
+#game-panel-page .game-button > span:last-child {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	line-height: 1;
+}
+
+#game-panel-page .game-button > span:last-child > span {
+	display: block;
+}
+
+#game-panel-page .game-button > span:last-child > span:first-child {
+	font-size: 0.72em;
+	font-weight: 800;
+	opacity: 0.92;
+}
+
+#game-panel-page .game-button > span:last-child > span:last-child {
+	font-size: 1em;
+	font-weight: 900;
+}
+
+/* Floating Back Button */
+#game-panel-page .back-button {
+	position: absolute;
+	top: clamp(0.75em, 3vh, 1.5em);
+	left: clamp(0.75em, 3vw, 1.5em);
+	z-index: 10;
+
+	width: clamp(2.8em, 8vw, 3.5em);
+	height: clamp(2.8em, 8vw, 3.5em);
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+
+	background: rgba(255, 255, 255, 0.92);
+	color: var(--color-text, #171717);
+	box-shadow: 0 0.25em 0.8em rgba(0, 0, 0, 0.25);
+
+	cursor: pointer;
+	transition: background 0.15s ease, transform 0.15s ease;
+}
+
+#game-panel-page .back-button:hover {
+	background: #fff;
+	transform: scale(1.06);
+}
+
+#game-panel-page .back-button svg {
+	width: 55%;
+	height: 55%;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	pointer-events: none;
+}
+
+/* ============================================================
+   Game Panel Views
+   ============================================================ */
+
+#game-panel-page .content-card {
+	overflow: hidden;
+}
+
+
+/* ============================================================
+   Explanation Slides
+   ============================================================ */
+
+#game-panel-page .explanation-card {
+	gap: 0.75em;
+}
+
+
+#game-panel-page .explanation-header {
+	width: 100%;
+
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+
+	padding: 0 0.25em;
+
+	color: var(--color-text);
+}
+
+
+#game-panel-page .explanation-header h2 {
+	margin: 0;
+
+	font-size: clamp(1.2rem, 4vw, 1.7rem);
+	font-weight: 900;
+}
+
+
+#game-panel-page .explanation-header > span {
+	color: var(--color-text-muted);
+
+	font-size: 0.9rem;
+	font-weight: 700;
+}
+
+
+/* ============================================================
+   Explanation Viewer
+   ============================================================ */
+
+#game-panel-page .explanation-viewer {
+	position: relative;
+
+	flex: 1 1 auto;
+
+	width: 100%;
+	min-height: 0;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	overflow: hidden;
+
+	touch-action: pan-y;
+	user-select: none;
+}
+
+
+#game-panel-page .explanation-slide {
+	display: block;
+
+	width: 100%;
+	height: 100%;
+
+	object-fit: contain;
+
+	user-select: none;
+	-webkit-user-drag: none;
+
+	pointer-events: none;
+}
+
+/* ============================================================
+   Explanation Navigation Arrows
+   ============================================================ */
+
+#game-panel-page .explanation-arrow {
+	position: absolute;
+
+	top: 50%;
+	z-index: 2;
+
+	transform: translateY(-50%);
+
+	width: clamp(2rem, 6vw, 2.8rem);
+	height: clamp(2rem, 6vw, 2.8rem);
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	padding: 0;
+
+	border: none;
+	border-radius: 50%;
+
+	background: rgba(0, 0, 0, 0.3);
+
+	color: white;
+
+	cursor: pointer;
+
+	transition:
+		background 0.15s ease,
+		transform 0.15s ease,
+		opacity 0.15s ease;
+
+	box-shadow: 0 0.15em 0.4em rgba(0, 0, 0, 0.15);
+}
+
+
+#game-panel-page .explanation-arrow svg {
+	width: 55%;
+	height: 55%;
+
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+
+	pointer-events: none;
+}
+
+
+#game-panel-page .explanation-arrow:hover:not(:disabled) {
+	background: rgba(0, 0, 0, 0.55);
+
+	transform: translateY(-50%) scale(1.08);
+}
+
+
+#game-panel-page .explanation-arrow:active:not(:disabled) {
+	transform: translateY(-50%) scale(0.95);
+}
+
+
+#game-panel-page .explanation-arrow:disabled {
+	opacity: 0.15;
+	cursor: default;
+}
+
+
+#game-panel-page .explanation-arrow-left {
+	left: 0.4em;
+}
+
+
+#game-panel-page .explanation-arrow-right {
+	right: 0.4em;
+}
+
+/* ============================================================
+   Explanation Actions
+   ============================================================ */
+
+#game-panel-page .explanation-actions {
+	width: 100%;
+
+	display: flex;
+	flex-direction: column;
+
+	gap: 0.5em;
+
+	padding-top: 0.5em;
+}
+
+
+#game-panel-page .explanation-actions button,
+#game-panel-page .options-actions button {
+	width: 100%;
+
+	min-height: 2.8em;
+
+	border: none;
+	border-radius: 0.6em;
+
+	color: white;
+
+	font-family: inherit;
+	font-size: 1rem;
+	font-weight: 900;
+
+	cursor: pointer;
+}
+
+
+#game-panel-page .explanation-play-button {
+	background: var(--color-tutorial);
+}
+
+
+#game-panel-page .explanation-play-button:hover {
+	background: var(--color-tutorial-hover);
+}
+
+
+#game-panel-page .explanation-back-button,
+#game-panel-page .options-back-button {
+	background: var(--color-surface-hover);
+	color: var(--color-text) !important;
+	border: 1px solid var(--color-border) !important;
+}
+
+
+#game-panel-page .explanation-back-button:hover,
+#game-panel-page .options-back-button:hover {
+	background: var(--color-bg);
+
+	border-color: var(--color-border-strong) !important;
+}
+
+
+/* ============================================================
+   Options View
+   ============================================================ */
+
+#game-panel-page .options-card {
+	gap: 0.75em;
+}
+
+
+#game-panel-page .options-header {
+	width: 100%;
+
+	display: flex;
+	align-items: center;
+
+	padding: 0 0.25em;
+}
+
+
+#game-panel-page .options-header h2 {
+	margin: 0;
+
+	font-size: clamp(1.2rem, 4vw, 1.7rem);
+	font-weight: 900;
+}
+
+
+#game-panel-page .options-card .game-options-panel {
+	flex: 1 1 auto;
+
+	width: 100%;
+	min-height: 0;
+
+	max-height: none;
+
+	overflow-y: auto;
+	overflow-x: hidden;
+
+	padding: 0.5em;
+}
+
+
+#game-panel-page .options-actions {
+	width: 100%;
+
+	display: flex;
+
+	padding-top: 0.5em;
+}
+
+
+/* Responsive Overrides */
+@media (max-height: 720px) {
+	#game-panel-page .menu {
+		padding-top: 0.5em;
+	}
+
+	#game-panel-page .header {
+		margin-bottom: 0.35em;
+	}
+
+	#game-panel-page .header h1 {
+		font-size: clamp(2.5rem, 8vh, 3.8rem);
+	}
+
+	#game-panel-page .content-card {
+		height: min(72%, 42em);
+		padding: 0.65em 0.8em 0.8em;
+	}
+
+	#game-panel-page .description {
+		font-size: clamp(0.95rem, 3vh, 1.2rem);
+	}
+
+	#game-panel-page .game-button {
+		min-height: 3.8em;
+	}
+
+	#game-panel-page .game-icon {
+		width: 2.2em;
+		height: 2.2em;
+		flex-basis: 2.2em;
+	}
+}
+
+@media (max-height: 600px) {
+	#game-panel-page .menu {
+		padding-top: 0.25em;
+	}
+
+	#game-panel-page .header {
+		margin-bottom: 0.2em;
+	}
+
+	#game-panel-page .header h1 {
+		font-size: clamp(2rem, 7vh, 3rem);
+	}
+
+	#game-panel-page .content-card {
+		height: 76%;
+	}
+
+	#game-panel-page .description {
+		font-size: 0.95rem;
+		padding-block: 0.2em;
+	}
+
+	#game-panel-page .secondary-actions {
+		margin-bottom: 0.45em;
+	}
+
+	#game-panel-page .small-button {
+		height: 2.3em;
+	}
+
+	#game-panel-page .game-button {
+		min-height: 3.3em;
+	}
+}
+
+@media (max-width: 380px) {
+	#game-panel-page .menu {
+		padding-inline: 0.35em;
+	}
+
+	#game-panel-page .content-card {
+		padding-inline: 0.55em;
+		border-radius: 1.2em 1.2em 0 0;
+	}
+
+	#game-panel-page .description {
+		font-size: 1rem;
+		padding-inline: 0.35em;
+	}
+
+	#game-panel-page .game-button {
+		gap: 0.25em;
+		padding-inline: 0.4em;
+		font-size: 1.15rem;
+	}
+
+	#game-panel-page .game-icon {
+		width: 2em;
+		height: 2em;
+		flex-basis: 2em;
+		font-size: 1.4rem;
+	}
+
+	#game-panel-page .small-button {
+		font-size: 0.85rem;
+	}
+}
+
+@media (min-width: 700px) {
+	#game-panel-page .menu {
+		padding-inline: 1.5em;
+	}
+
+	#game-panel-page .content-card {
+		max-width: 42em;
+	}
+
+	#game-panel-page .game-button {
+		min-height: 4.5em;
+	}
+
+	#game-panel-page .small-button {
+		max-width: 22em;
+	}
+}
 
 
 /* ============================================================
@@ -1265,20 +2481,12 @@ canvas {
    ============================================================ */
 
 @media (max-width: 500px) {
-	:root {
-		--page-padding: 14px;
-	}
-
 	.page {
 		padding-top: 24px;
 	}
 
 	#home-page {
 		gap: 26px;
-	}
-
-	#home-page section {
-		padding: 28px 16px 18px;
 	}
 
 	#home-page section > h2 {
@@ -1442,12 +2650,15 @@ canvas {
 
 
 /* Root container */
-.trophee-road {
-	width: 100%;
+#game-panel-page .trophee-road {
+	width: 100vw;
+
+	/* Cancel the horizontal padding of .menu */
+	margin-left: 0px;
+
 	overflow: hidden;
-	background-color: #b8950b13;
-	border-radius: 10px;
 }
+
 
 /* Scrollable track container */
 .trophee-road-track {
@@ -1458,7 +2669,15 @@ canvas {
 	padding: 40px 0;
 	min-height: 180px;
 	box-sizing: border-box;
+
+	-ms-overflow-style: none;
+	scrollbar-width: none;
 }
+
+.trophee-road-track::-webkit-scrollbar {
+	display: none;
+}
+
 
 /* Background gauge track line */
 .gauge-bar {
@@ -1581,6 +2800,440 @@ canvas {
 /* ============================================================
    Changelog
    ============================================================ */
+#changelog-page, #contact-page {
+	font-family:
+		system-ui,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		sans-serif;;
+}
+
 #changelog-page li {
 	margin-bottom: .28em;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================================
+   TRANSITION COMPONENT (No Classes Used)
+   ========================================================= */
+
+#transition-component {
+	position: fixed;
+	inset: 0;
+	overflow: hidden;
+	pointer-events: none;
+	z-index: 9999;
+
+	--hole-radius: 120px;
+	--duration: 0.4s;
+	--easing: cubic-bezier(.76, 0, .24, 1);
+
+	/* Randomized by JavaScript */
+	--transition-hue: 250;
+}
+
+/* Block clicks during active animation states */
+#transition-component[data-state="closing"],
+#transition-component[data-state="loading"],
+#transition-component[data-state="opening"] {
+	pointer-events: all;
+}
+
+/* Enable smooth transitions on children */
+#transition-component > :is(div, img) {
+	transition: transform var(--duration) var(--easing);
+	will-change: transform;
+}
+
+/* Disable transition on idle so elements reset position instantly off-screen */
+#transition-component[data-state="idle"] > :is(div, img) {
+	transition: none !important;
+}
+
+/* ----------------------------------
+   1: YELLOW CIRCLE
+   ---------------------------------- */
+#transition-component > :nth-child(1) {
+	position: absolute;
+	width: calc(var(--hole-radius) * 2);
+	height: calc(var(--hole-radius) * 2);
+	left: 50%;
+	top: 50%;
+	border-radius: 50%;
+	background: #ffd900;
+	z-index: 1;
+	/* Default idle position: off-screen left */
+	transform: translate(calc(-100vw - 100%), -50%);
+}
+
+/* ----------------------------------
+   2: LEFT PANEL
+   ---------------------------------- */
+#transition-component > :nth-child(2) {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 50%;
+	height: 100%;
+
+	background:
+		linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 25%,
+			transparent 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		),
+		repeating-linear-gradient(
+			-45deg,
+			transparent 0,
+			transparent 12px,
+			rgba(255, 255, 255, 0.15) 12px,
+			rgba(255, 255, 255, 0.15) 14px
+		),
+		linear-gradient(
+			180deg,
+			hsl(var(--transition-hue) 100% 62%) 0%,
+			hsl(var(--transition-hue) 100% 43%) 50%,
+			hsl(var(--transition-hue) 100% 30%) 100%
+		);
+
+	z-index: 2;
+
+	--hole-x: 100%;
+
+	transform: translateX(-100%);
+
+	-webkit-mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+	mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+}
+
+
+/* ----------------------------------
+   3: RIGHT PANEL
+   ---------------------------------- */
+#transition-component > :nth-child(3) {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 50%;
+	height: 100%;
+
+	background:
+		linear-gradient(
+			225deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 25%,
+			transparent 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		),
+		repeating-linear-gradient(
+			45deg,
+			transparent 0,
+			transparent 12px,
+			rgba(255, 255, 255, 0.15) 12px,
+			rgba(255, 255, 255, 0.15) 14px
+		),
+		linear-gradient(
+			180deg,
+			hsl(var(--transition-hue) 100% 62%) 0%,
+			hsl(var(--transition-hue) 100% 43%) 50%,
+			hsl(var(--transition-hue) 100% 30%) 100%
+		);
+
+	z-index: 2;
+
+	--hole-x: 0%;
+
+	transform: translateX(100%);
+
+	-webkit-mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+	mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+}
+
+
+
+/* =========================================================
+   TRANSITION COMPONENT
+   ========================================================= */
+
+/* ----------------------------------
+   2: LEFT PANEL
+   ---------------------------------- */
+#transition-component > :nth-child(2) {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 50%;
+	height: 100%;
+
+	background:
+		linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 25%,
+			transparent 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		),
+		linear-gradient(
+			180deg,
+			hsl(var(--transition-hue) 100% 62%) 0%,
+			hsl(var(--transition-hue) 100% 43%) 50%,
+			hsl(var(--transition-hue) 100% 30%) 100%
+		);
+
+	z-index: 2;
+
+	--hole-x: 100%;
+
+	transform: translateX(-100%);
+
+	-webkit-mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+
+	overflow: hidden;
+}
+
+
+/* ----------------------------------
+   3: RIGHT PANEL
+   ---------------------------------- */
+#transition-component > :nth-child(3) {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 50%;
+	height: 100%;
+
+	background:
+		linear-gradient(
+			225deg,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 25%,
+			transparent 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		),
+		linear-gradient(
+			180deg,
+			hsl(var(--transition-hue) 100% 62%) 0%,
+			hsl(var(--transition-hue) 100% 43%) 50%,
+			hsl(var(--transition-hue) 100% 30%) 100%
+		);
+
+	z-index: 2;
+
+	--hole-x: 0%;
+
+	transform: translateX(100%);
+
+	-webkit-mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	mask-image:
+		radial-gradient(
+			circle var(--hole-radius) at var(--hole-x) 50%,
+			transparent calc(var(--hole-radius) - 1px),
+			black var(--hole-radius)
+		);
+
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+
+	overflow: hidden;
+}
+
+
+/* =========================================================
+   MOVING STRIPES
+   ========================================================= */
+
+#transition-component > :nth-child(2)::before,
+#transition-component > :nth-child(3)::before {
+	content: "";
+
+	position: absolute;
+
+	/*
+	 * Extend the texture outside the panel so that
+	 * no edge of the animated layer can become visible.
+	 */
+	top: -100%;
+	left: -100%;
+	width: 300%;
+	height: 300%;
+
+	pointer-events: none;
+
+	/*
+	 * One complete repeating unit.
+	 */
+	background-size: 28px 28px;
+
+	background-repeat: repeat;
+
+	animation:
+		transition-stripes-up
+		0.25s
+		linear
+		infinite;
+}
+
+
+/* ----------------------------------
+   LEFT STRIPES
+   ---------------------------------- */
+
+#transition-component > :nth-child(2)::before {
+	background-image:
+		repeating-linear-gradient(
+			-45deg,
+			transparent 0,
+			transparent 12px,
+			rgba(255, 255, 255, 0.15) 12px,
+			rgba(255, 255, 255, 0.15) 14px
+		);
+}
+
+
+/* ----------------------------------
+   RIGHT STRIPES
+   ---------------------------------- */
+
+#transition-component > :nth-child(3)::before {
+	background-image:
+		repeating-linear-gradient(
+			45deg,
+			transparent 0,
+			transparent 12px,
+			rgba(255, 255, 255, 0.15) 12px,
+			rgba(255, 255, 255, 0.15) 14px
+		);
+}
+
+
+/* =========================================================
+   STRIPE ANIMATION
+   ========================================================= */
+
+@keyframes transition-stripes-up {
+	from {
+		transform: translateY(0);
+	}
+
+	to {
+		transform: translateY(-28px);
+	}
+}
+
+/* ----------------------------------
+   4: LOADING TEXT
+   ---------------------------------- */
+#transition-component > span:nth-child(4) {
+	position: absolute;
+	top: calc(50% + var(--hole-radius) + 30px);
+	left: 50%;
+	transform: translateX(-50%);
+	color: white;
+	font-family: sans-serif;
+	font-size: 1.5rem;
+	font-weight: bold;
+	z-index: 3;
+	display: none;
+}
+
+/* =========================================================
+   ANIMATION STATES
+   ========================================================= */
+
+/* STATE: CLOSING & LOADING (Panels move to center, circle enters from left) */
+#transition-component[data-state="closing"] > :nth-child(1),
+#transition-component[data-state="loading"] > :nth-child(1) {
+	transform: translate(-50%, -50%);
+}
+
+#transition-component[data-state="closing"] > :nth-child(2),
+#transition-component[data-state="loading"] > :nth-child(2),
+#transition-component[data-state="closing"] > :nth-child(3),
+#transition-component[data-state="loading"] > :nth-child(3) {
+	transform: translateX(0);
+}
+
+/* STATE: OPENING (Panels retract, circle exits to the right) */
+#transition-component[data-state="opening"] > :nth-child(1) {
+	transform: translate(calc(100vw + 100%), -50%);
+}
+
+#transition-component[data-state="opening"] > :nth-child(2) {
+	transform: translateX(-100%);
+}
+
+#transition-component[data-state="opening"] > :nth-child(3) {
+	transform: translateX(100%);
+}
+
+/* Show loading text only during loading state */
+#transition-component[data-state="loading"] > span:nth-child(4) {
+	display: block;
+	animation: transitionPulse 1.5s infinite;
+}
+
+@keyframes transitionPulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
 }

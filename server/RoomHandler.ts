@@ -13,7 +13,6 @@ import { evalWonTrophees } from "./evalWonTrophees";
 import { database } from "./Database";
 import { getLogger } from "../commons/ILogger";
 import { Bot, generateBot } from "../commons/Bot";
-import Prando from "prando";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -70,9 +69,9 @@ export class Room {
 	private botsInstant: number = 0;
 	private readonly inputs = new Array<Fields>();
 	private finished = false;
-	private readonly prando = new Prando(performance.now());
 
 	constructor(
+		public readonly gameIdentifier: number,
 		public readonly gamemodeId: string,
 		public readonly gamemode: GameMode,
 		players: PlayerInput[],
@@ -141,6 +140,7 @@ export class Room {
 
 		this.finished = true;
 		this.onfinish();
+		logger.info(`Finished game #${this.gameIdentifier} (by deconnection)`);
 
 		for (const p of this.players) {
 			if (p.connection) {
@@ -215,7 +215,7 @@ export class Room {
 				lastDate,
 				nextDate,
 				this.inputs as EmulationInput[],
-				() => this.prando.next(),
+				Math.random,
 				preprocess,
 				f => {finish = f;}
 			);
@@ -319,6 +319,7 @@ export class Room {
 
 		this.finished = true;
 		this.onfinish();
+		logger.info(`Finished game #${this.gameIdentifier}`);
 
 
 
@@ -424,7 +425,12 @@ export class Room {
 class RoomHandler {
 	private readonly rooms: Room[] = [];
 
-	async append(gamemode: string, total: number, players: PlayerInput[]) {
+	async append(
+		gameIdentifier: number,
+		gamemode: string,
+		total: number,
+		players: PlayerInput[]
+	) {
 		const factory = getMultiGmFactory(gamemode);
 
 		// Check players are'nt in a room
@@ -444,6 +450,7 @@ class RoomHandler {
 			(gm, skinId, user) => db.hasSkin(gm, skinId, user)
 		);
 		const room = new Room(
+			gameIdentifier,
 			gamemode,
 			created.game,
 			players,
