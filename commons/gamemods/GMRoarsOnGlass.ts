@@ -142,16 +142,12 @@ class ClientData {
 	static readonly FADE_SPEED = 0.08;
 
 	readonly html: HTMLDivElement;
-	readonly time: HTMLDivElement;
 	readonly redScore: HTMLDivElement;
 	readonly blueScore: HTMLDivElement;
 
 	constructor() {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-roarsOnGlass-root");
-
-		this.time = document.createElement("div");
-		this.time.classList.add("game-roarsOnGlass-time");
 
 		const scores = document.createElement("div");
 		scores.classList.add("game-roarsOnGlass-scores");
@@ -170,7 +166,6 @@ class ClientData {
 		scores.appendChild(this.blueScore);
 
 		this.html.appendChild(scores);
-		this.html.appendChild(this.time);
 	}
 
 	static showTime(time: number) {
@@ -181,10 +176,6 @@ class ClientData {
 	}
 
 	update(game: GMRoarsOnGlass, playerIdx: number) {
-		if (game.time < 60) {
-			this.time.innerText = ClientData.showTime(game.time);
-		}
-
 		this.redScore.innerText =
 			String(game.redScore).padStart(2, "0");
 

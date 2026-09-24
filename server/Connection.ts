@@ -342,6 +342,10 @@ export class Connection {
 		return this.pseudo;
 	}
 
+	getConnectionId() {
+		return this.connectionId;
+	}
+
 	sendMessage(msg: {[k: string]: any}) {
 		Connection.encode(msg).then(buffer => {
 			this.socket.send(buffer);
@@ -367,7 +371,9 @@ export class Connection {
 		matchmaking.removeConnection(this);
 		roomHandler.disconnect(this);
 		connectedUsersInfoHandler.remUser(this);
-		logger.info("User '" + this.pseudo + "' has disconnected");
+		logger.info(
+			`User #${this.connectionId} disconnected`
+		);
 	}
 
 	isAlive() {
