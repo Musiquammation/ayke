@@ -134,18 +134,6 @@ export class Database {
 					ON DELETE CASCADE
 			);
 		`);
-
-		// Keep existing databases compatible with the friendship schema.
-		this.db.all<{ name: string }>(`PRAGMA table_info(User)`, (error, columns) => {
-			if (error) return;
-			const names = new Set((columns ?? []).map(column => column.name));
-			if (!names.has("notifyNewFriends")) {
-				this.db.run(`ALTER TABLE User ADD COLUMN notifyNewFriends INTEGER NOT NULL DEFAULT 1`);
-			}
-			if (!names.has("lastDisconnectedAt")) {
-				this.db.run(`ALTER TABLE User ADD COLUMN lastDisconnectedAt DATETIME`);
-			}
-		});
 	}
 
 	/**
