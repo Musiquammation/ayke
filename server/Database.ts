@@ -546,6 +546,23 @@ export class Database {
 		});
 	}
 
+	removeFriend(pseudo: string, friend: string): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			const [user1, user2] = [pseudo, friend].sort();
+			this.db.run(
+				`DELETE FROM Friendship WHERE user1 = ? AND user2 = ?`,
+				[user1, user2],
+				function (error) {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve(this.changes > 0);
+				}
+			);
+		});
+	}
+
 	setLastDisconnectedAt(pseudo: string): Promise<void> {
 		return new Promise((resolve, reject) => {
 			this.db.run(`UPDATE User SET lastDisconnectedAt = CURRENT_TIMESTAMP WHERE pseudo = ?`, [pseudo], error =>

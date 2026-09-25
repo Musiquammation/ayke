@@ -144,6 +144,8 @@ class MainComponent {
 	private setPanel(panel: PanelComponent) {
 		const h1 = this.panel instanceof HomeComponent;
 		const h2 = panel instanceof HomeComponent;
+		const f1 = this.panel instanceof FriendsComponent;
+		const f2 = panel instanceof FriendsComponent;
 
 		if (h1 && !h2) {
 			sendMessage({subscribeConnectedUsersInfo: false});
@@ -153,6 +155,12 @@ class MainComponent {
 
 		if (h2 && !h1) {
 			sendMessage({subscribeConnectedUsersInfo: true});
+		}
+		if (f1 && !f2) {
+			sendMessage({subscribeFriends: false});
+		}
+		if (f2 && !f1) {
+			sendMessage({subscribeFriends: true});
 		}
 	}
 
@@ -1647,9 +1655,7 @@ class FriendsComponent {
 	message = "";
 	newFriendNotificationsEnabled = true;
 
-	constructor() {
-		sendMessage({ askFriends: {} });
-	}
+	constructor() {}
 
 	saveFragment(): Record<string, string> { return {}; }
 
@@ -1677,6 +1683,10 @@ class FriendsComponent {
 		} });
 	}
 
+	removeFriend(friend: FriendEntry) {
+		sendMessage({ deleteFriend: { pseudo: friend.pseudo } });
+	}
+
 	setNewFriendNotifications() {
 		this.newFriendNotificationsEnabled = !this.newFriendNotificationsEnabled;
 		sendMessage({ setNewFriendNotifications: {
@@ -1685,7 +1695,9 @@ class FriendsComponent {
 	}
 
 	formatLastDisconnected(value?: string) {
-		return value ? new Date(value).toLocaleString() : "Never";
+		return value
+			? new Date(value.endsWith("Z") ? value : `${value}Z`).toLocaleString()
+			: "Never";
 	}
 }
 

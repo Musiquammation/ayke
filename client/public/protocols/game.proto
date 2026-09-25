@@ -33,6 +33,8 @@ message ClientMessage {
 		RespondFriendRequest respondFriendRequest = 20;
 		SetFriendNotification setFriendNotification = 21;
 		SetNewFriendNotifications setNewFriendNotifications = 22;
+		bool subscribeFriends = 23;
+		DeleteFriend deleteFriend = 24;
 	}
 }
 
@@ -107,6 +109,10 @@ message SetNewFriendNotifications {
 	bool enabled = 1;
 }
 
+message DeleteFriend {
+	string pseudo = 1;
+}
+
 
 
 
@@ -140,6 +146,8 @@ message ServerMessage {
 		AccountInfoResult accountInfoResult = 17;
 		ConnectedUsersInfo connectedUsersInfo = 18;
 		FriendsResult friendsResult = 19;
+		FriendPresenceUpdate friendPresenceUpdate = 20;
+		FriendRequestReceived friendRequestReceived = 21;
 	}
 }
 
@@ -265,6 +273,17 @@ message FriendEntry {
 }
 
 message FriendRequestEntry {
+	string pseudo = 1;
+	string createdAt = 2;
+}
+
+message FriendPresenceUpdate {
+	string pseudo = 1;
+	bool online = 2;
+	optional string lastDisconnectedAt = 3;
+}
+
+message FriendRequestReceived {
 	string pseudo = 1;
 	string createdAt = 2;
 }
