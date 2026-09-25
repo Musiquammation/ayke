@@ -113,6 +113,7 @@ type PanelComponent = (
 	SoloLeaderboardComponent |
 	ChangelogsComponent |
 	ContactComponent |
+	FriendsComponent |
 	null
 );
 
@@ -522,6 +523,13 @@ class MainComponent {
 		pushUrlStack(this);
 	}
 
+	openFriends() {
+		const panel = new FriendsComponent();
+		this.setPanel(panel);
+		this.currentPage = "friends";
+		pushUrlStack(this);
+	}
+
 	getPanel<T>(type: new (...args: any[]) => T): T {
 		if (this.panel instanceof type) {
 			return this.panel;
@@ -560,6 +568,10 @@ class MainComponent {
 
 	getHomePanel() {
 		return this.getPanel(HomeComponent);
+	}
+
+	getFriendsPanel() {
+		return this.getPanel(FriendsComponent);
 	}
 }
 
@@ -1614,6 +1626,69 @@ class ContactComponent {
 	}
 }
 
+interface FriendEntry {
+	pseudo: string;
+	online: boolean;
+	lastDisconnectedAt?: string;
+	notificationsEnabled: boolean;
+}
+
+interface FriendRequestEntry {
+	pseudo: string;
+	createdAt: string;
+}
+
+class FriendsComponent {
+	static readonly fragmentName = "friends";
+
+	friends: FriendEntry[] = [];
+	requests: FriendRequestEntry[] = [];
+	requestPseudo = "";
+	message = "";
+	newFriendNotificationsEnabled = true;
+
+	constructor() {
+		sendMessage({ askFriends: {} });
+	}
+
+	saveFragment(): Record<string, string> { return {}; }
+
+	static openFragment(_: Record<string, string>) {
+		return new FriendsComponent();
+	}
+
+	sendRequest() {
+		const pseudo = this.requestPseudo.trim();
+		if (!pseudo) return;
+		this.message = "";
+		sendMessage({ sendFriendRequest: { pseudo } });
+		this.requestPseudo = "";
+	}
+
+	respond(request: FriendRequestEntry, accept: boolean) {
+		sendMessage({ respondFriendRequest: { pseudo: request.pseudo, accept } });
+	}
+
+	setFriendNotification(friend: FriendEntry) {
+		friend.notificationsEnabled = !friend.notificationsEnabled;
+		sendMessage({ setFriendNotification: {
+			pseudo: friend.pseudo,
+			enabled: friend.notificationsEnabled
+		} });
+	}
+
+	setNewFriendNotifications() {
+		this.newFriendNotificationsEnabled = !this.newFriendNotificationsEnabled;
+		sendMessage({ setNewFriendNotifications: {
+			enabled: this.newFriendNotificationsEnabled
+		} });
+	}
+
+	formatLastDisconnected(value?: string) {
+		return value ? new Date(value).toLocaleString() : "Never";
+	}
+}
+
 
 
 
@@ -1640,6 +1715,7 @@ registerFragment(LeaderboardComponent.fragmentName, "leaderboard", LeaderboardCo
 registerFragment(SoloLeaderboardComponent.fragmentName, "solo-leaderboard", SoloLeaderboardComponent.openFragment);
 registerFragment(ChangelogsComponent.fragmentName, "changelog", ChangelogsComponent.openFragment);
 registerFragment(ContactComponent.fragmentName, "contact", ContactComponent.openFragment);
+registerFragment(FriendsComponent.fragmentName, "friends", FriendsComponent.openFragment);
 
 /** One entry of the in-memory navigation stack (for panels that can't be serialized). */
 interface StackEntry {

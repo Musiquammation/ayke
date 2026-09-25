@@ -28,6 +28,11 @@ message ClientMessage {
 		UnlockCollectible unlockCollectible = 15;
 		Empty askAccountInfo = 16;
 		bool subscribeConnectedUsersInfo = 17;
+		AskFriends askFriends = 18;
+		SendFriendRequest sendFriendRequest = 19;
+		RespondFriendRequest respondFriendRequest = 20;
+		SetFriendNotification setFriendNotification = 21;
+		SetNewFriendNotifications setNewFriendNotifications = 22;
 	}
 }
 
@@ -82,6 +87,26 @@ message UnlockCollectible {
 	int32 collectibleId = 2;
 }
 
+message AskFriends {}
+
+message SendFriendRequest {
+	string pseudo = 1;
+}
+
+message RespondFriendRequest {
+	string pseudo = 1;
+	bool accept = 2;
+}
+
+message SetFriendNotification {
+	string pseudo = 1;
+	bool enabled = 2;
+}
+
+message SetNewFriendNotifications {
+	bool enabled = 1;
+}
+
 
 
 
@@ -114,6 +139,7 @@ message ServerMessage {
 		UnlockCollectibleResult unlockCollectibleResult = 16;
 		AccountInfoResult accountInfoResult = 17;
 		ConnectedUsersInfo connectedUsersInfo = 18;
+		FriendsResult friendsResult = 19;
 	}
 }
 
@@ -229,5 +255,23 @@ message ConnectedUsersInfoElement {
 message ConnectedUsersInfo {
 	int32 total = 1;
 	repeated ConnectedUsersInfoElement gamemods = 2;
+}
+
+message FriendEntry {
+	string pseudo = 1;
+	bool online = 2;
+	optional string lastDisconnectedAt = 3;
+	bool notificationsEnabled = 4;
+}
+
+message FriendRequestEntry {
+	string pseudo = 1;
+	string createdAt = 2;
+}
+
+message FriendsResult {
+	repeated FriendEntry friends = 1;
+	repeated FriendRequestEntry requests = 2;
+	bool newFriendNotificationsEnabled = 3;
 }
 

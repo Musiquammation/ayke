@@ -69,6 +69,10 @@
 						<button type="button" @pointerup="openContact(); menuOpen = false">Contact</button>
 
 						<template x-if="isAuthenticated">
+							<button type="button" @pointerup="openFriends(); menuOpen = false">Friends</button>
+						</template>
+
+						<template x-if="isAuthenticated">
 							<button type="button" @pointerup="disconnect(); menuOpen = false">Disconnect</button>
 						</template>
 					</nav>
@@ -714,6 +718,64 @@
 						</div>
 					</div>
 
+					<button type="button" @pointerup="openHome()">Go home</button>
+				</div>
+			</template>
+
+			<template x-if="uses('friends')">
+				<div id="friends-page" class="page" x-data="panel">
+					<h1>Friends</h1>
+
+					<form class="friends-request-form" @submit.prevent="sendRequest()">
+						<label for="friend-pseudo">Add a friend</label>
+						<div>
+							<input id="friend-pseudo" type="text" x-model="requestPseudo" autocomplete="off" required>
+							<button type="submit">Send request</button>
+						</div>
+					</form>
+
+					<section class="friends-section">
+						<h2>My friends</h2>
+						<p x-show="friends.length === 0">You have no friends yet.</p>
+						<div class="friends-list">
+							<template x-for="friend in friends" :key="friend.pseudo">
+								<div class="friend-entry">
+									<div>
+										<strong x-text="friend.pseudo"></strong>
+										<span :class="friend.online ? 'friend-online' : 'friend-offline'" x-text="friend.online ? 'Online' : `Last seen: ${formatLastDisconnected(friend.lastDisconnectedAt)}`"></span>
+									</div>
+									<button class="bell-button" type="button" @pointerup="setFriendNotification(friend)" :aria-label="friend.notificationsEnabled ? 'Disable notifications' : 'Enable notifications'">
+										<svg viewBox="0 0 24 24" aria-hidden="true">
+											<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+											<path x-show="!friend.notificationsEnabled" d="m4 4 16 16" />
+										</svg>
+									</button>
+								</div>
+							</template>
+						</div>
+					</section>
+
+					<section class="friends-section">
+						<h2>Friend requests</h2>
+						<p x-show="requests.length === 0">No pending requests.</p>
+						<div class="friends-list">
+							<template x-for="request in requests" :key="request.pseudo">
+								<div class="friend-entry">
+									<strong x-text="request.pseudo"></strong>
+									<div>
+										<button type="button" @pointerup="respond(request, true)">Accept</button>
+										<button type="button" @pointerup="respond(request, false)">Decline</button>
+									</div>
+								</div>
+							</template>
+						</div>
+					</section>
+
+					<label class="friends-setting">
+						<input type="checkbox" :checked="newFriendNotificationsEnabled" @change="setNewFriendNotifications()">
+						Notify me about new friends
+					</label>
+					<p x-text="message"></p>
 					<button type="button" @pointerup="openHome()">Go home</button>
 				</div>
 			</template>

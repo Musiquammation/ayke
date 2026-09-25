@@ -26,6 +26,7 @@ function getNextConnectionId() {
 }
 
 export class Connection {
+	private static connectedPseudos = new Map<string, number>();
 	private pseudo: string | null = null;
 	private alive = true;
 	private connectionId = getNextConnectionId();
@@ -310,6 +311,47 @@ export class Connection {
 			c.sendMessage({ accountInfoResult: summary });
 		},
 
+		async askFriends(c) {
+			if (!c.pseudo) return;
+			await c.sendFriends();
+		},
+
+		async sendFriendRequest(c, d: { pseudo: string }) {
+			if (!c.pseudo) return;
+			const db = await database;
+			const result = await db.sendFriendRequest(c.pseudo, d.pseudo);
+			if (result !== 'sent') {
+				c.sendError(4, `Friend request was not sent: ${result}`);
+				return;
+			}
+			await c.sendFriends();
+		},
+
+		async respondFriendRequest(c, d: { pseudo: string; accept: boolean }) {
+			if (!c.pseudo) return;
+			const db = await database;
+			const changed = await db.respondFriendRequest(c.pseudo, d.pseudo, d.accept);
+			if (!changed) {
+				c.sendError(4, "Friend request no longer exists");
+				return;
+			}
+			await c.sendFriends();
+		},
+
+		async setFriendNotification(c, d: { pseudo: string; enabled: boolean }) {
+			if (!c.pseudo) return;
+			const db = await database;
+			await db.setFriendNotification(c.pseudo, d.pseudo, d.enabled);
+			await c.sendFriends();
+		},
+
+		async setNewFriendNotifications(c, d: { enabled: boolean }) {
+			if (!c.pseudo) return;
+			const db = await database;
+			await db.setNewFriendNotifications(c.pseudo, d.enabled);
+			await c.sendFriends();
+		},
+
 		subscribeConnectedUsersInfo(c, d) {
 			connectedUsersInfoHandler.subscribe(c, d);
 		}
@@ -335,7 +377,38 @@ export class Connection {
 
 	private setPseudo(pseudo: string) {
 		this.pseudo = pseudo;
+			Connection.connectedPseudos.set(pseudo, (Connection.connectedPseudos.get(pseudo) ?? 0) + 1);
 		logger.info(`(hint) #${this.connectionId} is '${pseudo}'`);
+		void this.notifyFriendConnections();
+	}
+
+	private async notifyFriendConnections() {
+		if (!this.pseudo) return;
+		const db = await database;
+		const friends = await db.getFriends(this.pseudo);
+		for (const friend of friends) {
+			if (friend.notificationsEnabled && (Connection.connectedPseudos.get(friend.pseudo) ?? 0) > 0) {
+				logger.info(`'${this.pseudo}' notifies it connection to '${friend.pseudo}'`);
+			}
+		}
+	}
+
+	private async sendFriends() {
+		if (!this.pseudo) return;
+		const db = await database;
+		const friends = await db.getFriends(this.pseudo);
+		const requests = await db.getFriendRequests(this.pseudo);
+		const newFriendNotificationsEnabled = await db.getNewFriendNotifications(this.pseudo);
+		this.sendMessage({ friendsResult: {
+			friends: friends.map(friend => ({
+				pseudo: friend.pseudo,
+				online: (Connection.connectedPseudos.get(friend.pseudo) ?? 0) > 0,
+				lastDisconnectedAt: friend.lastDisconnectedAt ?? undefined,
+				notificationsEnabled: friend.notificationsEnabled
+			})),
+			requests,
+			newFriendNotificationsEnabled
+		} });
 	}
 
 	getPseudo() {
@@ -371,6 +444,15 @@ export class Connection {
 		matchmaking.removeConnection(this);
 		roomHandler.disconnect(this);
 		connectedUsersInfoHandler.remUser(this);
+		if (this.pseudo) {
+			const count = (Connection.connectedPseudos.get(this.pseudo) ?? 1) - 1;
+			if (count <= 0) {
+				Connection.connectedPseudos.delete(this.pseudo);
+				void database.then(db => db.setLastDisconnectedAt(this.pseudo!));
+			} else {
+				Connection.connectedPseudos.set(this.pseudo, count);
+			}
+		}
 		logger.info(
 			`User #${this.connectionId} disconnected`
 		);

@@ -153,6 +153,15 @@ const runners: Record<string, (data: any) => void> = {
 		};
 
 		dom.getHomePanel().setConnectedUsersInfo(connectedUsersInfo);
+	},
+
+	friendsResult(d) {
+		if (dom.uses('friends')) {
+			const panel = dom.getFriendsPanel();
+			panel.friends = d.friends || [];
+			panel.requests = d.requests || [];
+			panel.newFriendNotificationsEnabled = d.newFriendNotificationsEnabled;
+		}
 	}
 };
 

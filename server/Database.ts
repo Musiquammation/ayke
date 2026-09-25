@@ -38,7 +38,29 @@ export class Database {
 			CREATE TABLE IF NOT EXISTS User (
 				pseudo TEXT PRIMARY KEY,
 				password TEXT NOT NULL,
-				coins INTEGER NOT NULL DEFAULT 0 CHECK(coins >= 0)
+				coins INTEGER NOT NULL DEFAULT 0 CHECK(coins >= 0),
+				notifyNewFriends INTEGER NOT NULL DEFAULT 1,
+				lastDisconnectedAt DATETIME
+			);
+
+			CREATE TABLE IF NOT EXISTS Friendship (
+				user1 TEXT NOT NULL,
+				user2 TEXT NOT NULL,
+				n1to2 INTEGER NOT NULL DEFAULT 1,
+				n2to1 INTEGER NOT NULL DEFAULT 1,
+				PRIMARY KEY (user1, user2),
+				CHECK(user1 < user2),
+				FOREIGN KEY (user1) REFERENCES User(pseudo) ON DELETE CASCADE,
+				FOREIGN KEY (user2) REFERENCES User(pseudo) ON DELETE CASCADE
+			);
+
+			CREATE TABLE IF NOT EXISTS FriendRequest (
+				requester TEXT NOT NULL,
+				requested TEXT NOT NULL,
+				createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (requester, requested),
+				FOREIGN KEY (requester) REFERENCES User(pseudo) ON DELETE CASCADE,
+				FOREIGN KEY (requested) REFERENCES User(pseudo) ON DELETE CASCADE
 			);
 
 			CREATE TABLE IF NOT EXISTS Gamemode (
@@ -112,6 +134,18 @@ export class Database {
 					ON DELETE CASCADE
 			);
 		`);
+
+		// Keep existing databases compatible with the friendship schema.
+		this.db.all<{ name: string }>(`PRAGMA table_info(User)`, (error, columns) => {
+			if (error) return;
+			const names = new Set((columns ?? []).map(column => column.name));
+			if (!names.has("notifyNewFriends")) {
+				this.db.run(`ALTER TABLE User ADD COLUMN notifyNewFriends INTEGER NOT NULL DEFAULT 1`);
+			}
+			if (!names.has("lastDisconnectedAt")) {
+				this.db.run(`ALTER TABLE User ADD COLUMN lastDisconnectedAt DATETIME`);
+			}
+		});
 	}
 
 	/**
@@ -412,6 +446,122 @@ export class Database {
 					);
 				}
 			);
+		});
+	}
+
+	getFriends(pseudo: string): Promise<{
+		pseudo: string;
+		notificationsEnabled: boolean;
+		lastDisconnectedAt: string | null;
+	}[]> {
+		return new Promise((resolve, reject) => {
+			this.db.all<any>(`
+				SELECT CASE WHEN user1 = ? THEN user2 ELSE user1 END AS pseudo,
+					CASE WHEN user1 = ? THEN n1to2 ELSE n2to1 END AS notificationsEnabled,
+					u.lastDisconnectedAt
+				FROM Friendship f
+				JOIN User u ON u.pseudo = CASE WHEN f.user1 = ? THEN f.user2 ELSE f.user1 END
+				WHERE f.user1 = ? OR f.user2 = ?
+				ORDER BY pseudo
+			`, [pseudo, pseudo, pseudo, pseudo, pseudo], (error, rows) => {
+				if (error) reject(error);
+				else resolve((rows ?? []).map(row => ({
+					pseudo: row.pseudo,
+					notificationsEnabled: Boolean(row.notificationsEnabled),
+					lastDisconnectedAt: row.lastDisconnectedAt
+				})));
+			});
+		});
+	}
+
+	getFriendRequests(pseudo: string): Promise<{ pseudo: string; createdAt: string }[]> {
+		return new Promise((resolve, reject) => {
+			this.db.all<{ pseudo: string; createdAt: string }>(
+				`SELECT requester AS pseudo, createdAt FROM FriendRequest WHERE requested = ? ORDER BY createdAt`,
+				[pseudo], (error, rows) => error ? reject(error) : resolve(rows ?? [])
+			);
+		});
+	}
+
+	getNewFriendNotifications(pseudo: string): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			this.db.get<{ notifyNewFriends: number }>(
+				`SELECT notifyNewFriends FROM User WHERE pseudo = ?`, [pseudo],
+				(error, row) => error ? reject(error) : resolve(Boolean(row?.notifyNewFriends))
+			);
+		});
+	}
+
+	setNewFriendNotifications(pseudo: string, enabled: boolean): Promise<void> {
+		return new Promise((resolve, reject) => {
+			this.db.run(`UPDATE User SET notifyNewFriends = ? WHERE pseudo = ?`, [enabled ? 1 : 0, pseudo], error =>
+				error ? reject(error) : resolve());
+		});
+	}
+
+	sendFriendRequest(requester: string, requested: string): Promise<'sent' | 'missing' | 'duplicate' | 'friends'> {
+		return new Promise((resolve, reject) => {
+			if (requester === requested) { resolve('duplicate'); return; }
+			this.db.get<{ pseudo: string }>(`SELECT pseudo FROM User WHERE pseudo = ?`, [requested], (error, user) => {
+				if (error) { reject(error); return; }
+				if (!user) { resolve('missing'); return; }
+				const [user1, user2] = [requester, requested].sort();
+				this.db.get(`SELECT 1 FROM Friendship WHERE user1 = ? AND user2 = ?`, [user1, user2], (error, friendship) => {
+					if (error) { reject(error); return; }
+					if (friendship) { resolve('friends'); return; }
+					this.db.get(`SELECT 1 FROM FriendRequest WHERE (requester = ? AND requested = ?) OR (requester = ? AND requested = ?)`, [requester, requested, requested, requester], (error, request) => {
+						if (error) { reject(error); return; }
+						if (request) { resolve('duplicate'); return; }
+						this.db.run(`INSERT INTO FriendRequest (requester, requested) VALUES (?, ?)`, [requester, requested], function (error) {
+							if (error) { reject(error); return; }
+							resolve(this.changes > 0 ? 'sent' : 'duplicate');
+						});
+					});
+				});
+			});
+		});
+	}
+
+	respondFriendRequest(requested: string, requester: string, accept: boolean): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			this.db.get(`SELECT 1 FROM FriendRequest WHERE requester = ? AND requested = ?`, [requester, requested], (error, row) => {
+				if (error) { reject(error); return; }
+				if (!row) { resolve(false); return; }
+				if (!accept) {
+					this.db.run(`DELETE FROM FriendRequest WHERE requester = ? AND requested = ?`, [requester, requested], error => error ? reject(error) : resolve(true));
+					return;
+				}
+				const [user1, user2] = [requester, requested].sort();
+				this.db.get<{ requesterNotifications: number; requestedNotifications: number }>(
+					`SELECT
+						(SELECT notifyNewFriends FROM User WHERE pseudo = ?) AS requesterNotifications,
+						(SELECT notifyNewFriends FROM User WHERE pseudo = ?) AS requestedNotifications`,
+					[requester, requested], (error, settings) => {
+						if (error) { reject(error); return; }
+						this.db.serialize(() => {
+							this.db.run(`INSERT INTO Friendship (user1, user2, n1to2, n2to1) VALUES (?, ?, ?, ?)`, [user1, user2,
+								user1 === requester ? settings?.requesterNotifications : settings?.requestedNotifications,
+								user1 === requester ? settings?.requestedNotifications : settings?.requesterNotifications]);
+							this.db.run(`DELETE FROM FriendRequest WHERE requester = ? AND requested = ?`, [requester, requested], error => error ? reject(error) : resolve(true));
+						});
+					});
+			});
+		});
+	}
+
+	setFriendNotification(pseudo: string, friend: string, enabled: boolean): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const [user1, user2] = [pseudo, friend].sort();
+			const column = pseudo === user1 ? 'n1to2' : 'n2to1';
+			this.db.run(`UPDATE Friendship SET ${column} = ? WHERE user1 = ? AND user2 = ?`, [enabled ? 1 : 0, user1, user2], error =>
+				error ? reject(error) : resolve());
+		});
+	}
+
+	setLastDisconnectedAt(pseudo: string): Promise<void> {
+		return new Promise((resolve, reject) => {
+			this.db.run(`UPDATE User SET lastDisconnectedAt = CURRENT_TIMESTAMP WHERE pseudo = ?`, [pseudo], error =>
+				error ? reject(error) : resolve());
 		});
 	}
 
