@@ -3337,3 +3337,425 @@ canvas {
 	0%, 100% { opacity: 1; }
 	50% { opacity: 0.4; }
 }
+
+
+
+
+
+/* ============================================================
+   Friends Page
+   ============================================================ */
+
+/*
+ * Friends page layout.
+ * Keeps the content compact while allowing it to grow naturally
+ * on small screens.
+ */
+
+#friends-page {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+
+/* ============================================================
+   Friend Request Form
+   ============================================================ */
+
+#friends-page .friends-request-form {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+
+	margin: 0;
+
+	width: min(100%, 560px);
+}
+
+#friends-page .friends-request-form > label {
+	font-size: 0.9rem;
+	font-weight: 600;
+	color: var(--color-text-muted);
+}
+
+#friends-page .friends-request-form > div {
+	display: flex;
+	gap: 8px;
+
+	width: 100%;
+	max-width: none;
+}
+
+#friends-page .friends-request-form input {
+	min-width: 0;
+	flex: 1;
+
+	height: 42px;
+	padding: 8px 11px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	background: var(--color-surface);
+	color: var(--color-text);
+
+	outline: none;
+
+	transition: border-color var(--transition-fast);
+}
+
+#friends-page .friends-request-form input:focus {
+	border-color: var(--color-primary);
+}
+
+#friends-page .friends-request-form button {
+	min-height: 42px;
+
+	background: var(--color-primary);
+	color: var(--color-primary-text);
+	border-color: var(--color-primary);
+}
+
+#friends-page .friends-request-form button:hover {
+	background: var(--color-primary-hover);
+	border-color: var(--color-primary-hover);
+}
+
+
+/* ============================================================
+   Friends Sections
+   ============================================================ */
+
+#friends-page .friends-section {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+
+	margin: 0;
+
+	width: min(100%, 720px);
+}
+
+#friends-page .friends-section h2 {
+	margin: 0;
+}
+
+#friends-page .friends-section > p {
+	margin: 0;
+
+	color: var(--color-text-muted);
+	font-size: 0.9rem;
+}
+
+
+/* ============================================================
+   Friends List
+   ============================================================ */
+
+#friends-page .friends-list {
+	display: grid;
+	gap: 8px;
+
+	width: 100%;
+	max-width: none;
+}
+
+
+/* ============================================================
+   Friend Entry
+   ============================================================ */
+
+#friends-page .friend-entry {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+
+	gap: 12px;
+
+	min-width: 0;
+
+	padding: 12px 14px;
+
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-small);
+
+	background: var(--color-surface);
+
+	transition:
+		background var(--transition-fast),
+		border-color var(--transition-fast);
+}
+
+#friends-page .friend-entry:hover {
+	background: var(--color-surface-hover);
+	border-color: var(--color-border-strong);
+}
+
+
+/* Friend name and status */
+
+#friends-page .friend-entry > div:first-child {
+	display: flex;
+	flex-direction: column;
+
+	gap: 4px;
+
+	min-width: 0;
+}
+
+#friends-page .friend-entry strong {
+	min-width: 0;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+
+/* ============================================================
+   Online / Offline Status
+   ============================================================ */
+
+#friends-page .friend-online,
+#friends-page .friend-offline {
+	font-size: 0.8rem;
+	color: var(--color-text-muted);
+}
+
+#friends-page .friend-online {
+	color: var(--color-success);
+}
+
+#friends-page .friend-online::before {
+	content: "";
+
+	display: inline-block;
+
+	width: 8px;
+	height: 8px;
+
+	margin-right: 6px;
+
+	border-radius: 50%;
+
+	background: var(--color-success);
+
+	vertical-align: middle;
+}
+
+
+/* ============================================================
+   Friend Action Buttons
+   ============================================================ */
+
+#friends-page .friend-entry > div:last-child {
+	display: flex;
+	flex-wrap: wrap;
+
+	align-items: center;
+	justify-content: flex-end;
+
+	gap: 8px;
+
+	flex-shrink: 0;
+}
+
+#friends-page .friend-entry > div:last-child button {
+	min-height: 36px;
+}
+
+
+/* Accept button */
+
+#friends-page .friend-entry > div:last-child button:first-child {
+	background: var(--color-success);
+	color: #111;
+	border-color: var(--color-success);
+}
+
+#friends-page .friend-entry > div:last-child button:first-child:hover {
+	background: var(--color-success);
+	border-color: var(--color-success);
+
+	filter: brightness(0.95);
+}
+
+
+/* Decline button */
+
+#friends-page .friend-entry > div:last-child button:last-child {
+	color: var(--color-danger);
+	border-color: var(--color-danger);
+	background: transparent;
+}
+
+#friends-page .friend-entry > div:last-child button:last-child:hover {
+	background: var(--color-danger);
+	color: #fff;
+}
+
+
+/* ============================================================
+   Notification Bell
+   ============================================================ */
+
+#friends-page .bell-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	width: 38px;
+	height: 38px;
+
+	padding: 7px;
+
+	flex-shrink: 0;
+
+	background: transparent;
+	border-color: transparent;
+}
+
+#friends-page .bell-button:hover {
+	background: var(--color-surface-hover);
+	border-color: var(--color-border);
+}
+
+#friends-page .bell-button svg {
+	display: block;
+
+	width: 20px;
+	height: 20px;
+
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+
+	stroke-linecap: round;
+	stroke-linejoin: round;
+
+	pointer-events: none;
+}
+
+
+/* ============================================================
+   New Friend Notifications Setting
+   ============================================================ */
+
+#friends-page .friends-setting {
+	display: flex;
+	align-items: center;
+
+	width: fit-content;
+	max-width: 100%;
+
+	gap: 8px;
+
+	margin: 0;
+
+	color: var(--color-text);
+	font-size: 0.9rem;
+
+	cursor: pointer;
+}
+
+#friends-page .friends-setting input {
+	width: 18px;
+	height: 18px;
+
+	margin: 0;
+
+	accent-color: var(--color-primary);
+
+	cursor: pointer;
+}
+
+
+/* ============================================================
+   Friends Page Message
+   ============================================================ */
+
+#friends-page > p[x-text="message"] {
+	min-height: 1.2em;
+
+	margin: 0;
+
+	color: var(--color-text-muted);
+
+	font-size: 0.9rem;
+}
+
+
+/* ============================================================
+   Friends Page Home Button
+   ============================================================ */
+
+#friends-page > button {
+	width: fit-content;
+	min-height: 40px;
+
+	margin-top: 4px;
+}
+
+
+/* ============================================================
+   Responsive: Small Screens
+   ============================================================ */
+
+@media (max-width: 500px) {
+
+	#friends-page {
+		gap: 18px;
+	}
+
+	#friends-page .friends-request-form > div {
+		flex-direction: column;
+	}
+
+	#friends-page .friends-request-form button {
+		width: 100%;
+	}
+
+	#friends-page .friend-entry {
+		padding: 11px 12px;
+	}
+
+	#friends-page .friend-entry > div:last-child {
+		gap: 6px;
+	}
+
+	#friends-page .friend-entry > div:last-child button {
+		padding: 7px 10px;
+	}
+}
+
+
+/* ============================================================
+   Responsive: Very Small Screens
+   ============================================================ */
+
+@media (max-width: 350px) {
+
+	#friends-page .friend-entry {
+		align-items: flex-start;
+	}
+
+	#friends-page .friend-entry > div:last-child {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	#friends-page .friend-entry > div:last-child button {
+		width: 100%;
+	}
+
+	#friends-page .bell-button {
+		width: 36px;
+		height: 36px;
+		padding: 6px;
+	}
+
+	#friends-page .friends-setting {
+		align-items: flex-start;
+	}
+}
