@@ -3341,7 +3341,6 @@ canvas {
 
 
 
-
 /* ============================================================
    Friends Page
    ============================================================ */
@@ -3502,6 +3501,8 @@ canvas {
 	gap: 4px;
 
 	min-width: 0;
+
+	flex: 1;
 }
 
 #friends-page .friend-entry strong {
@@ -3591,6 +3592,24 @@ canvas {
 }
 
 #friends-page .friend-entry > div:last-child button:last-child:hover {
+	background: var(--color-danger);
+	color: #fff;
+}
+
+
+/* Remove friend button */
+
+#friends-page .remove-friend-button {
+	min-height: 36px;
+
+	flex-shrink: 0;
+
+	color: var(--color-danger);
+	border-color: var(--color-danger);
+	background: transparent;
+}
+
+#friends-page .remove-friend-button:hover {
 	background: var(--color-danger);
 	color: #fff;
 }
@@ -3724,7 +3743,8 @@ canvas {
 		gap: 6px;
 	}
 
-	#friends-page .friend-entry > div:last-child button {
+	#friends-page .friend-entry > div:last-child button,
+	#friends-page .remove-friend-button {
 		padding: 7px 10px;
 	}
 }
@@ -3746,6 +3766,10 @@ canvas {
 	}
 
 	#friends-page .friend-entry > div:last-child button {
+		width: 100%;
+	}
+
+	#friends-page .remove-friend-button {
 		width: 100%;
 	}
 
