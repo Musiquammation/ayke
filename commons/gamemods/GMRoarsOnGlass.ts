@@ -29,15 +29,17 @@ const PLAYER_ROUND = 20;
 const SPEED = 400;
 const ACCELERATION = 2000;
 const SOFT_DECELERATION = 1000;
-const QUICK_DECELERATION = 3000;
-const MIN_DECELERATION = 500;
 
 // Ability Constants
 const ROAR_COOLDOWN = 3.0; // Seconds between roars
 const ROAR_CAST_TIME = 1.0; // Immobilized duration
-const ROAR_RADIUS = 200;
+const ROAR_RADIUS = 150;
+const ROAR_START_RADIUS = PLAYER_SIZE;
 const PUSH_SPEED = 800; // Initial push velocity
+const ROAR_EXPANSION_SPEED = 400; // Radius growth per second
 const SPEED_REDUCOR = 800; // Speed reduction per second during push
+
+
 
 class Player {
 	spawnX: number | null = null;
@@ -122,6 +124,36 @@ class Player {
 		}
 
 		return this.prevRotation;
+	}
+}
+
+class Roar {
+	radius = ROAR_START_RADIUS;
+
+	constructor(
+		public x: number,
+		public y: number,
+		public ownerId: number
+	) {}
+
+	load(obj: any) {
+		this.x = obj.x;
+		this.y = obj.y;
+		this.radius = obj.radius;
+		this.ownerId = obj.ownerId;
+	}
+
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			radius: this.radius,
+			ownerId: this.ownerId
+		};
+	}
+
+	run(dt: number) {
+		this.radius += ROAR_EXPANSION_SPEED * dt;
 	}
 }
 
@@ -284,6 +316,7 @@ class TutorialData {
 export class GMRoarsOnGlass extends GameMode {
 	static readonly types = {Player};
 	readonly players: Player[];
+	roars: Roar[] = [];
 	
 	// Game state
 	grid: number[][] = [];
@@ -320,6 +353,7 @@ export class GMRoarsOnGlass extends GameMode {
 	
 	resetRound() {
 		this.initGrid();
+		this.roars = [];
 		for (let p of this.players) {
 			if (p.spawnX !== null && p.spawnY !== null) {
 				p.initSpawn(p.spawnX, p.spawnY, p.team);
@@ -624,6 +658,12 @@ export class GMRoarsOnGlass extends GameMode {
 			}
 		}
 	}
+
+	private roar(player: Player) {
+		player.roarTimer = ROAR_CAST_TIME;
+		player.roarCooldown = ROAR_COOLDOWN;
+		this.roars.push(new Roar(player.x, player.y, this.players.indexOf(player)));
+	}
 	
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
 		this.time -= dt;
@@ -696,32 +736,37 @@ export class GMRoarsOnGlass extends GameMode {
 			if (!p.isAlive()) continue;
 
 			if (p.isRoaring && p.roarCooldown <= 0 && p.pushTimer <= 0) {
-				// Trigger Roar
-				p.roarTimer = ROAR_CAST_TIME;
-				p.roarCooldown = ROAR_COOLDOWN;
-				
-				// Push enemies in range
-				for (let e of this.players) {
-					if (e !== p && e.team !== p.team && e.isAlive()) {
-						if (collisions.RotatedRoundedRectCircle(
-							{
-								x: e.x,
-								y: e.y,
-								w: PLAYER_SIZE,
-								h: PLAYER_SIZE,
-								radius: PLAYER_ROUND,
-								a: p.getRotation()
-							},
-							{
-								x: p.x,
-								y: p.y,
-								r: ROAR_RADIUS
-							}
-						)) {
-							const dx = e.x - p.x;
-							const dy = e.y - p.y;
-							const invNorm = PUSH_SPEED / Math.sqrt(dx * dx + dy * dy);
-							
+				this.roar(p);
+			}
+		}
+
+		for (const roar of this.roars) {
+			roar.run(dt);
+
+			const p = this.players[roar.ownerId];
+			if (!p) continue;
+			for (const e of this.players) {
+				if (e !== p && e.team !== p.team && e.isAlive()) {
+					if (collisions.RotatedRoundedRectCircle(
+						{
+							x: e.x,
+							y: e.y,
+							w: PLAYER_SIZE,
+							h: PLAYER_SIZE,
+							radius: PLAYER_ROUND,
+							a: p.getRotation()
+						},
+						{
+							x: roar.x,
+							y: roar.y,
+							r: roar.radius
+						}
+					)) {
+						const dx = e.x - roar.x;
+						const dy = e.y - roar.y;
+						const distance = Math.sqrt(dx * dx + dy * dy);
+						if (distance > 0) {
+							const invNorm = PUSH_SPEED / distance;
 							e.vx = dx * invNorm;
 							e.vy = dy * invNorm;
 							e.pushTimer = 1.0;
@@ -730,6 +775,7 @@ export class GMRoarsOnGlass extends GameMode {
 				}
 			}
 		}
+		this.roars = this.roars.filter(roar => roar.radius < ROAR_RADIUS);
 		
 		// Update Players
 		let redAliveCount = 0;
@@ -996,6 +1042,17 @@ export class GMRoarsOnGlass extends GameMode {
 
 		const redPlayer = imageLoader.get('red-player');
 		const bluePlayer = imageLoader.get('blue-player');
+
+		for (const roar of this.roars) {
+			ctx.strokeStyle = (
+				this.players[roar.ownerId].team === 'red' ?
+				"#ff0044" : "#0044ff"
+			);
+			ctx.lineWidth = 12;
+			ctx.beginPath();
+			ctx.arc(roar.x, roar.y, roar.radius, 0, 2 * Math.PI);
+			ctx.stroke();
+		}
 		
 		// Draw Players
 		for (let i = 0; i < this.players.length; i++) {
@@ -1116,7 +1173,8 @@ export class GMRoarsOnGlass extends GameMode {
 			blueScore: this.blueScore,
 			time: this.time,
 			roundTimer: this.roundTimer,
-			isRoundEnding: this.isRoundEnding
+			isRoundEnding: this.isRoundEnding,
+			roars: this.roars.map(roar => roar.save())
 		}).finish();
 	}
 	
@@ -1131,6 +1189,11 @@ export class GMRoarsOnGlass extends GameMode {
 		this.time = obj.time;
 		this.roundTimer = obj.roundTimer;
 		this.isRoundEnding = obj.isRoundEnding;
+		this.roars = (obj.roars ?? []).map((obj: any) => {
+			const roar = new Roar(0, 0, 0);
+			roar.load(obj);
+			return roar;
+		});
 		
 		if (obj.grid && obj.grid.length === GRID_W * GRID_H) {
 			for (let y = 0; y < GRID_H; y++) {

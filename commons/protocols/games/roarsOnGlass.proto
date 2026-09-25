@@ -3,6 +3,13 @@ package game_roarsOnGlass;
 
 message Empty {}
 
+message Roar {
+	float x = 1;
+	float y = 2;
+	float radius = 3;
+	int32 ownerId = 4;
+}
+
 message PlayerState {
 	float x = 1;
 	float y = 2;
@@ -10,7 +17,7 @@ message PlayerState {
 	float vy = 4;
 	float alive = 5;
 	bool connected = 6;
-	float roarTimer = 7;
+	float roarTimer = 7; // Removed old system
 	float roarCooldown = 8;
 	float pushTimer = 9;
 	bool isRed = 10;
@@ -25,6 +32,7 @@ message State {
 	float time = 5;
 	float roundTimer = 6;
 	bool isRoundEnding = 7;
+	repeated Roar roars = 8; // Added the active roars array
 }
 
 message MoveData {
