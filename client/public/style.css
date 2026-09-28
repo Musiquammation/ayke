@@ -1286,6 +1286,10 @@ button.selected:hover {
    Game Panel Page (Mockup Implementation)
    ============================================================ */
 
+ /* ============================================================
+   Game Panel Page
+   ============================================================ */
+
 #game-panel-page {
 	position: relative;
 	width: 100%;
@@ -1299,17 +1303,26 @@ button.selected:hover {
 	overflow: hidden;
 	background: #888;
 	padding: 0;
+
+	box-sizing: border-box;
 }
 
-/* Background image blur effects */
+
+/* ============================================================
+   Background
+   ============================================================ */
+
 #game-panel-page .background {
 	position: absolute;
 	inset: -1em;
+
 	background-position: center;
 	background-size: cover;
 	background-repeat: no-repeat;
+
 	filter: blur(3px);
 	transform: scale(1.03);
+
 	pointer-events: none;
 }
 
@@ -1317,68 +1330,146 @@ button.selected:hover {
 	content: "";
 	position: absolute;
 	inset: 0;
+
 	background: rgba(0, 0, 0, 0.3);
 }
 
 #game-panel-page .background-overlay {
 	position: absolute;
 	inset: 0;
+
 	background: rgba(15, 20, 35, 0.1);
+
 	pointer-events: none;
 }
 
-/* Central menu structure */
+
+/* ============================================================
+   Central Menu
+   ============================================================ */
+
 #game-panel-page .menu {
 	position: relative;
+
 	width: min(100%, 48em);
 	height: 100%;
+	min-height: 0;
 
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 
-	padding: clamp(1em, 6vh, 4em) clamp(0.5em, 3vw, 1.5em) 0;
+	box-sizing: border-box;
+
+	padding:
+		clamp(1em, 6vh, 4em)
+		clamp(0.5em, 3vw, 1.5em)
+		0;
 }
 
-/* Header typography */
+
+/* ============================================================
+   Header
+   ============================================================ */
+
 #game-panel-page .header {
 	width: 100%;
+
+	flex: 0 0 auto;
+
 	text-align: center;
+
 	margin-bottom: clamp(0.4em, 1.5vh, 0.75em);
-	text-shadow: 0 0.12em 0.2em rgba(0, 0, 0, 0.25);
+
+	text-shadow:
+		0 0.12em 0.2em
+		rgba(0, 0, 0, 0.25);
 }
 
 #game-panel-page .header h1 {
 	max-width: 95%;
+
 	margin: 0 auto;
+
 	font-size: clamp(2.8rem, 10vw, 5.8rem);
 	font-weight: normal;
 	line-height: 0.95;
+
 	text-transform: uppercase;
+
 	color: #fff;
+
 	-webkit-text-stroke: 0.01em #000;
 }
 
-/* Central glassmorphism card */
+
+/* ============================================================
+   Trophy Road
+   ============================================================ */
+
+#game-panel-page .trophee-road {
+	width: 100%;
+
+	flex: 0 0 auto;
+
+	min-height: 0;
+
+	overflow: hidden;
+}
+
+#game-panel-page .trophee-road-track {
+	position: relative;
+
+	width: 100%;
+
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+
+/* ============================================================
+   Central Content Card
+   ============================================================ */
+
 #game-panel-page .content-card {
 	width: 100%;
 	max-width: 48em;
-	height: min(70%, 48em);
+
+	/*
+	 * The card takes all remaining vertical space.
+	 *
+	 * min-height: 0 is important here: without it, the flex item
+	 * can grow beyond the available height instead of scrolling.
+	 */
+	flex: 1 1 auto;
 	min-height: 0;
+
 	margin-top: auto;
 
 	display: flex;
 	flex-direction: column;
 
-	overflow: hidden;
+	box-sizing: border-box;
 
-	padding: clamp(0.8em, 2vw, 1.25em)
+	/*
+	 * The content-card itself is the ONLY vertical scroll container.
+	 */
+	overflow-y: auto;
+	overflow-x: hidden;
+
+	padding:
+		clamp(0.8em, 2vw, 1.25em)
 		clamp(0.7em, 3vw, 1.25em)
 		clamp(0.8em, 2vw, 1.25em);
 
-	border: 0.125em solid var(--color-border);
+	border:
+		0.125em solid
+		var(--color-border);
+
 	border-bottom: 0;
-	border-radius: clamp(1.4em, 4vw, 2em)
+
+	border-radius:
+		clamp(1.4em, 4vw, 2em)
 		clamp(1.4em, 4vw, 2em)
 		0 0;
 
@@ -1386,43 +1477,76 @@ button.selected:hover {
 
 	color: var(--color-text);
 
-	box-shadow: 0 0.875em 2.2em var(--color-shadow);
+	box-shadow:
+		0 0.875em 2.2em
+		var(--color-shadow);
 }
 
-/* Description text and embedded options container */
+
+/* ============================================================
+   Description
+   ============================================================ */
+
+#game-panel-page .description-container {
+	width: 100%;
+
+	flex: 0 0 auto;
+
+	min-height: 0;
+
+	overflow: visible;
+}
+
 #game-panel-page .description {
 	width: 100%;
-	padding: clamp(0.3em, 1vw, 0.5em)
+
+	box-sizing: border-box;
+
+	padding:
+		clamp(0.3em, 1vw, 0.5em)
 		clamp(0.4em, 2vw, 1em);
 
 	text-align: left;
 
-	font-size: clamp(1.3rem, 4.5vw, 2rem);
+	font-size: clamp(1rem, 4.5vw, 2rem);
 	line-height: 1.35;
 
 	color: var(--color-text-muted);
 }
 
-#game-panel-page .game-options-panel {
-	max-height: 200px;
-	overflow-y: auto;
-	padding: 0.5em;
-}
+/* ============================================================
+   Action Section
+   ============================================================ */
 
-/* Action section styling */
 #game-panel-page .actions {
 	width: 100%;
+
+	flex: 0 0 auto;
+
 	margin-top: auto;
 }
 
+
+/* ============================================================
+   Secondary Actions
+   ============================================================ */
+
 #game-panel-page .secondary-actions {
 	width: 100%;
+
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+
 	gap: clamp(0.35em, 1vw, 0.5em);
+
 	margin-bottom: clamp(1.5em, 5vh, 2.25em);
 }
+
+
+/* ============================================================
+   Small Buttons
+   ============================================================ */
 
 #game-panel-page .small-button {
 	width: min(100%, 24em);
@@ -1431,21 +1555,33 @@ button.selected:hover {
 	display: flex;
 	align-items: center;
 	justify-content: flex-start;
+
 	gap: 0.5em;
 
-	padding: 0.35em clamp(0.65em, 2vw, 0.8em);
+	padding:
+		0.35em
+		clamp(0.65em, 2vw, 0.8em);
+
 	border: 0;
 	border-radius: 0.6em;
 
 	color: #fff;
+
 	font-family: inherit;
 	font-size: clamp(0.85rem, 2.5vw, 1rem);
 	font-weight: 900;
+
 	letter-spacing: 0.03em;
+
 	cursor: pointer;
 
-	box-shadow: 0 0.25em 0.7em rgba(0, 0, 0, 0.16);
+	box-shadow:
+		0 0.25em 0.7em
+		rgba(0, 0, 0, 0.16);
 }
+
+
+/* Options */
 
 #game-panel-page .options-small-button {
 	background: var(--color-options);
@@ -1455,6 +1591,9 @@ button.selected:hover {
 	background: var(--color-options-hover);
 }
 
+
+/* How To Play */
+
 #game-panel-page .howToPlay-small-button {
 	background: var(--color-tutorial);
 }
@@ -1463,23 +1602,37 @@ button.selected:hover {
 	background: var(--color-tutorial-hover);
 }
 
+
+/* Small Button Icon */
+
 #game-panel-page .icon {
 	width: 1.4em;
 	height: 1.4em;
+
 	flex: 0 0 1.4em;
+
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+
 	border: 0;
 	border-radius: 0;
+
 	font-size: 1rem;
 	font-weight: 900;
 }
 
+
+/* ============================================================
+   Main Actions
+   ============================================================ */
+
 #game-panel-page .main-actions {
 	width: 100%;
+
 	display: flex;
 	flex-direction: column;
+
 	gap: clamp(0.45em, 1.5vh, 0.65em);
 }
 
@@ -1487,26 +1640,41 @@ button.selected:hover {
 	width: 100%;
 	min-height: clamp(3.8em, 11vh, 4.8em);
 
+	flex: 0 0 auto;
+
 	display: flex;
 	align-items: center;
 	justify-content: flex-start;
+
 	gap: clamp(0.35em, 2vw, 0.65em);
 
-	padding: 0.35em clamp(0.5em, 2vw, 0.75em);
+	padding:
+		0.35em
+		clamp(0.5em, 2vw, 0.75em);
+
 	border: 0;
 	border-radius: clamp(0.75em, 2vw, 1em);
 
 	color: #fff;
+
 	font-family: inherit;
 	font-size: clamp(1.15rem, 4.5vw, 1.6rem);
 	font-weight: 900;
+
 	line-height: 1.05;
 	text-align: left;
+
 	letter-spacing: 0.035em;
+
 	cursor: pointer;
 
-	box-shadow: 0 0.3em 0.8em rgba(0, 0, 0, 0.18);
+	box-shadow:
+		0 0.3em 0.8em
+		rgba(0, 0, 0, 0.18);
 }
+
+
+/* Play Online */
 
 #game-panel-page .main-actions > :nth-child(1) {
 	background: var(--color-play);
@@ -1516,6 +1684,9 @@ button.selected:hover {
 	background: var(--color-play-hover);
 }
 
+
+/* Play Vs Bots */
+
 #game-panel-page .main-actions > :nth-child(3) {
 	background: var(--color-bots);
 }
@@ -1524,9 +1695,13 @@ button.selected:hover {
 	background: var(--color-bots-hover);
 }
 
+
+/* Game Icon */
+
 #game-panel-page .game-icon {
 	width: 2.5em;
 	height: 2.5em;
+
 	flex: 0 0 2.5em;
 
 	display: flex;
@@ -1535,17 +1710,24 @@ button.selected:hover {
 
 	border: 0;
 	border-radius: 0;
+
 	background: transparent;
 
 	font-size: 1.65rem;
+
 	transform: scale(2);
+
 	pointer-events: none;
 }
+
+
+/* Game Button Text */
 
 #game-panel-page .game-button > span:last-child {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
+
 	line-height: 1;
 }
 
@@ -1556,6 +1738,7 @@ button.selected:hover {
 #game-panel-page .game-button > span:last-child > span:first-child {
 	font-size: 0.72em;
 	font-weight: 800;
+
 	opacity: 0.92;
 }
 
@@ -1564,11 +1747,170 @@ button.selected:hover {
 	font-weight: 900;
 }
 
-/* Floating Back Button */
+
+/* ============================================================
+   Options
+   ============================================================ */
+
+#game-panel-page .options-card {
+	min-height: 0;
+}
+
+#game-panel-page .game-options-panel {
+	width: 100%;
+
+	flex: 0 0 auto;
+
+	min-height: 0;
+
+	box-sizing: border-box;
+
+	/*
+	 * No internal scrolling.
+	 * The parent .content-card handles the scrolling.
+	 */
+	overflow: visible;
+
+	padding: 0.5em;
+}
+
+#game-panel-page .options-actions {
+	width: 100%;
+
+	flex: 0 0 auto;
+
+	margin-top: auto;
+}
+
+
+/* ============================================================
+   Explanation / Tutorial
+   ============================================================ */
+
+#game-panel-page .explanation-card {
+	min-height: 0;
+}
+
+#game-panel-page .explanation-header {
+	width: 100%;
+
+	flex: 0 0 auto;
+
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+#game-panel-page .explanation-viewer {
+	position: relative;
+
+	width: 100%;
+
+	flex: 0 0 auto;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	overflow: visible;
+}
+
+#game-panel-page .explanation-slide {
+	max-width: 100%;
+	max-height: none;
+
+	object-fit: contain;
+}
+
+#game-panel-page .explanation-actions {
+	width: 100%;
+
+	flex: 0 0 auto;
+}
+
+
+/* ============================================================
+   Explanation Arrows
+   ============================================================ */
+
+#game-panel-page .explanation-arrow {
+	position: absolute;
+
+	top: 50%;
+
+	z-index: 2;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	width: 2.8em;
+	height: 2.8em;
+
+	padding: 0;
+
+	border: 0;
+	border-radius: 50%;
+
+	background: rgba(0, 0, 0, 0.45);
+	color: #fff;
+
+	transform: translateY(-50%);
+
+	cursor: pointer;
+}
+
+#game-panel-page .explanation-arrow-left {
+	left: 0.5em;
+}
+
+#game-panel-page .explanation-arrow-right {
+	right: 0.5em;
+}
+
+#game-panel-page .explanation-arrow:disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+
+#game-panel-page .explanation-arrow svg {
+	width: 60%;
+	height: 60%;
+
+	fill: none;
+
+	stroke: currentColor;
+	stroke-width: 2.5;
+
+	stroke-linecap: round;
+	stroke-linejoin: round;
+
+	pointer-events: none;
+}
+
+
+/* ============================================================
+   Explanation Actions
+   ============================================================ */
+
+#game-panel-page .explanation-actions {
+	display: flex;
+	flex-direction: column;
+
+	gap: 0.5em;
+}
+
+
+/* ============================================================
+   Floating Back Button
+   ============================================================ */
+
 #game-panel-page .back-button {
 	position: absolute;
+
 	top: clamp(0.75em, 3vh, 1.5em);
 	left: clamp(0.75em, 3vw, 1.5em);
+
 	z-index: 10;
 
 	width: clamp(2.8em, 8vw, 3.5em);
@@ -1579,15 +1921,23 @@ button.selected:hover {
 	justify-content: center;
 
 	padding: 0;
+
 	border: 0;
 	border-radius: 50%;
 
 	background: rgba(255, 255, 255, 0.92);
+
 	color: var(--color-text, #171717);
-	box-shadow: 0 0.25em 0.8em rgba(0, 0, 0, 0.25);
+
+	box-shadow:
+		0 0.25em 0.8em
+		rgba(0, 0, 0, 0.25);
 
 	cursor: pointer;
-	transition: background 0.15s ease, transform 0.15s ease;
+
+	transition:
+		background 0.15s ease,
+		transform 0.15s ease;
 }
 
 #game-panel-page .back-button:hover {
@@ -1598,20 +1948,41 @@ button.selected:hover {
 #game-panel-page .back-button svg {
 	width: 55%;
 	height: 55%;
+
 	fill: none;
+
 	stroke: currentColor;
 	stroke-width: 2.5;
+
 	stroke-linecap: round;
 	stroke-linejoin: round;
+
 	pointer-events: none;
 }
 
+
 /* ============================================================
-   Game Panel Views
+   Content Card Scrollbar
    ============================================================ */
 
+#game-panel-page .content-card::-webkit-scrollbar {
+	width: 0.45em;
+}
+
+#game-panel-page .content-card::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+#game-panel-page .content-card::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.25);
+	border-radius: 1em;
+}
+
+
+/* Firefox */
+
 #game-panel-page .content-card {
-	overflow: hidden;
+	scrollbar-width: thin;
 }
 
 
