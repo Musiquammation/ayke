@@ -792,7 +792,7 @@ function generateClientDom(unlockedSkins: string[]) {
 			return this.unlockedSkins.includes(skin);
 		},
 
-		getIconPath
+		getIconPath: GameMode.getSkinIconPath
 	};
 }
 
@@ -1054,13 +1054,6 @@ function drawPlayerToTarget(
 	drawCurve();
 }
 
-function getTexturePath(id: string) {
-	return `/assets/games/airbasket/skins/${id}/grid.png`
-}
-
-function getIconPath(id: string) {
-	return window.IMG_ROOT_PATH + `/assets/games/airbasket/skins/${id}/icon.png`
-}
 
 
 export class GMAirBasket extends GameMode {
@@ -1244,7 +1237,7 @@ export class GMAirBasket extends GameMode {
 
 		console.log(skinSet);
 		const skins = Object.fromEntries(
-			[...skinSet].map(key => ['skin-' + key, getTexturePath(key)])
+			[...skinSet].map(key => ['skin-' + key, GameMode.getSkinTexturePath(key)])
 		);
 
 
@@ -1274,7 +1267,7 @@ export class GMAirBasket extends GameMode {
 		'bucket-mid': "/assets/games/airbasket/bucket-mid.png",
 		'bucket-red': "/assets/games/airbasket/bucket-red.png",
 		'sky': "/assets/games/airbasket/sky.png",
-		'skin-joe': getTexturePath('joe')
+		'skin-joe': GameMode.getSkinTexturePath('joe')
 	};
 
 	static readonly EXPLAINATION_SLIDES = [

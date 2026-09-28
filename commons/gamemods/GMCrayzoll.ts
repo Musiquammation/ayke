@@ -216,7 +216,6 @@ class Player {
 	static readonly SOFT_DECELERATION = 10000;
 	static readonly QUICK_DECELERATION = 30000;
 	static readonly JUMP = 800;
-	static readonly UNDER_JUMP = 50;
 	static readonly SPAWN_JUMP = 90;
 	static readonly WIDTH = 50;   // hit box
 	static readonly HEIGHT = 100; // hit box and sprite height
@@ -340,10 +339,6 @@ class Player {
 
 		if (this.pushDown) {
 			this.y += Player.PUSH_DOWN * dt;
-		}
-
-		if (this.y > GMCrayzoll.DATA.HEIGHT/4) {
-			this.vy = Math.min(this.vy, -Player.UNDER_JUMP);
 		}
 	}
 
@@ -806,7 +801,7 @@ function generateClientDom(unlockedSkins: string[]) {
 			return this.unlockedSkins.includes(skin);
 		},
 
-		getIconPath: getSkinIconPath
+		getIconPath: GameMode.getSkinIconPath
 	};
 }
 
@@ -986,13 +981,6 @@ function drawAimGuide(
 	});
 }
 
-function getSkinTexturePath(id: string) {
-	return `/assets/games/crayzol/skins/${id}/grid.png`
-}
-
-function getSkinIconPath(id: string) {
-	return window.IMG_ROOT_PATH + `/assets/games/crayzol/skins/${id}/icon.png`
-}
 
 /** Spawn position of the `slot`-th player (0, 1, ...) of a team. */
 function getSpawnPosition(isRed: boolean, slot: number) {
@@ -1161,7 +1149,7 @@ export class GMCrayzoll extends GameMode {
 				skinSet.add(p.skin);
 			}
 			skins = Object.fromEntries(
-				[...skinSet].map(key => ['skin-' + key, getSkinTexturePath(key)])
+				[...skinSet].map(key => ['skin-' + key, GameMode.getSkinTexturePath(key)])
 			);
 
 		} else { // origin === 'client' (tutorial / local game)
@@ -1183,7 +1171,7 @@ export class GMCrayzoll extends GameMode {
 			);
 			clientData.skins[0] = skin;
 
-			skins = { ['skin-' + skin]: getSkinTexturePath(skin) };
+			skins = { ['skin-' + skin]: GameMode.getSkinTexturePath(skin) };
 		}
 
 		return {
@@ -1209,7 +1197,7 @@ export class GMCrayzoll extends GameMode {
 		'ball': "/assets/games/airbasket/ball.png",
 		'gem': "/assets/games/airbasket/gem.svg",
 		'background': "/assets/games/airbasket/background.png",
-		'skin-joe': getSkinTexturePath('joe')
+		'skin-joe': GameMode.getSkinTexturePath('joe')
 	};
 
 	static readonly EXPLAINATION_SLIDES = [
