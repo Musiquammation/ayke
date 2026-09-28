@@ -41,7 +41,7 @@ const SPAWN_SLOT_GAP = 150;
 // Gems
 // ---------------------------------------------------------------------------
 const GEM_SPAWN_INTERVAL = 1;     // one gem spawns at the center every second
-const GEM_SPAWN_JUMP = 700;       // initial upward velocity of a gem
+const GEM_SPAWN_JUMP = 1400;       // initial upward velocity of a gem
 const GEM_SPAWN_VX = 400;         // random horizontal velocity is in [-GEM_SPAWN_VX, GEM_SPAWN_VX]
 const GEM_GRAVITY = 900;
 const GEM_RADIUS = 30;
@@ -1194,9 +1194,9 @@ export class GMCrayzoll extends GameMode {
 	static readonly SKINS_IDS = Object.keys(GMCrayzoll.SKINS);
 
 	static readonly TEXTURES = {
-		'ball': "/assets/games/airbasket/ball.png",
-		'gem': "/assets/games/airbasket/gem.svg",
-		'background': "/assets/games/airbasket/background.png",
+		'ball': "/assets/games/crayzoll/ball.png",
+		'gem': "/assets/games/crayzoll/gem.svg",
+		'background': "/assets/games/crayzoll/background.svg",
 		'skin-joe': GameMode.getSkinTexturePath('joe')
 	};
 
@@ -1252,7 +1252,7 @@ export class GMCrayzoll extends GameMode {
 	private spawnGemsOverTime(dt: number) {
 		this.gemTimer -= dt;
 		while (this.gemTimer <= 0) {
-			this.spawnGem(0, 0);
+			this.spawnGem(0, HEIGHT/2);
 			this.gemTimer += GEM_SPAWN_INTERVAL;
 		}
 	}
