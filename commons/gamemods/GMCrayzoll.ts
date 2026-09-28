@@ -751,6 +751,8 @@ class ClientData {
 
 class TutorialData {
 	private step = 0;
+	private botTeleportTimer = -Infinity;
+	private playerHadBall = false;
 
 	constructor(private readonly game: GMCrayzoll) {}
 
@@ -761,19 +763,53 @@ class TutorialData {
 		// Keep the dummy bot in the air by making it hop when it gets low
 		if (bot && bot.isAlive() && bot.y > 200) {
 			bot.vy = -Player.JUMP;
+			bot.target = {
+				x: 0,
+				y: 0
+			};
 		}
 
 		if (!player.isAlive()) {
-			this.step = 0; // restart
+			this.step = 0;
+			this.botTeleportTimer = -Infinity;
+			this.playerHadBall = false;
 		}
 
+		const playerHasBall = this.game.ball.grabber === 0;
+
+		// Detect when the player grabs the ball.
+		if (playerHasBall && !this.playerHadBall) {
+			this.botTeleportTimer = 0;
+			this.step = 1;
+		}
+
+		this.playerHadBall = playerHasBall;
+
 		if (this.step === 0) {
-			if (this.game.ball.grabber === 0 || this.game.ball.prevGrabber === 0) this.step = 1;
 			return "Move and jump (arrow keys) to touch the ball";
 		}
 
 		if (this.step === 1) {
-			if (bot && !bot.isAlive()) this.step = 2;
+			// Wait one second after the player grabbed the ball.
+			if (this.botTeleportTimer !== -Infinity) {
+				this.botTeleportTimer += dt;
+
+				if (this.botTeleportTimer >= 1) {
+					if (bot) {
+						bot.x = this.game.ball.x;
+						bot.y = this.game.ball.y;
+						bot.vx = 0;
+						bot.vy = 0;
+					}
+
+					this.botTeleportTimer = -Infinity;
+				}
+			}
+
+			if (bot && !bot.isAlive()) {
+				this.step = 2;
+			}
+
 			return (
 				"Aim with the mouse and click to throw the ball at the blue player.\n" +
 				"A hit sends him flying: get him out of the screen!"
@@ -785,14 +821,13 @@ class TutorialData {
 			return "Nice! Now grab the purple gems: each one makes your throws faster";
 		}
 
-		return ""; // no text to show
+		return "";
 	}
 
 	lockGame() {
 		return false;
 	}
 }
-
 
 function generateClientDom(unlockedSkins: string[]) {
 	return {
