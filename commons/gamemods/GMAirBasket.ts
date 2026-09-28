@@ -774,8 +774,8 @@ class ClientData {
 	}
 
 	private spawnDeathFx(player: Player, me: boolean) {
-		const rx = Math.abs(player.x) / WIDTH;
-		const ry = Math.abs(player.y) / HEIGHT;
+		const rx = Math.abs(player.x) / (5*WIDTH);
+		const ry = Math.abs(player.y) / (3*HEIGHT);
 
 		let nx = 0;
 		let ny = 0;
