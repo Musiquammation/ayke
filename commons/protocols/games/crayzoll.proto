@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package game_crayzoll;
+
+message Empty {}
+
+message PlayerState {
+	double x = 1;
+	double y = 2;
+	double vx = 3;
+	double vy = 4;
+	double ex = 5;
+	double ey = 6;
+
+	int32 dir = 7;
+	int32 alive = 8;
+	int32 deaths = 9;
+	int32 gems = 10;
+
+	bool pushDown = 11;
+	bool connected = 12;
+
+	oneof target {
+		Empty none = 13;
+		FixedTarget fixed = 14;
+	}
+}
+
+message FixedTarget {
+	double x = 1;
+	double y = 2;
+}
+
+message GemState {
+	double x = 1;
+	double y = 2;
+	double vx = 3;
+	double vy = 4;
+}
+
+message FreeBall {
+	double x = 1;
+	double y = 2;
+	double vx = 3;
+	double vy = 4;
+}
+
+message GrabbedBall {
+	int32 owner = 1;
+}
+
+message State {
+	repeated PlayerState players = 1;
+
+	repeated GemState gems = 2;
+
+	oneof ball {
+		FreeBall freeBall = 3;
+		GrabbedBall grabbedBall = 4;
+	}
+
+	int32 prevBallGrabber = 5;
+	double savedBallSpeed = 6;
+
+	double time = 7;
+	double breakTime = 8;
+	double gemTimer = 9;
+
+	int32 redScore = 10;
+	int32 blueScore = 11;
+
+	int32 lastRoundWinner = 12;
+	bool finished = 13;
+
+	uint32 rngState = 14;
+}
+
+message QInput {
+	double timestamp = 1;
+
+	oneof action {
+		Empty right = 2;
+		Empty left = 3;
+		Empty stop = 4;
+		Empty jump = 5;
+		Empty downOn = 6;
+		Empty downOff = 7;
+		FixedTarget throwTarget = 8;
+		Empty throwOff = 9;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	string skin = 1;
+	int32 preferTeam = 2;
+}
+
+message StartPlayerInfo {
+	float x = 1;
+	float y = 2;
+	string skin = 3;
+	bool isRed = 4;
+}
+
+message StartDataClient {
+	uint32 seed = 1;
+	repeated StartPlayerInfo players = 2;
+}
