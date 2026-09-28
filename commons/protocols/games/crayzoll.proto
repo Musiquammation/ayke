@@ -4,6 +4,12 @@ package game_crayzoll;
 
 message Empty {}
 
+message Target {
+	double x = 1;
+	double y = 2;
+	bool relative = 3;
+}
+
 message PlayerState {
 	double x = 1;
 	double y = 2;
@@ -12,7 +18,10 @@ message PlayerState {
 	double ex = 5;
 	double ey = 6;
 
-	int32 dir = 7;
+	// Horizontal direction / intensity:
+	// -1 = full left, 0 = neutral, 1 = full right.
+	double dir = 7;
+
 	int32 alive = 8;
 	int32 deaths = 9;
 	int32 gems = 10;
@@ -22,7 +31,7 @@ message PlayerState {
 
 	oneof target {
 		Empty none = 13;
-		FixedTarget fixed = 14;
+		Target fixed = 14;
 	}
 }
 
@@ -79,13 +88,11 @@ message QInput {
 	double timestamp = 1;
 
 	oneof action {
-		Empty right = 2;
-		Empty left = 3;
-		Empty stop = 4;
+		double dir = 2;
 		Empty jump = 5;
 		Empty downOn = 6;
 		Empty downOff = 7;
-		FixedTarget throwTarget = 8;
+		Target throwTarget = 8;
 		Empty throwOff = 9;
 	}
 }

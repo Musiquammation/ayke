@@ -146,7 +146,7 @@ export const gamemods: Record<
 		description: "Eject your opponents by throwing the ball at them, collect gems to boost your throw speed, and stay on the screen!",
 		tropheesPerPlayer: 0,
 		explainationSlides: null,
-		computerOnly: true,
+		computerOnly: false,
 		skins: [],
 		collectibles: null,
 		tropheeRoalPixelsPerTrophy: 3.5,

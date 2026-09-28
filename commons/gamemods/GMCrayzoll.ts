@@ -294,18 +294,28 @@ class Player {
 			return;
 		}
 
-		// Moving against the pressed direction: brake quickly
-		if (Math.sign(this.vx) === -this.dir) {
+		// The target speed is proportional to the analog input.
+		const target = this.dir * Player.SPEED;
+
+		// Moving against the requested direction: brake quickly.
+		if (Math.sign(this.vx) !== Math.sign(target) && this.vx !== 0) {
 			this.vx = approach(this.vx, 0, Player.QUICK_DECELERATION * dt);
 			return;
 		}
 
-		const target = this.dir * Player.SPEED;
-		if (Math.abs(this.vx) < Player.SPEED) {
-			this.vx = approach(this.vx, target, Player.ACCELERATION * dt);
+		if (Math.abs(this.vx) < Math.abs(target)) {
+			this.vx = approach(
+				this.vx,
+				target,
+				Player.ACCELERATION * dt
+			);
 		} else {
-			// Faster than the max speed: slowly go back to it
-			this.vx = approach(this.vx, target, Player.MIN_DECELERATION * dt);
+			// Slowly return to the requested analog speed.
+			this.vx = approach(
+				this.vx,
+				target,
+				Player.MIN_DECELERATION * dt
+			);
 		}
 	}
 
@@ -450,6 +460,8 @@ class ClientData {
 	lastSentX = NaN;
 	lastSentY = NaN;
 	mobileDir = 0;
+	lastAimTargetX = NaN;
+	lastAimTargetY = NaN;
 	mobileAiming = false;
 	selfX = 0;
 	selfY = 0;
@@ -1614,16 +1626,9 @@ export class GMCrayzoll extends GameMode {
 	override runInput(playerIdx: number, input: Fields): void {
 		const player = this.players[playerIdx];
 		switch (input.action) {
-			case 'right':
-				player.dir = 1;
-				break;
-
-			case 'left':
-				player.dir = -1;
-				break;
-
-			case 'stop':
-				player.dir = 0;
+			case 'dir':
+				// Clamp the analog input to the valid range.
+				player.dir = Math.max(-1, Math.min(1, input.dir));
 				break;
 
 			case 'jump':
@@ -1642,10 +1647,19 @@ export class GMCrayzoll extends GameMode {
 				break;
 
 			case 'throwTarget':
-				player.target = {
-					x: input.throwTarget.x,
-					y: input.throwTarget.y,
-				};
+				if (input.throwTarget.relative) {
+					// Mobile targets are relative to the current player position.
+					player.target = {
+						x: player.x + input.throwTarget.x,
+						y: player.y + input.throwTarget.y,
+					};
+				} else {
+					// Desktop mouse targets are already in world coordinates.
+					player.target = {
+						x: input.throwTarget.x,
+						y: input.throwTarget.y,
+					};
+				}
 				break;
 
 			case 'throwOff':
@@ -1665,14 +1679,16 @@ export class GMCrayzoll extends GameMode {
 		data.mouseX = throwTarget.x;
 		data.mouseY = throwTarget.y;
 
-		/** Keyboard left/right resolution (returns null when nothing changed). */
+		const inputs: Fields[] = [];
+
+		// --- Keyboard movement ---
 		function getMoveInput(): Fields|null {
 			const r0 = keyboard.first('right');
 			const l0 = keyboard.first('left');
 
-			const right = {right: {}, action: 'right'};
-			const left = {left: {}, action: 'left'};
-			const stop = {stop: {}, action: 'stop'};
+			const right = {dir: 1, action: 'dir'};
+			const left = {dir: -1, action: 'dir'};
+			const stop = {dir: 0, action: 'dir'};
 
 			if (r0 && !l0)
 				return right;
@@ -1703,7 +1719,6 @@ export class GMCrayzoll extends GameMode {
 			return null;
 		}
 
-		const inputs: Fields[] = [];
 
 		// Left / Right
 		const moveInput = getMoveInput();
@@ -1744,51 +1759,98 @@ export class GMCrayzoll extends GameMode {
 		return inputs;
 	}
 
-	/** Mobile controls: "move" joystick, "aim" joystick (throws) and "jump" button. */
+	/** Mobile controls: analog movement, relative analog aim and jump. */
 	private collectMobileInputs(
 		mobile: IMobileController,
 		data: ClientData,
 		inputs: Fields[]
 	) {
-		// Movement: only send when the direction changes
+		// -------------------------------------------------------------------
+		// Movement joystick
+		// -------------------------------------------------------------------
+
 		const move = mobile.getJoystick('move');
-		const dir = move.x > 0.3 ? 1 : move.x < -0.3 ? -1 : 0;
+
+		// No deadzone: the joystick position is directly mapped to [-1, 1].
+		const dir = Math.max(-1, Math.min(1, move.x));
+
+		// Do not resend the exact same direction.
 		if (dir !== data.mobileDir) {
 			data.mobileDir = dir;
-			inputs.push(
-				dir === 1 ? {right: {}, action: 'right'}
-				: dir === -1 ? {left: {}, action: 'left'}
-				: {stop: {}, action: 'stop'}
-			);
+
+			inputs.push({
+				dir,
+				action: 'dir'
+			});
 		}
+
+		// -------------------------------------------------------------------
+		// Jump
+		// -------------------------------------------------------------------
 
 		if (mobile.first('jump')) {
-			inputs.push({jump: {}, action: 'jump'});
+			inputs.push({
+				jump: {},
+				action: 'jump'
+			});
 		}
 
-		// Aim: the joystick gives a direction, we aim far away in that direction
-		const AIM_DISTANCE = 1200;
+		// -------------------------------------------------------------------
+		// Aim joystick
+		// -------------------------------------------------------------------
+
 		const aim = mobile.getJoystick('aim');
+
+		// The joystick is already expressed in normalized coordinates.
+		// Its norm is intentionally preserved:
+		//
+		//   norm = 0.5 -> target is 50% of AIM_DISTANCE away
+		//   norm = 1.0 -> target is AIM_DISTANCE away
+		//
+		// The target is only sent when the joystick is released.
 		const norm = Math.hypot(aim.x, aim.y);
-		if (norm > 0.3) {
+
+		if (norm > 0) {
+			const AIM_DISTANCE = 1200;
+
+			// Keep the joystick magnitude in the target distance.
 			const target = {
-				x: data.selfX + aim.x / norm * AIM_DISTANCE,
-				y: data.selfY + aim.y / norm * AIM_DISTANCE
+				x: aim.x * AIM_DISTANCE,
+				y: aim.y * AIM_DISTANCE,
+				relative: true
 			};
 
-			if (!data.mobileAiming || target.x !== data.lastSentX || target.y !== data.lastSentY) {
-				inputs.push({throwTarget: target, action: 'throwTarget'});
-				data.lastSentX = target.x;
-				data.lastSentY = target.y;
-			}
+			// Store the latest target locally while aiming.
+			data.lastAimTargetX = target.x;
+			data.lastAimTargetY = target.y;
 			data.mobileAiming = true;
-			data.mouseX = target.x;
-			data.mouseY = target.y;
+
+			// The renderer needs an absolute position for the aim guide.
+			data.mouseX = data.selfX + target.x;
+			data.mouseY = data.selfY + target.y;
 		} else if (data.mobileAiming) {
+			// The joystick was released: send the last aimed target once.
+			inputs.push({
+				throwTarget: {
+					x: data.lastAimTargetX,
+					y: data.lastAimTargetY,
+					relative: true
+				},
+				action: 'throwTarget'
+			});
+
 			data.mobileAiming = false;
-			data.lastSentX = NaN;
-			data.lastSentY = NaN;
-			inputs.push({throwOff: {}, action: 'throwOff'});
+
+			// Reset the stored target.
+			data.lastAimTargetX = NaN;
+			data.lastAimTargetY = NaN;
+
+			data.mouseX = 0;
+			data.mouseY = 0;
+		} else {
+			data.mouseX = 0;
+			data.mouseY = 0;
+
 		}
 	}
 
