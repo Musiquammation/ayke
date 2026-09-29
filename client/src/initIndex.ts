@@ -1,8 +1,6 @@
 import protobuf from "protobufjs";
 import { initProtocols } from "../../commons/protocolLoader";
 import { dom, initDom } from "./dom/dom";
-import { sendMessage } from "./messages/sendMessage";
-import { hasNavigatorMobile, hasNavigatorMouse } from "./dom/clientNavigatorType";
 import { resolveMobileInterface } from "./getMobile";
 
 
@@ -12,6 +10,7 @@ declare global {
 		Capacitor: any;
 	}
 }
+
 
 export default function() {
 	initProtocols(async name => {
@@ -29,4 +28,26 @@ export default function() {
 		resolveMobileInterface(await m.initMobile());
 	});
 
+	resolveMobileInterface(null);
+
+	initImages();
+}
+
+function initImages() {
+	// Set "Rye" font
+	{
+		const font = new FontFace(
+			"Rye",
+			`url(${window.IMG_ROOT_PATH}/fonts/Rye-Regular.ttf) format('truetype')`
+		);
+
+		font.load().then(
+			() => document.fonts.add(font)
+		);
+	}
+
+	document.getElementById("home-page")!.style.setProperty(
+		'--home-background',
+		`url("${window.IMG_ROOT_PATH}/assets/home-background.svg")`
+	);
 }

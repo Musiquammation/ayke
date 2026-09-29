@@ -486,11 +486,58 @@ class Camera {
 	}
 }
 
+
+interface DeathFx {
+	x: number;
+	y: number;
+	nx: number;
+	ny: number;
+	start: number;
+	team: 'red' | 'blue';
+}
+
+interface BucketFx {
+	x: number;
+	y: number;
+	start: number;
+	team: 'red' | 'blue';
+}
+
+interface BallFx {
+	x: number;
+	y: number;
+	start: number;
+	type: 'grab' | 'throw';
+	team: 'red' | 'blue';
+}
+
+interface ScreenShake {
+	start: number;
+	duration: number;
+	amplitude: number;
+}
+
 class ClientData {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
 	skins: string[] = [];
+
+	private clientWasDead = true;
+	private deathTime = performance.now();
+	private lastDirs: Record<number, boolean> = {};
+	private youOpacity = 1;
+
+	// Previous game state used to detect client-side events.
+	private prevAlive: number[] = [];
+	private prevGrabber = -1;
+	private prevBucketTeams: (('red' | 'blue') | null)[] = [];
+
+	// Client-only visual effects.
+	private deathFx: DeathFx[] = [];
+	private bucketFx: BucketFx[] = [];
+	private ballFx: BallFx[] = [];
+	private screenShakes: ScreenShake[] = [];
 
 	readonly html: HTMLDivElement;
 
@@ -502,14 +549,17 @@ class ClientData {
 
 	readonly camera = new Camera();
 
-	private clientWasDead = true;
-	private deathTime = performance.now();
-	private lastDirs: Record<number, boolean> = {};
-	private youOpacity = 1;
-
 	static readonly YOU_AFTER_DEATH = 5000;
 	static readonly YOU_NEAR_MATE_DISTANCE = 600;
 	static readonly FADE_SPEED = 0.08;
+
+	static readonly DEATH_FX_MS = 1000;
+	static readonly BUCKET_FX_MS = 650;
+	static readonly BALL_FX_MS = 350;
+
+	static readonly DEATH_SHAKE_MS = 350;
+	static readonly BUCKET_SHAKE_MS = 250;
+	static readonly BALL_SHAKE_MS = 120;
 
 
 	constructor() {
@@ -564,16 +614,33 @@ class ClientData {
 		this.blueScore.innerText =
 			String(game.blueScore).padStart(2, "0");
 
+		// Detect visual events before updating the previous state.
+		this.detectPlayerDeaths(game, playerIdx);
+		this.detectBucketScores(game);
+		this.detectBallEvents(game);
 
 		// Player
 		const player = game.players[playerIdx];
+
 		if (this.clientWasDead && player.alive < 0) {
-			this.camera.teleport(player.x, player.y)
+			this.camera.teleport(player.x, player.y);
 			this.deathTime = performance.now();
 		}
+
 		this.clientWasDead = (player.alive >= 0);
 
-		this.camera.update(player.x, player.y, 1/60);
+		this.camera.update(player.x, player.y, 1 / 60);
+
+		// Keep previous states for the next frame.
+		this.prevGrabber = game.ball.grabber;
+
+		for (const [idx, bucket] of game.buckets.entries()) {
+			this.prevBucketTeams[idx] = bucket.team;
+		}
+
+		for (const [idx, p] of game.players.entries()) {
+			this.prevAlive[idx] = p.alive;
+		}
 	}
 
 	getYouAlpha(
@@ -668,6 +735,499 @@ class ClientData {
 
 
 		return [first, second, third];
+	}
+
+	private detectPlayerDeaths(game: GMAirBasket, playerIdx: number) {
+		for (const [idx, player] of game.players.entries()) {
+			const previousAlive = this.prevAlive[idx] ?? -1;
+
+			// A transition from alive to dead means the player just died.
+			if (previousAlive < 0 && player.alive >= 0) {
+				this.spawnDeathFx(player, idx === playerIdx);
+			}
+		}
+	}
+
+	private detectBucketScores(game: GMAirBasket) {
+		for (const [idx, bucket] of game.buckets.entries()) {
+			const previousTeam = this.prevBucketTeams[idx] ?? null;
+
+			// A bucket going from neutral to a team means a point was scored.
+			if (previousTeam === null && bucket.team !== null) {
+				this.spawnBucketFx(bucket);
+			}
+		}
+	}
+
+	private spawnBucketFx(bucket: Bucket) {
+		this.bucketFx.push({
+			x: bucket.x,
+			y: bucket.y,
+			start: performance.now(),
+			team: bucket.team!
+		});
+
+		this.addShake(
+			ClientData.BUCKET_SHAKE_MS,
+			18
+		);
+	}
+
+	private spawnDeathFx(player: Player, me: boolean) {
+		const rx = Math.abs(player.x) / (5*WIDTH);
+		const ry = Math.abs(player.y) / (3*HEIGHT);
+
+		let nx = 0;
+		let ny = 0;
+
+		// Estimate which border the player crossed.
+		if (rx >= ry) {
+			nx = player.x < 0 ? -1 : 1;
+		} else {
+			ny = player.y < 0 ? -1 : 1;
+		}
+
+		this.deathFx.push({
+			x: player.x,
+			y: player.y,
+			nx,
+			ny,
+			start: performance.now(),
+			team: player.team
+		});
+
+		if (me) {
+			this.addShake(
+				ClientData.DEATH_SHAKE_MS,
+				35
+			);
+		}
+	}
+
+	private detectBallEvents(game: GMAirBasket) {
+		const currentGrabber = game.ball.grabber;
+
+		// Ball changed from free -> grabbed.
+		if (this.prevGrabber < 0 && currentGrabber >= 0) {
+			const player = game.players[currentGrabber];
+
+			this.ballFx.push({
+				x: player.x,
+				y: player.y,
+				start: performance.now(),
+				type: 'grab',
+				team: player.team
+			});
+		}
+
+		// Ball changed from grabbed -> free.
+		if (this.prevGrabber >= 0 && currentGrabber < 0) {
+			const player = game.players[this.prevGrabber];
+
+			this.ballFx.push({
+				x: player.x,
+				y: player.y,
+				start: performance.now(),
+				type: 'throw',
+				team: player.team
+			});
+		}
+	}
+
+	private addShake(duration: number, amplitude: number) {
+		this.screenShakes.push({
+			start: performance.now(),
+			duration,
+			amplitude
+		});
+	}
+
+	getShake() {
+		const now = performance.now();
+
+		this.screenShakes = this.screenShakes.filter(
+			shake => now - shake.start < shake.duration
+		);
+
+		let amplitude = 0;
+
+		for (const shake of this.screenShakes) {
+			const age = now - shake.start;
+			const progress = age / shake.duration;
+
+			// Strong at the beginning, then smoothly fades out.
+			const strength = 1 - progress;
+
+			amplitude = Math.max(
+				amplitude,
+				shake.amplitude * strength
+			);
+		}
+
+		return {
+			x: (Math.random() * 2 - 1) * amplitude,
+			y: (Math.random() * 2 - 1) * amplitude
+		};
+	}
+
+	drawDeathFx(ctx: CanvasRenderingContext2D) {
+		const now = performance.now();
+
+		this.deathFx = this.deathFx.filter(
+			fx => now - fx.start < ClientData.DEATH_FX_MS
+		);
+
+		for (const fx of this.deathFx) {
+			const t =
+				(now - fx.start) / ClientData.DEATH_FX_MS;
+
+			const fade = 1 - t;
+
+			const color =
+				fx.team === 'red'
+					? '#ff4f99'
+					: '#4f99ff';
+
+			ctx.save();
+
+			ctx.translate(fx.x, fx.y);
+
+			// Beam pointing from the border towards the inside.
+			ctx.save();
+
+			ctx.rotate(
+				Math.atan2(-fx.ny, -fx.nx)
+			);
+
+			const beamLength =
+				1000 * Math.min(1, t * 4);
+
+			const beamWidth =
+				160 * fade;
+
+			const gradient =
+				ctx.createLinearGradient(
+					0,
+					0,
+					beamLength,
+					0
+				);
+
+			gradient.addColorStop(
+				0,
+				`rgba(255,255,255,${0.9 * fade})`
+			);
+
+			gradient.addColorStop(
+				1,
+				"rgba(255,255,255,0)"
+			);
+
+			ctx.fillStyle = gradient;
+
+			ctx.fillRect(
+				0,
+				-beamWidth / 2,
+				beamLength,
+				beamWidth
+			);
+
+			ctx.restore();
+
+			// Expanding ring.
+			ctx.globalAlpha = fade;
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 30 * fade;
+
+			ctx.beginPath();
+
+			ctx.arc(
+				0,
+				0,
+				40 + 450 * (1 - fade * fade),
+				0,
+				Math.PI * 2
+			);
+
+			ctx.stroke();
+
+			// Radial impact lines.
+			ctx.strokeStyle = "white";
+			ctx.lineWidth = 10 * fade;
+
+			for (let i = 0; i < 12; i++) {
+				const angle =
+					i * Math.PI / 6 + t * 0.6;
+
+				const r0 =
+					60 + 250 * t;
+
+				const r1 =
+					r0 + 140 * fade;
+
+				ctx.beginPath();
+
+				ctx.moveTo(
+					Math.cos(angle) * r0,
+					Math.sin(angle) * r0
+				);
+
+				ctx.lineTo(
+					Math.cos(angle) * r1,
+					Math.sin(angle) * r1
+				);
+
+				ctx.stroke();
+			}
+
+			// Central KO star.
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 8;
+
+			ClientData.drawStar(
+				ctx,
+				90 * (1 + t),
+				40 * (1 + t),
+				t * Math.PI * 2
+			);
+
+			ctx.fill();
+			ctx.stroke();
+
+			ctx.restore();
+		}
+	}
+
+	private static drawStar(
+		ctx: CanvasRenderingContext2D,
+		outer: number,
+		inner: number,
+		rotation: number
+	) {
+		ctx.beginPath();
+
+		for (let i = 0; i < 10; i++) {
+			const radius =
+				i % 2 === 0
+					? outer
+					: inner;
+
+			const angle =
+				rotation +
+				i * Math.PI / 5 -
+				Math.PI / 2;
+
+			const x = Math.cos(angle) * radius;
+			const y = Math.sin(angle) * radius;
+
+			if (i === 0) {
+				ctx.moveTo(x, y);
+			} else {
+				ctx.lineTo(x, y);
+			}
+		}
+
+		ctx.closePath();
+	}
+
+	drawBucketFx(ctx: CanvasRenderingContext2D) {
+		const now = performance.now();
+
+		this.bucketFx = this.bucketFx.filter(
+			fx => now - fx.start < ClientData.BUCKET_FX_MS
+		);
+
+		for (const fx of this.bucketFx) {
+			const t =
+				(now - fx.start) / ClientData.BUCKET_FX_MS;
+
+			const fade = 1 - t;
+
+			const color =
+				fx.team === 'red'
+					? '#ff4f99'
+					: '#4f99ff';
+
+			ctx.save();
+
+			ctx.translate(fx.x, fx.y);
+
+			// Expanding impact ring.
+			ctx.globalAlpha = fade;
+
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 20 * fade;
+
+			ctx.beginPath();
+
+			ctx.arc(
+				0,
+				0,
+				50 + 250 * t,
+				0,
+				Math.PI * 2
+			);
+
+			ctx.stroke();
+
+			// White flash in the center.
+			ctx.fillStyle = "white";
+
+			ctx.globalAlpha =
+				Math.max(0, 1 - t * 3);
+
+			ctx.beginPath();
+
+			ctx.arc(
+				0,
+				0,
+				70 * (1 - t),
+				0,
+				Math.PI * 2
+			);
+
+			ctx.fill();
+
+			// Radial scoring particles.
+			ctx.globalAlpha = fade;
+
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 10 * fade;
+
+			for (let i = 0; i < 12; i++) {
+				const angle =
+					i * Math.PI / 6;
+
+				const r0 =
+					80 + 100 * t;
+
+				const r1 =
+					r0 + 100 * fade;
+
+				ctx.beginPath();
+
+				ctx.moveTo(
+					Math.cos(angle) * r0,
+					Math.sin(angle) * r0
+				);
+
+				ctx.lineTo(
+					Math.cos(angle) * r1,
+					Math.sin(angle) * r1
+				);
+
+				ctx.stroke();
+			}
+
+			ctx.restore();
+		}
+	}
+
+	drawBallFx(ctx: CanvasRenderingContext2D) {
+		const now = performance.now();
+
+		this.ballFx = this.ballFx.filter(
+			fx => now - fx.start < ClientData.BALL_FX_MS
+		);
+
+		for (const fx of this.ballFx) {
+			const t =
+				(now - fx.start) / ClientData.BALL_FX_MS;
+
+			const fade = 1 - t;
+
+			const color =
+				fx.team === 'red'
+					? '#ff4f99'
+					: '#4f99ff';
+
+			ctx.save();
+
+			ctx.translate(fx.x, fx.y);
+
+			ctx.globalAlpha = fade;
+
+			if (fx.type === 'grab') {
+				// Contracting ring: visually pulls the ball into the player.
+				ctx.strokeStyle = "white";
+				ctx.lineWidth = 12 * fade;
+
+				ctx.beginPath();
+
+				ctx.arc(
+					0,
+					0,
+					180 * (1 - t),
+					0,
+					Math.PI * 2
+				);
+
+				ctx.stroke();
+
+				ctx.strokeStyle = color;
+				ctx.lineWidth = 8 * fade;
+
+				ctx.beginPath();
+
+				ctx.arc(
+					0,
+					0,
+					130 * (1 - t),
+					0,
+					Math.PI * 2
+				);
+
+				ctx.stroke();
+			} else {
+				// Expanding ring: visually pushes the ball away from the player.
+				ctx.strokeStyle = color;
+				ctx.lineWidth = 14 * fade;
+
+				ctx.beginPath();
+
+				ctx.arc(
+					0,
+					0,
+					30 + 180 * t,
+					0,
+					Math.PI * 2
+				);
+
+				ctx.stroke();
+
+				// Small radial burst.
+				ctx.strokeStyle = "white";
+				ctx.lineWidth = 7 * fade;
+
+				for (let i = 0; i < 8; i++) {
+					const angle =
+						i * Math.PI / 4;
+
+					const r0 =
+						50 + 70 * t;
+
+					const r1 =
+						r0 + 70 * fade;
+
+					ctx.beginPath();
+
+					ctx.moveTo(
+						Math.cos(angle) * r0,
+						Math.sin(angle) * r0
+					);
+
+					ctx.lineTo(
+						Math.cos(angle) * r1,
+						Math.sin(angle) * r1
+					);
+
+					ctx.stroke();
+				}
+			}
+
+			ctx.restore();
+		}
 	}
 }
 
@@ -1858,11 +2418,24 @@ export class GMAirBasket extends GameMode {
 		// Center the camera on the current player
 		{
 			const cameraCoords = data.camera.getCoords();
+			const shake = data.getShake();
+
 			ctx.save();
-			ctx.translate(WIDTH / 2, HEIGHT / 2);
-			const scale = Camera.SCALE * (1 - addCamZ * 0.3);
+
+			ctx.translate(
+				WIDTH / 2 + shake.x,
+				HEIGHT / 2 + shake.y
+			);
+
+			const scale =
+				Camera.SCALE * (1 - addCamZ * 0.3);
+
 			ctx.scale(scale, scale);
-			ctx.translate(-cameraCoords.x, -cameraCoords.y);
+
+			ctx.translate(
+				-cameraCoords.x,
+				-cameraCoords.y
+			);
 		}
 
 		// Background
@@ -2013,6 +2586,12 @@ export class GMAirBasket extends GameMode {
 				color
 			);
 		}
+
+
+		// Draw gameplay effects on top of the world.
+		data.drawBallFx(ctx);
+		data.drawBucketFx(ctx);
+		data.drawDeathFx(ctx);
 
 		ctx.restore();
 
