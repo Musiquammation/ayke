@@ -153,6 +153,32 @@ const runners: Record<string, (data: any) => void> = {
 		};
 
 		dom.getHomePanel().setConnectedUsersInfo(connectedUsersInfo);
+	},
+
+	friendsResult(d) {
+		if (dom.uses('friends')) {
+			const panel = dom.getFriendsPanel();
+			panel.friends = d.friends || [];
+			panel.requests = d.requests || [];
+			panel.newFriendNotificationsEnabled = d.newFriendNotificationsEnabled;
+		}
+	},
+
+	friendPresenceUpdate(d) {
+		if (!dom.uses('friends')) return;
+		const friend = dom.getFriendsPanel().friends.find(entry => entry.pseudo === d.pseudo);
+		if (friend) {
+			friend.online = d.online;
+			friend.lastDisconnectedAt = d.lastDisconnectedAt;
+		}
+	},
+
+	friendRequestReceived(d) {
+		if (!dom.uses('friends')) return;
+		const panel = dom.getFriendsPanel();
+		if (!panel.requests.some(request => request.pseudo === d.pseudo)) {
+			panel.requests.push(d);
+		}
 	}
 };
 

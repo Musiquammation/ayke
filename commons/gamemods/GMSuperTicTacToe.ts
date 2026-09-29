@@ -95,6 +95,7 @@ class ClientData {
 
 	mouseX = 0;
 	mouseY = 0;
+	finishedAt: number | null = null;
 
 	readonly html: HTMLDivElement;
 	readonly statusLine: HTMLDivElement;
@@ -137,6 +138,11 @@ class ClientData {
 	 */
 	update(game: GMSuperTicTacToe, playerIdx: number) {
 		if (game.finished) {
+			// Capture the exact timestamp when the game ends
+			if (this.finishedAt === null) {
+				this.finishedAt = performance.now();
+			}
+
 			this.you.classList.add("game-superTicTacToe-disabled");
 			this.opponent.classList.add("game-superTicTacToe-disabled");
 			return;
@@ -682,15 +688,135 @@ export class GMSuperTicTacToe extends GameMode {
 			}
 		}
 
-		// Hover highlight for the cell currently under the pointer, only
-		// when it designates a legal move for whoever is about to play.
-		const hovered = GMSuperTicTacToe.cellFromBoardCoords(data.mouseX, data.mouseY);
+		// Hover highlight for the cell currently under the pointer.
+		const hovered = GMSuperTicTacToe.cellFromBoardCoords(
+			data.mouseX,
+			data.mouseY
+		);
+
 		if (hovered !== null && !this.finished) {
 			const hgx = hovered % 9;
 			const hgy = Math.floor(hovered / 9);
-			ctx.strokeStyle = (this.turn === 'red') ? "#e63946" : "#3a86ff";
+
+			ctx.strokeStyle = this.turn === 'red'
+				? "#e63946"
+				: "#3a86ff";
+
 			ctx.lineWidth = 3;
-			ctx.strokeRect(hgx * CELL_SIZE + 2, hgy * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+			ctx.strokeRect(
+				hgx * CELL_SIZE + 2,
+				hgy * CELL_SIZE + 2,
+				CELL_SIZE - 4,
+				CELL_SIZE - 4
+			);
+		}
+
+		// =========================================================
+		// Winning Line Animation
+		// =========================================================
+		if (
+			this.finished &&
+			this.winner &&
+			this.winner !== 'draw' &&
+			data.finishedAt !== null
+		) {
+			const BEGIN_DURATION = 0.5;
+			const elapsedSeconds =
+				(performance.now() - data.finishedAt) / 1000;
+
+			// 1 second cooldown before animation starts.
+			if (elapsedSeconds > BEGIN_DURATION) {
+				let winningLine: readonly [number, number, number] | null = null;
+
+				// Find which sub-grids formed the winning line.
+				for (const line of WIN_LINES) {
+					const [a, b, c] = line;
+
+					if (
+						this.subgridWinners[a].taken &&
+						this.subgridWinners[b].taken &&
+						this.subgridWinners[c].taken &&
+						this.subgridWinners[a].isRed ===
+							this.subgridWinners[b].isRed &&
+						this.subgridWinners[b].isRed ===
+							this.subgridWinners[c].isRed
+					) {
+						winningLine = line;
+						break;
+					}
+				}
+
+				if (winningLine) {
+					// Animation progress from 0 to 1 over 1 second.
+					const progress = Math.min(
+						1.0,
+						elapsedSeconds - BEGIN_DURATION
+					);
+
+					// Ease-out cubic for a smoother, decelerating stroke.
+					const p = 1 - Math.pow(1 - progress, 3);
+
+					const [a, , c] = winningLine;
+
+					// Get the center of a sub-grid.
+					const getCenter = (idx: number) => ({
+						x: (idx % 3) * SUBGRID_SIZE + SUBGRID_SIZE / 2,
+						y: Math.floor(idx / 3) * SUBGRID_SIZE +
+							SUBGRID_SIZE / 2
+					});
+
+					const startCenter = getCenter(a);
+					const endCenter = getCenter(c);
+
+					// Calculate vector and extend the line past the centers.
+					const dx = endCenter.x - startCenter.x;
+					const dy = endCenter.y - startCenter.y;
+					const len = Math.hypot(dx, dy);
+
+					const nx = dx / len;
+					const ny = dy / len;
+
+					const extension = SUBGRID_SIZE * 0.4;
+
+					const startX = startCenter.x - nx * extension;
+					const startY = startCenter.y - ny * extension;
+
+					const finalX = endCenter.x + nx * extension;
+					const finalY = endCenter.y + ny * extension;
+
+					const currentX =
+						startX + (finalX - startX) * p;
+
+					const currentY =
+						startY + (finalY - startY) * p;
+
+					const winnerColor = this.winner === 'red'
+						? "#e63946"
+						: "#3a86ff";
+
+					// Outer border.
+					ctx.beginPath();
+					ctx.moveTo(startX, startY);
+					ctx.lineTo(currentX, currentY);
+
+					ctx.lineWidth = 38;
+					ctx.lineCap = "butt";
+					ctx.lineJoin = "miter";
+					ctx.strokeStyle = "#222222";
+					ctx.stroke();
+
+					// Inner colored line.
+					ctx.beginPath();
+					ctx.moveTo(startX, startY);
+					ctx.lineTo(currentX, currentY);
+
+					ctx.lineWidth = 28;
+					ctx.lineCap = "butt";
+					ctx.lineJoin = "miter";
+					ctx.strokeStyle = winnerColor;
+					ctx.stroke();
+				}
+			}
 		}
 
 		ctx.restore();

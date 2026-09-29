@@ -6,10 +6,12 @@
     "bundle": "vite build --mode bundle",
     "build": "vite build",
     "server": "tsx watch server/server.ts",
-    "test": "tsx draft/test.ts"
+    "test": "tsx draft/test.ts",
+    "android": "npm run build && npx cap sync && npx cap run android"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/screen-orientation": "^8.0.1",
