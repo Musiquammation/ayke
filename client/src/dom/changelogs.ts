@@ -8,6 +8,21 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.1",
+		date: 1790694000000, // Tue. 29 sept 2026 at 5:00 PM
+		title: "Gameplay and social improvements",
+		lines: [
+			"Add an ending animation to `superTicTacToe`",
+			"Improve pushing mechanics in `roarsOnGlass`",
+			"Add a friend system",
+			"Add back navigation on mobile",
+			"Add the new `crayzoll` gamemode, including its game, assets and tutorial",
+			"Add visual effects to `airbasket`",
+			"Improve `content-card` CSS with appended scrolling",
+			"Fix fullscreen finish when a local match ends"
+		]
+	},
+	{
 		version: "1.5.0",
 		date: 1790175600000, // Wed. 23 sept 2026 at 5:00 PM
 		title: "Graphic improvements",
