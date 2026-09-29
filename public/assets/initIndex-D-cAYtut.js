@@ -10104,6 +10104,12 @@ var GameMode = class GameMode {
 		const { width, height } = this.getSize();
 		return width <= height ? "portrait" : "landscape";
 	}
+	static getSkinTexturePath(id) {
+		return `/assets/skins/${id}/grid.png`;
+	}
+	static getSkinIconPath(id) {
+		return window.IMG_ROOT_PATH + `/assets/skins/${id}/icon.png`;
+	}
 };
 //#endregion
 //#region commons/util/collisions.ts
@@ -10403,12 +10409,12 @@ function isMessage(value) {
 }
 //#endregion
 //#region commons/gamemods/GMAirBasket.ts
-var protocols$8 = getProtocol("airbasket", "multiplayer");
-var GRAVITY$1 = 1100;
-var WIDTH$6 = 2400;
-var HEIGHT$6 = 1350;
-var X_LIMIT$1 = WIDTH$6 * 2.5;
-var Y_LIMIT$1 = HEIGHT$6 * 1.5;
+var protocols$9 = getProtocol("airbasket", "multiplayer");
+var GRAVITY$2 = 1100;
+var WIDTH$7 = 2400;
+var HEIGHT$7 = 1350;
+var X_LIMIT$1 = WIDTH$7 * 2.5;
+var Y_LIMIT$1 = HEIGHT$7 * 1.5;
 var TIMES = [
 	180,
 	60,
@@ -10454,10 +10460,10 @@ var BUCKET_POSITIONS = [
 	[1, 1],
 	[2, 1]
 ];
-var MINIMAP_X$1 = WIDTH$6 * .79;
-var MINIMAP_Y$1 = HEIGHT$6 * .01;
+var MINIMAP_X$1 = WIDTH$7 * .79;
+var MINIMAP_Y$1 = HEIGHT$7 * .01;
 var MINIMAP_RATIO$1 = .2;
-var Ball$1 = class Ball$1 {
+var Ball$2 = class Ball$2 {
 	static RADIUS = 70;
 	static SPAWN_JUMP = 20;
 	static GRAVITY = 500;
@@ -10465,12 +10471,12 @@ var Ball$1 = class Ball$1 {
 	x = 0;
 	y = 0;
 	vx = 0;
-	vy = -Ball$1.SPAWN_JUMP;
+	vy = -Ball$2.SPAWN_JUMP;
 	grabber = -1;
 	prevGrabber = -1;
 	move(dt) {
 		if (this.grabber >= 0) return;
-		this.vy += Ball$1.GRAVITY * dt;
+		this.vy += Ball$2.GRAVITY * dt;
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 		if (this.isOOB()) this.reset();
@@ -10479,7 +10485,7 @@ var Ball$1 = class Ball$1 {
 		this.x = 0;
 		this.y = 0;
 		this.vx = 0;
-		this.vy = -Ball$1.SPAWN_JUMP;
+		this.vy = -Ball$2.SPAWN_JUMP;
 		this.prevGrabber = -1;
 		this.removeGrabber();
 	}
@@ -10494,7 +10500,7 @@ var Ball$1 = class Ball$1 {
 		this.prevGrabber = obj.prevBallGrabber;
 	}
 	isOOB() {
-		return this.x < -6e3 + Ball$1.RADIUS / 2 || this.x > X_LIMIT$1 - Ball$1.RADIUS / 2 || this.y < -2025 + Ball$1.RADIUS / 2 || this.y > Y_LIMIT$1 - Ball$1.RADIUS / 2;
+		return this.x < -6e3 + Ball$2.RADIUS / 2 || this.x > X_LIMIT$1 - Ball$2.RADIUS / 2 || this.y < -2025 + Ball$2.RADIUS / 2 || this.y > Y_LIMIT$1 - Ball$2.RADIUS / 2;
 	}
 	removeGrabber() {
 		if (this.grabber < 0) return;
@@ -10504,16 +10510,16 @@ var Ball$1 = class Ball$1 {
 	eject() {
 		this.removeGrabber();
 		if (this.y <= -1350) this.vy = 0;
-		else this.vy = -Ball$1.EJECT;
-		if (this.x < -2400) this.vx = Ball$1.EJECT;
-		if (this.x > WIDTH$6) this.vx = -Ball$1.EJECT;
-		if (this.x > X_LIMIT$1 - Ball$1.RADIUS / 2) this.x = X_LIMIT$1 - Ball$1.RADIUS / 2;
-		else if (this.x < -6e3 + Ball$1.RADIUS / 2) this.x = -6e3 + Ball$1.RADIUS / 2;
-		if (this.y > Y_LIMIT$1 - Ball$1.RADIUS / 2) this.y = Y_LIMIT$1 - Ball$1.RADIUS / 2;
-		else if (this.y < -2025 + Ball$1.RADIUS / 2) this.y = -2025 + Ball$1.RADIUS / 2;
+		else this.vy = -Ball$2.EJECT;
+		if (this.x < -2400) this.vx = Ball$2.EJECT;
+		if (this.x > WIDTH$7) this.vx = -Ball$2.EJECT;
+		if (this.x > X_LIMIT$1 - Ball$2.RADIUS / 2) this.x = X_LIMIT$1 - Ball$2.RADIUS / 2;
+		else if (this.x < -6e3 + Ball$2.RADIUS / 2) this.x = -6e3 + Ball$2.RADIUS / 2;
+		if (this.y > Y_LIMIT$1 - Ball$2.RADIUS / 2) this.y = Y_LIMIT$1 - Ball$2.RADIUS / 2;
+		else if (this.y < -2025 + Ball$2.RADIUS / 2) this.y = -2025 + Ball$2.RADIUS / 2;
 	}
 };
-var Player$8 = class Player$8 {
+var Player$9 = class Player$9 {
 	x;
 	y;
 	static GRAB_GRAVITY = 900;
@@ -10536,7 +10542,7 @@ var Player$8 = class Player$8 {
 	connected = true;
 	alive = -1;
 	vx = 0;
-	vy = -Player$8.SPAWN_JUMP;
+	vy = -Player$9.SPAWN_JUMP;
 	dir = 0;
 	pushDown = false;
 	score = 0;
@@ -10565,49 +10571,49 @@ var Player$8 = class Player$8 {
 		}
 		if (this.dir === 0) {
 			if (this.vx > 0) {
-				this.vx -= Player$8.SOFT_DECELERATION * dt;
+				this.vx -= Player$9.SOFT_DECELERATION * dt;
 				if (this.vx < 0) this.vx = 0;
 			} else if (this.vx < 0) {
-				this.vx += Player$8.SOFT_DECELERATION * dt;
+				this.vx += Player$9.SOFT_DECELERATION * dt;
 				if (this.vx > 0) this.vx = 0;
 			}
 		} else if (this.dir > 0) {
 			if (this.vx < 0) {
-				this.vx += Player$8.QUICK_DECELERATION * dt;
+				this.vx += Player$9.QUICK_DECELERATION * dt;
 				if (this.vx > 0) this.vx = 0;
-			} else if (this.vx < Player$8.SPEED) {
-				this.vx += Player$8.ACCELERATION * dt;
-				if (this.vx > Player$8.SPEED) this.vx = Player$8.SPEED;
-			} else if (this.vx > Player$8.SPEED) {
-				this.vx -= Player$8.MIN_DECELERATION * dt;
-				if (this.vx < Player$8.SPEED) this.vx = Player$8.SPAWN_JUMP;
+			} else if (this.vx < Player$9.SPEED) {
+				this.vx += Player$9.ACCELERATION * dt;
+				if (this.vx > Player$9.SPEED) this.vx = Player$9.SPEED;
+			} else if (this.vx > Player$9.SPEED) {
+				this.vx -= Player$9.MIN_DECELERATION * dt;
+				if (this.vx < Player$9.SPEED) this.vx = Player$9.SPAWN_JUMP;
 			}
 		} else if (this.vx > 0) {
-			this.vx -= Player$8.QUICK_DECELERATION * dt;
+			this.vx -= Player$9.QUICK_DECELERATION * dt;
 			if (this.vx < 0) this.vx = 0;
-		} else if (this.vx > -Player$8.SPEED) {
-			this.vx -= Player$8.ACCELERATION * dt;
-			if (this.vx < -Player$8.SPEED) this.vx = -Player$8.SPEED;
-		} else if (this.vx < -Player$8.SPEED) {
-			this.vx += Player$8.MIN_DECELERATION * dt;
-			if (this.vx > -Player$8.SPEED) this.vx = -Player$8.SPAWN_JUMP;
+		} else if (this.vx > -Player$9.SPEED) {
+			this.vx -= Player$9.ACCELERATION * dt;
+			if (this.vx < -Player$9.SPEED) this.vx = -Player$9.SPEED;
+		} else if (this.vx < -Player$9.SPEED) {
+			this.vx += Player$9.MIN_DECELERATION * dt;
+			if (this.vx > -Player$9.SPEED) this.vx = -Player$9.SPAWN_JUMP;
 		}
-		this.vy += (grabber ? Player$8.GRAB_GRAVITY : GRAVITY$1) * dt;
+		this.vy += (grabber ? Player$9.GRAB_GRAVITY : GRAVITY$2) * dt;
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
-		if (this.pushDown) this.y += Player$8.PUSH_DOWN * dt;
+		if (this.pushDown) this.y += Player$9.PUSH_DOWN * dt;
 		if (this.isOOB()) this.die();
 	}
 	touchsBall(ball) {
 		return collisions.RectCircle({
 			x: this.x,
 			y: this.y,
-			w: Player$8.WIDTH,
-			h: Player$8.HEIGHT
+			w: Player$9.WIDTH,
+			h: Player$9.HEIGHT
 		}, {
 			x: ball.x,
 			y: ball.y,
-			r: Ball$1.RADIUS
+			r: Ball$2.RADIUS
 		});
 	}
 	save() {
@@ -10660,12 +10666,12 @@ var Player$8 = class Player$8 {
 		}
 	}
 	isOOB() {
-		return this.x < -6e3 + Player$8.WIDTH / 2 || this.x > X_LIMIT$1 - Player$8.WIDTH / 2 || this.y < -2025 + Player$8.HEIGHT / 2 || this.y > Y_LIMIT$1 - Player$8.HEIGHT / 2;
+		return this.x < -6e3 + Player$9.WIDTH / 2 || this.x > X_LIMIT$1 - Player$9.WIDTH / 2 || this.y < -2025 + Player$9.HEIGHT / 2 || this.y > Y_LIMIT$1 - Player$9.HEIGHT / 2;
 	}
 	die() {
 		this.vx = 0;
-		this.vy = -Player$8.SPAWN_JUMP;
-		this.alive = Player$8.COOLDOWN;
+		this.vy = -Player$9.SPAWN_JUMP;
+		this.alive = Player$9.COOLDOWN;
 	}
 };
 var Bucket = class {
@@ -10701,13 +10707,13 @@ var Camera$3 = class Camera$3 {
 	* Calculates the center coordinates of the zone the player is currently in.
 	*/
 	getZoneCenter(px, py) {
-		let zx = Math.round(px / WIDTH$6);
-		let zy = Math.round(py / HEIGHT$6);
+		let zx = Math.round(px / WIDTH$7);
+		let zy = Math.round(py / HEIGHT$7);
 		zx = Math.max(-2, Math.min(2, zx));
 		zy = Math.max(-1, Math.min(1, zy));
 		return {
-			cx: zx * WIDTH$6,
-			cy: zy * HEIGHT$6
+			cx: zx * WIDTH$7,
+			cy: zy * HEIGHT$7
 		};
 	}
 	/**
@@ -10762,24 +10768,37 @@ var Camera$3 = class Camera$3 {
 		};
 	}
 };
-var ClientData$9 = class ClientData$9 {
+var ClientData$10 = class ClientData$10 {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
 	skins = [];
+	clientWasDead = true;
+	deathTime = performance.now();
+	lastDirs = {};
+	youOpacity = 1;
+	prevAlive = [];
+	prevGrabber = -1;
+	prevBucketTeams = [];
+	deathFx = [];
+	bucketFx = [];
+	ballFx = [];
+	screenShakes = [];
 	html;
 	time;
 	period;
 	redScore;
 	blueScore;
 	camera = new Camera$3();
-	clientWasDead = true;
-	deathTime = performance.now();
-	lastDirs = {};
-	youOpacity = 1;
 	static YOU_AFTER_DEATH = 5e3;
 	static YOU_NEAR_MATE_DISTANCE = 600;
 	static FADE_SPEED = .08;
+	static DEATH_FX_MS = 1e3;
+	static BUCKET_FX_MS = 650;
+	static BALL_FX_MS = 350;
+	static DEATH_SHAKE_MS = 350;
+	static BUCKET_SHAKE_MS = 250;
+	static BALL_SHAKE_MS = 120;
 	constructor() {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-airbasket-root");
@@ -10809,10 +10828,13 @@ var ClientData$9 = class ClientData$9 {
 		return `${Math.floor(time / 60)}:${(time % 60).toFixed(1).padStart(4, "0")}`;
 	}
 	update(game, playerIdx) {
-		this.time.innerText = ClientData$9.showTime(game.time);
-		this.period.innerText = ClientData$9.PERIODS[game.timeStep];
+		this.time.innerText = ClientData$10.showTime(game.time);
+		this.period.innerText = ClientData$10.PERIODS[game.timeStep];
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
+		this.detectPlayerDeaths(game, playerIdx);
+		this.detectBucketScores(game);
+		this.detectBallEvents(game);
 		const player = game.players[playerIdx];
 		if (this.clientWasDead && player.alive < 0) {
 			this.camera.teleport(player.x, player.y);
@@ -10820,25 +10842,28 @@ var ClientData$9 = class ClientData$9 {
 		}
 		this.clientWasDead = player.alive >= 0;
 		this.camera.update(player.x, player.y, 1 / 60);
+		this.prevGrabber = game.ball.grabber;
+		for (const [idx, bucket] of game.buckets.entries()) this.prevBucketTeams[idx] = bucket.team;
+		for (const [idx, p] of game.players.entries()) this.prevAlive[idx] = p.alive;
 	}
 	getYouAlpha(game, playerIdx) {
 		const player = game.players[playerIdx];
 		let shouldShow = false;
-		if (player.alive < 0 && performance.now() - this.deathTime <= ClientData$9.YOU_AFTER_DEATH) shouldShow = true;
+		if (player.alive < 0 && performance.now() - this.deathTime <= ClientData$10.YOU_AFTER_DEATH) shouldShow = true;
 		for (let i = 0; i < game.players.length; i++) {
 			if (i === playerIdx) continue;
 			const mate = game.players[i];
 			if (mate.team !== player.team || mate.alive >= 0) continue;
 			const dx = mate.x - player.x;
 			const dy = mate.y - player.y;
-			if (dx * dx + dy * dy <= ClientData$9.YOU_NEAR_MATE_DISTANCE * ClientData$9.YOU_NEAR_MATE_DISTANCE) {
+			if (dx * dx + dy * dy <= ClientData$10.YOU_NEAR_MATE_DISTANCE * ClientData$10.YOU_NEAR_MATE_DISTANCE) {
 				shouldShow = true;
 				break;
 			}
 		}
-		if (shouldShow) this.youOpacity = Math.min(1, this.youOpacity + ClientData$9.FADE_SPEED);
-		else this.youOpacity = Math.max(0, this.youOpacity - ClientData$9.FADE_SPEED);
-		return ClientData$9.animateOpacity(this.youOpacity);
+		if (shouldShow) this.youOpacity = Math.min(1, this.youOpacity + ClientData$10.FADE_SPEED);
+		else this.youOpacity = Math.max(0, this.youOpacity - ClientData$10.FADE_SPEED);
+		return ClientData$10.animateOpacity(this.youOpacity);
 	}
 	static animateOpacity(x) {
 		return (1 - Math.exp(-5 * x)) / (1 - Math.exp(-5));
@@ -10863,8 +10888,217 @@ var ClientData$9 = class ClientData$9 {
 			third
 		];
 	}
+	detectPlayerDeaths(game, playerIdx) {
+		for (const [idx, player] of game.players.entries()) if ((this.prevAlive[idx] ?? -1) < 0 && player.alive >= 0) this.spawnDeathFx(player, idx === playerIdx);
+	}
+	detectBucketScores(game) {
+		for (const [idx, bucket] of game.buckets.entries()) if ((this.prevBucketTeams[idx] ?? null) === null && bucket.team !== null) this.spawnBucketFx(bucket);
+	}
+	spawnBucketFx(bucket) {
+		this.bucketFx.push({
+			x: bucket.x,
+			y: bucket.y,
+			start: performance.now(),
+			team: bucket.team
+		});
+		this.addShake(ClientData$10.BUCKET_SHAKE_MS, 18);
+	}
+	spawnDeathFx(player, me) {
+		const rx = Math.abs(player.x) / (5 * WIDTH$7);
+		const ry = Math.abs(player.y) / (3 * HEIGHT$7);
+		let nx = 0;
+		let ny = 0;
+		if (rx >= ry) nx = player.x < 0 ? -1 : 1;
+		else ny = player.y < 0 ? -1 : 1;
+		this.deathFx.push({
+			x: player.x,
+			y: player.y,
+			nx,
+			ny,
+			start: performance.now(),
+			team: player.team
+		});
+		if (me) this.addShake(ClientData$10.DEATH_SHAKE_MS, 35);
+	}
+	detectBallEvents(game) {
+		const currentGrabber = game.ball.grabber;
+		if (this.prevGrabber < 0 && currentGrabber >= 0) {
+			const player = game.players[currentGrabber];
+			this.ballFx.push({
+				x: player.x,
+				y: player.y,
+				start: performance.now(),
+				type: "grab",
+				team: player.team
+			});
+		}
+		if (this.prevGrabber >= 0 && currentGrabber < 0) {
+			const player = game.players[this.prevGrabber];
+			this.ballFx.push({
+				x: player.x,
+				y: player.y,
+				start: performance.now(),
+				type: "throw",
+				team: player.team
+			});
+		}
+	}
+	addShake(duration, amplitude) {
+		this.screenShakes.push({
+			start: performance.now(),
+			duration,
+			amplitude
+		});
+	}
+	getShake() {
+		const now = performance.now();
+		this.screenShakes = this.screenShakes.filter((shake) => now - shake.start < shake.duration);
+		let amplitude = 0;
+		for (const shake of this.screenShakes) {
+			const strength = 1 - (now - shake.start) / shake.duration;
+			amplitude = Math.max(amplitude, shake.amplitude * strength);
+		}
+		return {
+			x: (Math.random() * 2 - 1) * amplitude,
+			y: (Math.random() * 2 - 1) * amplitude
+		};
+	}
+	drawDeathFx(ctx) {
+		const now = performance.now();
+		this.deathFx = this.deathFx.filter((fx) => now - fx.start < ClientData$10.DEATH_FX_MS);
+		for (const fx of this.deathFx) {
+			const t = (now - fx.start) / ClientData$10.DEATH_FX_MS;
+			const fade = 1 - t;
+			const color = fx.team === "red" ? "#ff4f99" : "#4f99ff";
+			ctx.save();
+			ctx.translate(fx.x, fx.y);
+			ctx.save();
+			ctx.rotate(Math.atan2(-fx.ny, -fx.nx));
+			const beamLength = 1e3 * Math.min(1, t * 4);
+			const beamWidth = 160 * fade;
+			const gradient = ctx.createLinearGradient(0, 0, beamLength, 0);
+			gradient.addColorStop(0, `rgba(255,255,255,${.9 * fade})`);
+			gradient.addColorStop(1, "rgba(255,255,255,0)");
+			ctx.fillStyle = gradient;
+			ctx.fillRect(0, -beamWidth / 2, beamLength, beamWidth);
+			ctx.restore();
+			ctx.globalAlpha = fade;
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 30 * fade;
+			ctx.beginPath();
+			ctx.arc(0, 0, 40 + 450 * (1 - fade * fade), 0, Math.PI * 2);
+			ctx.stroke();
+			ctx.strokeStyle = "white";
+			ctx.lineWidth = 10 * fade;
+			for (let i = 0; i < 12; i++) {
+				const angle = i * Math.PI / 6 + t * .6;
+				const r0 = 60 + 250 * t;
+				const r1 = r0 + 140 * fade;
+				ctx.beginPath();
+				ctx.moveTo(Math.cos(angle) * r0, Math.sin(angle) * r0);
+				ctx.lineTo(Math.cos(angle) * r1, Math.sin(angle) * r1);
+				ctx.stroke();
+			}
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 8;
+			ClientData$10.drawStar(ctx, 90 * (1 + t), 40 * (1 + t), t * Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+			ctx.restore();
+		}
+	}
+	static drawStar(ctx, outer, inner, rotation) {
+		ctx.beginPath();
+		for (let i = 0; i < 10; i++) {
+			const radius = i % 2 === 0 ? outer : inner;
+			const angle = rotation + i * Math.PI / 5 - Math.PI / 2;
+			const x = Math.cos(angle) * radius;
+			const y = Math.sin(angle) * radius;
+			if (i === 0) ctx.moveTo(x, y);
+			else ctx.lineTo(x, y);
+		}
+		ctx.closePath();
+	}
+	drawBucketFx(ctx) {
+		const now = performance.now();
+		this.bucketFx = this.bucketFx.filter((fx) => now - fx.start < ClientData$10.BUCKET_FX_MS);
+		for (const fx of this.bucketFx) {
+			const t = (now - fx.start) / ClientData$10.BUCKET_FX_MS;
+			const fade = 1 - t;
+			const color = fx.team === "red" ? "#ff4f99" : "#4f99ff";
+			ctx.save();
+			ctx.translate(fx.x, fx.y);
+			ctx.globalAlpha = fade;
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 20 * fade;
+			ctx.beginPath();
+			ctx.arc(0, 0, 50 + 250 * t, 0, Math.PI * 2);
+			ctx.stroke();
+			ctx.fillStyle = "white";
+			ctx.globalAlpha = Math.max(0, 1 - t * 3);
+			ctx.beginPath();
+			ctx.arc(0, 0, 70 * (1 - t), 0, Math.PI * 2);
+			ctx.fill();
+			ctx.globalAlpha = fade;
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 10 * fade;
+			for (let i = 0; i < 12; i++) {
+				const angle = i * Math.PI / 6;
+				const r0 = 80 + 100 * t;
+				const r1 = r0 + 100 * fade;
+				ctx.beginPath();
+				ctx.moveTo(Math.cos(angle) * r0, Math.sin(angle) * r0);
+				ctx.lineTo(Math.cos(angle) * r1, Math.sin(angle) * r1);
+				ctx.stroke();
+			}
+			ctx.restore();
+		}
+	}
+	drawBallFx(ctx) {
+		const now = performance.now();
+		this.ballFx = this.ballFx.filter((fx) => now - fx.start < ClientData$10.BALL_FX_MS);
+		for (const fx of this.ballFx) {
+			const t = (now - fx.start) / ClientData$10.BALL_FX_MS;
+			const fade = 1 - t;
+			const color = fx.team === "red" ? "#ff4f99" : "#4f99ff";
+			ctx.save();
+			ctx.translate(fx.x, fx.y);
+			ctx.globalAlpha = fade;
+			if (fx.type === "grab") {
+				ctx.strokeStyle = "white";
+				ctx.lineWidth = 12 * fade;
+				ctx.beginPath();
+				ctx.arc(0, 0, 180 * (1 - t), 0, Math.PI * 2);
+				ctx.stroke();
+				ctx.strokeStyle = color;
+				ctx.lineWidth = 8 * fade;
+				ctx.beginPath();
+				ctx.arc(0, 0, 130 * (1 - t), 0, Math.PI * 2);
+				ctx.stroke();
+			} else {
+				ctx.strokeStyle = color;
+				ctx.lineWidth = 14 * fade;
+				ctx.beginPath();
+				ctx.arc(0, 0, 30 + 180 * t, 0, Math.PI * 2);
+				ctx.stroke();
+				ctx.strokeStyle = "white";
+				ctx.lineWidth = 7 * fade;
+				for (let i = 0; i < 8; i++) {
+					const angle = i * Math.PI / 4;
+					const r0 = 50 + 70 * t;
+					const r1 = r0 + 70 * fade;
+					ctx.beginPath();
+					ctx.moveTo(Math.cos(angle) * r0, Math.sin(angle) * r0);
+					ctx.lineTo(Math.cos(angle) * r1, Math.sin(angle) * r1);
+					ctx.stroke();
+				}
+			}
+			ctx.restore();
+		}
+	}
 };
-var TutorialData$7 = class {
+var TutorialData$8 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -10881,7 +11115,7 @@ var TutorialData$7 = class {
 			this.game.ball.vy = 0;
 			this.game.ball.prevGrabber = -1;
 			if (this.game.ball.grabber === 0) this.step = 2;
-			if (player.x >= -1200 && player.x <= WIDTH$6 / 2 && player.y >= -675 && player.y <= HEIGHT$6 / 2) this.step = 1;
+			if (player.x >= -1200 && player.x <= WIDTH$7 / 2 && player.y >= -675 && player.y <= HEIGHT$7 / 2) this.step = 1;
 			return "Go towards the ball (jump to do not fall)";
 		}
 		if (this.step === 1) {
@@ -10924,14 +11158,14 @@ var TutorialData$7 = class {
 		return [3].includes(this.step);
 	}
 };
-function generateClientDom$9(unlockedSkins) {
+function generateClientDom$10(unlockedSkins) {
 	return {
 		skin: Object.keys(GMAirBasket.SKINS)[0],
 		preferTeam: 0,
 		SKINS: GMAirBasket.SKINS,
 		unlockedSkins,
 		produce() {
-			const { StartData } = protocols$8.get();
+			const { StartData } = protocols$9.get();
 			return StartData.encode({
 				skin: this.skin,
 				preferTeam: this.preferTeam
@@ -10940,7 +11174,7 @@ function generateClientDom$9(unlockedSkins) {
 		hasSkin(skin) {
 			return this.unlockedSkins.includes(skin);
 		},
-		getIconPath: getIconPath$1
+		getIconPath: GameMode.getSkinIconPath
 	};
 }
 function lighten(hex, factor) {
@@ -10954,14 +11188,14 @@ function lighten(hex, factor) {
 * Checks for AABB rectangle collisions between all players.
 * If a collision is found, violently projects the players in opposite directions.
 */
-function applyCollisions(players) {
+function applyCollisions$1(players) {
 	for (let i = 0; i < players.length; i++) for (let j = i + 1; j < players.length; j++) {
 		const p1 = players[i];
 		const p2 = players[j];
 		if (!p1.isAlive() || !p2.isAlive()) continue;
 		const dx = p1.x - p2.x;
 		const dy = p1.y - p2.y;
-		if (Math.abs(dx) < Player$8.WIDTH && Math.abs(dy) < Player$8.HEIGHT) {
+		if (Math.abs(dx) < Player$9.WIDTH && Math.abs(dy) < Player$9.HEIGHT) {
 			const dist = Math.sqrt(dx * dx + dy * dy);
 			let nx = 0;
 			let ny = 0;
@@ -10972,14 +11206,14 @@ function applyCollisions(players) {
 				nx = dx / dist;
 				ny = dy / dist;
 			}
-			p1.vx += nx * Player$8.BOUNCE_X;
-			p1.vy += ny * Player$8.BOUNCE_Y;
-			p2.vx -= nx * Player$8.BOUNCE_X;
-			p2.vy -= ny * Player$8.BOUNCE_Y;
+			p1.vx += nx * Player$9.BOUNCE_X;
+			p1.vy += ny * Player$9.BOUNCE_Y;
+			p2.vx -= nx * Player$9.BOUNCE_X;
+			p2.vy -= ny * Player$9.BOUNCE_Y;
 		}
 	}
 }
-function getVectorToReachTarget$1(X, Y, N, g) {
+function getVectorToReachTarget$2(X, Y, N, g) {
 	if (X === 0) return {
 		x: 0,
 		y: Y > 0 ? N : -N,
@@ -11047,7 +11281,7 @@ function drawPlayerToTarget$1(ctx, srcX, srcY, destX, destY, color) {
 		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
 		ctx.stroke();
 	}
-	const velocity = getVectorToReachTarget$1(X, Y, Player$8.THROW, Ball$1.GRAVITY);
+	const velocity = getVectorToReachTarget$2(X, Y, Player$9.THROW, Ball$2.GRAVITY);
 	if (velocity.x === 0 || !velocity.success) {
 		const dx = destX - srcX;
 		const dy = destY - srcY;
@@ -11073,7 +11307,7 @@ function drawPlayerToTarget$1(ctx, srcX, srcY, destX, destY, color) {
 	}
 	const vx = velocity.x;
 	const vy = velocity.y;
-	const g = Ball$1.GRAVITY;
+	const g = Ball$2.GRAVITY;
 	const T = X / vx;
 	if (T <= 0) return;
 	const steps = 50;
@@ -11111,27 +11345,21 @@ function drawPlayerToTarget$1(ctx, srcX, srcY, destX, destY, color) {
 	ctx.strokeStyle = color;
 	drawCurve();
 }
-function getTexturePath(id) {
-	return `/assets/games/airbasket/skins/${id}/grid.png`;
-}
-function getIconPath$1(id) {
-	return window.IMG_ROOT_PATH + `/assets/games/airbasket/skins/${id}/icon.png`;
-}
 var GMAirBasket = class GMAirBasket extends GameMode {
 	static types = {
-		Player: Player$8,
+		Player: Player$9,
 		Bucket,
-		Ball: Ball$1
+		Ball: Ball$2
 	};
 	static DATA = {
-		GRAVITY: GRAVITY$1,
-		WIDTH: WIDTH$6,
-		HEIGHT: HEIGHT$6,
+		GRAVITY: GRAVITY$2,
+		WIDTH: WIDTH$7,
+		HEIGHT: HEIGHT$7,
 		X_LIMIT: X_LIMIT$1,
 		Y_LIMIT: Y_LIMIT$1
 	};
 	players;
-	ball = new Ball$1();
+	ball = new Ball$2();
 	buckets;
 	redScore = 0;
 	blueScore = 0;
@@ -11142,15 +11370,15 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	internalFrameTick = 0;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$8(0, 0));
-		this.buckets = BUCKET_POSITIONS.map(([x, y]) => new Bucket(x * WIDTH$6, y * HEIGHT$6));
+		this.players = Array.from({ length: total }, () => new Player$9(0, 0));
+		this.buckets = BUCKET_POSITIONS.map(([x, y]) => new Bucket(x * WIDTH$7, y * HEIGHT$7));
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$8.get();
+		const { StartData, StartDataClient } = protocols$9.get();
 		const game = new GMAirBasket(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom$9([]);
+			return generateClientDom$10([]);
 		}
 		const playerInfos = await Promise.all(game.players.map(async (p, i) => {
 			const d = decode(i);
@@ -11194,7 +11422,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		}
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = assigned[i];
-			p.initSpawn(redTeam ? -4800 : WIDTH$6 * 2, 0, redTeam ? "red" : "blue");
+			p.initSpawn(redTeam ? -4800 : WIDTH$7 * 2, 0, redTeam ? "red" : "blue");
 		}
 		return {
 			game,
@@ -11208,8 +11436,8 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	}
 	static createClient({ data, origin }, total) {
 		const game = new GMAirBasket(total);
-		const { StartData, StartDataClient } = protocols$8.get();
-		const clientData = new ClientData$9();
+		const { StartData, StartDataClient } = protocols$9.get();
+		const clientData = new ClientData$10();
 		const skinSet = /* @__PURE__ */ new Set();
 		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
@@ -11228,7 +11456,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			skinSet.add(skin);
 		}
 		console.log(skinSet);
-		const skins = Object.fromEntries([...skinSet].map((key) => ["skin-" + key, getTexturePath(key)]));
+		const skins = Object.fromEntries([...skinSet].map((key) => ["skin-" + key, GameMode.getSkinTexturePath(key)]));
 		return {
 			game,
 			data: clientData,
@@ -11236,7 +11464,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			skins
 		};
 	}
-	static generateClientDom = generateClientDom$9;
+	static generateClientDom = generateClientDom$10;
 	static SKINS = {
 		joe: "Joe",
 		luck: "Luck",
@@ -11251,7 +11479,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		"bucket-mid": "/assets/games/airbasket/bucket-mid.png",
 		"bucket-red": "/assets/games/airbasket/bucket-red.png",
 		"sky": "/assets/games/airbasket/sky.png",
-		"skin-joe": getTexturePath("joe")
+		"skin-joe": GameMode.getSkinTexturePath("joe")
 	};
 	static EXPLAINATION_SLIDES = [
 		"0.gif",
@@ -11268,8 +11496,8 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		const rect = {
 			x: player.x,
 			y: player.y,
-			w: Player$8.WIDTH,
-			h: Player$8.HEIGHT
+			w: Player$9.WIDTH,
+			h: Player$9.HEIGHT
 		};
 		for (const bucket of this.buckets) {
 			if (bucket.team !== null) continue;
@@ -11286,7 +11514,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		const circle = {
 			x: this.ball.x,
 			y: this.ball.y,
-			r: Ball$1.RADIUS
+			r: Ball$2.RADIUS
 		};
 		for (const bucket of this.buckets) {
 			if (bucket.team !== null) continue;
@@ -11326,7 +11554,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		}
 		if (this.isSuddenDeath() && this.redScore !== this.blueScore || this.redScore + this.blueScore >= this.buckets.length) this.finished = true;
 		for (const [idx, p] of this.players.entries()) p.move(dt, idx === this.ball.grabber);
-		applyCollisions(this.players);
+		applyCollisions$1(this.players);
 		if (this.ball.grabber >= 0) {
 			const grabber = this.players[this.ball.grabber];
 			if (!grabber.isAlive()) this.ball.eject();
@@ -11335,18 +11563,18 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 					const dx = grabber.target.x - grabber.x;
 					const dy = grabber.target.y - grabber.y;
 					if (dx !== 0 || dy !== 0) {
-						const { x, y } = getVectorToReachTarget$1(dx, dy, Player$8.THROW, Ball$1.GRAVITY);
+						const { x, y } = getVectorToReachTarget$2(dx, dy, Player$9.THROW, Ball$2.GRAVITY);
 						this.ball.vx = x;
 						this.ball.vy = y;
 						this.ball.removeGrabber();
 					}
 				} else if (grabber.target.type === "center") {
-					const ix = Math.trunc(grabber.x * 2 / WIDTH$6);
-					const iy = Math.trunc(grabber.y * 2 / HEIGHT$6);
-					const tx = Math.sign(ix) * Math.ceil(Math.abs(ix) / 2) * WIDTH$6;
-					const ty = Math.sign(iy) * Math.ceil(Math.abs(iy) / 2) * HEIGHT$6;
+					const ix = Math.trunc(grabber.x * 2 / WIDTH$7);
+					const iy = Math.trunc(grabber.y * 2 / HEIGHT$7);
+					const tx = Math.sign(ix) * Math.ceil(Math.abs(ix) / 2) * WIDTH$7;
+					const ty = Math.sign(iy) * Math.ceil(Math.abs(iy) / 2) * HEIGHT$7;
 					console.log(tx, ty, grabber.x, grabber.y);
-					const { x, y } = getVectorToReachTarget$1(tx - grabber.x, ty - grabber.y, Player$8.THROW, Ball$1.GRAVITY);
+					const { x, y } = getVectorToReachTarget$2(tx - grabber.x, ty - grabber.y, Player$9.THROW, Ball$2.GRAVITY);
 					this.ball.vx = x;
 					this.ball.vy = y;
 					this.ball.removeGrabber();
@@ -11394,7 +11622,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 				player.dir = 0;
 				break;
 			case "jump":
-				if (this.ball.grabber !== playerIdx) player.vy = -Player$8.JUMP;
+				if (this.ball.grabber !== playerIdx) player.vy = -Player$9.JUMP;
 				break;
 			case "downOn":
 				player.pushDown = true;
@@ -11489,15 +11717,15 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	}
 	getBallDrawCoords() {
 		return {
-			x: this.ball.x - Ball$1.RADIUS / 2,
-			y: this.ball.y - Ball$1.RADIUS / 2
+			x: this.ball.x - Ball$2.RADIUS / 2,
+			y: this.ball.y - Ball$2.RADIUS / 2
 		};
 	}
 	drawMinimap(ctx, playerIdx) {
-		const mapWidth = WIDTH$6 * 5;
-		const mapHeight = HEIGHT$6 * 3;
-		const MINIMAP_WIDTH = WIDTH$6 * MINIMAP_RATIO$1;
-		const MINIMAP_HEIGHT = HEIGHT$6 * MINIMAP_RATIO$1;
+		const mapWidth = WIDTH$7 * 5;
+		const mapHeight = HEIGHT$7 * 3;
+		const MINIMAP_WIDTH = WIDTH$7 * MINIMAP_RATIO$1;
+		const MINIMAP_HEIGHT = HEIGHT$7 * MINIMAP_RATIO$1;
 		ctx.save();
 		ctx.translate(MINIMAP_X$1, MINIMAP_Y$1);
 		ctx.scale(MINIMAP_WIDTH / mapWidth, MINIMAP_HEIGHT / mapHeight);
@@ -11506,28 +11734,28 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		ctx.fillRect(-6e3, -2025, mapWidth, mapHeight);
 		const player = this.players[playerIdx];
 		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) {
-			const cellX = -6e3 + x * WIDTH$6;
-			const cellY = -2025 + y * HEIGHT$6;
-			const ballInside = this.ball.x >= cellX && this.ball.x < cellX + WIDTH$6 && this.ball.y >= cellY && this.ball.y < cellY + HEIGHT$6;
-			const playerInside = player.x >= cellX && player.x < cellX + WIDTH$6 && player.y >= cellY && player.y < cellY + HEIGHT$6;
-			const bucketInside = this.buckets.some((bucket) => bucket.team === null && bucket.x >= cellX && bucket.x < cellX + WIDTH$6 && bucket.y >= cellY && bucket.y < cellY + HEIGHT$6);
+			const cellX = -6e3 + x * WIDTH$7;
+			const cellY = -2025 + y * HEIGHT$7;
+			const ballInside = this.ball.x >= cellX && this.ball.x < cellX + WIDTH$7 && this.ball.y >= cellY && this.ball.y < cellY + HEIGHT$7;
+			const playerInside = player.x >= cellX && player.x < cellX + WIDTH$7 && player.y >= cellY && player.y < cellY + HEIGHT$7;
+			const bucketInside = this.buckets.some((bucket) => bucket.team === null && bucket.x >= cellX && bucket.x < cellX + WIDTH$7 && bucket.y >= cellY && bucket.y < cellY + HEIGHT$7);
 			if (ballInside) ctx.fillStyle = "rgba(255, 165, 0, 0.35)";
 			else if (playerInside) ctx.fillStyle = "rgba(255, 255, 0, 0.35)";
 			else if (bucketInside) ctx.fillStyle = "rgba(0, 128, 0, 0.35)";
 			else continue;
-			ctx.fillRect(cellX, cellY, WIDTH$6, HEIGHT$6);
+			ctx.fillRect(cellX, cellY, WIDTH$7, HEIGHT$7);
 		}
 		ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
 		ctx.lineWidth = 1 / (MINIMAP_WIDTH / mapWidth);
 		for (let x = 1; x < 5; x++) {
-			const px = -6e3 + x * WIDTH$6;
+			const px = -6e3 + x * WIDTH$7;
 			ctx.beginPath();
 			ctx.moveTo(px, -2025);
 			ctx.lineTo(px, mapHeight / 2);
 			ctx.stroke();
 		}
 		for (let y = 1; y < 3; y++) {
-			const py = -2025 + y * HEIGHT$6;
+			const py = -2025 + y * HEIGHT$7;
 			ctx.beginPath();
 			ctx.moveTo(-6e3, py);
 			ctx.lineTo(mapWidth / 2, py);
@@ -11574,16 +11802,17 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		}
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#333";
-		ctx.fillRect(0, 0, WIDTH$6, HEIGHT$6);
+		ctx.fillRect(0, 0, WIDTH$7, HEIGHT$7);
 		{
 			const cameraCoords = data.camera.getCoords();
+			const shake = data.getShake();
 			ctx.save();
-			ctx.translate(WIDTH$6 / 2, HEIGHT$6 / 2);
+			ctx.translate(WIDTH$7 / 2 + shake.x, HEIGHT$7 / 2 + shake.y);
 			const scale = Camera$3.SCALE * (1 - addCamZ * .3);
 			ctx.scale(scale, scale);
 			ctx.translate(-cameraCoords.x, -cameraCoords.y);
 		}
-		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) ctx.drawImage(imageLoader.get("sky", y * 5 + x), (x - 2.5) * WIDTH$6, (y - 1.5) * HEIGHT$6, WIDTH$6, HEIGHT$6);
+		for (let y = 0; y < 3; y++) for (let x = 0; x < 5; x++) ctx.drawImage(imageLoader.get("sky", y * 5 + x), (x - 2.5) * WIDTH$7, (y - 1.5) * HEIGHT$7, WIDTH$7, HEIGHT$7);
 		for (const bucket of this.buckets) {
 			const b = "bucket-" + (bucket.team ?? "mid");
 			ctx.drawImage(imageLoader.get(b), bucket.x - Bucket.SIZE / 2, bucket.y - Bucket.SIZE / 2, Bucket.SIZE, Bucket.SIZE);
@@ -11595,13 +11824,13 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			const playerTexture = imageLoader.get("skin-" + data.skins[idx]);
 			const w = playerTexture.width / 6;
 			const h = playerTexture.height / 4;
-			const width = Player$8.WIDTH * 4 / 3;
+			const width = Player$9.WIDTH * 4 / 3;
 			ctx.save();
 			if (dir) {
-				ctx.translate(p.x + width / 2, p.y - Player$8.HEIGHT / 2);
+				ctx.translate(p.x + width / 2, p.y - Player$9.HEIGHT / 2);
 				ctx.scale(-1, 1);
-				ctx.drawImage(playerTexture, tx * w, ty * h, w, h, 0, 0, width, Player$8.HEIGHT);
-			} else ctx.drawImage(playerTexture, tx * w, ty * h, w, h, p.x - width / 2, p.y - Player$8.HEIGHT / 2, width, Player$8.HEIGHT);
+				ctx.drawImage(playerTexture, tx * w, ty * h, w, h, 0, 0, width, Player$9.HEIGHT);
+			} else ctx.drawImage(playerTexture, tx * w, ty * h, w, h, p.x - width / 2, p.y - Player$9.HEIGHT / 2, width, Player$9.HEIGHT);
 			ctx.restore();
 		}
 		const youAlpha = data.getYouAlpha(this, playerIdx);
@@ -11615,14 +11844,14 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			ctx.fillStyle = "white";
 			ctx.strokeStyle = "#333";
 			ctx.lineWidth = 8;
-			const labelY = p.y - Player$8.HEIGHT / 2 - 12;
+			const labelY = p.y - Player$9.HEIGHT / 2 - 12;
 			ctx.strokeText("You", p.x, labelY);
 			ctx.fillText("You", p.x, labelY);
 			ctx.restore();
 		}
 		if (this.ball.grabber < 0) {
 			const drawBallCoords = this.getBallDrawCoords();
-			ctx.drawImage(imageLoader.get("ball"), drawBallCoords.x - Ball$1.RADIUS / 2, drawBallCoords.y - Ball$1.RADIUS / 2, Ball$1.RADIUS, Ball$1.RADIUS);
+			ctx.drawImage(imageLoader.get("ball"), drawBallCoords.x - Ball$2.RADIUS / 2, drawBallCoords.y - Ball$2.RADIUS / 2, Ball$2.RADIUS, Ball$2.RADIUS);
 		}
 		{
 			const player = this.players[playerIdx];
@@ -11631,6 +11860,9 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 			else color = this.ball.prevGrabber !== playerIdx;
 			drawPlayerToTarget$1(ctx, player.x, player.y, data.mouseX, data.mouseY, color);
 		}
+		data.drawBallFx(ctx);
+		data.drawBucketFx(ctx);
+		data.drawDeathFx(ctx);
 		ctx.restore();
 		this.drawMinimap(ctx, playerIdx);
 	}
@@ -11638,7 +11870,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$8.get();
+		const { State } = protocols$9.get();
 		const object = {
 			players: this.players.map((p) => p.save()),
 			prevBallGrabber: this.ball.prevGrabber,
@@ -11656,7 +11888,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$8.get();
+		const { State } = protocols$9.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) this.players[idx].load(player);
 		for (const [idx, bucket] of obj.buckets.entries()) if (!bucket.taken) this.buckets[idx].team = null;
@@ -11669,16 +11901,16 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$6,
-			height: HEIGHT$6
+			width: WIDTH$7,
+			height: HEIGHT$7
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _clientData) {
 		const clientData = _clientData;
 		const cameraCoords = clientData.camera.getCoords();
 		const ret = {
-			x: (x - WIDTH$6 / 2) / Camera$3.SCALE + cameraCoords.x,
-			y: (y - HEIGHT$6 / 2) / Camera$3.SCALE + cameraCoords.y
+			x: (x - WIDTH$7 / 2) / Camera$3.SCALE + cameraCoords.x,
+			y: (y - HEIGHT$7 / 2) / Camera$3.SCALE + cameraCoords.y
 		};
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;
@@ -11688,7 +11920,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		return null;
 	}
 	createTutorial() {
-		return new TutorialData$7(this);
+		return new TutorialData$8(this);
 	}
 	produceFinish() {
 		const redTeam = [];
@@ -11720,14 +11952,14 @@ function norm2(dx, dy) {
 }
 //#endregion
 //#region commons/gamemods/GMRoarsOnGlass.ts
-var protocols$7 = getProtocol("roarsOnGlass", "multiplayer");
-var WIDTH$5 = 1600;
-var HEIGHT$5 = 2800;
+var protocols$8 = getProtocol("roarsOnGlass", "multiplayer");
+var WIDTH$6 = 1600;
+var HEIGHT$6 = 2800;
 var POINTS_TO_WIN = 5;
 var TILE_SIZE = 150;
 var GRID_PADDING = 1.5;
-var GRID_W = Math.floor(WIDTH$5 / TILE_SIZE) - GRID_PADDING * 2;
-var GRID_H = Math.floor(HEIGHT$5 / TILE_SIZE) - GRID_PADDING * 2;
+var GRID_W = Math.floor(WIDTH$6 / TILE_SIZE) - GRID_PADDING * 2;
+var GRID_H = Math.floor(HEIGHT$6 / TILE_SIZE) - GRID_PADDING * 2;
 var PLAYER_SIZE = 100;
 var PLAYER_ROUND = 20;
 var SPEED = 400;
@@ -11735,10 +11967,12 @@ var ACCELERATION = 2e3;
 var SOFT_DECELERATION = 1e3;
 var ROAR_COOLDOWN = 3;
 var ROAR_CAST_TIME = 1;
-var ROAR_RADIUS = 200;
+var ROAR_RADIUS = 150;
+var ROAR_START_RADIUS = PLAYER_SIZE;
 var PUSH_SPEED = 800;
+var ROAR_EXPANSION_SPEED = 400;
 var SPEED_REDUCOR = 800;
-var Player$7 = class {
+var Player$8 = class {
 	x;
 	y;
 	spawnX = null;
@@ -11813,7 +12047,35 @@ var Player$7 = class {
 		return this.prevRotation;
 	}
 };
-var ClientData$8 = class ClientData$8 {
+var Roar = class {
+	x;
+	y;
+	ownerId;
+	radius = ROAR_START_RADIUS;
+	constructor(x, y, ownerId) {
+		this.x = x;
+		this.y = y;
+		this.ownerId = ownerId;
+	}
+	load(obj) {
+		this.x = obj.x;
+		this.y = obj.y;
+		this.radius = obj.radius;
+		this.ownerId = obj.ownerId;
+	}
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			radius: this.radius,
+			ownerId: this.ownerId
+		};
+	}
+	run(dt) {
+		this.radius += ROAR_EXPANSION_SPEED * dt;
+	}
+};
+var ClientData$9 = class ClientData$9 {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
@@ -11827,14 +12089,11 @@ var ClientData$8 = class ClientData$8 {
 	static YOU_AFTER_DEATH = 5e3;
 	static FADE_SPEED = .08;
 	html;
-	time;
 	redScore;
 	blueScore;
 	constructor() {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-roarsOnGlass-root");
-		this.time = document.createElement("div");
-		this.time.classList.add("game-roarsOnGlass-time");
 		const scores = document.createElement("div");
 		scores.classList.add("game-roarsOnGlass-scores");
 		this.redScore = document.createElement("div");
@@ -11847,13 +12106,11 @@ var ClientData$8 = class ClientData$8 {
 		scores.appendChild(tiret);
 		scores.appendChild(this.blueScore);
 		this.html.appendChild(scores);
-		this.html.appendChild(this.time);
 	}
 	static showTime(time) {
 		return `${Math.floor(time / 60)}:${(time % 60).toFixed(1).padStart(4, "0")}`;
 	}
 	update(game, playerIdx) {
-		if (game.time < 60) this.time.innerText = ClientData$8.showTime(game.time);
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
 		const player = game.players[playerIdx];
@@ -11863,24 +12120,24 @@ var ClientData$8 = class ClientData$8 {
 	getYouAlpha(game, playerIdx) {
 		const player = game.players[playerIdx];
 		let shouldShow;
-		if (player.isAlive()) shouldShow = performance.now() - this.deathTime <= ClientData$8.YOU_AFTER_DEATH;
+		if (player.isAlive()) shouldShow = performance.now() - this.deathTime <= ClientData$9.YOU_AFTER_DEATH;
 		else shouldShow = false;
-		if (shouldShow) this.youOpacity = Math.min(1, this.youOpacity + ClientData$8.FADE_SPEED);
-		else this.youOpacity = Math.max(0, this.youOpacity - ClientData$8.FADE_SPEED);
-		return ClientData$8.animateOpacity(this.youOpacity);
+		if (shouldShow) this.youOpacity = Math.min(1, this.youOpacity + ClientData$9.FADE_SPEED);
+		else this.youOpacity = Math.max(0, this.youOpacity - ClientData$9.FADE_SPEED);
+		return ClientData$9.animateOpacity(this.youOpacity);
 	}
 	static animateOpacity(x) {
 		return (1 - Math.exp(-5 * x)) / (1 - Math.exp(-5));
 	}
 };
-function generateClientDom$8(unlockedSkins) {
+function generateClientDom$9(unlockedSkins) {
 	return {
 		skin: Object.keys(GMRoarsOnGlass.SKINS)[0],
 		preferTeam: 0,
 		SKINS: GMRoarsOnGlass.SKINS,
 		unlockedSkins,
 		produce() {
-			const { StartData } = protocols$7.get();
+			const { StartData } = protocols$8.get();
 			return StartData.encode({
 				skin: this.skin,
 				preferTeam: this.preferTeam
@@ -11892,7 +12149,7 @@ function generateClientDom$8(unlockedSkins) {
 		getSkinIconPath: (id) => window.IMG_ROOT_PATH + `/assets/games/test/skins/${id}/icon.png`
 	};
 }
-var TutorialData$6 = class {
+var TutorialData$7 = class {
 	game;
 	constructor(game) {
 		this.game = game;
@@ -11919,8 +12176,9 @@ var TutorialData$6 = class {
 	}
 };
 var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
-	static types = { Player: Player$7 };
+	static types = { Player: Player$8 };
 	players;
+	roars = [];
 	grid = [];
 	redScore = 0;
 	blueScore = 0;
@@ -11929,7 +12187,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 	isRoundEnding = false;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$7(0, 0));
+		this.players = Array.from({ length: total }, () => new Player$8(0, 0));
 		this.initGrid();
 	}
 	static TEXTURES = {
@@ -11948,16 +12206,17 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 	}
 	resetRound() {
 		this.initGrid();
+		this.roars = [];
 		for (let p of this.players) if (p.spawnX !== null && p.spawnY !== null) p.initSpawn(p.spawnX, p.spawnY, p.team);
 		this.isRoundEnding = false;
 		this.roundTimer = 0;
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$7.get();
+		const { StartData, StartDataClient } = protocols$8.get();
 		const game = new GMRoarsOnGlass(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom$8([]);
+			return generateClientDom$9([]);
 		}
 		const playerInfos = await Promise.all(game.players.map(async (p, i) => {
 			const d = decode(i);
@@ -12001,7 +12260,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		}
 		for (const [i, p] of game.players.entries()) {
 			const redTeam = assigned[i];
-			const spawnX = WIDTH$5 / 2;
+			const spawnX = WIDTH$6 / 2;
 			const spawnY = redTeam ? 2.5 * TILE_SIZE : 15.5 * TILE_SIZE;
 			p.initSpawn(spawnX, spawnY, redTeam ? "red" : "blue");
 		}
@@ -12017,8 +12276,8 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 	}
 	static createClient({ data, origin }, total) {
 		const game = new GMRoarsOnGlass(total);
-		const { StartDataClient } = protocols$7.get();
-		const clientData = new ClientData$8();
+		const { StartDataClient } = protocols$8.get();
+		const clientData = new ClientData$9();
 		if (origin === "server") {
 			const decoded = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of decoded.players.entries()) {
@@ -12027,7 +12286,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			}
 		} else for (const [i, p] of game.players.entries()) {
 			const redTeam = i % 2 === 0;
-			const spawnX = WIDTH$5 / 2;
+			const spawnX = WIDTH$6 / 2;
 			const spawnY = redTeam ? 2.5 * TILE_SIZE : 15.5 * TILE_SIZE;
 			p.initSpawn(spawnX, spawnY, redTeam ? "red" : "blue");
 		}
@@ -12038,7 +12297,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$8;
+	static generateClientDom = generateClientDom$9;
 	static SKINS = { "default": "Default" };
 	static SKINS_IDS = Object.keys(GMRoarsOnGlass.SKINS);
 	init() {}
@@ -12156,6 +12415,11 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			}
 		}
 	}
+	roar(player) {
+		player.roarTimer = ROAR_CAST_TIME;
+		player.roarCooldown = ROAR_COOLDOWN;
+		this.roars.push(new Roar(player.x, player.y, this.players.indexOf(player)));
+	}
 	run(dt, produceFinish) {
 		this.time -= dt;
 		if (this.time <= 0 && produceFinish) return this.produceFinish();
@@ -12198,25 +12462,30 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		}
 		for (let p of this.players) {
 			if (!p.isAlive()) continue;
-			if (p.isRoaring && p.roarCooldown <= 0 && p.pushTimer <= 0) {
-				p.roarTimer = ROAR_CAST_TIME;
-				p.roarCooldown = ROAR_COOLDOWN;
-				for (let e of this.players) if (e !== p && e.team !== p.team && e.isAlive()) {
-					if (collisions.RotatedRoundedRectCircle({
-						x: e.x,
-						y: e.y,
-						w: PLAYER_SIZE,
-						h: PLAYER_SIZE,
-						radius: PLAYER_ROUND,
-						a: p.getRotation()
-					}, {
-						x: p.x,
-						y: p.y,
-						r: ROAR_RADIUS
-					})) {
-						const dx = e.x - p.x;
-						const dy = e.y - p.y;
-						const invNorm = PUSH_SPEED / Math.sqrt(dx * dx + dy * dy);
+			if (p.isRoaring && p.roarCooldown <= 0 && p.pushTimer <= 0) this.roar(p);
+		}
+		for (const roar of this.roars) {
+			roar.run(dt);
+			const p = this.players[roar.ownerId];
+			if (!p) continue;
+			for (const e of this.players) if (e !== p && e.team !== p.team && e.isAlive()) {
+				if (collisions.RotatedRoundedRectCircle({
+					x: e.x,
+					y: e.y,
+					w: PLAYER_SIZE,
+					h: PLAYER_SIZE,
+					radius: PLAYER_ROUND,
+					a: p.getRotation()
+				}, {
+					x: roar.x,
+					y: roar.y,
+					r: roar.radius
+				})) {
+					const dx = e.x - roar.x;
+					const dy = e.y - roar.y;
+					const distance = Math.sqrt(dx * dx + dy * dy);
+					if (distance > 0) {
+						const invNorm = PUSH_SPEED / distance;
 						e.vx = dx * invNorm;
 						e.vy = dy * invNorm;
 						e.pushTimer = 1;
@@ -12224,6 +12493,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 				}
 			}
 		}
+		this.roars = this.roars.filter((roar) => roar.radius < ROAR_RADIUS);
 		let redAliveCount = 0;
 		let blueAliveCount = 0;
 		for (let p of this.players) {
@@ -12280,9 +12550,9 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			p.y += p.vy * dt;
 			this.handlePlayerCollisions();
 			if (p.x < 0) p.x = 0;
-			if (p.x > WIDTH$5) p.x = WIDTH$5;
+			if (p.x > WIDTH$6) p.x = WIDTH$6;
 			if (p.y < 0) p.y = 0;
-			if (p.y > HEIGHT$5) p.y = HEIGHT$5;
+			if (p.y > HEIGHT$6) p.y = HEIGHT$6;
 		}
 		if (redAliveCount === 0 || blueAliveCount === 0) {
 			this.isRoundEnding = true;
@@ -12371,7 +12641,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		if (data.firstFrame) data.firstFrame = false;
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#039";
-		ctx.fillRect(0, 0, WIDTH$5, HEIGHT$5);
+		ctx.fillRect(0, 0, WIDTH$6, HEIGHT$6);
 		ctx.save();
 		const brokenTexture = imageLoader.get("broken");
 		const glassTexture = imageLoader.get("glass");
@@ -12398,6 +12668,13 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		}
 		const redPlayer = imageLoader.get("red-player");
 		const bluePlayer = imageLoader.get("blue-player");
+		for (const roar of this.roars) {
+			ctx.strokeStyle = this.players[roar.ownerId].team === "red" ? "#ff0044" : "#0044ff";
+			ctx.lineWidth = 12;
+			ctx.beginPath();
+			ctx.arc(roar.x, roar.y, roar.radius, 0, 2 * Math.PI);
+			ctx.stroke();
+		}
 		for (let i = 0; i < this.players.length; i++) {
 			const p = this.players[i];
 			if (!p.isAlive()) continue;
@@ -12447,7 +12724,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$7.get();
+		const { State } = protocols$8.get();
 		return State.encode({
 			players: this.players.map((p) => p.save()),
 			grid: this.grid.flat(),
@@ -12455,11 +12732,12 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 			blueScore: this.blueScore,
 			time: this.time,
 			roundTimer: this.roundTimer,
-			isRoundEnding: this.isRoundEnding
+			isRoundEnding: this.isRoundEnding,
+			roars: this.roars.map((roar) => roar.save())
 		}).finish();
 	}
 	load(data) {
-		const { State } = protocols$7.get();
+		const { State } = protocols$8.get();
 		const obj = State.decode(data);
 		for (let i = 0; i < this.players.length; i++) if (obj.players[i]) this.players[i].load(obj.players[i]);
 		this.redScore = obj.redScore;
@@ -12467,12 +12745,17 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		this.time = obj.time;
 		this.roundTimer = obj.roundTimer;
 		this.isRoundEnding = obj.isRoundEnding;
+		this.roars = (obj.roars ?? []).map((obj) => {
+			const roar = new Roar(0, 0, 0);
+			roar.load(obj);
+			return roar;
+		});
 		if (obj.grid && obj.grid.length === 105) for (let y = 0; y < GRID_H; y++) for (let x = 0; x < GRID_W; x++) this.grid[y][x] = obj.grid[y * GRID_W + x];
 	}
 	getSize() {
 		return {
-			width: WIDTH$5,
-			height: HEIGHT$5
+			width: WIDTH$6,
+			height: HEIGHT$6
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _data) {
@@ -12502,7 +12785,7 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$6(this);
+		return new TutorialData$7(this);
 	}
 	produceFinish() {
 		let results = [];
@@ -12524,13 +12807,13 @@ var GMRoarsOnGlass = class GMRoarsOnGlass extends GameMode {
 };
 //#endregion
 //#region commons/gamemods/GMSuperTicTacToe.ts
-var protocols$6 = getProtocol("superTicTacToe", "multiplayer");
+var protocols$7 = getProtocol("superTicTacToe", "multiplayer");
 var CELL_SIZE$1 = 100;
 var SUBGRID_SIZE = 300;
 var BOARD_SIZE$1 = SUBGRID_SIZE * 3;
 var BOARD_MARGIN = 60;
-var WIDTH$4 = 1020;
-var HEIGHT$4 = 1020;
+var WIDTH$5 = 1020;
+var HEIGHT$5 = 1020;
 var WIN_LINES$1 = [
 	[
 		0,
@@ -12589,14 +12872,15 @@ function findLineWinner(values) {
 	for (const [a, b, c] of WIN_LINES$1) if (values[a].taken && values[b].taken && values[c].taken && values[a].isRed === values[b].isRed && values[b].isRed === values[c].isRed) return values[a].isRed ? "red" : "blue";
 	return null;
 }
-var Player$6 = class {
+var Player$7 = class {
 	connected = true;
 	team = "red";
 };
-var ClientData$7 = class {
+var ClientData$8 = class {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
+	finishedAt = null;
 	html;
 	statusLine;
 	you;
@@ -12621,6 +12905,7 @@ var ClientData$7 = class {
 	*/
 	update(game, playerIdx) {
 		if (game.finished) {
+			if (this.finishedAt === null) this.finishedAt = performance.now();
 			this.you.classList.add("game-superTicTacToe-disabled");
 			this.opponent.classList.add("game-superTicTacToe-disabled");
 			return;
@@ -12631,7 +12916,7 @@ var ClientData$7 = class {
 		this.opponent.classList.toggle("game-superTicTacToe-disabled", isYourTurn);
 	}
 };
-var TutorialData$5 = class {
+var TutorialData$6 = class {
 	game;
 	shown = false;
 	constructor(game) {
@@ -12651,20 +12936,20 @@ var TutorialData$5 = class {
 		return "Playing a cell sends your opponent to the matching sub-grid!";
 	}
 };
-function generateClientDom$7() {
+function generateClientDom$8() {
 	return {
 		preferTeam: 0,
 		produce() {
-			const { StartData } = protocols$6.get();
+			const { StartData } = protocols$7.get();
 			return StartData.encode({ preferTeam: this.preferTeam }).finish();
 		}
 	};
 }
 var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
-	static types = { Player: Player$6 };
+	static types = { Player: Player$7 };
 	static DATA = {
-		WIDTH: WIDTH$4,
-		HEIGHT: HEIGHT$4,
+		WIDTH: WIDTH$5,
+		HEIGHT: HEIGHT$5,
 		CELL_SIZE: CELL_SIZE$1,
 		SUBGRID_SIZE,
 		BOARD_SIZE: BOARD_SIZE$1,
@@ -12680,13 +12965,13 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 	winner = null;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$6());
+		this.players = Array.from({ length: total }, () => new Player$7());
 		this.cells = Array.from({ length: 81 }, emptyCell);
 		this.subgridWinners = Array.from({ length: 9 }, emptyCell);
 		this.subgridFull = Array.from({ length: 9 }, () => false);
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$6.get();
+		const { StartData, StartDataClient } = protocols$7.get();
 		const game = new GMSuperTicTacToe(total);
 		function decodePreference(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data)).preferTeam ?? 0;
@@ -12710,8 +12995,8 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 	}
 	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMSuperTicTacToe(total);
-		const { StartDataClient } = protocols$6.get();
-		const clientData = new ClientData$7(playerIdx);
+		const { StartDataClient } = protocols$7.get();
+		const clientData = new ClientData$8(playerIdx);
 		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) game.players[idx].team = p.isRed ? "red" : "blue";
@@ -12726,7 +13011,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$7;
+	static generateClientDom = generateClientDom$8;
 	static TEXTURES = {};
 	static EXPLAINATION_SLIDES = [
 		"0.png",
@@ -12879,7 +13164,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		if (data.firstFrame) data.firstFrame = false;
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#1e1e24";
-		ctx.fillRect(0, 0, WIDTH$4, HEIGHT$4);
+		ctx.fillRect(0, 0, WIDTH$5, HEIGHT$5);
 		ctx.save();
 		ctx.translate(BOARD_MARGIN, BOARD_MARGIN);
 		ctx.fillStyle = "#f4f1ea";
@@ -12944,13 +13229,67 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 			ctx.lineWidth = 3;
 			ctx.strokeRect(hgx * CELL_SIZE$1 + 2, hgy * CELL_SIZE$1 + 2, 96, 96);
 		}
+		if (this.finished && this.winner && this.winner !== "draw" && data.finishedAt !== null) {
+			const BEGIN_DURATION = .5;
+			const elapsedSeconds = (performance.now() - data.finishedAt) / 1e3;
+			if (elapsedSeconds > BEGIN_DURATION) {
+				let winningLine = null;
+				for (const line of WIN_LINES$1) {
+					const [a, b, c] = line;
+					if (this.subgridWinners[a].taken && this.subgridWinners[b].taken && this.subgridWinners[c].taken && this.subgridWinners[a].isRed === this.subgridWinners[b].isRed && this.subgridWinners[b].isRed === this.subgridWinners[c].isRed) {
+						winningLine = line;
+						break;
+					}
+				}
+				if (winningLine) {
+					const progress = Math.min(1, elapsedSeconds - BEGIN_DURATION);
+					const p = 1 - Math.pow(1 - progress, 3);
+					const [a, , c] = winningLine;
+					const getCenter = (idx) => ({
+						x: idx % 3 * SUBGRID_SIZE + SUBGRID_SIZE / 2,
+						y: Math.floor(idx / 3) * SUBGRID_SIZE + SUBGRID_SIZE / 2
+					});
+					const startCenter = getCenter(a);
+					const endCenter = getCenter(c);
+					const dx = endCenter.x - startCenter.x;
+					const dy = endCenter.y - startCenter.y;
+					const len = Math.hypot(dx, dy);
+					const nx = dx / len;
+					const ny = dy / len;
+					const extension = SUBGRID_SIZE * .4;
+					const startX = startCenter.x - nx * extension;
+					const startY = startCenter.y - ny * extension;
+					const finalX = endCenter.x + nx * extension;
+					const finalY = endCenter.y + ny * extension;
+					const currentX = startX + (finalX - startX) * p;
+					const currentY = startY + (finalY - startY) * p;
+					const winnerColor = this.winner === "red" ? "#e63946" : "#3a86ff";
+					ctx.beginPath();
+					ctx.moveTo(startX, startY);
+					ctx.lineTo(currentX, currentY);
+					ctx.lineWidth = 38;
+					ctx.lineCap = "butt";
+					ctx.lineJoin = "miter";
+					ctx.strokeStyle = "#222222";
+					ctx.stroke();
+					ctx.beginPath();
+					ctx.moveTo(startX, startY);
+					ctx.lineTo(currentX, currentY);
+					ctx.lineWidth = 28;
+					ctx.lineCap = "butt";
+					ctx.lineJoin = "miter";
+					ctx.strokeStyle = winnerColor;
+					ctx.stroke();
+				}
+			}
+		}
 		ctx.restore();
 	}
 	onDisconnection(id) {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$6.get();
+		const { State } = protocols$7.get();
 		const object = {
 			cells: this.cells.map((c) => ({
 				taken: c.taken,
@@ -12970,7 +13309,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$6.get();
+		const { State } = protocols$7.get();
 		const obj = decodeFullMessage(State.decode(data));
 		this.cells = obj.cells.map((c) => ({
 			taken: c.taken,
@@ -12990,8 +13329,8 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$4,
-			height: HEIGHT$4
+			width: WIDTH$5,
+			height: HEIGHT$5
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _clientData) {
@@ -13010,7 +13349,7 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$5(this);
+		return new TutorialData$6(this);
 	}
 	/**
 	* Builds the FinishGame payload once the match is over. Each team
@@ -13039,8 +13378,8 @@ var GMSuperTicTacToe = class GMSuperTicTacToe extends GameMode {
 };
 //#endregion
 //#region commons/gamemods/GMTest.ts
-var protocols$5 = getProtocol("test", "multiplayer");
-var Player$5 = class {
+var protocols$6 = getProtocol("test", "multiplayer");
+var Player$6 = class {
 	x;
 	y;
 	team;
@@ -13057,12 +13396,12 @@ var Player$5 = class {
 		this.move = obj.move;
 	}
 };
-var ClientData$6 = class {};
-function generateClientDom$6() {
+var ClientData$7 = class {};
+function generateClientDom$7() {
 	return {
 		choosen: 0,
 		produce() {
-			const { StartData } = protocols$5.get();
+			const { StartData } = protocols$6.get();
 			return StartData.encode({ testNumber: this.choosen }).finish();
 		}
 	};
@@ -13073,11 +13412,11 @@ var Tutorial = class {
 	}
 };
 var GMTest = class GMTest extends GameMode {
-	static types = { Player: Player$5 };
+	static types = { Player: Player$6 };
 	players;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$5(0, 0, "red"));
+		this.players = Array.from({ length: total }, () => new Player$6(0, 0, "red"));
 	}
 	static async createServ(players, total) {
 		const game = new GMTest(total);
@@ -13102,12 +13441,12 @@ var GMTest = class GMTest extends GameMode {
 		}
 		return {
 			game,
-			data: new ClientData$6(),
+			data: new ClientData$7(),
 			html: null,
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$6;
+	static generateClientDom = generateClientDom$7;
 	static TEXTURES = {};
 	init() {}
 	getBotIds(count) {
@@ -13149,11 +13488,11 @@ var GMTest = class GMTest extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$5.get();
+		const { State } = protocols$6.get();
 		return State.encode(this).finish();
 	}
 	load(data) {
-		const { State } = protocols$5.get();
+		const { State } = protocols$6.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) this.players[idx].update(player);
 	}
@@ -13223,7 +13562,7 @@ var SoloGameMode = class SoloGameMode {
 };
 //#endregion
 //#region commons/gamemods/GMTestSolo.ts
-function generateClientDom$5() {
+function generateClientDom$6() {
 	return {
 		category: "default",
 		produce() {
@@ -13231,17 +13570,17 @@ function generateClientDom$5() {
 		}
 	};
 }
-var ClientData$5 = class {};
+var ClientData$6 = class {};
 var GMTestSolo = class GMTestSolo extends SoloGameMode {
 	static TEXTURES = {};
 	static CATEGORIES = ["default"];
 	static MIN_FIRST = true;
-	static generateClientDom = generateClientDom$5;
+	static generateClientDom = generateClientDom$6;
 	static create = () => new GMTestSolo();
 	player = 500;
 	move = 0;
 	init(category, rng, generateClientData) {
-		if (generateClientData) return new ClientData$5();
+		if (generateClientData) return new ClientData$6();
 	}
 	collectInputs(keyboard, mouse, mobile, data) {
 		const inputs = [];
@@ -13280,22 +13619,22 @@ var GMTestSolo = class GMTestSolo extends SoloGameMode {
 };
 //#endregion
 //#region commons/gamemods/GMTurrets.ts
-var protocols$4 = getProtocol("turrets", "multiplayer");
-var GRAVITY = 1100;
-var WIDTH$3 = 2400;
-var HEIGHT$3 = 1350;
-var FULL_ROOM_SIZE = WIDTH$3 * 2.5;
-var ROOM_SIZE = WIDTH$3 * 1.5;
-var BRIDGE_SIZE = WIDTH$3 * .3;
+var protocols$5 = getProtocol("turrets", "multiplayer");
+var GRAVITY$1 = 1100;
+var WIDTH$4 = 2400;
+var HEIGHT$4 = 1350;
+var FULL_ROOM_SIZE = WIDTH$4 * 2.5;
+var ROOM_SIZE = WIDTH$4 * 1.5;
+var BRIDGE_SIZE = WIDTH$4 * .3;
 var BULLET_DAMAGE = 15;
-var TURRET_RADIUS$1 = WIDTH$3 * .6;
+var TURRET_RADIUS$1 = WIDTH$4 * .6;
 var TURRET_ACTIVATION = 2e3;
 var TURRET_COOLDOWN = 2;
 var TURRET_HP$1 = 1200;
 var TURRET_START_COOLDOWN = 5;
 var TURRET_ITEM_DAMAGES = 500;
-var MINIMAP_X = WIDTH$3 * .79;
-var MINIMAP_Y = HEIGHT$3 * .01;
+var MINIMAP_X = WIDTH$4 * .79;
+var MINIMAP_Y = HEIGHT$4 * .01;
 var MINIMAP_RATIO = .2;
 var STAR_DURATION = 10;
 var ITEM_COUNT = 3;
@@ -13389,7 +13728,7 @@ var SPAWN_COLORS = [
 		"blue"
 	]
 ];
-var Player$4 = class Player$4 {
+var Player$5 = class Player$5 {
 	x;
 	y;
 	static SPEED = 2e3;
@@ -13420,18 +13759,18 @@ var Player$4 = class Player$4 {
 	vy = 0;
 	dirX = 0;
 	dirY = 0;
-	hp = Player$4.MAX_HP;
-	maxHp = Player$4.MAX_HP;
-	healCooldown = Player$4.HEAL_COOLDOWN;
+	hp = Player$5.MAX_HP;
+	maxHp = Player$5.MAX_HP;
+	healCooldown = Player$5.HEAL_COOLDOWN;
 	target = null;
 	team = "red";
 	items = Array(ITEM_COUNT).fill(-1);
 	selectedItem = -1;
 	starDuration = -1;
 	kills = 0;
-	attackMunitions = Player$4.ATTACK_FULL;
+	attackMunitions = Player$5.ATTACK_FULL;
 	attackCooldown = 0;
-	attackTimer = Player$4.ATTACK_DELAY;
+	attackTimer = Player$5.ATTACK_DELAY;
 	attackFullyReloading = false;
 	invincible = false;
 	speedMultiplier = 1;
@@ -13468,7 +13807,7 @@ var Player$4 = class Player$4 {
 		if (dirX === 0 && dirY === 0) {
 			const speed = Math.hypot(vx, vy);
 			if (speed === 0) return [0, 0];
-			const deceleration = Player$4.SOFT_DECELERATION * dt;
+			const deceleration = Player$5.SOFT_DECELERATION * dt;
 			if (speed <= deceleration) return [0, 0];
 			const factor = (speed - deceleration) / speed;
 			return [vx * factor, vy * factor];
@@ -13476,20 +13815,20 @@ var Player$4 = class Player$4 {
 		const speed = Math.hypot(vx, vy);
 		const forwardSpeed = vx * dirX + vy * dirY;
 		if (forwardSpeed < 0) {
-			const deceleration = Player$4.QUICK_DECELERATION * dt;
+			const deceleration = Player$5.QUICK_DECELERATION * dt;
 			if (speed <= deceleration) return [0, 0];
 			const factor = (speed - deceleration) / speed;
 			return [vx * factor, vy * factor];
 		}
 		const dirLength = Math.hypot(dirX, dirY);
-		const targetSpeed = Player$4.SPEED * speedMultiplier * dirLength;
+		const targetSpeed = Player$5.SPEED * speedMultiplier * dirLength;
 		if (forwardSpeed < targetSpeed) {
-			const acceleration = Player$4.ACCELERATION * dt;
+			const acceleration = Player$5.ACCELERATION * dt;
 			const newSpeed = Math.min(forwardSpeed + acceleration, targetSpeed);
 			return [dirX / dirLength * newSpeed, dirY / dirLength * newSpeed];
 		}
 		if (speed > targetSpeed) {
-			const deceleration = Player$4.MIN_DECELERATION * dt;
+			const deceleration = Player$5.MIN_DECELERATION * dt;
 			const newSpeed = Math.max(speed - deceleration, targetSpeed);
 			return [vx / speed * newSpeed, vy / speed * newSpeed];
 		}
@@ -13502,16 +13841,16 @@ var Player$4 = class Player$4 {
 			if (this.spawnX !== null) this.x = this.spawnX;
 			if (this.spawnY !== null) this.y = this.spawnY;
 			this.hp = this.maxHp;
-			this.attackMunitions = Player$4.ATTACK_FULL;
+			this.attackMunitions = Player$5.ATTACK_FULL;
 			this.attackFullyReloading = false;
 			this.attackCooldown = 0;
-			this.attackTimer = Player$4.ATTACK_DELAY;
+			this.attackTimer = Player$5.ATTACK_DELAY;
 		}
-		[this.vx, this.vy] = Player$4.applyMovement(this.dirX, this.dirY, this.vx, this.vy, dt, this.speedMultiplier);
+		[this.vx, this.vy] = Player$5.applyMovement(this.dirX, this.dirY, this.vx, this.vy, dt, this.speedMultiplier);
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 		if (this.healCooldown > 0) this.healCooldown -= dt;
-		if (this.healCooldown <= 0) this.hp = Math.min(this.hp + Player$4.HP_INC * dt, Player$4.MAX_HP);
+		if (this.healCooldown <= 0) this.hp = Math.min(this.hp + Player$5.HP_INC * dt, Player$5.MAX_HP);
 		this.avoidOOB();
 		if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
 	}
@@ -13565,16 +13904,16 @@ var Player$4 = class Player$4 {
 	}
 	avoidOOB() {
 		const LIMIT = FULL_ROOM_SIZE * 3;
-		const r = Player$4.RADIUS;
+		const r = Player$5.RADIUS;
 		this.x = Math.max(-18e3 + r, Math.min(LIMIT - r, this.x));
 		this.y = Math.max(-18e3 + r, Math.min(LIMIT - r, this.y));
 	}
 	die() {
 		this.vx = 0;
 		this.vy = 0;
-		this.alive = Player$4.COOLDOWN;
+		this.alive = Player$5.COOLDOWN;
 		this.hp = 0;
-		this.healCooldown = Player$4.HEAL_COOLDOWN;
+		this.healCooldown = Player$5.HEAL_COOLDOWN;
 	}
 	attackLogic(dt, idx, game) {
 		if (this.attackFullyReloading) {
@@ -13607,7 +13946,7 @@ var Player$4 = class Player$4 {
 			this.items[this.selectedItem] = nextItemId;
 			this.target = null;
 		}
-		this.attackCooldown = Player$4.ATTACK_COOLDOWN;
+		this.attackCooldown = Player$5.ATTACK_COOLDOWN;
 	}
 	/**
 	* Converts the current targeting system into a raw direction vector (dx, dy).
@@ -13636,15 +13975,15 @@ var Player$4 = class Player$4 {
 	executeStandardAttack(dt, idx, game) {
 		if (this.attackMunitions <= 0) return;
 		this.attackMunitions = Math.max(0, this.attackMunitions - dt);
-		this.attackCooldown = Player$4.ATTACK_COOLDOWN;
+		this.attackCooldown = Player$5.ATTACK_COOLDOWN;
 		this.attackTimer += dt;
 		if (this.attackMunitions <= 0) {
 			this.attackFullyReloading = true;
 			this.attackTimer = 0;
 			return;
 		}
-		if (this.attackTimer >= Player$4.ATTACK_DELAY) {
-			this.attackTimer -= Player$4.ATTACK_DELAY;
+		if (this.attackTimer >= Player$5.ATTACK_DELAY) {
+			this.attackTimer -= Player$5.ATTACK_DELAY;
 			const [dx, dy] = this.resolveTargetVector(game);
 			const baseAngle = Math.atan2(dy, dx);
 			for (const pat of Bullet.PATTERNS) {
@@ -13660,21 +13999,21 @@ var Player$4 = class Player$4 {
 		}
 	}
 	processReloading(dt) {
-		this.attackMunitions = Math.min(Player$4.ATTACK_FULL, this.attackMunitions + dt * Player$4.ATTACK_SLOW_RELOAD);
-		if (this.attackMunitions >= Player$4.ATTACK_FULL) {
-			this.attackMunitions = Player$4.ATTACK_FULL;
+		this.attackMunitions = Math.min(Player$5.ATTACK_FULL, this.attackMunitions + dt * Player$5.ATTACK_SLOW_RELOAD);
+		if (this.attackMunitions >= Player$5.ATTACK_FULL) {
+			this.attackMunitions = Player$5.ATTACK_FULL;
 			this.attackFullyReloading = false;
-			this.attackTimer = Player$4.ATTACK_DELAY;
+			this.attackTimer = Player$5.ATTACK_DELAY;
 		}
 	}
 	processAttackCooldowns(dt) {
-		this.attackTimer = Math.min(this.attackTimer + dt, Player$4.ATTACK_DELAY);
+		this.attackTimer = Math.min(this.attackTimer + dt, Player$5.ATTACK_DELAY);
 		if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
-		if (this.attackCooldown <= 0) this.attackMunitions = Math.min(Player$4.ATTACK_FULL, this.attackMunitions + dt * Player$4.ATTACK_RELOAD);
+		if (this.attackCooldown <= 0) this.attackMunitions = Math.min(Player$5.ATTACK_FULL, this.attackMunitions + dt * Player$5.ATTACK_RELOAD);
 	}
 	hit(damages, attacker) {
 		if (this.invincible || this.hp <= 0) return;
-		this.healCooldown = Player$4.HEAL_COOLDOWN;
+		this.healCooldown = Player$5.HEAL_COOLDOWN;
 		this.hp -= damages;
 		if (this.hp <= 0) {
 			this.die();
@@ -13691,18 +14030,18 @@ var Player$4 = class Player$4 {
 		ctx.save();
 		ctx.translate(this.x, this.y);
 		ctx.rotate(a);
-		ctx.drawImage(imageLoader.get("player-" + this.team), -Player$4.RADIUS * r / 2, -Player$4.RADIUS * r / 2, Player$4.RADIUS * r, Player$4.RADIUS * r);
+		ctx.drawImage(imageLoader.get("player-" + this.team), -Player$5.RADIUS * r / 2, -Player$5.RADIUS * r / 2, Player$5.RADIUS * r, Player$5.RADIUS * r);
 		ctx.restore();
 		const BAR_W = 80;
 		const BAR_H = 10;
 		const hpRatio = Math.max(0, this.hp / this.maxHp);
 		ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-		ctx.fillRect(this.x - BAR_W / 2, this.y - Player$4.RADIUS - 15, BAR_W, BAR_H);
+		ctx.fillRect(this.x - BAR_W / 2, this.y - Player$5.RADIUS - 15, BAR_W, BAR_H);
 		ctx.fillStyle = "#22cc22";
-		ctx.fillRect(this.x - BAR_W / 2, this.y - Player$4.RADIUS - 15, BAR_W * hpRatio, BAR_H);
+		ctx.fillRect(this.x - BAR_W / 2, this.y - Player$5.RADIUS - 15, BAR_W * hpRatio, BAR_H);
 		if (currentPlayer) {
-			const ratio = this.attackMunitions / Player$4.ATTACK_FULL;
-			const y = this.y - Player$4.RADIUS - 30;
+			const ratio = this.attackMunitions / Player$5.ATTACK_FULL;
+			const y = this.y - Player$5.RADIUS - 30;
 			ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
 			ctx.fillRect(this.x - BAR_W / 2, y, BAR_W, BAR_H);
 			if (this.attackFullyReloading) {
@@ -13716,9 +14055,9 @@ var Player$4 = class Player$4 {
 		if (this.starDuration > 0) {
 			const ratio = Math.min(1, this.starDuration / 6);
 			ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-			ctx.fillRect(this.x - BAR_W / 2, this.y - Player$4.RADIUS - 40, BAR_W, BAR_H);
+			ctx.fillRect(this.x - BAR_W / 2, this.y - Player$5.RADIUS - 40, BAR_W, BAR_H);
 			ctx.fillStyle = "yellow";
-			ctx.fillRect(this.x - BAR_W / 2, this.y - Player$4.RADIUS - 30, BAR_W * ratio, BAR_H);
+			ctx.fillRect(this.x - BAR_W / 2, this.y - Player$5.RADIUS - 30, BAR_W * ratio, BAR_H);
 		}
 		return a;
 	}
@@ -13731,7 +14070,7 @@ var Player$4 = class Player$4 {
 			return;
 		}
 		const hoverItemIdx = game.itemsInMap.findIndex((item) => {
-			return Math.hypot(item.x - this.x, item.y - this.y) <= ItemInMap.RADIUS + Player$4.RADIUS;
+			return Math.hypot(item.x - this.x, item.y - this.y) <= ItemInMap.RADIUS + Player$5.RADIUS;
 		});
 		if (hoverItemIdx !== -1) this.swapOrPickupItem(slot, hoverItemIdx, game);
 		else this.selectedItem = slot;
@@ -13750,7 +14089,7 @@ var Player$4 = class Player$4 {
 		return this.team;
 	}
 	getRadius() {
-		return Player$4.RADIUS;
+		return Player$5.RADIUS;
 	}
 };
 var Turret = class Turret {
@@ -14286,7 +14625,7 @@ var EBallon = class EBallon extends AbstractEntity {
 		};
 	}
 	detectsEnemy(game) {
-		const playerRange = this.radius + Player$4.RADIUS;
+		const playerRange = this.radius + Player$5.RADIUS;
 		const playerRange2 = playerRange * playerRange;
 		for (const p of game.players) if (p.isAlive() && p.team !== this.team && norm2(p.x - this.x, p.y - this.y) <= playerRange2) return true;
 		const turretRange = this.radius + Turret.SIZE;
@@ -14797,8 +15136,8 @@ var Camera$2 = class Camera$2 {
 			this.t = 0;
 			this.isTransitioning = true;
 		}
-		const viewHalfW = WIDTH$3 / (2 * Camera$2.SCALE);
-		const viewHalfH = HEIGHT$3 / (2 * Camera$2.SCALE);
+		const viewHalfW = WIDTH$4 / (2 * Camera$2.SCALE);
+		const viewHalfH = HEIGHT$4 / (2 * Camera$2.SCALE);
 		const minX = this.targetX - FULL_ROOM_SIZE / 2 + viewHalfW;
 		const maxX = this.targetX + FULL_ROOM_SIZE / 2 - viewHalfW;
 		const minY = this.targetY - FULL_ROOM_SIZE / 2 + viewHalfH;
@@ -14825,8 +15164,8 @@ var Camera$2 = class Camera$2 {
 		const { cx, cy } = this.getZoneCenter(px, py);
 		this.targetX = cx;
 		this.targetY = cy;
-		const viewHalfW = WIDTH$3 / (2 * Camera$2.SCALE);
-		const viewHalfH = HEIGHT$3 / (2 * Camera$2.SCALE);
+		const viewHalfW = WIDTH$4 / (2 * Camera$2.SCALE);
+		const viewHalfH = HEIGHT$4 / (2 * Camera$2.SCALE);
 		const minX = cx - FULL_ROOM_SIZE / 2 + viewHalfW;
 		const maxX = cx + FULL_ROOM_SIZE / 2 - viewHalfW;
 		const minY = cy - FULL_ROOM_SIZE / 2 + viewHalfH;
@@ -14843,7 +15182,7 @@ var Camera$2 = class Camera$2 {
 		};
 	}
 };
-var ClientData$4 = class ClientData$4 {
+var ClientData$5 = class ClientData$5 {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
@@ -14867,14 +15206,14 @@ var ClientData$4 = class ClientData$4 {
 		return `${Math.floor(time / 60)}:${(time % 60).toFixed(1).padStart(4, "0")}`;
 	}
 	update(game, playerIdx) {
-		this.time.innerText = ClientData$4.showTime(game.time);
+		this.time.innerText = ClientData$5.showTime(game.time);
 		const player = game.players[playerIdx];
 		if (this.clientWasDead && player.alive < 0) this.camera.teleport(player.x, player.y);
 		this.clientWasDead = player.alive >= 0;
 		this.camera.update(player.x, player.y, 1 / 60);
 	}
 };
-var TutorialData$4 = class {
+var TutorialData$5 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -14887,12 +15226,12 @@ var TutorialData$4 = class {
 		return "Placeholder";
 	}
 };
-function generateClientDom$4() {
+function generateClientDom$5() {
 	return {
 		skin: 0,
 		preferTeam: 0,
 		produce() {
-			const { StartData } = protocols$4.get();
+			const { StartData } = protocols$5.get();
 			return StartData.encode({
 				skin: this.skin,
 				preferTeam: this.preferTeam
@@ -14942,13 +15281,13 @@ function drawItemHand(ctx, x, y, size, itemId, slotIndex, isSelected, imageLoade
 }
 var GMTurrets = class GMTurrets extends GameMode {
 	static types = {
-		Player: Player$4,
+		Player: Player$5,
 		Turret
 	};
 	static DATA = {
-		GRAVITY,
-		WIDTH: WIDTH$3,
-		HEIGHT: HEIGHT$3
+		GRAVITY: GRAVITY$1,
+		WIDTH: WIDTH$4,
+		HEIGHT: HEIGHT$4
 	};
 	players;
 	turrets = [];
@@ -14964,7 +15303,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 	cycleStep = 0;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$4(0, 0));
+		this.players = Array.from({ length: total }, () => new Player$5(0, 0));
 		for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
 			this.turrets.push(new Turret(x * FULL_ROOM_SIZE, y * FULL_ROOM_SIZE, SPAWN_COLORS[y + 2][x + 2]));
 			const floorX = x * FULL_ROOM_SIZE;
@@ -14990,11 +15329,11 @@ var GMTurrets = class GMTurrets extends GameMode {
 		}
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$4.get();
+		const { StartData, StartDataClient } = protocols$5.get();
 		const game = new GMTurrets(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom$4();
+			return generateClientDom$5();
 		}
 		const playerInfos = game.players.map((p, i) => ({
 			player: p,
@@ -15041,7 +15380,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 	}
 	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMTurrets(total);
-		const { StartDataClient } = protocols$4.get();
+		const { StartDataClient } = protocols$5.get();
 		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
@@ -15049,7 +15388,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 			game.players[0].initSpawn(0, -200, "red");
 			game.players[1].initSpawn(0, 200, "blue");
 		}
-		const clientData = new ClientData$4();
+		const clientData = new ClientData$5();
 		return {
 			game,
 			data: clientData,
@@ -15057,7 +15396,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$4;
+	static generateClientDom = generateClientDom$5;
 	static TEXTURES = {
 		"player-blue": "/assets/games/turrets/player-blue.png",
 		"player-red": "/assets/games/turrets/player-red.png",
@@ -15334,7 +15673,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 	drawMinimap(ctx, playerIdx) {
 		const mapWidth = FULL_ROOM_SIZE * 5;
 		const mapHeight = FULL_ROOM_SIZE * 5;
-		const MINIMAP_SIZE = WIDTH$3 * MINIMAP_RATIO;
+		const MINIMAP_SIZE = WIDTH$4 * MINIMAP_RATIO;
 		ctx.save();
 		ctx.translate(MINIMAP_X, MINIMAP_Y);
 		ctx.scale(MINIMAP_SIZE / mapWidth, MINIMAP_SIZE / mapHeight);
@@ -15443,10 +15782,10 @@ var GMTurrets = class GMTurrets extends GameMode {
 		}
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#333";
-		ctx.fillRect(0, 0, WIDTH$3, HEIGHT$3);
+		ctx.fillRect(0, 0, WIDTH$4, HEIGHT$4);
 		const cameraCoords = data.camera.getCoords();
 		ctx.save();
-		ctx.translate(WIDTH$3 / 2, HEIGHT$3 / 2);
+		ctx.translate(WIDTH$4 / 2, HEIGHT$4 / 2);
 		ctx.scale(Camera$2.SCALE, Camera$2.SCALE);
 		ctx.translate(-cameraCoords.x, -cameraCoords.y);
 		ctx.fillStyle = "#777";
@@ -15468,14 +15807,14 @@ var GMTurrets = class GMTurrets extends GameMode {
 		this.drawInventoryHUD(ctx, localPlayer, imageLoader);
 		if (!localPlayer.isAlive()) {
 			ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-			ctx.fillRect(0, 0, WIDTH$3, HEIGHT$3);
+			ctx.fillRect(0, 0, WIDTH$4, HEIGHT$4);
 			ctx.fillStyle = "white";
 			ctx.textAlign = "center";
 			ctx.textBaseline = "middle";
 			ctx.font = "bold 80px sans-serif";
-			ctx.fillText("YOU DIED", WIDTH$3 / 2, HEIGHT$3 / 2 - 40);
+			ctx.fillText("YOU DIED", WIDTH$4 / 2, HEIGHT$4 / 2 - 40);
 			ctx.font = "40px sans-serif";
-			ctx.fillText(`Respawn in ${localPlayer.alive.toFixed(1)}s`, WIDTH$3 / 2, 715);
+			ctx.fillText(`Respawn in ${localPlayer.alive.toFixed(1)}s`, WIDTH$4 / 2, 715);
 		}
 		this.drawMinimap(ctx, playerIdx);
 	}
@@ -15483,7 +15822,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$4.get();
+		const { State } = protocols$5.get();
 		const object = {
 			players: this.players,
 			turrets: this.turrets.map((t) => ({
@@ -15516,7 +15855,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$4.get();
+		const { State } = protocols$5.get();
 		const obj = State.decode(data);
 		for (const [idx, player] of obj.players.entries()) this.players[idx].load(player);
 		for (const [idx, turret] of obj.turrets.entries()) this.turrets[idx].load(turret);
@@ -15531,16 +15870,16 @@ var GMTurrets = class GMTurrets extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$3,
-			height: HEIGHT$3
+			width: WIDTH$4,
+			height: HEIGHT$4
 		};
 	}
 	evalMouseCoords(x, y, playerIdx, _clientData) {
 		const clientData = _clientData;
 		const cameraCoords = clientData.camera.getCoords();
 		const ret = {
-			x: (x - WIDTH$3 / 2) / Camera$2.SCALE + cameraCoords.x,
-			y: (y - HEIGHT$3 / 2) / Camera$2.SCALE + cameraCoords.y
+			x: (x - WIDTH$4 / 2) / Camera$2.SCALE + cameraCoords.x,
+			y: (y - HEIGHT$4 / 2) / Camera$2.SCALE + cameraCoords.y
 		};
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;
@@ -15595,7 +15934,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$4(this);
+		return new TutorialData$5(this);
 	}
 	produceFinish() {
 		const redTeam = [];
@@ -15630,16 +15969,16 @@ var GMTurrets = class GMTurrets extends GameMode {
 };
 //#endregion
 //#region commons/gamemods/GMWoodSword.ts
-var protocols$3 = getProtocol("woodSword", "multiplayer");
-var WIDTH$2 = 1920;
-var HEIGHT$2 = 1080;
+var protocols$4 = getProtocol("woodSword", "multiplayer");
+var WIDTH$3 = 1920;
+var HEIGHT$3 = 1080;
 var TRUNK_RADIUS$1 = 200;
 var SWORD_SPAWN$1 = 700;
 var SWORD_SPEED$1 = 2e3;
 var SWORD_LENGTH = 120;
 var SWORD_HITBOX_ANGLE$1 = Math.PI / 12;
 var MAX_SCORE = 5;
-var ROUND_TIME$1 = 30;
+var ROUND_TIME$2 = 30;
 var TRUNK_ACCEL = 3;
 var SWORDS_STREAM = [
 	7,
@@ -16294,7 +16633,7 @@ var TRUNK_STREAM = [
 		}
 	]
 ];
-var Player$3 = class {
+var Player$4 = class {
 	connected = true;
 	team = "red";
 	swordsLeft = 0;
@@ -16306,7 +16645,7 @@ var Player$3 = class {
 		this.team = obj.isRed ? "red" : "blue";
 	}
 };
-var ClientData$3 = class {
+var ClientData$4 = class {
 	prevThrowing = false;
 	firstFrame = true;
 	dyingSwords = [];
@@ -16363,13 +16702,13 @@ var ClientData$3 = class {
 		}
 	}
 };
-function generateClientDom$3(_unlockedSkins) {
+function generateClientDom$4(_unlockedSkins) {
 	return { produce() {
-		const { StartData } = protocols$3.get();
+		const { StartData } = protocols$4.get();
 		return StartData.encode({}).finish();
 	} };
 }
-var TutorialData$3 = class {
+var TutorialData$4 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -16386,13 +16725,13 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		SWORD_SPAWN: SWORD_SPAWN$1,
 		TRUNK_RADIUS: TRUNK_RADIUS$1,
 		SWORD_HITBOX_ANGLE: SWORD_HITBOX_ANGLE$1,
-		ROUND_TIME: ROUND_TIME$1
+		ROUND_TIME: ROUND_TIME$2
 	};
-	static types = { Player: Player$3 };
+	static types = { Player: Player$4 };
 	players;
 	redScore = 0;
 	blueScore = 0;
-	roundTimer = ROUND_TIME$1;
+	roundTimer = ROUND_TIME$2;
 	trunkAngle = 0;
 	trunkSpeed = 0;
 	trunkStreamTime = 0;
@@ -16403,10 +16742,10 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 	swordId = 0;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$3());
+		this.players = Array.from({ length: total }, () => new Player$4());
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$3.get();
+		const { StartData, StartDataClient } = protocols$4.get();
 		const game = new GMWoodSword(total);
 		game.players[0].team = "red";
 		game.players[1].team = "blue";
@@ -16422,8 +16761,8 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 	}
 	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMWoodSword(total);
-		const { StartDataClient } = protocols$3.get();
-		const clientData = new ClientData$3();
+		const { StartDataClient } = protocols$4.get();
+		const clientData = new ClientData$4();
 		let skins = {};
 		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
@@ -16439,7 +16778,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 			skins
 		};
 	}
-	static generateClientDom = generateClientDom$3;
+	static generateClientDom = generateClientDom$4;
 	static SKINS = {};
 	static SKINS_IDS = Object.keys(GMWoodSword.SKINS);
 	static TEXTURES = {
@@ -16528,7 +16867,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 			if (this.redScore >= MAX_SCORE || this.blueScore >= MAX_SCORE) {
 				if (produceFinish) return this.produceFinish();
 			} else if (rng) {
-				this.roundTimer = ROUND_TIME$1;
+				this.roundTimer = ROUND_TIME$2;
 				this.clingingSwords = [];
 				this.movingSwords = [];
 				this.streamId = Math.floor(rng() * TRUNK_STREAM.length);
@@ -16569,9 +16908,9 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		if (data.firstFrame) data.firstFrame = false;
 		data.update(this, dt);
 		ctx.fillStyle = "#362010";
-		ctx.fillRect(0, 0, WIDTH$2, HEIGHT$2);
+		ctx.fillRect(0, 0, WIDTH$3, HEIGHT$3);
 		ctx.save();
-		ctx.translate(WIDTH$2 / 2, HEIGHT$2 / 2);
+		ctx.translate(WIDTH$3 / 2, HEIGHT$3 / 2);
 		this.players[playerIdx];
 		for (const player of this.players) {
 			if (player.swordsLeft <= 0) continue;
@@ -16624,7 +16963,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$3.get();
+		const { State } = protocols$4.get();
 		const object = {
 			trunkAngle: this.trunkAngle,
 			trunkSpeed: this.trunkSpeed,
@@ -16652,7 +16991,7 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$3.get();
+		const { State } = protocols$4.get();
 		const obj = State.decode(data);
 		this.trunkAngle = obj.trunkAngle;
 		this.trunkSpeed = obj.trunkSpeed;
@@ -16677,8 +17016,8 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$2,
-			height: HEIGHT$2
+			width: WIDTH$3,
+			height: HEIGHT$3
 		};
 	}
 	evalMouseCoords(x, y) {
@@ -16720,23 +17059,23 @@ var GMWoodSword = class GMWoodSword extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$3(this);
+		return new TutorialData$4(this);
 	}
 };
 //#endregion
 //#region commons/gamemods/GMMoveArmy.ts
-var protocols$2 = getProtocol("moveArmy", "multiplayer");
+var protocols$3 = getProtocol("moveArmy", "multiplayer");
 /** Portrait arena. Coordinates are centered: x/y in [-LIMIT, +LIMIT]. */
-var WIDTH$1 = 1200;
-var HEIGHT$1 = 2400;
-var X_LIMIT = WIDTH$1 / 2;
-var Y_LIMIT = HEIGHT$1 / 2;
+var WIDTH$2 = 1200;
+var HEIGHT$2 = 2400;
+var X_LIMIT = WIDTH$2 / 2;
+var Y_LIMIT = HEIGHT$2 / 2;
 /** The arena is split into 5 horizontal bands. Band 0 (topmost, red side) and
 *  band ZONE_COUNT-1 (bottommost, blue side) are "slow zones": troops standing
 *  in them are slowed down regardless of their team. The 3 middle bands behave
 *  identically to each other ("zone normale"). */
 var ZONE_COUNT = 10;
-var ZONE_HEIGHT = HEIGHT$1 / ZONE_COUNT;
+var ZONE_HEIGHT = HEIGHT$2 / ZONE_COUNT;
 var SLOW_ZONE_SPEED_MULTIPLIER = .5;
 /** Match S. The match lasts MATCH_TOTAL_TIME seconds, and the last
 *  SUDDEN_DEATH_DURATION seconds of it are sudden death (towers take extra
@@ -17267,7 +17606,7 @@ var Tower = class {
 		}
 	}
 };
-var Player$2 = class {
+var Player$3 = class {
 	/** Assigned once at match creation, like spawnX/spawnY elsewhere: this is
 	*  initialization data, intentionally NOT re-sent via save()/load(). */
 	team = "red";
@@ -17278,7 +17617,7 @@ var Player$2 = class {
 		this.team = team;
 	}
 };
-var ClientData$2 = class ClientData$2 {
+var ClientData$3 = class ClientData$3 {
 	firstFrame = true;
 	/** This client's own team, learned once from StartDataClient. */
 	myTeam = "red";
@@ -17331,7 +17670,7 @@ var ClientData$2 = class ClientData$2 {
 	}
 	/** Refreshes the overlay DOM and recomputes which troop (if any) is hovered. */
 	update(game, _playerIdx) {
-		this.time.innerText = ClientData$2.showTime(game.time);
+		this.time.innerText = ClientData$3.showTime(game.time);
 		for (const [i, tower] of game.towers.entries()) {
 			const ratio = Math.max(0, tower.hp / TOWER_HP);
 			this.towerBars[i].style.width = `${ratio * 100}%`;
@@ -17348,7 +17687,7 @@ var ClientData$2 = class ClientData$2 {
 		this.hoveredTroopId = best?.id ?? null;
 	}
 };
-var TutorialData$2 = class {
+var TutorialData$3 = class {
 	game;
 	step = 0;
 	constructor(game) {
@@ -17359,24 +17698,24 @@ var TutorialData$2 = class {
 		return "";
 	}
 };
-function generateClientDom$2() {
+function generateClientDom$3() {
 	return {
 		preferTeam: 0,
 		produce() {
-			const { StartData } = protocols$2.get();
+			const { StartData } = protocols$3.get();
 			return StartData.encode({ preferTeam: this.preferTeam }).finish();
 		}
 	};
 }
 var GMMoveArmy = class GMMoveArmy extends GameMode {
 	static types = {
-		Player: Player$2,
+		Player: Player$3,
 		Troop,
 		Tower
 	};
 	static DATA = {
-		WIDTH: WIDTH$1,
-		HEIGHT: HEIGHT$1,
+		WIDTH: WIDTH$2,
+		HEIGHT: HEIGHT$2,
 		X_LIMIT,
 		Y_LIMIT,
 		ZONE_COUNT,
@@ -17411,7 +17750,7 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 	nextProjectileId = 0;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player$2());
+		this.players = Array.from({ length: total }, () => new Player$3());
 	}
 	static assignTeams(preferences) {
 		const total = preferences.length;
@@ -17463,7 +17802,7 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 		this.troops.push(createTroop(type, this.nextTroopId++, team, x, y));
 	}
 	static async createServ(players, total, _hasSkin) {
-		const { StartData, StartDataClient } = protocols$2.get();
+		const { StartData, StartDataClient } = protocols$3.get();
 		const game = new GMMoveArmy(total);
 		const preferences = Array.from({ length: total }, (_, i) => {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data)).preferTeam ?? 0;
@@ -17488,8 +17827,8 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 	}
 	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMMoveArmy(total);
-		const { StartDataClient } = protocols$2.get();
-		const clientData = new ClientData$2();
+		const { StartDataClient } = protocols$3.get();
+		const clientData = new ClientData$3();
 		if (origin === "server") {
 			const { playersRed, towers } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [i, player] of game.players.entries()) player.initTeam(playersRed[i] ? "red" : "blue");
@@ -17508,7 +17847,7 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 			skins: {}
 		};
 	}
-	static generateClientDom = generateClientDom$2;
+	static generateClientDom = generateClientDom$3;
 	static TEXTURES = {
 		"tower-red": "/assets/games/moveArmy/tower-red.svg",
 		"tower-blue": "/assets/games/moveArmy/tower-blue.svg",
@@ -17983,14 +18322,14 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 	}
 	drawBackground(ctx, imageLoader) {
 		ctx.fillStyle = "#2b2b2b";
-		ctx.fillRect(-600, -1200, WIDTH$1, HEIGHT$1);
+		ctx.fillRect(-600, -1200, WIDTH$2, HEIGHT$2);
 	}
 	/** Tints the two slow zones (red top / blue bottom) so their effect is legible. */
 	drawZones(ctx) {
 		for (let i = 0; i < ZONE_COUNT; i++) {
 			const top = -1200 + i * ZONE_HEIGHT;
 			ctx.fillStyle = i === 0 || i === 9 ? i === 0 ? "rgba(255,0,68,0.10)" : "rgba(0,68,255,0.10)" : "rgba(255,255,255,0.02)";
-			ctx.fillRect(-600, top, WIDTH$1, ZONE_HEIGHT);
+			ctx.fillRect(-600, top, WIDTH$2, ZONE_HEIGHT);
 		}
 	}
 	drawHpBar(ctx, x, y, hp, maxHp, width) {
@@ -18112,7 +18451,7 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols$2.get();
+		const { State } = protocols$3.get();
 		const object = {
 			time: this.time,
 			players: this.players.map((p) => ({ connected: p.connected })),
@@ -18154,7 +18493,7 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols$2.get();
+		const { State } = protocols$3.get();
 		const obj = decodeFullMessage(State.decode(data));
 		this.time = obj.time;
 		for (const [i, p] of this.players.entries()) p.connected = obj.players[i]?.connected ?? false;
@@ -18195,8 +18534,8 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH$1,
-			height: HEIGHT$1
+			width: WIDTH$2,
+			height: HEIGHT$2
 		};
 	}
 	evalMouseCoords(x, y, _playerIdx, _clientData) {
@@ -18216,7 +18555,7 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$2(this);
+		return new TutorialData$3(this);
 	}
 	/** Ranks the two teams by how many of their towers are still standing.
 	*  Players within the same team are always tied with each other (2v2). */
@@ -18247,9 +18586,9 @@ var GMMoveArmy = class GMMoveArmy extends GameMode {
 };
 //#endregion
 //#region commons/gamemods/GMPopit.ts
-var protocols$1 = getProtocol("popit", "multiplayer");
-var WIDTH = 2e3;
-var HEIGHT = 2e3;
+var protocols$2 = getProtocol("popit", "multiplayer");
+var WIDTH$1 = 2e3;
+var HEIGHT$1 = 2e3;
 var GRID_ROWS = 6;
 var GRID_COLS = 6;
 var TOTAL_CELLS = 36;
@@ -18295,7 +18634,7 @@ var ROW_COLORS = [
 * Represents a player state in the Popit game.
 * Stores connectivity, spawn parameters, and individual player team status.
 */
-var Player$1 = class {
+var Player$2 = class {
 	x;
 	y;
 	spawnX = null;
@@ -18330,8 +18669,8 @@ var Player$1 = class {
 * Static Camera helper for viewport transformations.
 */
 var Camera$1 = class {
-	x = WIDTH / 2;
-	y = HEIGHT / 2;
+	x = WIDTH$1 / 2;
+	y = HEIGHT$1 / 2;
 	static SCALE = 1;
 	update(px, py, dt) {
 		this.x = px;
@@ -18352,7 +18691,7 @@ var Camera$1 = class {
 * UI and Client Data Handler for Popit.
 * Manages HTML elements, turn indicators, local interactions, and camera state.
 */
-var ClientData$1 = class ClientData$1 {
+var ClientData$2 = class ClientData$2 {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
@@ -18409,7 +18748,7 @@ var ClientData$1 = class ClientData$1 {
 	* Updates HTML UI state based on current GMState.
 	*/
 	update(game, playerIdx) {
-		this.time.innerText = ClientData$1.showTime(game.turnTimer);
+		this.time.innerText = ClientData$2.showTime(game.turnTimer);
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
 		const isMyTurn = game.currentTurnPlayer === playerIdx;
@@ -18425,13 +18764,13 @@ var ClientData$1 = class ClientData$1 {
 			this.turnInfo.style.color = "#FF9500";
 			this.endTurnBtn.style.display = "none";
 		}
-		this.camera.update(WIDTH / 2, HEIGHT / 2, 1 / 60);
+		this.camera.update(WIDTH$1 / 2, HEIGHT$1 / 2, 1 / 60);
 	}
 };
 /**
 * Interactive tutorial that reacts to the actual game state.
 */
-var TutorialData$1 = class {
+var TutorialData$2 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -18475,14 +18814,14 @@ var TutorialData$1 = class {
 /**
 * Builds data structure for Alpine.js client interface initialization.
 */
-function generateClientDom$1(unlockedSkins) {
+function generateClientDom$2(unlockedSkins) {
 	return {
 		skin: Object.keys(GMPopit.SKINS)[0],
 		preferTeam: 0,
 		SKINS: GMPopit.SKINS,
 		unlockedSkins,
 		produce() {
-			const { StartData } = protocols$1.get();
+			const { StartData } = protocols$2.get();
 			return StartData.encode({
 				skin: this.skin,
 				preferTeam: this.preferTeam
@@ -18508,10 +18847,10 @@ function getSkinIconPath(id) {
 * Main GameMode implementation for Popit.
 */
 var GMPopit = class GMPopit extends GameMode {
-	static types = { Player: Player$1 };
+	static types = { Player: Player$2 };
 	static DATA = {
-		WIDTH,
-		HEIGHT,
+		WIDTH: WIDTH$1,
+		HEIGHT: HEIGHT$1,
 		GRID_ROWS,
 		GRID_COLS,
 		BOARD_SIZE
@@ -18531,17 +18870,17 @@ var GMPopit = class GMPopit extends GameMode {
 	winnerPlayer = -1;
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: Math.max(1, total) }, () => new Player$1(WIDTH / 2, HEIGHT / 2));
+		this.players = Array.from({ length: Math.max(1, total) }, () => new Player$2(WIDTH$1 / 2, HEIGHT$1 / 2));
 	}
 	/**
 	* Server-side instantiation method.
 	*/
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols$1.get();
+		const { StartData, StartDataClient } = protocols$2.get();
 		const game = new GMPopit(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom$1([]);
+			return generateClientDom$2([]);
 		}
 		const playerInfos = await Promise.all(game.players.map(async (p, i) => {
 			const d = decode(i);
@@ -18585,7 +18924,7 @@ var GMPopit = class GMPopit extends GameMode {
 		}
 		for (const [i, p] of game.players.entries()) {
 			const isRedTeam = assigned[i];
-			p.initSpawn(WIDTH / 2, HEIGHT / 2, isRedTeam ? "red" : "blue");
+			p.initSpawn(WIDTH$1 / 2, HEIGHT$1 / 2, isRedTeam ? "red" : "blue");
 		}
 		return {
 			game,
@@ -18602,8 +18941,8 @@ var GMPopit = class GMPopit extends GameMode {
 	*/
 	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMPopit(total);
-		const { StartData, StartDataClient } = protocols$1.get();
-		const clientData = new ClientData$1();
+		const { StartData, StartDataClient } = protocols$2.get();
+		const clientData = new ClientData$2();
 		let skins;
 		if (origin === "server") {
 			const { players } = decodeFullMessage(StartDataClient.decode(data));
@@ -18616,8 +18955,8 @@ var GMPopit = class GMPopit extends GameMode {
 			skins = Object.fromEntries([...skinSet].map((key) => ["skin-" + key, getSkinTexturePath(key)]));
 		} else {
 			const { skin } = decodeFullMessage(StartData.decode(data));
-			if (game.players[0]) game.players[0].initSpawn(WIDTH / 2, HEIGHT / 2, "red");
-			if (game.players[1]) game.players[1].initSpawn(WIDTH / 2, HEIGHT / 2, "blue");
+			if (game.players[0]) game.players[0].initSpawn(WIDTH$1 / 2, HEIGHT$1 / 2, "red");
+			if (game.players[1]) game.players[1].initSpawn(WIDTH$1 / 2, HEIGHT$1 / 2, "blue");
 			clientData.skins = Array.from({ length: game.players.length }, () => GMPopit.SKINS_IDS[0]);
 			clientData.skins[0] = skin;
 			skins = {};
@@ -18629,7 +18968,7 @@ var GMPopit = class GMPopit extends GameMode {
 			skins
 		};
 	}
-	static generateClientDom = generateClientDom$1;
+	static generateClientDom = generateClientDom$2;
 	static SKINS = {
 		"default": "Classic Rainbow",
 		"pastel": "Pastel Pop",
@@ -18790,7 +19129,7 @@ var GMPopit = class GMPopit extends GameMode {
 		}
 		data.update(this, playerIdx);
 		ctx.fillStyle = "#1E1E24";
-		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+		ctx.fillRect(0, 0, WIDTH$1, HEIGHT$1);
 		const boardRadius = 40;
 		ctx.save();
 		ctx.fillStyle = "#2A2A36";
@@ -18877,7 +19216,7 @@ var GMPopit = class GMPopit extends GameMode {
 	* Serializes current state to Protobuf byte array.
 	*/
 	save() {
-		const { State } = protocols$1.get();
+		const { State } = protocols$2.get();
 		const object = {
 			grid: this.grid,
 			currentTurnPlayer: this.currentTurnPlayer,
@@ -18902,7 +19241,7 @@ var GMPopit = class GMPopit extends GameMode {
 	* Deserializes Protobuf state payload into local game instance.
 	*/
 	load(data) {
-		const { State } = protocols$1.get();
+		const { State } = protocols$2.get();
 		const obj = State.decode(data);
 		if (obj.grid && obj.grid.length === TOTAL_CELLS) this.grid = Array.from(obj.grid);
 		this.currentTurnPlayer = obj.currentTurnPlayer ?? 0;
@@ -18922,8 +19261,8 @@ var GMPopit = class GMPopit extends GameMode {
 	}
 	getSize() {
 		return {
-			width: WIDTH,
-			height: HEIGHT
+			width: WIDTH$1,
+			height: HEIGHT$1
 		};
 	}
 	/**
@@ -18933,8 +19272,8 @@ var GMPopit = class GMPopit extends GameMode {
 		const clientData = _clientData;
 		const cameraCoords = clientData.camera.getCoords();
 		const ret = {
-			x: (x - WIDTH / 2) / Camera$1.SCALE + cameraCoords.x,
-			y: (y - HEIGHT / 2) / Camera$1.SCALE + cameraCoords.y
+			x: (x - WIDTH$1 / 2) / Camera$1.SCALE + cameraCoords.x,
+			y: (y - HEIGHT$1 / 2) / Camera$1.SCALE + cameraCoords.y
 		};
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;
@@ -18950,7 +19289,7 @@ var GMPopit = class GMPopit extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData$1(this);
+		return new TutorialData$2(this);
 	}
 	/**
 	* Produces final game ranking output structure.
@@ -18973,11 +19312,11 @@ var GMPopit = class GMPopit extends GameMode {
 };
 //#endregion
 //#region commons/gamemods/GMLavaBall.ts
-var protocols = getProtocol("lavaBall", "multiplayer");
+var protocols$1 = getProtocol("lavaBall", "multiplayer");
 var LEVEL_WIDTH = 1e3;
 var SCREEN_HEIGHT = 1200;
 var MAX_LEVEL_HEIGHT = 5e3;
-var BALL_GRAVITY = 1200;
+var BALL_GRAVITY$1 = 1200;
 var BALL_RADIUS = 26;
 var PLAYER_THROW_SPEED = 1650;
 var TURN_WAIT_BEFORE = 1;
@@ -18997,7 +19336,7 @@ var OBSTACLE_SPAWN_CHANCE_START = .1;
 var OBSTACLE_SPAWN_CHANCE_RAMP_DURATION = 30;
 var OBSTACLE_SPAWN_YRANGE = 800;
 var OBSTACLE_CLEANUP_MARGIN = SCREEN_HEIGHT;
-var OBSTACLE_GRAVITY = BALL_GRAVITY / 3;
+var OBSTACLE_GRAVITY = BALL_GRAVITY$1 / 3;
 var OBSTACLE_RECT_MIN_SIZE = 60;
 var OBSTACLE_RECT_MIN_ANGULAR_VEL = -3;
 var OBSTACLE_CIRCLE_MIN_RADIUS = 30;
@@ -19033,7 +19372,7 @@ function aimSpeedScale(t) {
 * pointing roughly at the target when no valid ballistic solution exists.
 * (Provided verbatim by the spec.)
 */
-function getVectorToReachTarget(X, Y, N, g) {
+function getVectorToReachTarget$1(X, Y, N, g) {
 	if (X === 0) return {
 		x: 0,
 		y: Y > 0 ? N : -N,
@@ -19108,7 +19447,7 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 		ctx.arc(destX, destY, radius, 0, Math.PI * 2);
 		ctx.stroke();
 	}
-	const velocity = getVectorToReachTarget(X, Y, PLAYER_THROW_SPEED, -1200);
+	const velocity = getVectorToReachTarget$1(X, Y, PLAYER_THROW_SPEED, -1200);
 	if (velocity.x === 0 || !velocity.success) {
 		const dx = destX - srcX;
 		const dy = destY - srcY;
@@ -19134,7 +19473,7 @@ function drawPlayerToTarget(ctx, srcX, srcY, destX, destY, color) {
 	}
 	const vx = velocity.x;
 	const vy = velocity.y;
-	const g = BALL_GRAVITY;
+	const g = BALL_GRAVITY$1;
 	const T = X / vx;
 	if (T <= 0) return;
 	const steps = 50;
@@ -19241,7 +19580,7 @@ var Obstacle = class {
 	}
 };
 /** The single shared ball. */
-var Ball = class {
+var Ball$1 = class {
 	x = 0;
 	y = 0;
 	vx = 0;
@@ -19257,7 +19596,7 @@ var Ball = class {
 	}
 };
 /** Per-player persistent (shared) state. No client-only data here. */
-var Player = class {
+var Player$1 = class {
 	isRed = true;
 	connected = true;
 	eliminated = false;
@@ -19296,7 +19635,7 @@ var Camera = class {
 		};
 	}
 };
-var ClientData = class {
+var ClientData$1 = class {
 	firstFrame = true;
 	/** Last sent aim target, used to avoid re-sending identical inputs. */
 	lastSentAimX = null;
@@ -19372,7 +19711,7 @@ var ClientData = class {
 		this.camera.update(game.yLevel, dt);
 	}
 };
-var TutorialData = class {
+var TutorialData$1 = class {
 	game;
 	step = 0;
 	wakeUp = 0;
@@ -19478,29 +19817,29 @@ function pickRandomObstacle(id, yLevel) {
 		timeLeft: OBSTACLE_SPAWN_DELAY
 	};
 }
-function generateClientDom() {
+function generateClientDom$1() {
 	return {
 		preferTeam: 0,
 		produce() {
-			const { StartData } = protocols.get();
+			const { StartData } = protocols$1.get();
 			return StartData.encode({ preferTeam: this.preferTeam }).finish();
 		}
 	};
 }
 var GMLavaBall = class GMLavaBall extends GameMode {
 	static types = {
-		Player,
-		Ball,
+		Player: Player$1,
+		Ball: Ball$1,
 		Obstacle
 	};
 	static DATA = {
 		LEVEL_WIDTH,
 		SCREEN_HEIGHT,
 		MAX_LEVEL_HEIGHT,
-		BALL_GRAVITY,
+		BALL_GRAVITY: BALL_GRAVITY$1,
 		BALL_RADIUS
 	};
-	static generateClientDom = generateClientDom;
+	static generateClientDom = generateClientDom$1;
 	static TEXTURES = {
 		"ball": "/assets/games/lavaBall/ball.png",
 		"platform": "/assets/games/lavaBall/platform.png",
@@ -19509,7 +19848,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		"background": "/assets/games/lavaBall/background.png"
 	};
 	players;
-	ball = new Ball();
+	ball = new Ball$1();
 	/** Maximum ball.y ever reached during the CURRENT round. */
 	yLevel = 0;
 	/** yLevel recorded at the moment of the most recent elimination this round (used for the last-survivor bonus). */
@@ -19536,14 +19875,14 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 	platforms = [];
 	constructor(total) {
 		super();
-		this.players = Array.from({ length: total }, () => new Player());
+		this.players = Array.from({ length: total }, () => new Player$1());
 	}
 	static async createServ(players, total, hasSkin) {
-		const { StartData, StartDataClient } = protocols.get();
+		const { StartData, StartDataClient } = protocols$1.get();
 		const game = new GMLavaBall(total);
 		function decode(i) {
 			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
-			return generateClientDom();
+			return generateClientDom$1();
 		}
 		const prefs = game.players.map((_, i) => decode(i).preferTeam ?? 0);
 		const maxPerTeam = Math.ceil(total / 2);
@@ -19580,8 +19919,8 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 	}
 	static createClient({ data, origin }, total, playerIdx) {
 		const game = new GMLavaBall(total);
-		const { StartDataClient } = protocols.get();
-		const clientData = new ClientData();
+		const { StartDataClient } = protocols$1.get();
+		const clientData = new ClientData$1();
 		if (origin === "server") {
 			const { players, platforms } = decodeFullMessage(StartDataClient.decode(data));
 			for (const [idx, p] of players.entries()) game.players[idx].isRed = p.isRed;
@@ -19700,7 +20039,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 	/** Physics step for the shared ball: gravity, wall bounce, platform landing, obstacle collision. */
 	updateBall(dt) {
 		if (!this.ball.inFlight) return;
-		this.ball.vy -= BALL_GRAVITY * dt;
+		this.ball.vy -= BALL_GRAVITY$1 * dt;
 		this.ball.x += this.ball.vx * dt;
 		this.ball.y += this.ball.vy * dt;
 		const limit = (LEVEL_WIDTH / 2 - BALL_RADIUS) / Camera.SCALE;
@@ -19794,7 +20133,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 	}
 	/** Throws the ball using the given world-space aim target and PLAYER_THROW_SPEED. */
 	throwBall(targetX, targetY) {
-		const velocity = getVectorToReachTarget(targetX - this.ball.x, targetY - this.ball.y, PLAYER_THROW_SPEED, -1200);
+		const velocity = getVectorToReachTarget$1(targetX - this.ball.x, targetY - this.ball.y, PLAYER_THROW_SPEED, -1200);
 		this.ball.vx = velocity.x;
 		this.ball.vy = velocity.y;
 		this.ball.inFlight = true;
@@ -19985,7 +20324,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		this.players[id].connected = false;
 	}
 	save() {
-		const { State } = protocols.get();
+		const { State } = protocols$1.get();
 		const object = {
 			players: this.players.map((p) => ({
 				isRed: p.isRed,
@@ -20037,7 +20376,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		return State.encode(object).finish();
 	}
 	load(data) {
-		const { State } = protocols.get();
+		const { State } = protocols$1.get();
 		const obj = decodeFullMessage(State.decode(data));
 		for (let i = 0; i < this.players.length; i++) this.players[i].load(obj.players[i]);
 		this.ball.load(obj.ball);
@@ -20081,7 +20420,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		};
 	}
 	createTutorial() {
-		return new TutorialData(this);
+		return new TutorialData$1(this);
 	}
 	produceFinish() {
 		const redIndices = this.players.map((p, i) => ({
@@ -20102,6 +20441,1583 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 		for (let i = 0; i < flatScores.length - 1; i++) if (flatScores[i] === flatScores[i + 1]) playerEqualities.push(i);
 		return {
 			results,
+			teamEqualities,
+			playerEqualities
+		};
+	}
+};
+//#endregion
+//#region commons/gamemods/GMCrayzoll.ts
+var protocols = getProtocol("crayzoll", "multiplayer");
+var GRAVITY = 1100;
+var WIDTH = 3600;
+var HEIGHT = 2025;
+var HALF_W = WIDTH / 2;
+var HALF_H = HEIGHT / 2;
+var WINNING_SCORE = 3;
+var ROUND_TIME$1 = 60;
+var ROUND_BREAK = 1;
+var PLAYER_DEAD_OPACITY = .6;
+var SPAWN_X = WIDTH * .3;
+var SPAWN_SLOT_GAP = 150;
+var GEM_SPAWN_INTERVAL = 1;
+var GEM_SPAWN_VX = 400;
+var GEM_GRAVITY = 900;
+var GEM_RADIUS = 30;
+var MAX_GEMS = 100;
+var BALL_BASE_SPEED = 1800;
+var GEM_BOOST = 150;
+var SPEED_REDUCTION = 700;
+/**
+* Moves `value` towards `target` by at most `step` (never overshoots).
+*/
+function approach(value, target, step) {
+	if (value < target) return Math.min(target, value + step);
+	return Math.max(target, value - step);
+}
+/**
+* The ball. It is thrown between players; when it hits an enemy of its
+* previous holder, its whole velocity is transferred to that enemy.
+*/
+var Ball = class Ball {
+	static RADIUS = 40;
+	static SPAWN_JUMP = 300;
+	static GRAVITY = 500;
+	static OOB_TOP = 1500;
+	x = 0;
+	y = 0;
+	vx = 0;
+	vy = -Ball.SPAWN_JUMP;
+	grabber = -1;
+	prevGrabber = -1;
+	/**
+	* Speed norm of the ball at the moment a teammate of the previous holder
+	* caught it (-1 = nothing saved). It is restored when that teammate throws.
+	*/
+	savedSpeed = -1;
+	/** Current speed norm of the free ball. */
+	speed() {
+		return Math.hypot(this.vx, this.vy);
+	}
+	/** Applies gravity and moves the ball (does nothing while it is grabbed). */
+	move(dt) {
+		if (this.grabber >= 0) return;
+		this.vy += Ball.GRAVITY * dt;
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+		const minX = -1800 + Ball.RADIUS;
+		const maxX = HALF_W - Ball.RADIUS;
+		const minY = -1012.5 + Ball.RADIUS;
+		const maxY = HALF_H - Ball.RADIUS;
+		if (this.x < minX) {
+			this.x = minX;
+			this.vx = Math.abs(this.vx);
+		} else if (this.x > maxX) {
+			this.x = maxX;
+			this.vx = -Math.abs(this.vx);
+		}
+		if (this.y < minY) {
+			this.y = minY;
+			this.vy = Math.abs(this.vy);
+		} else if (this.y > maxY) {
+			this.y = maxY;
+			this.vy = -Math.abs(this.vy);
+		}
+	}
+	/** Puts the ball back at the center of the screen with a small jump. */
+	reset() {
+		this.x = 0;
+		this.y = 0;
+		this.vx = 0;
+		this.vy = -Ball.SPAWN_JUMP;
+		this.grabber = -1;
+		this.prevGrabber = -1;
+		this.savedSpeed = -1;
+	}
+	/** Left/right/bottom: lost as soon as fully outside. Top: lost only very far away. */
+	isOOB() {
+		return this.x < -1800 - Ball.RADIUS || this.x > HALF_W + Ball.RADIUS || this.y > HALF_H + Ball.RADIUS || this.y < -1012.5 - Ball.OOB_TOP;
+	}
+	/** The current holder releases the ball (it remembers who held it). */
+	removeGrabber() {
+		if (this.grabber < 0) return;
+		this.prevGrabber = this.grabber;
+		this.grabber = -1;
+	}
+	/** Serializes the free-ball part of the state. */
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			vx: this.vx,
+			vy: this.vy
+		};
+	}
+	/** Loads the ball from a protobuf State. */
+	load(obj) {
+		if (obj.ball === "freeBall") {
+			this.x = obj.freeBall.x;
+			this.y = obj.freeBall.y;
+			this.vx = obj.freeBall.vx;
+			this.vy = obj.freeBall.vy;
+			this.grabber = -1;
+		} else this.grabber = obj.grabbedBall.owner;
+		this.prevGrabber = obj.prevBallGrabber;
+		this.savedSpeed = obj.savedBallSpeed;
+	}
+};
+/** A purple hexagonal gem. Collecting gems makes your throws faster. */
+var Gem = class {
+	x;
+	y;
+	vx;
+	vy;
+	constructor(x, y, vx, vy) {
+		this.x = x;
+		this.y = y;
+		this.vx = vx;
+		this.vy = vy;
+	}
+	/** Gravity only: gems keep flying through left/right/top. */
+	move(dt) {
+		this.vy += GEM_GRAVITY * dt;
+		this.x += this.vx * dt;
+		this.y += this.vy * dt;
+	}
+	/** Destroyed once it is completely below the screen. */
+	isDestroyed() {
+		return this.y > 1042.5;
+	}
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			vx: this.vx,
+			vy: this.vy
+		};
+	}
+};
+var Player = class Player {
+	x;
+	y;
+	static GRAB_GRAVITY = 900;
+	static SPEED = 1500;
+	static ACCELERATION = 1e4;
+	static MIN_DECELERATION = 1e3;
+	static SOFT_DECELERATION = 1e4;
+	static QUICK_DECELERATION = 3e4;
+	static JUMP = 800;
+	static SPAWN_JUMP = 90;
+	static WIDTH = 50;
+	static HEIGHT = 100;
+	static SPRITE_WIDTH = Player.WIDTH * 4 / 3;
+	static PUSH_DOWN = 1e3;
+	static BOUNCE_X = 1e3;
+	static BOUNCE_Y = 100;
+	static ALIVE_OOB_MARGIN_X = Player.SPRITE_WIDTH / 2;
+	static ALIVE_OOB_MARGIN_Y = Player.HEIGHT / 2;
+	static DEAD_OOB_MARGIN_X = -Player.WIDTH / 2;
+	static DEAD_OOB_MARGIN_Y = -Player.HEIGHT / 2;
+	spawnX = null;
+	spawnY = null;
+	connected = true;
+	/**
+	* -1 => alive.
+	* >= 0 => dead this round ("ghost"), the value tells if we were the 0th, 1st, ...
+	* of our team to die. Ghosts can still play (grab/throw the ball).
+	*/
+	alive = -1;
+	vx = 0;
+	vy = -Player.SPAWN_JUMP;
+	ex = 0;
+	ey = 0;
+	dir = 0;
+	pushDown = false;
+	gems = 0;
+	deaths = 0;
+	target = null;
+	team = "red";
+	constructor(x, y) {
+		this.x = x;
+		this.y = y;
+	}
+	/** Sets the spawn position and the team (called once at game creation). */
+	initSpawn(x, y, team) {
+		this.spawnX = x;
+		this.spawnY = y;
+		this.x = x;
+		this.y = y;
+		this.team = team;
+	}
+	isAlive() {
+		return this.alive < 0;
+	}
+	/** Norm of the projection effect. */
+	effectNorm() {
+		return Math.hypot(this.ex, this.ey);
+	}
+	/** Puts the player back at its spawn for a new round. Inputs (dir, target...) are kept. */
+	resetForRound() {
+		this.x = this.spawnX ?? 0;
+		this.y = this.spawnY ?? 0;
+		this.vx = 0;
+		this.vy = -Player.SPAWN_JUMP;
+		this.ex = 0;
+		this.ey = 0;
+		this.alive = -1;
+		this.gems = 0;
+	}
+	/** Horizontal acceleration / deceleration depending on the pressed direction. */
+	steerHorizontally(dt) {
+		if (this.dir === 0) {
+			this.vx = approach(this.vx, 0, Player.SOFT_DECELERATION * dt);
+			return;
+		}
+		const target = this.dir * Player.SPEED;
+		if (Math.sign(this.vx) !== Math.sign(target) && this.vx !== 0) {
+			this.vx = approach(this.vx, 0, Player.QUICK_DECELERATION * dt);
+			return;
+		}
+		if (Math.abs(this.vx) < Math.abs(target)) this.vx = approach(this.vx, target, Player.ACCELERATION * dt);
+		else this.vx = approach(this.vx, target, Player.MIN_DECELERATION * dt);
+	}
+	/** The norm of the effect vector decreases linearly with time. */
+	decayEffect(dt) {
+		const norm = this.effectNorm();
+		if (norm <= 0) return;
+		const newNorm = norm - SPEED_REDUCTION * dt;
+		if (newNorm <= 0) {
+			this.ex = 0;
+			this.ey = 0;
+		} else {
+			const k = newNorm / norm;
+			this.ex *= k;
+			this.ey *= k;
+		}
+	}
+	/**
+	* Advances the player physics. Ghosts (dead players) keep moving but
+	* collide against the screen borders instead of leaving the screen.
+	*/
+	move(dt, holdsBall) {
+		this.steerHorizontally(dt);
+		this.vy += (holdsBall ? Player.GRAB_GRAVITY : GRAVITY) * dt;
+		this.decayEffect(dt);
+		this.x += (this.vx + this.ex) * dt;
+		this.y += (this.vy + this.ey) * dt;
+		if (this.pushDown) this.y += Player.PUSH_DOWN * dt;
+	}
+	/** Keeps the hit box inside the screen and kills the velocity going outward. */
+	clampToScreen() {
+		const maxX = HALF_W - Player.WIDTH / 2;
+		const maxY = HALF_H - Player.HEIGHT / 2;
+		if (this.x < -maxX) {
+			this.x = -maxX;
+			this.vx = Math.max(0, this.vx);
+			this.ex = Math.max(0, this.ex);
+		}
+		if (this.x > maxX) {
+			this.x = maxX;
+			this.vx = Math.min(0, this.vx);
+			this.ex = Math.min(0, this.ex);
+		}
+		if (this.y < -maxY) {
+			this.y = -maxY;
+			this.vy = Math.max(0, this.vy);
+			this.ey = Math.max(0, this.ey);
+		}
+		if (this.y > maxY) {
+			this.y = maxY;
+			this.vy = Math.min(0, this.vy);
+			this.ey = Math.min(0, this.ey);
+		}
+	}
+	/** True when the skin (sprite) is not visible at all anymore. */
+	isOOB() {
+		const marginX = this.isAlive() ? Player.ALIVE_OOB_MARGIN_X : Player.DEAD_OOB_MARGIN_X;
+		const marginY = this.isAlive() ? Player.ALIVE_OOB_MARGIN_Y : Player.DEAD_OOB_MARGIN_Y;
+		return this.x < -1800 - marginX || this.x > HALF_W + marginX || this.y < -1012.5 - marginY || this.y > HALF_H + marginY;
+	}
+	touchsBall(ball) {
+		return collisions.RectCircle({
+			x: this.x,
+			y: this.y,
+			w: Player.WIDTH,
+			h: Player.HEIGHT
+		}, {
+			x: ball.x,
+			y: ball.y,
+			r: Ball.RADIUS
+		});
+	}
+	/** Serializes everything that is not sent at game creation. */
+	save() {
+		return {
+			x: this.x,
+			y: this.y,
+			vx: this.vx,
+			vy: this.vy,
+			ex: this.ex,
+			ey: this.ey,
+			dir: this.dir,
+			alive: this.alive,
+			deaths: this.deaths,
+			gems: this.gems,
+			pushDown: this.pushDown,
+			connected: this.connected,
+			...this.target ? { fixed: {
+				x: this.target.x,
+				y: this.target.y
+			} } : { none: {} }
+		};
+	}
+	load(obj) {
+		this.x = obj.x;
+		this.y = obj.y;
+		this.vx = obj.vx;
+		this.vy = obj.vy;
+		this.ex = obj.ex;
+		this.ey = obj.ey;
+		this.dir = obj.dir;
+		this.alive = obj.alive;
+		this.deaths = obj.deaths;
+		this.gems = obj.gems;
+		this.pushDown = obj.pushDown;
+		this.connected = obj.connected;
+		this.target = obj.target === "fixed" ? {
+			x: obj.fixed.x,
+			y: obj.fixed.y
+		} : null;
+	}
+};
+var ClientData = class ClientData {
+	firstFrame = true;
+	mouseX = 0;
+	mouseY = 0;
+	skins = [];
+	lastSentX = NaN;
+	lastSentY = NaN;
+	mobileDir = 0;
+	lastAimTargetX = NaN;
+	lastAimTargetY = NaN;
+	mobileAiming = false;
+	selfX = 0;
+	selfY = 0;
+	html;
+	time;
+	redScore;
+	blueScore;
+	banner;
+	clientWasDead = true;
+	spawnTime = performance.now();
+	youOpacity = 1;
+	lastDirs = {};
+	prevAlive = [];
+	deathFx = [];
+	static YOU_AFTER_SPAWN = 3e3;
+	static YOU_NEAR_MATE_DISTANCE = 600;
+	static FADE_SPEED = .08;
+	static DEATH_FX_MS = 1e3;
+	static SHAKE_MS = 350;
+	constructor() {
+		this.html = document.createElement("div");
+		this.html.classList.add("game-crayzol-root");
+		this.time = document.createElement("div");
+		this.time.classList.add("game-crayzol-time");
+		const scores = document.createElement("div");
+		scores.classList.add("game-crayzol-scores");
+		this.redScore = document.createElement("div");
+		this.blueScore = document.createElement("div");
+		this.redScore.classList.add("game-crayzol-red-score");
+		this.blueScore.classList.add("game-crayzol-blue-score");
+		const tiret = document.createElement("div");
+		tiret.textContent = "-";
+		scores.appendChild(this.redScore);
+		scores.appendChild(tiret);
+		scores.appendChild(this.blueScore);
+		this.banner = document.createElement("div");
+		this.banner.classList.add("game-crayzol-banner");
+		this.html.appendChild(scores);
+		this.html.appendChild(this.time);
+		this.html.appendChild(this.banner);
+	}
+	/** Formats seconds as m:ss.s */
+	static showTime(time) {
+		const t = Math.max(0, time);
+		return `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+	}
+	/** Text displayed in the middle of the screen between rounds. */
+	static bannerText(game) {
+		if (game.breakTime <= 0 && !game.finished) return "";
+		const who = game.lastRoundWinner === 1 ? "Red team" : game.lastRoundWinner === -1 ? "Blue team" : null;
+		if (who === null) return "Draw!";
+		return game.finished ? `${who} wins the game!` : `${who} wins the round!`;
+	}
+	/** Refreshes the DOM, detects deaths (for the KO animation) and keeps client state. */
+	update(game, playerIdx) {
+		this.time.innerText = ClientData.showTime(game.time);
+		this.redScore.innerText = String(game.redScore).padStart(2, "0");
+		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
+		const text = ClientData.bannerText(game);
+		this.banner.innerText = text;
+		this.banner.classList.toggle("game-crayzol-banner-visible", text !== "");
+		for (const [i, p] of game.players.entries()) {
+			if ((this.prevAlive[i] ?? -1) < 0 && p.alive >= 0) this.spawnDeathFx(p);
+			this.prevAlive[i] = p.alive;
+		}
+		const player = game.players[playerIdx];
+		if (this.clientWasDead && player.alive < 0) this.spawnTime = performance.now();
+		this.clientWasDead = player.alive >= 0;
+		this.selfX = player.x;
+		this.selfY = player.y;
+	}
+	/** Creates a KO effect at the border where the (now ghost) player was stopped. */
+	spawnDeathFx(p) {
+		const rx = Math.abs(p.x) / HALF_W;
+		const ry = Math.abs(p.y) / HALF_H;
+		let nx = 0;
+		let ny = 0;
+		if (rx >= ry) nx = p.x < 0 ? -1 : 1;
+		else ny = p.y < 0 ? -1 : 1;
+		this.deathFx.push({
+			x: p.x,
+			y: p.y,
+			nx,
+			ny,
+			start: performance.now(),
+			team: p.team
+		});
+	}
+	/** Screen shake offset, strong right after a KO. */
+	getShake() {
+		const now = performance.now();
+		let amp = 0;
+		for (const fx of this.deathFx) {
+			const age = now - fx.start;
+			if (age < ClientData.SHAKE_MS) amp = Math.max(amp, 30 * (1 - age / ClientData.SHAKE_MS));
+		}
+		return {
+			x: (Math.random() * 2 - 1) * amp,
+			y: (Math.random() * 2 - 1) * amp
+		};
+	}
+	/** Draws a 5-branch star. */
+	static drawStar(ctx, outer, inner, rotation) {
+		ctx.beginPath();
+		for (let i = 0; i < 10; i++) {
+			const r = i % 2 === 0 ? outer : inner;
+			const a = rotation + i * Math.PI / 5 - Math.PI / 2;
+			const px = Math.cos(a) * r;
+			const py = Math.sin(a) * r;
+			if (i === 0) ctx.moveTo(px, py);
+			else ctx.lineTo(px, py);
+		}
+		ctx.closePath();
+	}
+	/**
+	* Draws every running KO effect (light beam entering the screen, expanding
+	* ring, radial spikes and a spinning star). Drawn on top of everything.
+	*/
+	drawDeathFx(ctx) {
+		const now = performance.now();
+		this.deathFx = this.deathFx.filter((fx) => now - fx.start < ClientData.DEATH_FX_MS);
+		for (const fx of this.deathFx) {
+			const t = (now - fx.start) / ClientData.DEATH_FX_MS;
+			const fade = 1 - t;
+			const color = fx.team === "red" ? "#ff4f99" : "#4f99ff";
+			ctx.save();
+			ctx.translate(fx.x, fx.y);
+			ctx.save();
+			ctx.rotate(Math.atan2(-fx.ny, -fx.nx));
+			const beamLen = 1e3 * Math.min(1, t * 4);
+			const beamWidth = 160 * fade;
+			const gradient = ctx.createLinearGradient(0, 0, beamLen, 0);
+			gradient.addColorStop(0, `rgba(255,255,255,${.9 * fade})`);
+			gradient.addColorStop(1, "rgba(255,255,255,0)");
+			ctx.fillStyle = gradient;
+			ctx.fillRect(0, -beamWidth / 2, beamLen, beamWidth);
+			ctx.restore();
+			ctx.globalAlpha = fade;
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 30 * fade;
+			ctx.beginPath();
+			ctx.arc(0, 0, 40 + 450 * (1 - fade * fade), 0, Math.PI * 2);
+			ctx.stroke();
+			ctx.strokeStyle = "white";
+			ctx.lineWidth = 10 * fade;
+			for (let k = 0; k < 12; k++) {
+				const a = k * Math.PI / 6 + t * .6;
+				const r0 = 60 + 250 * t;
+				const r1 = r0 + 140 * fade;
+				ctx.beginPath();
+				ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+				ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+				ctx.stroke();
+			}
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 8;
+			ClientData.drawStar(ctx, 90 * (1 + t), 40 * (1 + t), t * Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+			ctx.restore();
+		}
+	}
+	/** Opacity of the "You" label: shown after (re)spawn and near a teammate. */
+	getYouAlpha(game, playerIdx) {
+		const player = game.players[playerIdx];
+		let shouldShow = performance.now() - this.spawnTime <= ClientData.YOU_AFTER_SPAWN;
+		if (!shouldShow) for (let i = 0; i < game.players.length; i++) {
+			if (i === playerIdx) continue;
+			const mate = game.players[i];
+			if (mate.team !== player.team) continue;
+			if (norm2(mate.x - player.x, mate.y - player.y) <= ClientData.YOU_NEAR_MATE_DISTANCE * ClientData.YOU_NEAR_MATE_DISTANCE) {
+				shouldShow = true;
+				break;
+			}
+		}
+		if (shouldShow) this.youOpacity = Math.min(1, this.youOpacity + ClientData.FADE_SPEED);
+		else this.youOpacity = Math.max(0, this.youOpacity - ClientData.FADE_SPEED);
+		return ClientData.animateOpacity(this.youOpacity);
+	}
+	static animateOpacity(x) {
+		return (1 - Math.exp(-5 * x)) / (1 - Math.exp(-5));
+	}
+	/** Returns [column, row, lookLeft] of the skin sprite sheet. */
+	getPlayerTextureCode(grabbing, player, idx) {
+		let first;
+		if (player.vy < -600) first = 1;
+		else if (player.vy >= 0) first = 2;
+		else first = 0;
+		const second = grabbing ? 1 : 0;
+		let third;
+		if (player.dir === 0) {
+			if (player.vx < 0) third = true;
+			else if (player.vx > 0) third = false;
+			else third = this.lastDirs[idx] ?? false;
+		} else third = player.dir < 0;
+		this.lastDirs[idx] = third;
+		return [
+			first,
+			second,
+			third
+		];
+	}
+};
+var TutorialData = class {
+	game;
+	step = 0;
+	botTeleportTimer = -Infinity;
+	playerHadBall = false;
+	constructor(game) {
+		this.game = game;
+	}
+	frame(dt, clock) {
+		const player = this.game.players[0];
+		const bot = this.game.players[1];
+		if (bot && bot.isAlive() && bot.y > 200) {
+			bot.vy = -Player.JUMP;
+			bot.target = {
+				x: 0,
+				y: 0
+			};
+		}
+		if (!player.isAlive()) {
+			this.step = 0;
+			this.botTeleportTimer = -Infinity;
+			this.playerHadBall = false;
+		}
+		const playerHasBall = this.game.ball.grabber === 0;
+		if (playerHasBall && !this.playerHadBall) {
+			this.botTeleportTimer = 0;
+			this.step = 1;
+		}
+		this.playerHadBall = playerHasBall;
+		if (this.step === 0) return "Move and jump (arrow keys) to touch the ball";
+		if (this.step === 1) {
+			if (this.botTeleportTimer !== -Infinity) {
+				this.botTeleportTimer += dt;
+				if (this.botTeleportTimer >= 1) {
+					if (bot) {
+						bot.x = this.game.ball.x;
+						bot.y = this.game.ball.y;
+						bot.vx = 0;
+						bot.vy = 0;
+					}
+					this.botTeleportTimer = -Infinity;
+				}
+			}
+			if (bot && !bot.isAlive()) this.step = 2;
+			return "Aim with the mouse and click to throw the ball at the blue player.\nA hit sends him flying: get him out of the screen!";
+		}
+		if (this.step === 2) {
+			if (player.gems >= 1) this.step = 3;
+			return "Nice! Now grab the purple gems: each one makes your throws faster";
+		}
+		return "";
+	}
+	lockGame() {
+		return false;
+	}
+};
+function generateClientDom(unlockedSkins) {
+	return {
+		skin: Object.keys(GMCrayzoll.SKINS)[0],
+		preferTeam: 0,
+		SKINS: GMCrayzoll.SKINS,
+		unlockedSkins,
+		produce() {
+			const { StartData } = protocols.get();
+			return StartData.encode({
+				skin: this.skin,
+				preferTeam: this.preferTeam
+			}).finish();
+		},
+		hasSkin(skin) {
+			return this.unlockedSkins.includes(skin);
+		},
+		getIconPath: GameMode.getSkinIconPath
+	};
+}
+/**
+* Checks for AABB collisions between all ALIVE players.
+* If a collision is found, projects the players in opposite directions.
+* Ghosts (dead players) do not collide with anybody.
+*/
+function applyCollisions(players) {
+	for (let i = 0; i < players.length; i++) for (let j = i + 1; j < players.length; j++) {
+		const p1 = players[i];
+		const p2 = players[j];
+		if (!p1.isAlive() || !p2.isAlive()) continue;
+		const dx = p1.x - p2.x;
+		const dy = p1.y - p2.y;
+		if (Math.abs(dx) < Player.WIDTH && Math.abs(dy) < Player.HEIGHT) {
+			const dist = Math.sqrt(dx * dx + dy * dy);
+			const nx = dist === 0 ? 1 : dx / dist;
+			const ny = dist === 0 ? 0 : dy / dist;
+			p1.vx += nx * Player.BOUNCE_X;
+			p1.vy += ny * Player.BOUNCE_Y;
+			p2.vx -= nx * Player.BOUNCE_X;
+			p2.vy -= ny * Player.BOUNCE_Y;
+		}
+	}
+}
+/**
+* Computes the initial velocity of a projectile launched with speed norm N
+* (under gravity g) so that it reaches the point (X, Y) relative to its origin.
+* If the target cannot be reached, it returns a straight vector of norm N
+* towards the target with success = false.
+*/
+function getVectorToReachTarget(X, Y, N, g) {
+	if (X === 0) return {
+		x: 0,
+		y: Y > 0 ? N : -N,
+		success: false
+	};
+	const X2 = X * X;
+	const Y2 = Y * Y;
+	const N2 = N * N;
+	const g2 = g * g;
+	const delta = X2 * (N2 * N2 + 2 * N2 * g * Y - g2 * X2);
+	function fail() {
+		const n = N / Math.sqrt(X2 + Y2);
+		return {
+			x: X * n,
+			y: Y * n,
+			success: false
+		};
+	}
+	if (delta < 0) return fail();
+	const a = X2 + Y2;
+	const S = (-(-X2 * (N2 + g * Y)) + Math.sqrt(delta)) / (2 * a);
+	if (S <= 0) return fail();
+	const v0 = Math.sign(X) * Math.sqrt(S);
+	return {
+		x: v0,
+		y: v0 / X * (Y - g * X2 / (2 * S)),
+		success: true
+	};
+}
+/**
+* Draws the aiming guide: a target circle at the mouse position and the
+* predicted trajectory of a throw made with the speed norm `throwSpeed`.
+* `color`: team color (string) when holding the ball,
+*          true (black) when the ball can be grabbed, false (grey) otherwise.
+*/
+function drawAimGuide(ctx, srcX, srcY, destX, destY, color, throwSpeed) {
+	let style;
+	if (color === true) style = {
+		width: 5,
+		color: "black",
+		radius: 5,
+		outline: false
+	};
+	else if (color === false) style = {
+		width: 4,
+		color: "grey",
+		radius: 4,
+		outline: false
+	};
+	else style = {
+		width: 10,
+		color,
+		radius: 10,
+		outline: true
+	};
+	const strokePath = (trace) => {
+		if (style.outline) {
+			ctx.beginPath();
+			trace();
+			ctx.lineWidth = style.width + 4;
+			ctx.strokeStyle = "black";
+			ctx.stroke();
+		}
+		ctx.beginPath();
+		trace();
+		ctx.lineWidth = style.width;
+		ctx.strokeStyle = style.color;
+		ctx.stroke();
+	};
+	strokePath(() => ctx.arc(destX, destY, style.radius, 0, Math.PI * 2));
+	const X = destX - srcX;
+	const Y = destY - srcY;
+	const velocity = getVectorToReachTarget(X, Y, throwSpeed, Ball.GRAVITY);
+	if (velocity.x === 0 || !velocity.success) {
+		const distance = Math.sqrt(X * X + Y * Y);
+		if (distance === 0) return;
+		const startX = srcX + X / distance * 40;
+		const startY = srcY + Y / distance * 40;
+		strokePath(() => {
+			ctx.moveTo(startX, startY);
+			ctx.lineTo(destX, destY);
+		});
+		return;
+	}
+	const g = Ball.GRAVITY;
+	const T = X / velocity.x;
+	if (T <= 0) return;
+	const steps = 50;
+	const points = [];
+	for (let i = 0; i <= steps; i++) {
+		const t = T * i / steps;
+		points.push({
+			x: srcX + velocity.x * t,
+			y: srcY + velocity.y * t + g / 2 * t * t
+		});
+	}
+	let startIndex = 0;
+	for (let i = 1; i < points.length; i++) if (norm2(points[i].x - srcX, points[i].y - srcY) >= 1600) {
+		startIndex = i;
+		break;
+	}
+	strokePath(() => {
+		ctx.moveTo(points[startIndex].x, points[startIndex].y);
+		for (let i = startIndex + 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+	});
+}
+/** Spawn position of the `slot`-th player (0, 1, ...) of a team. */
+function getSpawnPosition(isRed, slot) {
+	const x = SPAWN_X + slot * SPAWN_SLOT_GAP;
+	return {
+		x: isRed ? -x : x,
+		y: 0
+	};
+}
+var GMCrayzoll = class GMCrayzoll extends GameMode {
+	static types = {
+		Player,
+		Gem,
+		Ball
+	};
+	static DATA = {
+		GRAVITY,
+		WIDTH,
+		HEIGHT
+	};
+	players;
+	ball = new Ball();
+	gems = [];
+	redScore = 0;
+	blueScore = 0;
+	time = ROUND_TIME$1;
+	breakTime = 0;
+	gemTimer = GEM_SPAWN_INTERVAL;
+	lastRoundWinner = 0;
+	finished = false;
+	/**
+	* State of the shared pseudo random generator (mulberry32). The initial
+	* seed is sent at game creation (StartDataClient) and the state is part of
+	* save/load, so the server and every client generate the same numbers.
+	*/
+	rngState = 1;
+	constructor(total) {
+		super();
+		this.players = Array.from({ length: total }, () => new Player(0, 0));
+	}
+	static async createServ(players, total, hasSkin) {
+		const { StartData, StartDataClient } = protocols.get();
+		const game = new GMCrayzoll(total);
+		game.rngState = Math.random() * 4294967296 >>> 0 || 1;
+		function decode(i) {
+			if (i < players.length) return decodeFullMessage(StartData.decode(players[i].data));
+			return generateClientDom([]);
+		}
+		const playerInfos = await Promise.all(game.players.map(async (p, i) => {
+			const d = decode(i);
+			let skin;
+			const pseudo = i < players.length ? players[i].pseudo : null;
+			if (pseudo !== null && GMCrayzoll.SKINS_IDS.includes(d.skin)) {
+				if (await hasSkin("crayzoll", d.skin, pseudo)) skin = d.skin;
+				else skin = GMCrayzoll.SKINS_IDS[0];
+			} else skin = GMCrayzoll.SKINS_IDS[0];
+			return {
+				player: p,
+				index: i,
+				skin,
+				pref: d.preferTeam ?? 0
+			};
+		}));
+		const totalPlayers = playerInfos.length;
+		const maxPerTeam = Math.ceil(totalPlayers / 2);
+		const assigned = new Array(totalPlayers);
+		let redCount = 0;
+		let blueCount = 0;
+		for (let i = 0; i < totalPlayers; i++) {
+			const info = playerInfos[i];
+			if (info.pref === 1 && redCount < maxPerTeam) {
+				assigned[info.index] = true;
+				redCount++;
+			} else if (info.pref === -1 && blueCount < maxPerTeam) {
+				assigned[info.index] = false;
+				blueCount++;
+			}
+		}
+		for (let i = 0; i < totalPlayers; i++) {
+			if (assigned[i] !== void 0) continue;
+			if ((redCount < blueCount || redCount === blueCount && i % 2 === 0) && redCount < maxPerTeam) {
+				assigned[i] = true;
+				redCount++;
+			} else {
+				assigned[i] = false;
+				blueCount++;
+			}
+		}
+		let redSlot = 0;
+		let blueSlot = 0;
+		for (const [i, p] of game.players.entries()) {
+			const redTeam = assigned[i];
+			const pos = getSpawnPosition(redTeam, redTeam ? redSlot++ : blueSlot++);
+			p.initSpawn(pos.x, pos.y, redTeam ? "red" : "blue");
+		}
+		return {
+			game,
+			data: StartDataClient.encode({
+				seed: game.rngState,
+				players: game.players.map((p, idx) => ({
+					x: p.spawnX,
+					y: p.spawnY,
+					skin: playerInfos[idx].skin,
+					isRed: p.team === "red"
+				}))
+			}).finish()
+		};
+	}
+	static createClient({ data, origin }, total, _playerIdx) {
+		const game = new GMCrayzoll(total);
+		const { StartData, StartDataClient } = protocols.get();
+		const clientData = new ClientData();
+		let skins;
+		if (origin === "server") {
+			const { players, seed } = decodeFullMessage(StartDataClient.decode(data));
+			game.rngState = seed || 1;
+			const skinSet = /* @__PURE__ */ new Set();
+			for (const [idx, p] of players.entries()) {
+				game.players[idx].initSpawn(p.x, p.y, p.isRed ? "red" : "blue");
+				clientData.skins.push(p.skin);
+				skinSet.add(p.skin);
+			}
+			skins = Object.fromEntries([...skinSet].map((key) => ["skin-" + key, GameMode.getSkinTexturePath(key)]));
+		} else {
+			const { skin } = decodeFullMessage(StartData.decode(data));
+			game.rngState = Math.random() * 4294967296 >>> 0 || 1;
+			let redSlot = 0;
+			let blueSlot = 0;
+			for (let i = 0; i < game.players.length; i++) {
+				const isRed = i % 2 === 0;
+				const pos = getSpawnPosition(isRed, isRed ? redSlot++ : blueSlot++);
+				game.players[i].initSpawn(pos.x, pos.y, isRed ? "red" : "blue");
+			}
+			clientData.skins = Array.from({ length: game.players.length }, () => GMCrayzoll.SKINS_IDS[0]);
+			clientData.skins[0] = skin;
+			skins = { ["skin-" + skin]: GameMode.getSkinTexturePath(skin) };
+		}
+		return {
+			game,
+			data: clientData,
+			html: clientData.html,
+			skins
+		};
+	}
+	static generateClientDom = generateClientDom;
+	static SKINS = {
+		joe: "Joe",
+		luck: "Luck",
+		kwanita: "Kwanita",
+		nooby: "Nooby",
+		willy: "Willy"
+	};
+	static SKINS_IDS = Object.keys(GMCrayzoll.SKINS);
+	static TEXTURES = {
+		"ball": "/assets/games/crayzoll/ball.png",
+		"gem": "/assets/games/crayzoll/gem.svg",
+		"background": "/assets/games/crayzoll/background.svg",
+		"skin-joe": GameMode.getSkinTexturePath("joe")
+	};
+	static EXPLAINATION_SLIDES = [
+		"0.png",
+		"1.png",
+		"2.png"
+	];
+	init() {}
+	getBotIds(count) {
+		return Array.from({ length: count }, () => 0);
+	}
+	/** Next number of the shared generator, in [0, 1). Advances rngState. */
+	nextRandom() {
+		this.rngState = this.rngState + 1831565813 >>> 0;
+		let t = this.rngState;
+		t = Math.imul(t ^ t >>> 15, t | 1);
+		t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+		return ((t ^ t >>> 14) >>> 0) / 4294967296;
+	}
+	/** Random horizontal velocity in [-GEM_SPAWN_VX, GEM_SPAWN_VX]. */
+	nextGemVx() {
+		return (this.nextRandom() * 2 - 1) * GEM_SPAWN_VX;
+	}
+	/** Spawns a gem at (x, y) with a jump and a pseudo random horizontal speed. */
+	spawnGem(x, y) {
+		const vx = this.nextGemVx();
+		if (this.gems.length >= MAX_GEMS) return;
+		this.gems.push(new Gem(x, y, vx, -1400));
+	}
+	/** Every GEM_SPAWN_INTERVAL seconds, a gem appears at the center of the screen. */
+	spawnGemsOverTime(dt) {
+		this.gemTimer -= dt;
+		while (this.gemTimer <= 0) {
+			this.spawnGem(0, HEIGHT / 2);
+			this.gemTimer += GEM_SPAWN_INTERVAL;
+		}
+	}
+	/** Moves gems and removes the ones that fell below the screen. */
+	moveGems(dt) {
+		for (const gem of this.gems) gem.move(dt);
+		this.gems = this.gems.filter((g) => !g.isDestroyed());
+	}
+	/** Alive players collect the gems they touch (ghosts cannot). */
+	collectGems() {
+		this.gems = this.gems.filter((gem) => {
+			for (const p of this.players) {
+				if (!p.isAlive()) continue;
+				if (collisions.RectCircle({
+					x: p.x,
+					y: p.y,
+					w: Player.WIDTH,
+					h: Player.HEIGHT
+				}, {
+					x: gem.x,
+					y: gem.y,
+					r: GEM_RADIUS
+				})) {
+					p.gems++;
+					return false;
+				}
+			}
+			return true;
+		});
+	}
+	/**
+	* Speed norm used when `thrower` throws the ball:
+	* - while being projected: the norm of its effect vector (0 once cancelled),
+	* - else the saved speed if a teammate of the previous holder caught the ball,
+	* - else the base speed.
+	* In every case, GEM_BOOST * gems is added.
+	*/
+	getThrowSpeed(thrower) {
+		const effect = thrower.effectNorm();
+		let base;
+		if (effect > 0) base = effect;
+		else if (this.ball.savedSpeed >= 0) base = this.ball.savedSpeed;
+		else base = BALL_BASE_SPEED;
+		return base + GEM_BOOST * thrower.gems;
+	}
+	/** If the holder has an aim target, throws the ball towards it. */
+	processThrow() {
+		if (this.ball.grabber < 0) return;
+		const thrower = this.players[this.ball.grabber];
+		if (!thrower.target) return;
+		const dx = thrower.target.x - thrower.x;
+		const dy = thrower.target.y - thrower.y;
+		if (dx === 0 && dy === 0) return;
+		const v = getVectorToReachTarget(dx, dy, this.getThrowSpeed(thrower), Ball.GRAVITY);
+		this.ball.vx = v.x;
+		this.ball.vy = v.y;
+		this.ball.savedSpeed = -1;
+		this.ball.removeGrabber();
+	}
+	/** A held ball follows its holder. */
+	attachBallToGrabber() {
+		if (this.ball.grabber < 0) return;
+		const grabber = this.players[this.ball.grabber];
+		this.ball.x = grabber.x;
+		this.ball.y = grabber.y;
+	}
+	/**
+	* Handles players touching the free ball:
+	* - alive ENEMY of the previous holder => hit: the whole ball velocity is
+	*   transferred to it as an "effect", and the ball goes back to the center,
+	* - enemy ghost => ignored (the ball goes through),
+	* - teammate of the previous holder => catches the ball, and the ball speed
+	*   is saved so it can be restored on the next throw,
+	* - anybody if nobody held the ball => grabs it.
+	* The previous holder cannot re-grab it, and two simultaneous grabbers cancel out.
+	*/
+	resolveBallContacts() {
+		if (this.ball.grabber >= 0) return;
+		const prev = this.ball.prevGrabber >= 0 ? this.players[this.ball.prevGrabber] : null;
+		let candidate = -1;
+		let candidates = 0;
+		for (const [i, p] of this.players.entries()) {
+			if (i === this.ball.prevGrabber) continue;
+			if (!p.touchsBall(this.ball)) continue;
+			if (prev !== null && p.team !== prev.team) {
+				if (p.isAlive()) {
+					this.hitPlayer(p);
+					return;
+				}
+				continue;
+			}
+			candidate = i;
+			candidates++;
+		}
+		if (candidates === 1) this.grabBall(candidate, prev);
+	}
+	/** Player `idx` takes the ball; saves its speed if it comes from a teammate. */
+	grabBall(idx, prev) {
+		const fromMate = prev !== null && this.players[idx].team === prev.team;
+		this.ball.savedSpeed = fromMate ? this.ball.speed() : -1;
+		this.ball.vx = 0;
+		this.ball.vy = 0;
+		this.ball.grabber = idx;
+	}
+	/** Transfers the whole ball velocity to `target` (Smash-like projection). */
+	hitPlayer(target) {
+		target.ex += this.ball.vx;
+		target.ey += this.ball.vy;
+		target.vx = 0;
+		target.vy = 0;
+		this.ball.grabber = this.players.indexOf(target);
+		this.ball.prevGrabber = -1;
+		this.ball.vx = 0;
+		this.ball.vy = 0;
+		this.ball.savedSpeed = -1;
+	}
+	/** Kills a player: it becomes a ghost stuck against the screen border and drops its gems. */
+	killPlayer(idx) {
+		const p = this.players[idx];
+		let rank = 0;
+		for (const q of this.players) if (q !== p && q.team === p.team && !q.isAlive()) rank++;
+		p.alive = rank;
+		p.deaths++;
+		p.clampToScreen();
+		for (let k = 0; k < p.gems; k++) this.spawnGem(p.x, p.y);
+		p.gems = 0;
+		p.vx = 0;
+		p.vy = 0;
+		p.ex = 0;
+		p.ey = 0;
+	}
+	/** Kills every alive player whose skin is completely out of the screen. */
+	killOutOfScreenPlayers() {
+		for (const [idx, p] of this.players.entries()) {
+			const isOOB = p.isOOB();
+			if (!p.isAlive()) p.clampToScreen();
+			if (!isOOB) continue;
+			if (idx === this.ball.grabber) {
+				this.ball.grabber = -1;
+				const dx = -p.x;
+				const dy = -p.y;
+				const distance = Math.hypot(dx, dy);
+				const BALL_EJECTION_SPEED = 1e3;
+				if (distance > 0) {
+					this.ball.vx = dx / distance * BALL_EJECTION_SPEED;
+					this.ball.vy = dy / distance * BALL_EJECTION_SPEED;
+				} else {
+					this.ball.vx = 0;
+					this.ball.vy = 0;
+				}
+			}
+			if (p.isAlive()) this.killPlayer(idx);
+		}
+	}
+	teamSize(team) {
+		return this.players.filter((p) => p.team === team).length;
+	}
+	countAlive(team) {
+		return this.players.filter((p) => p.team === team && p.isAlive()).length;
+	}
+	gemsHeld(team) {
+		return this.players.filter((p) => p.team === team && p.isAlive()).reduce((sum, p) => sum + p.gems, 0);
+	}
+	/** Timeout: most survivors wins, then most gems held, else draw. */
+	decideTimeoutWinner() {
+		const ra = this.countAlive("red");
+		const ba = this.countAlive("blue");
+		if (ra !== ba) return ra > ba ? "red" : "blue";
+		const rg = this.gemsHeld("red");
+		const bg = this.gemsHeld("blue");
+		if (rg !== bg) return rg > bg ? "red" : "blue";
+		return null;
+	}
+	/** Ends the round when a team is fully dead or when time is over. */
+	checkRoundEnd() {
+		if (this.teamSize("red") === 0 || this.teamSize("blue") === 0) return;
+		const red = this.countAlive("red");
+		const blue = this.countAlive("blue");
+		if (red === 0 && blue === 0) this.endRound(null);
+		else if (red === 0) this.endRound("blue");
+		else if (blue === 0) this.endRound("red");
+		else if (this.time <= 0) {
+			this.time = 0;
+			this.endRound(this.decideTimeoutWinner());
+		}
+	}
+	/** Gives the point, then either finishes the game or starts the break. */
+	endRound(winner) {
+		this.lastRoundWinner = winner === "red" ? 1 : winner === "blue" ? -1 : 0;
+		if (winner === "red") this.redScore++;
+		if (winner === "blue") this.blueScore++;
+		if (this.redScore >= WINNING_SCORE || this.blueScore >= WINNING_SCORE) {
+			this.finished = true;
+			this.breakTime = 0;
+		} else this.breakTime = ROUND_BREAK;
+	}
+	/** Resets the whole arena for a new round (scores are kept). */
+	startRound() {
+		for (const p of this.players) p.resetForRound();
+		this.ball.reset();
+		this.gems = [];
+		this.gemTimer = GEM_SPAWN_INTERVAL;
+		this.time = ROUND_TIME$1;
+		this.breakTime = 0;
+	}
+	/**
+	* NOTE: all randomness comes from the shared `rngState` (seed sent in
+	* StartDataClient and saved in State), so the optional random generator
+	* given by the engine is not needed.
+	*/
+	run(dt, produceFinish) {
+		if (!this.finished) {
+			if (this.breakTime > 0) this.runBreak(dt);
+			else this.runRound(dt);
+		}
+		if (produceFinish && this.finished) return this.produceFinish();
+		return null;
+	}
+	/** Between two rounds everything is frozen until the break is over. */
+	runBreak(dt) {
+		this.breakTime -= dt;
+		if (this.breakTime <= 0) this.startRound();
+	}
+	/** One simulation step of a running round. */
+	runRound(dt) {
+		this.time -= dt;
+		this.spawnGemsOverTime(dt);
+		for (const [idx, p] of this.players.entries()) p.move(dt, idx === this.ball.grabber);
+		applyCollisions(this.players);
+		this.processThrow();
+		this.ball.move(dt);
+		this.attachBallToGrabber();
+		this.resolveBallContacts();
+		this.moveGems(dt);
+		this.collectGems();
+		this.killOutOfScreenPlayers();
+		this.checkRoundEnd();
+	}
+	runInput(playerIdx, input) {
+		const player = this.players[playerIdx];
+		switch (input.action) {
+			case "dir":
+				player.dir = Math.max(-1, Math.min(1, input.dir));
+				break;
+			case "jump":
+				if (this.ball.grabber !== playerIdx) player.vy = -Player.JUMP;
+				break;
+			case "downOn":
+				player.pushDown = true;
+				break;
+			case "downOff":
+				player.pushDown = false;
+				break;
+			case "throwTarget":
+				if (input.throwTarget.relative) player.target = {
+					x: player.x + input.throwTarget.x,
+					y: player.y + input.throwTarget.y
+				};
+				else player.target = {
+					x: input.throwTarget.x,
+					y: input.throwTarget.y
+				};
+				break;
+			case "throwOff": player.target = null;
+		}
+	}
+	collectInputs(keyboard, mouse, mobile, _data) {
+		const data = _data;
+		const throwTarget = mouse.getCoords();
+		data.mouseX = throwTarget.x;
+		data.mouseY = throwTarget.y;
+		const inputs = [];
+		function getMoveInput() {
+			const r0 = keyboard.first("right");
+			const l0 = keyboard.first("left");
+			const right = {
+				dir: 1,
+				action: "dir"
+			};
+			const left = {
+				dir: -1,
+				action: "dir"
+			};
+			const stop = {
+				dir: 0,
+				action: "dir"
+			};
+			if (r0 && !l0) return right;
+			if (!r0 && l0) return left;
+			if (r0 && l0) return stop;
+			const rK = keyboard.killed("right");
+			const lK = keyboard.killed("left");
+			if (rK && lK) return stop;
+			const r = keyboard.press("right");
+			const l = keyboard.press("left");
+			if (rK) return l ? left : stop;
+			if (lK) return r ? right : stop;
+			return null;
+		}
+		const moveInput = getMoveInput();
+		if (moveInput) inputs.push(moveInput);
+		if (keyboard.first("up")) inputs.push({
+			jump: {},
+			action: "jump"
+		});
+		if (keyboard.first("down")) inputs.push({
+			downOn: {},
+			action: "downOn"
+		});
+		if (keyboard.killed("down")) inputs.push({
+			downOff: {},
+			action: "downOff"
+		});
+		if (mouse.press(0)) {
+			if (mouse.first(0) || throwTarget.x !== data.lastSentX || throwTarget.y !== data.lastSentY) {
+				inputs.push({
+					throwTarget,
+					action: "throwTarget"
+				});
+				data.lastSentX = throwTarget.x;
+				data.lastSentY = throwTarget.y;
+			}
+		} else if (mouse.killed(0)) {
+			inputs.push({
+				throwOff: {},
+				action: "throwOff"
+			});
+			data.lastSentX = NaN;
+			data.lastSentY = NaN;
+		}
+		if (mobile) this.collectMobileInputs(mobile, data, inputs);
+		return inputs;
+	}
+	/** Mobile controls: analog movement, relative analog aim and jump. */
+	collectMobileInputs(mobile, data, inputs) {
+		const move = mobile.getJoystick("move");
+		const dir = Math.max(-1, Math.min(1, move.x));
+		if (dir !== data.mobileDir) {
+			data.mobileDir = dir;
+			inputs.push({
+				dir,
+				action: "dir"
+			});
+		}
+		if (mobile.first("jump")) inputs.push({
+			jump: {},
+			action: "jump"
+		});
+		const aim = mobile.getJoystick("aim");
+		if (Math.hypot(aim.x, aim.y) > 0) {
+			const AIM_DISTANCE = 1200;
+			const target = {
+				x: aim.x * AIM_DISTANCE,
+				y: aim.y * AIM_DISTANCE,
+				relative: true
+			};
+			data.lastAimTargetX = target.x;
+			data.lastAimTargetY = target.y;
+			data.mobileAiming = true;
+			data.mouseX = data.selfX + target.x;
+			data.mouseY = data.selfY + target.y;
+		} else if (data.mobileAiming) {
+			inputs.push({
+				throwTarget: {
+					x: data.lastAimTargetX,
+					y: data.lastAimTargetY,
+					relative: true
+				},
+				action: "throwTarget"
+			});
+			data.mobileAiming = false;
+			data.lastAimTargetX = NaN;
+			data.lastAimTargetY = NaN;
+			data.mouseX = 0;
+			data.mouseY = 0;
+		} else {
+			data.mouseX = 0;
+			data.mouseY = 0;
+		}
+	}
+	/** Background image + a red frame showing the "danger" border of the screen. */
+	drawBackground(ctx, imageLoader) {
+		ctx.drawImage(imageLoader.get("background"), -1800, -1012.5, WIDTH, HEIGHT);
+		ctx.strokeStyle = "rgba(255, 80, 80, 0.5)";
+		ctx.lineWidth = 6;
+		ctx.strokeRect(-1800, -1012.5, WIDTH, HEIGHT);
+	}
+	drawGems(ctx, imageLoader) {
+		const image = imageLoader.get("gem");
+		for (const gem of this.gems) ctx.drawImage(image, gem.x - GEM_RADIUS, gem.y - GEM_RADIUS, 60, 60);
+	}
+	/** The ball is only drawn when it is free (a held ball is shown by the skin). */
+	drawBall(ctx, imageLoader) {
+		if (this.ball.grabber >= 0) return;
+		ctx.drawImage(imageLoader.get("ball"), this.ball.x - Ball.RADIUS, this.ball.y - Ball.RADIUS, Ball.RADIUS * 2, Ball.RADIUS * 2);
+	}
+	/** Draws every player; ghosts are semi-transparent. */
+	drawPlayers(ctx, imageLoader, data) {
+		for (const [idx, p] of this.players.entries()) {
+			let [tx, ty, lookLeft] = data.getPlayerTextureCode(this.ball.grabber === idx, p, idx);
+			if (p.team === "red") tx += 3;
+			const texture = imageLoader.get("skin-" + data.skins[idx]);
+			const w = texture.width / 6;
+			const h = texture.height / 4;
+			const width = Player.SPRITE_WIDTH;
+			ctx.save();
+			ctx.globalAlpha = p.isAlive() ? 1 : PLAYER_DEAD_OPACITY;
+			if (lookLeft) {
+				ctx.translate(p.x + width / 2, p.y - Player.HEIGHT / 2);
+				ctx.scale(-1, 1);
+				ctx.drawImage(texture, tx * w, ty * h, w, h, 0, 0, width, Player.HEIGHT);
+			} else ctx.drawImage(texture, tx * w, ty * h, w, h, p.x - width / 2, p.y - Player.HEIGHT / 2, width, Player.HEIGHT);
+			ctx.restore();
+		}
+	}
+	/** Trajectory preview of the local player. */
+	drawLocalAim(ctx, playerIdx, data) {
+		const player = this.players[playerIdx];
+		let color;
+		if (this.ball.grabber === playerIdx) color = player.team;
+		else color = this.ball.prevGrabber !== playerIdx;
+		drawAimGuide(ctx, player.x, player.y, data.mouseX, data.mouseY, color, this.getThrowSpeed(player));
+	}
+	/**
+	* Draws texts above players: the gem counter (closest to the head) and the
+	* "You" label above it. Drawn AFTER all sprites so they are never hidden.
+	*/
+	drawLabels(ctx, imageLoader, playerIdx, data) {
+		const gemImage = imageLoader.get("gem");
+		const ICON = 36;
+		ctx.font = "bold 40px sans-serif";
+		ctx.textAlign = "left";
+		ctx.textBaseline = "middle";
+		for (const p of this.players) {
+			const y = p.y - Player.HEIGHT / 2 - 30;
+			const text = String(p.gems);
+			const total = 42 + ctx.measureText(text).width;
+			const startX = p.x - total / 2;
+			ctx.save();
+			ctx.globalAlpha = p.isAlive() ? 1 : PLAYER_DEAD_OPACITY;
+			ctx.drawImage(gemImage, startX, y - ICON / 2, ICON, ICON);
+			ctx.lineWidth = 6;
+			ctx.strokeStyle = "#333";
+			ctx.fillStyle = "white";
+			ctx.strokeText(text, startX + ICON + 6, y);
+			ctx.fillText(text, startX + ICON + 6, y);
+			ctx.restore();
+		}
+		const youAlpha = data.getYouAlpha(this, playerIdx);
+		if (youAlpha > 0) {
+			const p = this.players[playerIdx];
+			ctx.save();
+			ctx.globalAlpha = youAlpha;
+			ctx.font = "bold 50px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "bottom";
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = "#333";
+			ctx.lineWidth = 8;
+			const labelY = p.y - Player.HEIGHT / 2 - 60;
+			ctx.strokeText("You", p.x, labelY);
+			ctx.fillText("You", p.x, labelY);
+			ctx.restore();
+		}
+	}
+	draw(ctx, playerIdx, _data, _imageLoader, _addCamZ, _dt) {
+		ctx.imageSmoothingEnabled = false;
+		const imageLoader = _imageLoader.getFolder("crayzoll");
+		const data = _data;
+		if (data.firstFrame) data.firstFrame = false;
+		data.update(this, playerIdx);
+		ctx.fillStyle = "#333";
+		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+		const shake = data.getShake();
+		ctx.save();
+		ctx.translate(WIDTH / 2 + shake.x, HEIGHT / 2 + shake.y);
+		this.drawBackground(ctx, imageLoader);
+		this.drawGems(ctx, imageLoader);
+		this.drawBall(ctx, imageLoader);
+		this.drawPlayers(ctx, imageLoader, data);
+		this.drawLocalAim(ctx, playerIdx, data);
+		this.drawLabels(ctx, imageLoader, playerIdx, data);
+		data.drawDeathFx(ctx);
+		ctx.restore();
+	}
+	onDisconnection(id) {
+		this.players[id].connected = false;
+	}
+	save() {
+		const { State } = protocols.get();
+		const object = {
+			players: this.players.map((p) => p.save()),
+			gems: this.gems.map((g) => g.save()),
+			prevBallGrabber: this.ball.prevGrabber,
+			savedBallSpeed: this.ball.savedSpeed,
+			time: this.time,
+			breakTime: this.breakTime,
+			gemTimer: this.gemTimer,
+			redScore: this.redScore,
+			blueScore: this.blueScore,
+			lastRoundWinner: this.lastRoundWinner,
+			finished: this.finished,
+			rngState: this.rngState
+		};
+		if (this.ball.grabber >= 0) object.grabbedBall = { owner: this.ball.grabber };
+		else object.freeBall = this.ball.save();
+		return State.encode(object).finish();
+	}
+	load(data) {
+		const { State } = protocols.get();
+		const obj = State.decode(data);
+		for (const [idx, player] of obj.players.entries()) this.players[idx].load(player);
+		this.gems = obj.gems.map((g) => new Gem(g.x, g.y, g.vx, g.vy));
+		this.ball.load(obj);
+		this.time = obj.time;
+		this.breakTime = obj.breakTime;
+		this.gemTimer = obj.gemTimer;
+		this.redScore = obj.redScore;
+		this.blueScore = obj.blueScore;
+		this.lastRoundWinner = obj.lastRoundWinner;
+		this.finished = obj.finished;
+		this.rngState = obj.rngState;
+	}
+	getSize() {
+		return {
+			width: WIDTH,
+			height: HEIGHT
+		};
+	}
+	/** Screen coordinates -> world coordinates (fixed camera centered on the screen). */
+	evalMouseCoords(x, y, playerIdx, _clientData) {
+		const clientData = _clientData;
+		const ret = {
+			x: x - WIDTH / 2,
+			y: y - HEIGHT / 2
+		};
+		clientData.mouseX = ret.x;
+		clientData.mouseY = ret.y;
+		return ret;
+	}
+	getMobileDesc() {
+		return {
+			joysticks: {
+				move: {
+					x: 60,
+					xp: "left",
+					y: 60,
+					yp: "bottom",
+					size: 140,
+					color: "#ffffff"
+				},
+				aim: {
+					x: 60,
+					xp: "right",
+					y: 60,
+					yp: "bottom",
+					size: 140,
+					color: "#ff9b7a"
+				}
+			},
+			buttons: { jump: {
+				x: 60,
+				xp: "right",
+				y: 240,
+				yp: "bottom",
+				size: 90,
+				color: "#4f99ff"
+			} }
+		};
+	}
+	createTutorial() {
+		return new TutorialData(this);
+	}
+	/**
+	* Final ranking. The winning team is first. Inside a team, players are
+	* sorted by number of deaths (fewer is better), then by their death order
+	* in the last round (`alive`: survivor > died later > died earlier).
+	*/
+	produceFinish() {
+		const redTeam = [];
+		const blueTeam = [];
+		const playerEqualities = [];
+		for (const [idx, player] of this.players.entries()) if (player.team === "red") redTeam.push(idx);
+		else blueTeam.push(idx);
+		const survivalKey = (idx) => {
+			const a = this.players[idx].alive;
+			return a < 0 ? Infinity : a;
+		};
+		for (const team of [redTeam, blueTeam]) {
+			team.sort((a, b) => {
+				const pa = this.players[a];
+				const pb = this.players[b];
+				if (pa.deaths !== pb.deaths) return pa.deaths - pb.deaths;
+				const ka = survivalKey(a);
+				const kb = survivalKey(b);
+				if (ka === kb) return 0;
+				return ka > kb ? -1 : 1;
+			});
+			for (let i = 0; i < team.length - 1; i++) {
+				const a = team[i];
+				const b = team[i + 1];
+				if (this.players[a].deaths === this.players[b].deaths && survivalKey(a) === survivalKey(b)) playerEqualities.push(a);
+			}
+		}
+		playerEqualities.sort((a, b) => a - b);
+		let teams;
+		const teamEqualities = [];
+		if (this.redScore >= this.blueScore) {
+			teams = [redTeam, blueTeam];
+			if (this.redScore === this.blueScore) teamEqualities.push(0);
+		} else teams = [blueTeam, redTeam];
+		return {
+			results: teams,
 			teamEqualities,
 			playerEqualities
 		};
@@ -20265,11 +22181,11 @@ function botActionNodeHelper() {
 //#region commons/bots/bots-test.ts
 var logger$3 = getLogger("bots-test");
 GMTest.types;
-function dataConstructor$8() {
+function dataConstructor$9() {
 	return { nearestOpponent: -1 };
 }
-var { all: all$8, first: first$4, loop: loop$5, runner: runner$8 } = botActionNodeHelper();
-var getFollowOpponent = runner$8((game, data, playerIdx) => {
+var { all: all$9, first: first$4, loop: loop$5, runner: runner$9 } = botActionNodeHelper();
+var getFollowOpponent = runner$9((game, data, playerIdx) => {
 	const player = game.players[playerIdx];
 	let nearestIdx = -1;
 	let nearestDistance = Infinity;
@@ -20286,7 +22202,7 @@ var getFollowOpponent = runner$8((game, data, playerIdx) => {
 	data.nearestOpponent = nearestIdx;
 	return [[], "success"];
 });
-var followNearestOpponent = runner$8((game, data, playerIdx) => {
+var followNearestOpponent = runner$9((game, data, playerIdx) => {
 	const inputs = [];
 	let move;
 	const target = game.players[data.nearestOpponent];
@@ -20300,9 +22216,9 @@ var followNearestOpponent = runner$8((game, data, playerIdx) => {
 });
 var bots_test_default = describeBot([{
 	root: (function() {
-		return all$8([getFollowOpponent, followNearestOpponent]);
+		return all$9([getFollowOpponent, followNearestOpponent]);
 	})(),
-	data: dataConstructor$8
+	data: dataConstructor$9
 }]);
 //#endregion
 //#region commons/util/getBestInArray.ts
@@ -20324,7 +22240,7 @@ function getBestInArray(items, score) {
 //#endregion
 //#region commons/bots/bots-airbasket.ts
 getLogger("bots-airbasket");
-var { all: all$7, runner: runner$7 } = botActionNodeHelper();
+var { all: all$8, runner: runner$8 } = botActionNodeHelper();
 /**
 * ================================================================
 * STRATEGIC BOT OVERVIEW (HUMAN-LIKE GAMEPLAY)
@@ -20357,7 +22273,7 @@ var { all: all$7, runner: runner$7 } = botActionNodeHelper();
 *    pixel-perfectly, mimicking a human's analog movement.
 * ================================================================
 */
-var INPUTS = {
+var INPUTS$1 = {
 	jump: {
 		jump: {},
 		action: "jump"
@@ -20397,7 +22313,7 @@ var STATS = {
 };
 var DUNK_RANGE_SQ = STATS.DUNK_RANGE * STATS.DUNK_RANGE;
 var THREAT_RADIUS_SQ = STATS.THREAT_RADIUS * STATS.THREAT_RADIUS;
-var Data$6 = class {
+var Data$7 = class {
 	lastAvoidOOBTick = 0;
 	dir = 0;
 	pushDownStates = {};
@@ -20430,8 +22346,8 @@ var Data$6 = class {
 		if (nearBottom) {
 			this.pushDownStates[0] = false;
 			this.pushDownStates[1] = false;
-			inputs.push(INPUTS.downOff);
-			inputs.push(INPUTS.jump);
+			inputs.push(INPUTS$1.downOff);
+			inputs.push(INPUTS$1.jump);
 		} else if (player.y <= -GMAirBasket.DATA.Y_LIMIT + MARGIN_Y_TOP) this.pushDown(true, 0, inputs);
 		else this.pushDown(false, 0, inputs);
 		return {
@@ -20447,26 +22363,26 @@ var Data$6 = class {
 		if (active) {
 			const wasIdle = Object.values(this.pushDownStates).every((v) => !v);
 			this.pushDownStates[slot] = true;
-			if (wasIdle) inputs.push(INPUTS.downOn);
+			if (wasIdle) inputs.push(INPUTS$1.downOn);
 		} else if (this.pushDownStates[slot]) {
 			this.pushDownStates[slot] = false;
-			if (Object.values(this.pushDownStates).every((v) => !v)) inputs.push(INPUTS.downOff);
+			if (Object.values(this.pushDownStates).every((v) => !v)) inputs.push(INPUTS$1.downOff);
 		}
 	}
 	goLeft(inputs) {
 		if (this.dir === -1) return;
 		this.dir = -1;
-		inputs.push(INPUTS.left);
+		inputs.push(INPUTS$1.left);
 	}
 	goRight(inputs) {
 		if (this.dir === 1) return;
 		this.dir = 1;
-		inputs.push(INPUTS.right);
+		inputs.push(INPUTS$1.right);
 	}
 	goStop(inputs) {
 		if (this.dir === 0) return;
 		this.dir = 0;
-		inputs.push(INPUTS.stop);
+		inputs.push(INPUTS$1.stop);
 	}
 	/**
 	* Steers towards target, yielding control if safety overrides are active.
@@ -20480,7 +22396,7 @@ var Data$6 = class {
 			else this.goStop(inputs);
 		}
 		if (dy < 0) {
-			if (player.vy > -STATS.JUMP_VY) inputs.push(INPUTS.jump);
+			if (player.vy > -STATS.JUMP_VY) inputs.push(INPUTS$1.jump);
 			this.pushDown(false, 1, inputs);
 		} else if (dy > STATS.FOCUS_Y && !safety.nearBottom) this.pushDown(true, 1, inputs);
 		else this.pushDown(false, 1, inputs);
@@ -20553,11 +22469,11 @@ var Data$6 = class {
 		return best;
 	}
 };
-function dataConstructor$7() {
-	return new Data$6();
+function dataConstructor$8() {
+	return new Data$7();
 }
 var bots_airbasket_default = describeBot([{
-	root: all$7([runner$7((game, data, playerIdx) => {
+	root: all$8([runner$8((game, data, playerIdx) => {
 		const inputs = [];
 		const player = game.players[playerIdx];
 		const selfTeam = player.team;
@@ -20629,15 +22545,15 @@ var bots_airbasket_default = describeBot([{
 			const transitionTarget = data.findStrategicBucket(game, player, selfTeam);
 			if (transitionTarget) data.reach(player, transitionTarget.bucket, inputs, safety);
 		}
-		if (!threwThisTick) inputs.push(INPUTS.throwOff);
+		if (!threwThisTick) inputs.push(INPUTS$1.throwOff);
 		return [inputs, "success"];
 	})]),
-	data: dataConstructor$7
+	data: dataConstructor$8
 }]);
 //#endregion
 //#region commons/bots/bots-turrets.ts
 getLogger("bots-turrets");
-var { all: all$6, first: first$3, loop: loop$4, runner: runner$6 } = botActionNodeHelper();
+var { all: all$7, first: first$3, loop: loop$4, runner: runner$7 } = botActionNodeHelper();
 var TYPES = GMTurrets.types;
 var ITEM = {
 	LIFE_SLIDER: 0,
@@ -20661,7 +22577,7 @@ var APPROACH_BUFFER = 30;
 /**
 * Per-bot memory that persists across frames.
 */
-var Data$5 = class {
+var Data$6 = class {
 	/** Index into game.turrets of the turret currently being pushed, or null. */
 	lockedTurretIdx = null;
 	/**
@@ -20671,8 +22587,8 @@ var Data$5 = class {
 	*/
 	floorGraph = null;
 };
-function dataConstructor$6() {
-	return new Data$5();
+function dataConstructor$7() {
+	return new Data$6();
 }
 /** Euclidean distance between two points. */
 function distance(ax, ay, bx, by) {
@@ -20901,7 +22817,7 @@ function chooseTurretTarget(game, self, data) {
 		idx: bestIdx
 	};
 }
-var method$5 = runner$6((game, data, playerIdx) => {
+var method$6 = runner$7((game, data, playerIdx) => {
 	const inputs = [];
 	const self = getSelf(game, playerIdx);
 	if (!self.isAlive()) return [inputs, "success"];
@@ -20972,9 +22888,9 @@ var method$5 = runner$6((game, data, playerIdx) => {
 });
 var bots_turrets_default = describeBot([{
 	root: (function() {
-		return all$6([method$5]);
+		return all$7([method$6]);
 	})(),
-	data: dataConstructor$6
+	data: dataConstructor$7
 }]);
 //#endregion
 //#region commons/bots/bots-superTicTacToe.ts
@@ -20984,7 +22900,7 @@ var COOLDOWN = .6;
 /**
 * Factory constructing the initial clean state container for a new match.
 */
-function dataConstructor$5() {
+function dataConstructor$6() {
 	return {
 		lastProcessedTurn: null,
 		hasPlayedThisTurn: false,
@@ -21194,11 +23110,11 @@ function scoreMove(game, cell, myTeam) {
 	].includes(subgridIndex)) score += 75;
 	return score;
 }
-var { all: all$5, first: first$2, loop: loop$3, runner: runner$5 } = botActionNodeHelper();
+var { all: all$6, first: first$2, loop: loop$3, runner: runner$6 } = botActionNodeHelper();
 /**
 * Main per-frame tick function called by the game runner engine.
 */
-var frame = runner$5((game, data, playerIdx) => {
+var frame = runner$6((game, data, playerIdx) => {
 	const inputs = [];
 	if (game.finished) {
 		logger$2.debug(`Match complete. Winner: ${game.winner}`);
@@ -21256,22 +23172,22 @@ var frame = runner$5((game, data, playerIdx) => {
 });
 var bots_superTicTacToe_default = describeBot([{
 	root: (function() {
-		return all$5([frame]);
+		return all$6([frame]);
 	})(),
-	data: dataConstructor$5
+	data: dataConstructor$6
 }]);
 //#endregion
 //#region commons/bots/bots-roarsOnGlass.ts
 getLogger("bots-roarsOnGlass");
-var { all: all$4, first: first$1, loop: loop$2, runner: runner$4 } = botActionNodeHelper();
+var { all: all$5, first: first$1, loop: loop$2, runner: runner$5 } = botActionNodeHelper();
 GMRoarsOnGlass.types;
-var Data$4 = class {
+var Data$5 = class {
 	lastDx = 0;
 	lastDy = 0;
 	lastRoar = false;
 };
-function dataConstructor$4() {
-	return new Data$4();
+function dataConstructor$5() {
+	return new Data$5();
 }
 /**
 * Score function calculating tile safety rating between 0 and 1.
@@ -21293,7 +23209,7 @@ function getTileScore(health) {
 *    health score, actively fleeing nearby enemies by maximizing our distance from them.
 * 4. Input Emission: Send updates only when movement or action states change.
 */
-var method$4 = runner$4((game, data, playerIdx) => {
+var method$5 = runner$5((game, data, playerIdx) => {
 	const inputs = [];
 	const bot = game.players[playerIdx];
 	if (!bot || !bot.isAlive()) return [inputs, "success"];
@@ -21516,23 +23432,23 @@ var method$4 = runner$4((game, data, playerIdx) => {
 });
 var bots_roarsOnGlass_default = describeBot([{
 	root: (function() {
-		return all$4([method$4]);
+		return all$5([method$5]);
 	})(),
-	data: dataConstructor$4
+	data: dataConstructor$5
 }]);
 //#endregion
 //#region commons/bots/bots-woodSword.ts
 getLogger("bots-woodSword");
-var { all: all$3, runner: runner$3 } = botActionNodeHelper();
+var { all: all$4, runner: runner$4 } = botActionNodeHelper();
 var { SWORD_SPEED, SWORD_SPAWN, TRUNK_RADIUS, SWORD_HITBOX_ANGLE, ROUND_TIME } = GMWoodSword.DATA;
 var TIME_OF_FLIGHT = (SWORD_SPAWN - TRUNK_RADIUS) / SWORD_SPEED;
 var THROW_COOLDOWN = .2;
 var SAFE_MARGIN = SWORD_HITBOX_ANGLE + .1;
-var Data$3 = class {
+var Data$4 = class {
 	lastThrowTimer = -1;
 };
-function dataConstructor$3() {
-	return new Data$3();
+function dataConstructor$4() {
+	return new Data$4();
 }
 /**
 * Normalizes an angle to the range [-PI, PI].
@@ -21582,7 +23498,7 @@ function getMissingSpace(targetAngle, occupiedAngles, margin) {
 	}
 	return Math.max(0, margin - minDistance);
 }
-var method$3 = runner$3((game, data, playerIdx) => {
+var method$4 = runner$4((game, data, playerIdx) => {
 	const inputs = [];
 	const player = game.players[playerIdx];
 	if (player.swordsLeft <= 0 || game.roundTimer <= 0) return [inputs, "success"];
@@ -21601,25 +23517,25 @@ var method$3 = runner$3((game, data, playerIdx) => {
 });
 var bots_woodSword_default = describeBot([{
 	root: (function() {
-		return all$3([method$3]);
+		return all$4([method$4]);
 	})(),
-	data: dataConstructor$3
+	data: dataConstructor$4
 }]);
 //#endregion
 //#region commons/bots/bots-moveArmy.ts
 var logger$1 = getLogger("bots-moveArmy");
-var { all: all$2, runner: runner$2 } = botActionNodeHelper();
+var { all: all$3, runner: runner$3 } = botActionNodeHelper();
 /**
 * The Data class holds the internal state of our bot across frames.
 * It tracks whether we are currently rallying our troops or pushing an attack.
 */
-var Data$2 = class {
+var Data$3 = class {
 	state = "GROUPING";
 	startAttackingThreshold = 10;
 	retreatThreshold = 3;
 };
-function dataConstructor$2() {
-	return new Data$2();
+function dataConstructor$3() {
+	return new Data$3();
 }
 /**
 * Finds the best friendly tower to use as a rally point.
@@ -21641,7 +23557,7 @@ function getBestEnemyTower(game, myTeam) {
 * Refactored single bot loop combining all grouping and attacking behaviors.
 * This runs every tick/frame.
 */
-var method$2 = runner$2((game, data, playerIdx) => {
+var method$3 = runner$3((game, data, playerIdx) => {
 	const inputs = [];
 	const myTeam = game.players[playerIdx].team;
 	const myTroops = game.getFriendlyTroops(myTeam);
@@ -21703,25 +23619,25 @@ var method$2 = runner$2((game, data, playerIdx) => {
 });
 var bots_moveArmy_default = describeBot([{
 	root: (function() {
-		return all$2([method$2]);
+		return all$3([method$3]);
 	})(),
-	data: dataConstructor$2
+	data: dataConstructor$3
 }]);
 //#endregion
 //#region commons/bots/bots-popit.ts
 getLogger("bots-popit");
-var { all: all$1, first, loop: loop$1, runner: runner$1 } = botActionNodeHelper();
+var { all: all$2, first, loop: loop$1, runner: runner$2 } = botActionNodeHelper();
 /**
 * Data class to hold the internal state of the bot.
 * We need to track the cooldown between actions and the sequence of moves planned.
 */
-var Data$1 = class {
+var Data$2 = class {
 	lastActionTime = 0;
 	plannedMoves = [];
 	isTurnActive = false;
 };
-function dataConstructor$1() {
-	return new Data$1();
+function dataConstructor$2() {
+	return new Data$2();
 }
 /**
 * Helper Method: Checks if it is currently this bot's turn to play.
@@ -21793,7 +23709,7 @@ function planTurn(game, data) {
 * Main behavior runner for the bot.
 * Evaluates the game state on each tick and issues inputs (popCell or endTurn).
 */
-var method$1 = runner$1((game, data, playerIdx) => {
+var method$2 = runner$2((game, data, playerIdx) => {
 	const inputs = [];
 	if (!isOurTurn(game, playerIdx)) {
 		resetTurnState(data);
@@ -21826,21 +23742,21 @@ var method$1 = runner$1((game, data, playerIdx) => {
 });
 var bots_popit_default = describeBot([{
 	root: (function() {
-		return all$1([method$1]);
+		return all$2([method$2]);
 	})(),
-	data: dataConstructor$1
+	data: dataConstructor$2
 }]);
 //#endregion
 //#region commons/bots/bots-lavaBall.ts
 var logger = getLogger("bots-lavaball");
-var { all, runner } = botActionNodeHelper();
+var { all: all$1, runner: runner$1 } = botActionNodeHelper();
 var PHASE_AIMING = 1;
 var THROW_DELAY = 1.5;
 /**
 * Persistent state for the bot across game ticks.
 * Useful for caching decisions so we don't recalculate pathing/heuristics every frame.
 */
-var Data = class {
+var Data$1 = class {
 	hasThrownThisTurn = false;
 	targetX = null;
 	targetY = null;
@@ -21850,8 +23766,8 @@ var Data = class {
 		this.targetY = null;
 	}
 };
-function dataConstructor() {
-	return new Data();
+function dataConstructor$1() {
+	return new Data$1();
 }
 /**
 * Helper to determine if it is currently our turn and the game is waiting for our aim/throw.
@@ -21902,7 +23818,7 @@ function buildInput(actionName, x, y) {
 /**
 * The main execution loop for the bot. Evaluates state and pushes actions.
 */
-var method = runner((game, data, playerIdx) => {
+var method$1 = runner$1((game, data, playerIdx) => {
 	const inputs = [];
 	if (!isMyAimingTurn(game, playerIdx)) {
 		if (data.hasThrownThisTurn) data.resetTurnData();
@@ -21929,6 +23845,243 @@ var method = runner((game, data, playerIdx) => {
 	return [inputs, "success"];
 });
 var bots_lavaBall_default = describeBot([{
+	root: (function() {
+		return all$1([method$1]);
+	})(),
+	data: dataConstructor$1
+}]);
+//#endregion
+//#region commons/bots/bots-crayzoll.ts
+getLogger("bots-crayzoll");
+var { all, runner } = botActionNodeHelper();
+GMCrayzoll.types;
+var BALL_GRAVITY = 500;
+var INPUTS = {
+	left: {
+		action: "dir",
+		dir: -1
+	},
+	right: {
+		action: "dir",
+		dir: 1
+	},
+	stop: {
+		action: "dir",
+		dir: 0
+	},
+	jump: {
+		action: "jump",
+		jump: {}
+	},
+	downOn: {
+		action: "downOn",
+		downOn: {}
+	},
+	downOff: {
+		action: "downOff",
+		downOff: {}
+	},
+	throwOff: {
+		action: "throwOff",
+		throwOff: {}
+	}
+};
+/**
+* State object stored per-bot instance across game frames.
+* Tracks previously sent commands to prevent unnecessary input spamming.
+*/
+var Data = class {
+	/** Last horizontal direction sent (-1, 0, or 1). */
+	lastDir = 0;
+	/** Whether the push-down input is currently active. */
+	isDown = false;
+	/** Whether the bot is actively aiming a throw target. */
+	isAiming = false;
+	/** Last aiming coordinates sent to avoid redundant network messages. */
+	lastTargetX = 0;
+	lastTargetY = 0;
+};
+function dataConstructor() {
+	return new Data();
+}
+/**
+* Selects the optimal alive enemy to target.
+* Prefers enemies that are positioned close to screen edges (easier to knock out)
+* or close to the bot for higher accuracy.
+*/
+function findTargetEnemy(game, self) {
+	const enemies = game.players.filter((p) => p.team !== self.team && p.isAlive());
+	if (enemies.length === 0) return null;
+	return enemies[getBestInArray(enemies, (enemy) => {
+		const distToCenter = Math.hypot(enemy.x, enemy.y);
+		const distToSelf = Math.hypot(enemy.x - self.x, enemy.y - self.y);
+		return distToCenter * 2.5 - distToSelf;
+	}).index];
+}
+/**
+* Calculates ballistic intercept coordinates to hit an enemy with the ball.
+* Solves: dx^2 + (dy - 0.5 * g * t^2)^2 = (v * t)^2 for flight time t.
+*/
+function computeBallThrowTarget(game, self, enemy) {
+	const throwSpeed = game.getThrowSpeed(self);
+	const estDist = Math.hypot(enemy.x - self.x, enemy.y - self.y);
+	const estTime = Math.max(.05, estDist / throwSpeed);
+	const targetX = enemy.x + enemy.vx * estTime;
+	const targetY = enemy.y + enemy.vy * estTime;
+	const dx = targetX - self.x;
+	const dy = targetY - self.y;
+	const A = .25 * BALL_GRAVITY * BALL_GRAVITY;
+	const B = -(throwSpeed * throwSpeed + BALL_GRAVITY * dy);
+	const C = dx * dx + dy * dy;
+	const discriminant = B * B - 4 * A * C;
+	if (discriminant < 0) return {
+		x: targetX,
+		y: targetY
+	};
+	const sqrtDisc = Math.sqrt(discriminant);
+	let u = (-B - sqrtDisc) / (2 * A);
+	if (u <= 0) u = (-B + sqrtDisc) / (2 * A);
+	if (u <= 0) return {
+		x: targetX,
+		y: targetY
+	};
+	const flightTime = Math.sqrt(u);
+	const vx = dx / flightTime;
+	const vy = (dy - .5 * BALL_GRAVITY * flightTime * flightTime) / flightTime;
+	return {
+		x: self.x + vx,
+		y: self.y + vy
+	};
+}
+/**
+* Evaluates whether an unheld ball is dangerous (e.g. thrown by an enemy at high speed).
+* Returns true if the bot should dodge rather than attempt to catch it.
+*/
+function evaluateBallDanger(game, self) {
+	const ball = game.ball;
+	if (ball.grabber >= 0) return {
+		isDangerous: false,
+		dodgeX: 0
+	};
+	const prevGrabber = ball.prevGrabber >= 0 ? game.players[ball.prevGrabber] : null;
+	if (!(prevGrabber !== null && prevGrabber.team !== self.team)) return {
+		isDangerous: false,
+		dodgeX: 0
+	};
+	const ballSpeed = ball.speed();
+	const dist = Math.hypot(ball.x - self.x, ball.y - self.y);
+	if (ballSpeed > 900 && dist < 500) return {
+		isDangerous: true,
+		dodgeX: self.x > 0 ? -1 : 1
+	};
+	return {
+		isDangerous: false,
+		dodgeX: 0
+	};
+}
+/**
+* Finds the highest-value available gem based on distance and proximity to center.
+*/
+function findBestGem(game, self) {
+	if (game.gems.length === 0) return null;
+	const idx = getBestInArray(game.gems, (gem) => {
+		return -Math.hypot(gem.x - self.x, gem.y - self.y);
+	}).index;
+	return game.gems[idx];
+}
+/**
+* Calculates movement controls (direction, jump, fast-fall) required to reach a target coordinate.
+*/
+function computeMovementInputs(self, targetX, targetY, allowJump) {
+	const dx = targetX - self.x;
+	const dy = targetY - self.y;
+	let dir = 0;
+	if (dx > 35) dir = 1;
+	else if (dx < -35) dir = -1;
+	return {
+		dir,
+		wantJump: allowJump && dy < -120 && Math.abs(dx) < 500,
+		wantDown: dy > 120
+	};
+}
+/**
+* Ensures the target coordinate keeps the bot within safe arena boundaries.
+*/
+function clampTargetToSafeZone(targetX, targetY) {
+	return {
+		x: Math.max(-1400, Math.min(1400, targetX)),
+		y: Math.max(-812.5, Math.min(812.5, targetY))
+	};
+}
+var method = runner((game, data, playerIdx) => {
+	const inputs = [];
+	const self = game.players[playerIdx];
+	if (!self) return [inputs, "success"];
+	let targetX = 0;
+	let targetY = 0;
+	let allowJump = true;
+	let aimTarget = null;
+	const isBallHolder = game.ball.grabber === playerIdx;
+	const isFreeBall = game.ball.grabber < 0;
+	if (isBallHolder) {
+		const enemy = findTargetEnemy(game, self);
+		if (enemy) aimTarget = computeBallThrowTarget(game, self, enemy);
+		const safePos = clampTargetToSafeZone(0, 0);
+		targetX = safePos.x;
+		targetY = safePos.y;
+		allowJump = false;
+	} else if (isFreeBall) {
+		const danger = evaluateBallDanger(game, self);
+		if (danger.isDangerous) {
+			targetX = self.x + danger.dodgeX * 400;
+			targetY = self.y - 200;
+		} else {
+			targetX = game.ball.x;
+			targetY = game.ball.y;
+		}
+	} else {
+		const bestGem = findBestGem(game, self);
+		if (bestGem) {
+			targetX = bestGem.x;
+			targetY = bestGem.y;
+		} else {
+			const safePos = clampTargetToSafeZone(0, 0);
+			targetX = safePos.x;
+			targetY = safePos.y;
+		}
+	}
+	const move = computeMovementInputs(self, targetX, targetY, allowJump);
+	if (move.dir !== data.lastDir) {
+		if (move.dir === 1) inputs.push(INPUTS.right);
+		else if (move.dir === -1) inputs.push(INPUTS.left);
+		else inputs.push(INPUTS.stop);
+		data.lastDir = move.dir;
+	}
+	if (move.wantJump) inputs.push(INPUTS.jump);
+	if (move.wantDown !== data.isDown) {
+		inputs.push(move.wantDown ? INPUTS.downOn : INPUTS.downOff);
+		data.isDown = move.wantDown;
+	}
+	if (aimTarget) {
+		if (!data.isAiming || Math.abs(aimTarget.x - data.lastTargetX) > 10 || Math.abs(aimTarget.y - data.lastTargetY) > 10) {
+			inputs.push({
+				action: "throwTarget",
+				throwTarget: {
+					x: aimTarget.x,
+					y: aimTarget.y
+				}
+			});
+			data.isAiming = true;
+			data.lastTargetX = aimTarget.x;
+			data.lastTargetY = aimTarget.y;
+		}
+	} else if (data.isAiming) {
+		inputs.push(INPUTS.throwOff);
+		data.isAiming = false;
+	}
+	return [inputs, "success"];
+});
+var bots_crayzoll_default = describeBot([{
 	root: (function() {
 		return all([method]);
 	})(),
@@ -22141,6 +24294,24 @@ var gamemods = {
 		iconExtension: "png",
 		defaultPlayerCount: 4,
 		nodes: bots_airbasket_default
+	},
+	crayzoll: {
+		type: "multiplayer",
+		server: GMCrayzoll.createServ,
+		client: GMCrayzoll.createClient,
+		dom: GMCrayzoll.generateClientDom,
+		textures: GMCrayzoll.TEXTURES,
+		name: "Crayzoll",
+		description: "Eject your opponents by throwing the ball at them, collect gems to boost your throw speed, and stay on the screen!",
+		tropheesPerPlayer: 0,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: "png",
+		defaultPlayerCount: 4,
+		nodes: bots_crayzoll_default
 	},
 	turrets: {
 		type: "multiplayer",
@@ -28571,6 +30742,27 @@ var runners = {
 			gamemods: Object.fromEntries(d.gamemods.map((i) => [i.gamemode, i.total]))
 		};
 		dom.getHomePanel().setConnectedUsersInfo(connectedUsersInfo);
+	},
+	friendsResult(d) {
+		if (dom.uses("friends")) {
+			const panel = dom.getFriendsPanel();
+			panel.friends = d.friends || [];
+			panel.requests = d.requests || [];
+			panel.newFriendNotificationsEnabled = d.newFriendNotificationsEnabled;
+		}
+	},
+	friendPresenceUpdate(d) {
+		if (!dom.uses("friends")) return;
+		const friend = dom.getFriendsPanel().friends.find((entry) => entry.pseudo === d.pseudo);
+		if (friend) {
+			friend.online = d.online;
+			friend.lastDisconnectedAt = d.lastDisconnectedAt;
+		}
+	},
+	friendRequestReceived(d) {
+		if (!dom.uses("friends")) return;
+		const panel = dom.getFriendsPanel();
+		if (!panel.requests.some((request) => request.pseudo === d.pseudo)) panel.requests.push(d);
 	}
 };
 var skinsResponseResolve = null;
@@ -28810,6 +31002,9 @@ var LocalGameHandler = class LocalGameHandler {
 	}
 	async finishGame(finish) {
 		if (this.finishingGame) return;
+		fullScreenHandler.closeFull();
+		const imobile = await getMobile();
+		if (imobile) await imobile.setScreenOrientation("portrait");
 		this.finishingGame = true;
 		await dom.openLocalPlayResults(finish);
 		this.interrupted = true;
@@ -29104,6 +31299,21 @@ var dynamicCssHandler = new DynamicCssHandler();
 //#region client/src/dom/changelogs.ts
 var CHANGELOGS = [
 	{
+		version: "1.5.1",
+		date: 1790694e6,
+		title: "Friends, Crayzoll, animations and fixes",
+		lines: [
+			"Add an ending animation to `superTicTacToe`",
+			"Improve pushing mechanics in `roarsOnGlass`",
+			"Add a friend system",
+			"Add back navigation on mobile",
+			"Add the new `crayzoll` gamemode, including its game, assets and tutorial",
+			"Add visual effects to `airbasket`",
+			"Improve `content-card` CSS with appended scrolling",
+			"Fix fullscreen finish when a local match ends"
+		]
+	},
+	{
 		version: "1.5.0",
 		date: 17901756e5,
 		title: "Graphic improvements",
@@ -29189,9 +31399,13 @@ var MainComponent = class MainComponent {
 	setPanel(panel) {
 		const h1 = this.panel instanceof HomeComponent;
 		const h2 = panel instanceof HomeComponent;
+		const f1 = this.panel instanceof FriendsComponent;
+		const f2 = panel instanceof FriendsComponent;
 		if (h1 && !h2) sendMessage({ subscribeConnectedUsersInfo: false });
 		this.panel = panel;
 		if (h2 && !h1) sendMessage({ subscribeConnectedUsersInfo: true });
+		if (f1 && !f2) sendMessage({ subscribeFriends: false });
+		if (f2 && !f1) sendMessage({ subscribeFriends: true });
 	}
 	get currentPage() {
 		return this._currentPage;
@@ -29394,6 +31608,12 @@ var MainComponent = class MainComponent {
 		this.currentPage = "contact";
 		pushUrlStack(this);
 	}
+	openFriends() {
+		const panel = new FriendsComponent();
+		this.setPanel(panel);
+		this.currentPage = "friends";
+		pushUrlStack(this);
+	}
 	getPanel(type) {
 		if (this.panel instanceof type) return this.panel;
 		throw new Error("Invalid type for panel");
@@ -29421,6 +31641,9 @@ var MainComponent = class MainComponent {
 	}
 	getHomePanel() {
 		return this.getPanel(HomeComponent);
+	}
+	getFriendsPanel() {
+		return this.getPanel(FriendsComponent);
 	}
 };
 var GamePanelComponent = class {
@@ -30122,6 +32345,51 @@ var ContactComponent = class ContactComponent {
 		return new ContactComponent();
 	}
 };
+var FriendsComponent = class FriendsComponent {
+	static fragmentName = "friends";
+	friends = [];
+	requests = [];
+	requestPseudo = "";
+	message = "";
+	newFriendNotificationsEnabled = true;
+	constructor() {}
+	saveFragment() {
+		return {};
+	}
+	static openFragment(_) {
+		return new FriendsComponent();
+	}
+	sendRequest() {
+		const pseudo = this.requestPseudo.trim();
+		if (!pseudo) return;
+		this.message = "";
+		sendMessage({ sendFriendRequest: { pseudo } });
+		this.requestPseudo = "";
+	}
+	respond(request, accept) {
+		sendMessage({ respondFriendRequest: {
+			pseudo: request.pseudo,
+			accept
+		} });
+	}
+	setFriendNotification(friend) {
+		friend.notificationsEnabled = !friend.notificationsEnabled;
+		sendMessage({ setFriendNotification: {
+			pseudo: friend.pseudo,
+			enabled: friend.notificationsEnabled
+		} });
+	}
+	removeFriend(friend) {
+		sendMessage({ deleteFriend: { pseudo: friend.pseudo } });
+	}
+	setNewFriendNotifications() {
+		this.newFriendNotificationsEnabled = !this.newFriendNotificationsEnabled;
+		sendMessage({ setNewFriendNotifications: { enabled: this.newFriendNotificationsEnabled } });
+	}
+	formatLastDisconnected(value) {
+		return value ? new Date(value.endsWith("Z") ? value : `${value}Z`).toLocaleString() : "Never";
+	}
+};
 var fragmentRegistry = /* @__PURE__ */ new Map();
 function registerFragment(name, page, openFragment) {
 	fragmentRegistry.set(name, {
@@ -30137,6 +32405,7 @@ registerFragment(LeaderboardComponent.fragmentName, "leaderboard", LeaderboardCo
 registerFragment(SoloLeaderboardComponent.fragmentName, "solo-leaderboard", SoloLeaderboardComponent.openFragment);
 registerFragment(ChangelogsComponent.fragmentName, "changelog", ChangelogsComponent.openFragment);
 registerFragment(ContactComponent.fragmentName, "contact", ContactComponent.openFragment);
+registerFragment(FriendsComponent.fragmentName, "friends", FriendsComponent.openFragment);
 var UrlFragmentManager = class {
 	/** Non-serializable panels kept alive so we can navigate back/forward to them. */
 	stack = [];
@@ -30261,6 +32530,14 @@ function initIndex_default() {
 	initDom();
 	dom.tryLoginWithKey();
 	resolveMobileInterface(null);
+	initImages();
+}
+function initImages() {
+	{
+		const font = new FontFace("Rye", `url(${window.IMG_ROOT_PATH}/fonts/Rye-Regular.ttf) format('truetype')`);
+		font.load().then(() => document.fonts.add(font));
+	}
+	document.getElementById("home-page").style.setProperty("--home-background", `url("${window.IMG_ROOT_PATH}/assets/home-background.svg")`);
 }
 //#endregion
 export { initIndex_default as default };
