@@ -10,7 +10,7 @@ export const CHANGELOGS: Changelog[] = [
 	{
 		version: "1.5.1",
 		date: 1790694000000, // Tue. 29 sept 2026 at 5:00 PM
-		title: "Gameplay and social improvements",
+		title: "Friends, Crayzoll, animations and fixes",
 		lines: [
 			"Add an ending animation to `superTicTacToe`",
 			"Improve pushing mechanics in `roarsOnGlass`",
