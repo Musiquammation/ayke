@@ -1,0 +1,84 @@
+<div x-data="data">
+	<div class="game-crayzol-settings-row">
+		<span>Skin:</span>
+
+		<div
+			class="game-crayzol-skin-select"
+			x-data="{ open: false }"
+			@click.outside="open = false"
+		>
+			<button
+				type="button"
+				class="game-crayzol-skin-select-button"
+				@click="open = !open"
+			>
+				<div class="game-crayzol-skin-select-current">
+					<img
+						:src="getIconPath(skin)"
+						:alt="SKINS[skin]"
+					>
+					<span x-text="SKINS[skin]"></span>
+				</div>
+
+				<span
+					class="game-crayzol-skin-select-arrow"
+					x-text="open ? '▲' : '▼'"
+				></span>
+			</button>
+
+			<div
+				class="game-crayzol-skin-select-options"
+				x-show="open"
+				x-transition
+			>
+				<template x-for="(name, id) in SKINS" :key="id">
+					<div
+						class="game-crayzol-skin-select-option"
+						:class="{
+							selected: skin === id,
+							disabled: !hasSkin(id)
+						}"
+						@click="if (hasSkin(id)) { skin = id; open = false }"
+					>
+						<img
+							:src="getIconPath(id)"
+							:alt="name"
+						>
+
+						<span x-text="name"></span>
+					</div>
+				</template>
+			</div>
+		</div>
+	</div>
+
+	<div class="game-crayzol-settings-row">
+		<span>Preferred team:</span>
+
+		<div class="game-crayzol-team-buttons">
+			<button
+				type="button"
+				@click="preferTeam = 0"
+				:class="{ selected: preferTeam === 0 }"
+			>
+				None
+			</button>
+
+			<button
+				type="button"
+				@click="preferTeam = 1"
+				:class="{ selected: preferTeam === 1 }"
+			>
+				Red
+			</button>
+
+			<button
+				type="button"
+				@click="preferTeam = -1"
+				:class="{ selected: preferTeam === -1 }"
+			>
+				Blue
+			</button>
+		</div>
+	</div>
+</div>

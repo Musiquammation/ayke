@@ -181,6 +181,15 @@ export abstract class GameMode {
 		const {width, height} = this.getSize();
 		return width <= height ? 'portrait' : 'landscape';
 	}
+
+	static getSkinTexturePath(id: string) {
+		return `/assets/skins/${id}/grid.png`
+	}
+
+	static getSkinIconPath(id: string) {
+		return window.IMG_ROOT_PATH + `/assets/skins/${id}/icon.png`
+	}
+
 }
 
 export { IKeyboardController, IMobileController };
