@@ -1,6 +1,8 @@
 import { ActionNode } from "./Bot";
 import { Collectible } from "./Collectible";
 import { GameMode, MultiplayerClientEntry } from "./GameMode";
+import { SoloGameMode } from "./SoloGameMode";
+
 import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMRoarsOnGlass } from "./gamemods/GMRoarsOnGlass";
 import { GMSuperTicTacToe } from "./gamemods/GMSuperTicTacToe";
@@ -8,10 +10,10 @@ import { GMTest } from "./gamemods/GMTest";
 import { GMTestSolo } from "./gamemods/GMTestSolo";
 import { GMTurrets } from "./gamemods/GMTurrets";
 import { GMWoodSword } from "./gamemods/GMWoodSword";
-import { SoloGameMode } from "./SoloGameMode";
 import { GMMoveArmy } from "./gamemods/GMMoveArmy";
 import { GMPopit } from "./gamemods/GMPopit";
 import { GMLavaBall } from "./gamemods/GMLavaBall";
+import { GMCrayzoll } from "./gamemods/GMCrayzoll";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -22,6 +24,7 @@ import bots_woodSword from "./bots/bots-woodSword";
 import bots_moveArmy from "./bots/bots-moveArmy";
 import bots_popit from "./bots/bots-popit";
 import bots_lavaBall from "./bots/bots-lavaBall";
+import bots_crayzoll from "./bots/bots-crayzoll";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
@@ -131,6 +134,25 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_airbasket
+	},
+
+	crayzoll: {
+		type: 'multiplayer',
+		server: GMCrayzoll.createServ,
+		client: GMCrayzoll.createClient,
+		dom: GMCrayzoll.generateClientDom,
+		textures: GMCrayzoll.TEXTURES,
+		name: "Crayzoll",
+		description: "Eject your opponents by throwing the ball at them, collect gems to boost your throw speed, and stay on the screen!",
+		tropheesPerPlayer: 0,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_crayzoll
 	},
 
 	turrets: {

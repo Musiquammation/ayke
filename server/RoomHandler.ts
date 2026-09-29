@@ -346,16 +346,17 @@ export class Room {
 			const db = await database;
 			const deltas: {
 				player: string;
+				cid: number | undefined;
 				delta: number;
 			}[] = [];
 			for (const [idx, won] of trophees.entries()) {
 				const p = this.players[idx];
 				if (p.pseudo) {
-					deltas.push({player: p.pseudo, delta: won});
+					deltas.push({player: p.pseudo, cid: p.connection?.getConnectionId(), delta: won});
 				}
 			}
 
-			logger.info(`Give trophees in ${this.gamemodeId} with ${JSON.stringify(deltas)}`);
+			logger.info(`Give trophees in '${this.gamemodeId}' with ${JSON.stringify(deltas)}`);
 
 			const scores: number[] = Array.from({
 				length: this.players.length

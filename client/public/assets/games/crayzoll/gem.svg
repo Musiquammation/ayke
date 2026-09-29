@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 256 256"
+     width="256"
+     height="256">
+
+	<defs>
+		<linearGradient id="gem" x1="30%" y1="0%" x2="70%" y2="100%">
+			<stop offset="0%" stop-color="#f08cff"/>
+			<stop offset="35%" stop-color="#c13cff"/>
+			<stop offset="70%" stop-color="#7b16d9"/>
+			<stop offset="100%" stop-color="#430b91"/>
+		</linearGradient>
+
+		<linearGradient id="top" x1="0%" y1="0%" x2="100%" y2="100%">
+			<stop offset="0%" stop-color="#ffd5ff"/>
+			<stop offset="45%" stop-color="#ed83ff"/>
+			<stop offset="100%" stop-color="#a72ce9"/>
+		</linearGradient>
+
+		<linearGradient id="side" x1="0%" y1="0%" x2="100%" y2="100%">
+			<stop offset="0%" stop-color="#9d29df"/>
+			<stop offset="100%" stop-color="#4c0796"/>
+		</linearGradient>
+
+		<filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+			<feDropShadow dx="0" dy="7" stdDeviation="4"
+			              flood-color="#210044" flood-opacity="0.65"/>
+		</filter>
+	</defs>
+
+	<!-- Gem -->
+	<g filter="url(#shadow)">
+
+		<!-- Dark outer border -->
+		<path
+			d="M128 17
+			   L190 38
+			   L225 92
+			   L211 157
+			   L166 213
+			   L128 239
+			   L90 213
+			   L45 157
+			   L31 92
+			   L66 38 Z"
+			fill="#25004f"
+			stroke="#16002f"
+			stroke-width="7"
+			stroke-linejoin="round"/>
+
+		<!-- Main gem -->
+		<path
+			d="M128 24
+			   L184 43
+			   L216 94
+			   L202 151
+			   L160 204
+			   L128 227
+			   L96 204
+			   L54 151
+			   L40 94
+			   L72 43 Z"
+			fill="url(#gem)"
+			stroke="#6d16b8"
+			stroke-width="3"
+			stroke-linejoin="round"/>
+
+		<!-- Top crown -->
+		<path
+			d="M40 94
+			   L72 43
+			   L128 24
+			   L184 43
+			   L216 94
+			   L168 91
+			   L128 82
+			   L88 91 Z"
+			fill="url(#top)"
+			stroke="#7b1ac1"
+			stroke-width="3"
+			stroke-linejoin="round"/>
+
+		<!-- Central upper facet -->
+		<path
+			d="M72 43
+			   L128 24
+			   L128 82
+			   L88 91 Z"
+			fill="#e56cff"
+			opacity="0.9"/>
+
+		<!-- Right upper facet -->
+		<path
+			d="M128 24
+			   L184 43
+			   L168 91
+			   L128 82 Z"
+			fill="#b735ed"
+			opacity="0.9"/>
+
+		<!-- Left side facet -->
+		<path
+			d="M40 94
+			   L88 91
+			   L96 204
+			   L54 151 Z"
+			fill="#8b20cc"/>
+
+		<!-- Right side facet -->
+		<path
+			d="M168 91
+			   L216 94
+			   L202 151
+			   L160 204 Z"
+			fill="url(#side)"/>
+
+		<!-- Main central facet -->
+		<path
+			d="M88 91
+			   L128 82
+			   L168 91
+			   L160 204
+			   L128 227
+			   L96 204 Z"
+			fill="#a82be5"/>
+
+		<!-- Central highlight facet -->
+		<path
+			d="M88 91
+			   L128 82
+			   L128 227
+			   L96 204 Z"
+			fill="#c940f0"
+			opacity="0.75"/>
+
+		<!-- Lower right facet -->
+		<path
+			d="M128 227
+			   L160 204
+			   L168 91
+			   L128 82 Z"
+			fill="#7213bd"
+			opacity="0.7"/>
+
+		<!-- Strong shine -->
+		<path
+			d="M76 53
+			   L110 39
+			   L94 91
+			   L67 86 Z"
+			fill="#ffffff"
+			opacity="0.72"/>
+
+		<!-- Small shine -->
+		<path
+			d="M62 100
+			   L75 95
+			   L71 126
+			   L61 117 Z"
+			fill="#ffffff"
+			opacity="0.45"/>
+
+		<!-- Bottom glow -->
+		<path
+			d="M96 204
+			   L128 227
+			   L160 204
+			   L150 217
+			   L128 232
+			   L106 217 Z"
+			fill="#5b0da0"
+			opacity="0.65"/>
+	</g>
+</svg>

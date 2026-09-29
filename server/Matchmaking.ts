@@ -342,7 +342,7 @@ class Matchmaking {
 
 		const pseudo: string | null = connection.getPseudo();
 
-		logger.info(`Player '${pseudo}' waits for ${gamemode}`);
+		logger.info(`Player #${connection.getConnectionId()} waits for ${gamemode}`);
 
 		let trophees: number;
 
@@ -659,7 +659,9 @@ class Matchmaking {
 
 		logger.info(
 			`Starting game #${gameIdentifier} for mode '${waitingRoom.gamemode}' ` +
-			`Receive [${waitingRoom.players.map(i => i.pseudo)}] ` +
+			`Receive ${JSON.stringify(
+				waitingRoom.players.map(i => i.connection.getConnectionId())
+			)} ` +
 			`(of ${waitingRoom.excepted}) players`
 		);
 

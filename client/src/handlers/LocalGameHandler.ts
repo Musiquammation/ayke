@@ -10,6 +10,7 @@ import { hasNavigatorMobile, hasNavigatorMouse } from "../dom/clientNavigatorTyp
 import { deleteGameHandler } from "./GameHandler";
 import { fullScreenHandler } from "./FullScreenHandler";
 import { Bot, generateBot } from "../../../commons/Bot";
+import { getMobile } from "../getMobile";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -256,10 +257,18 @@ export class LocalGameHandler {
 		requestAnimationFrame(() => this.frame());
 	}
 
-	private async finishGame(finish: FinishGame) {
+	private async finishGame(finish: FinishGame) {		
 		if (this.finishingGame) {
 			return;
 		}
+
+		fullScreenHandler.closeFull();
+		const imobile = await getMobile();
+		if (imobile) {
+			await imobile.setScreenOrientation('portrait');
+		}
+
+
 		this.finishingGame = true;
 		await dom.openLocalPlayResults(finish);
 		this.interrupted = true;

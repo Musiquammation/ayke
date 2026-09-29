@@ -13,6 +13,7 @@ declare global {
 	}
 }
 
+
 export default function() {
 	initProtocols(async name => {
 		const response = await fetch(window.PROTOCOLS_FOLDER + name + ".proto");
@@ -26,4 +27,25 @@ export default function() {
 	dom.tryLoginWithKey();
 	
 	resolveMobileInterface(null);
+
+	initImages();
+}
+
+function initImages() {
+	// Set "Rye" font
+	{
+		const font = new FontFace(
+			"Rye",
+			`url(${window.IMG_ROOT_PATH}/fonts/Rye-Regular.ttf) format('truetype')`
+		);
+
+		font.load().then(
+			() => document.fonts.add(font)
+		);
+	}
+
+	document.getElementById("home-page")!.style.setProperty(
+		'--home-background',
+		`url("${window.IMG_ROOT_PATH}/assets/home-background.svg")`
+	);
 }
