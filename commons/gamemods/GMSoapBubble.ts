@@ -28,7 +28,7 @@ const HALF_WIDTH = WIDTH / 2;
 const HALF_HEIGHT = HEIGHT / 2;
 
 // Score
-const WIN_SCORE = 10; // first team to reach this score wins
+const WIN_SCORE = 30; // first team to reach this score wins
 
 // Bubbles
 const SPAWN_BUBBLE_COOLDOWN = 0.6;   // seconds between two bubble spawns
@@ -316,15 +316,13 @@ class TutorialData {
 
 
 // ---------------------------------------------------------------------------
-// LOBBY DOM / SKINS
+// LOBBY DOM
 // ---------------------------------------------------------------------------
 
 function generateClientDom(unlockedSkins: string[]) {
 	return {
 		skin: Object.keys(GMSoapBubble.SKINS)[0],
 		preferTeam: 0,
-		SKINS: GMSoapBubble.SKINS,
-		unlockedSkins: unlockedSkins,
 
 		produce() {
 			const {StartData} = protocols.get();
@@ -334,20 +332,16 @@ function generateClientDom(unlockedSkins: string[]) {
 			}).finish();
 		},
 
-		hasSkin(skin: string) {
-			return this.unlockedSkins.includes(skin);
-		},
-
 		getIconPath: getSkinIconPath
 	};
 }
 
 function getSkinTexturePath(id: string) {
-	return `/assets/games/soapBubble/skins/${id}/hand.png`;
+	return `/assets/skins/${id}/hand.png`;
 }
 
 function getSkinIconPath(id: string) {
-	return window.IMG_ROOT_PATH + `/assets/games/soapBubble/skins/${id}/icon.png`;
+	return window.IMG_ROOT_PATH + `/assets/skins/${id}/icon.png`;
 }
 
 
@@ -547,10 +541,11 @@ export class GMSoapBubble extends GameMode {
 	static readonly SKINS_IDS = Object.keys(GMSoapBubble.SKINS);
 
 	static readonly TEXTURES = {
-		'bubble': "/assets/games/soapBubble/bubble.png",
-		'spike': "/assets/games/soapBubble/spike.png",
-		'goal': "/assets/games/soapBubble/goal.png",
-		'skin-default': getSkinTexturePath('default')
+		'bubble': "/assets/games/soapBubble/bubble.svg",
+		'spike': "/assets/games/soapBubble/spike.svg",
+		'goal-red': "/assets/games/soapBubble/goal-red.svg",
+		'goal-blue': "/assets/games/soapBubble/goal-blue.svg",
+		'target': "/assets/games/soapBubble/target.png"
 	};
 
 
@@ -1021,7 +1016,7 @@ export class GMSoapBubble extends GameMode {
 	private drawGoals(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
 		// Red goal (top)
 		ctx.drawImage(
-			imageLoader.get('goal', 0),
+			imageLoader.get('goal-red'),
 			-HALF_WIDTH, -HALF_HEIGHT, WIDTH, GOAL_BAND_HEIGHT
 		);
 
@@ -1029,7 +1024,7 @@ export class GMSoapBubble extends GameMode {
 		ctx.save();
 		ctx.scale(1, -1);
 		ctx.drawImage(
-			imageLoader.get('goal', 1),
+			imageLoader.get('goal-blue'),
 			-HALF_WIDTH, -HALF_HEIGHT, WIDTH, GOAL_BAND_HEIGHT
 		);
 		ctx.restore();
@@ -1134,9 +1129,8 @@ export class GMSoapBubble extends GameMode {
 			ctx.stroke();
 			ctx.restore();
 
-			const skin = data.skins[bubble.holder] ?? GMSoapBubble.SKINS_IDS[0];
 			ctx.drawImage(
-				imageLoader.get('skin-' + skin),
+				imageLoader.get('target', player.team === 'red' ? 0 : 1),
 				player.targetX - HAND_SIZE / 2, player.targetY - HAND_SIZE / 2,
 				HAND_SIZE, HAND_SIZE
 			);
@@ -1156,6 +1150,13 @@ export class GMSoapBubble extends GameMode {
 		const data = _data as ClientData;
 		if (data.firstFrame) {
 			data.firstFrame = false;
+			imageLoader.setColorRule('target', 0, [
+				{prev: "#ff00ff", next: "#ff0044"}
+			]);
+
+			imageLoader.setColorRule('target', 1, [
+				{prev: "#ff00ff", next: "#4444ff"}
+			])
 		}
 
 		data.update(this);
@@ -1166,6 +1167,10 @@ export class GMSoapBubble extends GameMode {
 		// Origin is the center of the screen
 		ctx.save();
 		ctx.translate(HALF_WIDTH, HALF_HEIGHT);
+		if (this.players[playerIdx].team === 'red') {
+			ctx.scale(1, -1);
+		}
+
 
 		this.drawGoals(ctx, imageLoader);
 		this.drawSpikes(ctx, imageLoader);
@@ -1244,6 +1249,10 @@ export class GMSoapBubble extends GameMode {
 			x: x - HALF_WIDTH,
 			y: y - HALF_HEIGHT
 		};
+
+		if (this.players[playerIdx].team === 'red') {
+			ret.y = -ret.y;
+		}
 
 		clientData.mouseX = ret.x;
 		clientData.mouseY = ret.y;

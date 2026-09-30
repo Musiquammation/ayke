@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="-100 -100 200 200">
+
+    <defs>
+        <radialGradient id="bubble" cx="30%" cy="25%" r="75%">
+            <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.45"/>
+            <stop offset="35%"  stop-color="#8ee8ff" stop-opacity="0.18"/>
+            <stop offset="60%"  stop-color="#d58cff" stop-opacity="0.16"/>
+            <stop offset="80%"  stop-color="#7dffcf" stop-opacity="0.14"/>
+            <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+        </radialGradient>
+
+        <linearGradient id="iridescence"
+                        x1="0%" y1="100%"
+                        x2="100%" y2="0%">
+            <stop offset="0%"   stop-color="#6ee7ff" stop-opacity="0.5"/>
+            <stop offset="25%"  stop-color="#b18cff" stop-opacity="0.4"/>
+            <stop offset="50%"  stop-color="#ff8fd8" stop-opacity="0.35"/>
+            <stop offset="75%"  stop-color="#8affd0" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#ffffff" stop-opacity="0.5"/>
+        </linearGradient>
+    </defs>
+
+    <!-- White background -->
+    <circle cx="0" cy="0" r="97"
+            fill="#fff7"/>
+
+    <!-- Bubble -->
+    <circle cx="0" cy="0" r="97"
+            fill="url(#bubble)"
+            stroke="white"
+            stroke-width="3"
+            stroke-opacity="0.8"/>
+
+    <!-- Iridescent film -->
+    <circle cx="0" cy="0" r="93"
+            fill="none"
+            stroke="url(#iridescence)"
+            stroke-width="5"
+            stroke-opacity="0.7"/>
+
+    <!-- Large reflection -->
+    <path d="M -54,-55 A 68,68 0 0 1 20,-80"
+          fill="none"
+          stroke="white"
+          stroke-width="7"
+          stroke-linecap="round"
+          stroke-opacity="0.75"/>
+
+    <!-- Small reflection -->
+    <circle cx="-64" cy="-42" r="8"
+            fill="white"
+            fill-opacity="0.65"/>
+
+    <!-- Lower reflection -->
+    <path d="M 40,73 A 82,82 0 0 0 76,40"
+          fill="none"
+          stroke="white"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-opacity="0.4"/>
+
+</svg>

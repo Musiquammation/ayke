@@ -1,61 +1,6 @@
 <div x-data="data">
-	<style>
-		.skin-select { position: relative; display: inline-block; }
-		.skin-select-button { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-		.skin-select-current, .skin-select-option { display: flex; align-items: center; gap: 8px; }
-		.skin-select-current img, .skin-select-option img { width: 32px; height: 32px; }
-		.skin-select-options { position: absolute; z-index: 10; background: #222; color: #fff; }
-		.skin-select-option { padding: 4px 8px; cursor: pointer; }
-		.skin-select-option.selected { background: #445; }
-		.skin-select-option.disabled { opacity: 0.4; cursor: not-allowed; }
-		button.selected { outline: 2px solid #fff; }
-	</style>
-
 	<div>
 		<span>Skin:</span>
-
-		<div
-			class="skin-select"
-			x-data="{ open: false }"
-			@click.outside="open = false"
-		>
-			<button
-				type="button"
-				class="skin-select-button"
-				@click="open = !open"
-			>
-				<div class="skin-select-current">
-					<img
-						:src="getIconPath(skin)"
-						:alt="SKINS[skin]"
-					>
-					<span x-text="SKINS[skin]"></span>
-				</div>
-
-				<span class="skin-select-arrow" x-text="open ? '▲' : '▼'"></span>
-			</button>
-
-			<div
-				class="skin-select-options"
-				x-show="open"
-				x-transition
-			>
-				<template x-for="(name, id) in SKINS" :key="id">
-					<div
-						class="skin-select-option"
-						:class="{ selected: skin === id, disabled: !hasSkin(id) }"
-						@click="skin = id; open = false"
-					>
-						<img
-							:src="getIconPath(id)"
-							:alt="name"
-						>
-
-						<span x-text="name"></span>
-					</div>
-				</template>
-			</div>
-		</div>
 	</div>
 
 	<div>

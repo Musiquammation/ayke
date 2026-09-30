@@ -18,9 +18,9 @@ En particulier, enregistre Player.connected
 # GMExample.ts
 
 ## TEXTURES AVEC DES COULEURS
-dans `if (data.firstFrame)`, `imageLoader.setColorRule('textureLabel', 0, {prev: "#ff00ff", color: "#abcdef"})` on choisit la color de sortie (généralement 0 -> #ff0044 et 1 -> #0044ff)
+dans `if (data.firstFrame)`, `imageLoader.setColorRule('textureLabel', 0, [{prev: "#ff00ff", next: "#abcdef"}])` on choisit la color de sortie (généralement 0 -> #ff0044 et 1 -> #0044ff)
 pour l'utiliser, faire `textureLoader.get('textureLabel', 0)` (pour obtenir la texture en bleu par exemple)
-S'il n'y a pas de couleurs (ie. la plupart des textures), fais juste `textureLoader.get('textureLabel')`.
+S'il n'y a pas de couleurs (ie. la plupart des textures), fais juste `textureLoader.get('textureLabel')` (ça devient un TextureLoaderFolder).
 
 
 ## COLLECT INPUTS:
