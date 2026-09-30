@@ -31,7 +31,7 @@ const HALF_HEIGHT = HEIGHT / 2;
 const WIN_SCORE = 10; // first team to reach this score wins
 
 // Bubbles
-const SPAWN_BUBBLE_COOLDOWN = 3;   // seconds between two bubble spawns
+const SPAWN_BUBBLE_COOLDOWN = 1;   // seconds between two bubble spawns
 const BUBBLE_RADIUS = 95;          // radius of a bubble in game units
 const GRAB_TOLERANCE = 25;         // extra pixels around a bubble where a click still grabs it
 const NO_PLAYER = -1;              // "nobody" marker for holder / lastGrabber
@@ -46,7 +46,9 @@ const HARD_MAX_SPEED = 3500;            // absolute safety cap (bounces can add 
 const BOUNCE_RESTITUTION = 0.9;         // 1 = perfectly elastic, 0 = no bounce
 
 // Spikes
-const SPIKE_SPAWN_COOLDOWN = 1;         // seconds between two waiting-spike spawns
+const SPIKE_SPAWN_COOLDOWN = 0.6;       // seconds between two waiting-spike spawns
+const SPIKE_SPAWN_DECAY = 0.02;         // Exponential decay coefficient k (1/s)
+const SPIKE_SPAWN_BASE = 0.2;           // Minimal spawn cooldown
 const SPIKE_WAIT_TIME = 2;              // seconds a spike stays grayed out before activating
 const SPIKE_FADE_TIME = 0.5;            // opacity rises during the last SPIKE_FADE_TIME seconds
 const SPIKE_SPEED = 650;                // constant speed of an active spike (units/s)
@@ -364,6 +366,9 @@ export class GMSoapBubble extends GameMode {
     bubbles: Bubble[] = [];
     spikes: Spike[] = [];
 
+	// Total elapsed simulation time, in seconds.
+	gameTime = 0;
+
     // Team scores. Red owns the top edge, blue owns the bottom edge.
     redScore = 0;
     blueScore = 0;
@@ -568,6 +573,8 @@ export class GMSoapBubble extends GameMode {
         produceFinish: boolean,
         rng: GameRandomGenerator | null
     ): FinishGame | null {
+		this.gameTime += dt;
+
         this.updateBubbleSpawner(dt);
         this.updateSpikeSpawner(dt, rng);
         this.updateSpikes(dt);
@@ -595,22 +602,43 @@ export class GMSoapBubble extends GameMode {
         }
     }
 
-    /**
-     * Spawns a waiting spike every SPIKE_SPAWN_COOLDOWN seconds.
-     * The heights used are the pre-rolled shared values; only when an rng is
-     * available (server) do we roll new values for the next spike.
-     */
-    private updateSpikeSpawner(dt: number, rng: GameRandomGenerator | null) {
-        this.spikeTimer += dt;
-        while (this.spikeTimer >= SPIKE_SPAWN_COOLDOWN) {
-            this.spikeTimer -= SPIKE_SPAWN_COOLDOWN;
-            this.spawnWaitingSpike();
+	/**
+	* Returns the current spike spawn cooldown using an exponential decay.
+	*/
+	private getSpikeSpawnCooldown() {
+		return SPIKE_SPAWN_BASE + (
+			SPIKE_SPAWN_COOLDOWN - SPIKE_SPAWN_BASE
+		) * Math.exp(
+			-SPIKE_SPAWN_DECAY * this.gameTime
+		);
+	}
 
-            if (rng) {
-                this.rollNextSpikeHeights(rng);
-            }
-        }
-    }
+    /**
+	 * Spawns waiting spikes according to an exponentially decreasing cooldown.
+	 *
+	 * The current cooldown is:
+	 *     f(t) = SPIKE_SPAWN_COOLDOWN * exp(-k * t)
+	 *
+	 * where t is the elapsed game time.
+	 */
+	private updateSpikeSpawner(dt: number, rng: GameRandomGenerator | null) {
+		this.spikeTimer += dt;
+
+		let cooldown = this.getSpikeSpawnCooldown();
+
+		while (this.spikeTimer >= cooldown) {
+			this.spikeTimer -= cooldown;
+			this.spawnWaitingSpike();
+
+			if (rng) {
+				this.rollNextSpikeHeights(rng);
+			}
+
+			// Recompute the cooldown because gameTime may have advanced
+			// significantly during a large simulation step.
+			cooldown = this.getSpikeSpawnCooldown();
+		}
+	}
 
     /** Rolls the start/end heights of the next spike (values are shared through State). */
     private rollNextSpikeHeights(rng: GameRandomGenerator) {
@@ -965,41 +993,63 @@ export class GMSoapBubble extends GameMode {
         ctx.restore();
     }
 
-    /** Draws waiting spikes (grayed + dashed path) and active spikes. */
-    private drawSpikes(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
-        for (const spike of this.spikes) {
-            const alpha = spike.getOpacity();
+    /**
+	 * Draws spikes and their remaining trajectories.
+	 *
+	 * Waiting spikes display their complete trajectory.
+	 * Active spikes display only the part of the trajectory that remains.
+	 */
+	private drawSpikes(
+		ctx: CanvasRenderingContext2D,
+		imageLoader: ImageLoaderFolder
+	) {
+		for (const spike of this.spikes) {
+			const alpha = spike.getOpacity();
 
-            // Dashed trajectory preview while waiting
-            if (!spike.isActive()) {
-                ctx.save();
-                ctx.globalAlpha = alpha * 0.4;
-                ctx.strokeStyle = "#aaaaaa";
-                ctx.lineWidth = 4;
-                ctx.setLineDash([20, 20]);
-                ctx.beginPath();
-                ctx.moveTo(spike.x0, spike.y0);
-                ctx.lineTo(spike.x1, spike.y1);
-                ctx.stroke();
-                ctx.restore();
-            }
+			// Determine the beginning of the dashed trajectory.
+			// While waiting, the spike has not started moving yet, so the
+			// trajectory starts at its original spawn position.
+			// Once active, only the remaining part is displayed.
+			const startX = spike.isActive() ? spike.getX() : spike.x0;
+			const startY = spike.isActive() ? spike.getY() : spike.y0;
 
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            // Gray look while waiting (ignored by browsers without canvas filters)
-            if (!spike.isActive()) {
-                ctx.filter = 'grayscale(1)';
-            }
-            ctx.translate(spike.getX(), spike.getY());
-            ctx.rotate(spike.getAngle());
-            ctx.drawImage(
-                imageLoader.get('spike'),
-                -SPIKE_RADIUS, -SPIKE_RADIUS,
-                SPIKE_RADIUS * 2, SPIKE_RADIUS * 2
-            );
-            ctx.restore();
-        }
-    }
+			// Draw the remaining trajectory.
+			ctx.save();
+			ctx.globalAlpha = alpha * 0.4;
+			ctx.strokeStyle = "#aaaaaa";
+			ctx.lineWidth = 4;
+			ctx.setLineDash([20, 20]);
+
+			ctx.beginPath();
+			ctx.moveTo(startX, startY);
+			ctx.lineTo(spike.x1, spike.y1);
+			ctx.stroke();
+
+			ctx.restore();
+
+			// Draw the spike itself.
+			ctx.save();
+			ctx.globalAlpha = alpha;
+
+			// Waiting spikes are displayed in grayscale.
+			if (!spike.isActive()) {
+				ctx.filter = 'grayscale(1)';
+			}
+
+			ctx.translate(spike.getX(), spike.getY());
+			ctx.rotate(spike.getAngle());
+
+			ctx.drawImage(
+				imageLoader.get('spike'),
+				-SPIKE_RADIUS,
+				-SPIKE_RADIUS,
+				SPIKE_RADIUS * 2,
+				SPIKE_RADIUS * 2
+			);
+
+			ctx.restore();
+		}
+	}
 
     /** Draws bubbles, with a team-colored ring when they are held. */
     private drawBubbles(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
@@ -1095,43 +1145,45 @@ export class GMSoapBubble extends GameMode {
     }
 
     override save(): Uint8Array {
-        const {State} = protocols.get();
-        // Everything mutable is shared (init data such as teams is NOT repeated)
-        const object: Fields = {
-            players: this.players.map(p => p.save()),
-            bubbles: this.bubbles.map(b => b.save()),
-            spikes: this.spikes.map(s => s.save()),
-            redScore: this.redScore,
-            blueScore: this.blueScore,
-            bubbleTimer: this.bubbleTimer,
-            spikeTimer: this.spikeTimer,
-            spikeFromRight: this.spikeFromRight,
-            nextSpikeY0: this.nextSpikeY0,
-            nextSpikeY1: this.nextSpikeY1,
-        };
+		const {State} = protocols.get();
 
-        return State.encode(object).finish();
-    }
+		const object: Fields = {
+			players: this.players.map(p => p.save()),
+			bubbles: this.bubbles.map(b => b.save()),
+			spikes: this.spikes.map(s => s.save()),
+			redScore: this.redScore,
+			blueScore: this.blueScore,
+			gameTime: this.gameTime,
+			bubbleTimer: this.bubbleTimer,
+			spikeTimer: this.spikeTimer,
+			spikeFromRight: this.spikeFromRight,
+			nextSpikeY0: this.nextSpikeY0,
+			nextSpikeY1: this.nextSpikeY1,
+		};
+
+		return State.encode(object).finish();
+	}
 
     override load(data: Uint8Array) {
-        const {State} = protocols.get();
-        const obj = State.decode(data);
+		const {State} = protocols.get();
+		const obj = State.decode(data);
 
-        for (let i = 0; i < obj.players.length; i++) {
-            this.players[i].load(obj.players[i]);
-        }
+		for (let i = 0; i < obj.players.length; i++) {
+			this.players[i].load(obj.players[i]);
+		}
 
-        this.bubbles = obj.bubbles.map((b: Fields) => Bubble.fromSaved(b));
-        this.spikes = obj.spikes.map((s: Fields) => Spike.fromSaved(s));
+		this.bubbles = obj.bubbles.map((b: Fields) => Bubble.fromSaved(b));
+		this.spikes = obj.spikes.map((s: Fields) => Spike.fromSaved(s));
 
-        this.redScore = obj.redScore;
-        this.blueScore = obj.blueScore;
-        this.bubbleTimer = obj.bubbleTimer;
-        this.spikeTimer = obj.spikeTimer;
-        this.spikeFromRight = obj.spikeFromRight;
-        this.nextSpikeY0 = obj.nextSpikeY0;
-        this.nextSpikeY1 = obj.nextSpikeY1;
-    }
+		this.redScore = obj.redScore;
+		this.blueScore = obj.blueScore;
+		this.gameTime = obj.gameTime;
+		this.bubbleTimer = obj.bubbleTimer;
+		this.spikeTimer = obj.spikeTimer;
+		this.spikeFromRight = obj.spikeFromRight;
+		this.nextSpikeY0 = obj.nextSpikeY0;
+		this.nextSpikeY1 = obj.nextSpikeY1;
+	}
 
     override getSize() {
         return {width: WIDTH, height: HEIGHT};

@@ -17,7 +17,7 @@ message PlayerState {
     bool connected = 1;
     sint32 internalScore = 2;   // intra-team ranking score (can be negative)
     sint32 targetX = 3;         // last pointer position
-    sint32 targetY = 4;
+    sint32 targetY = 4;         // last pointer position
 }
 
 message BubbleState {
@@ -53,6 +53,9 @@ message State {
     // Pre-rolled random heights of the next spike (rolled by the server only)
     double nextSpikeY0 = 9;
     double nextSpikeY1 = 10;
+
+    // Total elapsed game time, used by the exponential spike spawn cooldown
+    double gameTime = 11;
 }
 
 
@@ -60,6 +63,7 @@ message State {
 
 message QInput {
     double timestamp = 1;
+
     oneof action {
         Point pointerDown = 2;   // press started: tries to grab a bubble here
         Point pointerMove = 3;   // pointer moved (only sent when it changed)
@@ -88,7 +92,7 @@ message ClientMessage {
 
 message StartData {
     string skin = 1;
-    int32 preferTeam = 2;   // 0 = none, 1 = red, -1 = blue
+    int32 preferTeam = 2;       // 0 = none, 1 = red, -1 = blue
 }
 
 message StartPlayerInfo {
