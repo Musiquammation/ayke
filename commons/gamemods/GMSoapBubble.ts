@@ -31,7 +31,7 @@ const HALF_HEIGHT = HEIGHT / 2;
 const WIN_SCORE = 10; // first team to reach this score wins
 
 // Bubbles
-const SPAWN_BUBBLE_COOLDOWN = 1;   // seconds between two bubble spawns
+const SPAWN_BUBBLE_COOLDOWN = 0.6;   // seconds between two bubble spawns
 const BUBBLE_RADIUS = 95;          // radius of a bubble in game units
 const GRAB_TOLERANCE = 25;         // extra pixels around a bubble where a click still grabs it
 const NO_PLAYER = -1;              // "nobody" marker for holder / lastGrabber
@@ -46,14 +46,16 @@ const HARD_MAX_SPEED = 3500;            // absolute safety cap (bounces can add 
 const BOUNCE_RESTITUTION = 0.9;         // 1 = perfectly elastic, 0 = no bounce
 
 // Spikes
-const SPIKE_SPAWN_COOLDOWN = 0.6;       // seconds between two waiting-spike spawns
+const SPIKE_SPAWN_COOLDOWN = 0.2;       // seconds between two waiting-spike spawns
 const SPIKE_SPAWN_DECAY = 0.02;         // Exponential decay coefficient k (1/s)
-const SPIKE_SPAWN_BASE = 0.2;           // Minimal spawn cooldown
+const SPIKE_SPAWN_BASE = 0.1;           // Minimal spawn cooldown
+const SPIKE_DY_DECAY = Math.log(0.15)/240;
 const SPIKE_WAIT_TIME = 2;              // seconds a spike stays grayed out before activating
 const SPIKE_FADE_TIME = 0.5;            // opacity rises during the last SPIKE_FADE_TIME seconds
 const SPIKE_SPEED = 650;                // constant speed of an active spike (units/s)
 const SPIKE_RADIUS = 55;                // collision radius of a spike
 const WAITING_SPIKE_ALPHA = 0.25;       // opacity of a spike that is still waiting
+const SPIKE_BURST_RADIUS = 400;         // radius around a triggered spike that destroys other spikes
 
 // Rendering
 const RED_COLOR = "#ff0044";
@@ -640,11 +642,16 @@ export class GMSoapBubble extends GameMode {
 		}
 	}
 
+	private evalSpikeDyRange() {
+		return Math.exp(SPIKE_DY_DECAY * this.gameTime);
+	}
+
 	/** Rolls the start/end heights of the next spike (values are shared through State). */
 	private rollNextSpikeHeights(rng: GameRandomGenerator) {
 		const span = HEIGHT - 2 * SPIKE_RADIUS;
 		this.nextSpikeY0 = -HALF_HEIGHT + SPIKE_RADIUS + rng() * span;
-		this.nextSpikeY1 = -HALF_HEIGHT + SPIKE_RADIUS + rng() * span;
+		const sign = this.nextSpikeY0 >= 0 ? 1 : -1;
+		this.nextSpikeY1 = span/4 * (sign + this.evalSpikeDyRange() * (rng() - .5));
 	}
 
 	/**
@@ -796,15 +803,50 @@ export class GMSoapBubble extends GameMode {
 		}
 	}
 
-	/** Removes (bursts) every bubble touching an ACTIVE spike. */
+	/**
+	 * Bursts bubbles touching an active spike.
+	 * When a bubble bursts on a spike, all spikes within SPIKE_BURST_RADIUS
+	 * of that spike are destroyed as well.
+	 */
 	private burstBubblesTouchingSpikes() {
 		const activeSpikes = this.spikes.filter(s => s.isActive());
 		if (activeSpikes.length === 0)
 			return;
 
+		const triggeredSpikes = new Set<Spike>();
+
+		// Find every active spike that touches a bubble.
+		for (const bubble of this.bubbles) {
+			const bubbleCircle = bubble.circle();
+
+			for (const spike of activeSpikes) {
+				if (collisions.CircleCircle(bubbleCircle, spike.circle())) {
+					triggeredSpikes.add(spike);
+				}
+			}
+		}
+
+		if (triggeredSpikes.size === 0)
+			return;
+
+		// A bubble touching one spike destroys all spikes around it.
+		this.spikes = this.spikes.filter(spike => {
+			for (const triggered of triggeredSpikes) {
+				const dx = spike.getX() - triggered.getX();
+				const dy = spike.getY() - triggered.getY();
+
+				if (dx * dx + dy * dy <= SPIKE_BURST_RADIUS * SPIKE_BURST_RADIUS)
+					return false;
+			}
+
+			return true;
+		});
+
+		// Destroy every bubble that touched a triggered spike.
 		this.bubbles = this.bubbles.filter(bubble => {
-			const circle = bubble.circle();
-			return !activeSpikes.some(s => collisions.CircleCircle(circle, s.circle()));
+			return ![...triggeredSpikes].some(spike =>
+				collisions.CircleCircle(bubble.circle(), spike.circle())
+			);
 		});
 	}
 
