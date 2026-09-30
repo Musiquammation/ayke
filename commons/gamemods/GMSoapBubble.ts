@@ -251,21 +251,46 @@ class Player {
 	}
 }
 
-
 // ---------------------------------------------------------------------------
 // CLIENT-ONLY DATA (never shared)
 // ---------------------------------------------------------------------------
 
+interface Fx {
+	x: number;
+	y: number;
+	age: number;
+	duration: number;
+}
+
+interface BubbleBurstFx extends Fx {
+	radius: number;
+}
+
+interface BubbleExplosionFx extends Fx {
+	radius: number;
+}
+
+interface BubbleGrabFx extends Fx {
+	radius: number;
+}
+
 class ClientData {
 	firstFrame = true;
+
 	mouseX = 0;
 	mouseY = 0;
+
 	skins: string[] = [];
 
-	// Pointer bookkeeping used by collectInputs to only send what changed
+	// Pointer bookkeeping used by collectInputs to only send what changed.
 	pointerHeld = false;
 	lastSentX: number | null = null;
 	lastSentY: number | null = null;
+
+	// Client-only visual effects.
+	readonly bubbleBurstFx: BubbleBurstFx[] = [];
+	readonly bubbleExplosionFx: BubbleExplosionFx[] = [];
+	readonly bubbleGrabFx: BubbleGrabFx[] = [];
 
 	readonly html: HTMLDivElement;
 	readonly redScore: HTMLDivElement;
@@ -280,6 +305,7 @@ class ClientData {
 
 		this.redScore = document.createElement("div");
 		this.blueScore = document.createElement("div");
+
 		this.redScore.classList.add("game-soapBubble-red-score");
 		this.blueScore.classList.add("game-soapBubble-blue-score");
 
@@ -290,16 +316,258 @@ class ClientData {
 		scores.appendChild(this.redScore);
 		scores.appendChild(dash);
 		scores.appendChild(this.blueScore);
+
 		this.html.appendChild(scores);
 	}
 
 	/** Refreshes the HTML scoreboard. */
 	update(game: GMSoapBubble) {
-		this.redScore.innerText = String(game.redScore).padStart(2, "0");
-		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
+		this.redScore.innerText =
+			String(game.redScore).padStart(2, "0");
+
+		this.blueScore.innerText =
+			String(game.blueScore).padStart(2, "0");
+	}
+
+	/**
+	 * Converts simulation events into client-only visual effects.
+	 *
+	 * These events are consumed immediately and are not part of
+	 * the persistent game state.
+	 */
+	updateGameEvents(game: GMSoapBubble) {
+		for (const event of game.clientConsumer!.consumeBubbleBurstEvents()) {
+			this.bubbleBurstFx.push({
+				x: event.x,
+				y: event.y,
+				age: 0,
+				duration: 0.25,
+				radius: BUBBLE_RADIUS
+			});
+		}
+
+		for (const event of game.clientConsumer!.consumeBubbleExplosionEvents()) {
+			this.bubbleExplosionFx.push({
+				x: event.x,
+				y: event.y,
+				age: 0,
+				duration: 0.35,
+				radius: SPIKE_BURST_RADIUS * 0.35
+			});
+		}
+	}
+
+	/**
+	 * Advances all client-only visual effects.
+	 */
+	updateFx(dt: number) {
+		for (const fx of this.bubbleBurstFx)
+			fx.age += dt;
+
+		for (const fx of this.bubbleExplosionFx)
+			fx.age += dt;
+
+		for (const fx of this.bubbleGrabFx)
+			fx.age += dt;
+
+		this.removeExpired(this.bubbleBurstFx);
+		this.removeExpired(this.bubbleExplosionFx);
+		this.removeExpired(this.bubbleGrabFx);
+	}
+
+	private removeExpired<T extends Fx>(fxs: T[]) {
+		for (let i = fxs.length - 1; i >= 0; i--) {
+			if (fxs[i].age >= fxs[i].duration)
+				fxs.splice(i, 1);
+		}
+	}
+
+	/**
+	 * Creates a visual effect when a player grabs a bubble.
+	 */
+	addBubbleGrabFx(x: number, y: number) {
+		this.bubbleGrabFx.push({
+			x,
+			y,
+			age: 0,
+			duration: 0.2,
+			radius: BUBBLE_RADIUS
+		});
+	}
+
+	/**
+	 * Draws the visual effect of a bubble bursting.
+	 */
+	drawBubbleBurstFx(
+		ctx: CanvasRenderingContext2D
+	) {
+		for (const fx of this.bubbleBurstFx) {
+			const t = Math.min(fx.age / fx.duration, 1);
+
+			ctx.save();
+
+			ctx.globalAlpha = 1 - t;
+
+			const radius =
+				fx.radius * (1 + t * 0.8);
+
+			ctx.strokeStyle = "#ffffff";
+			ctx.lineWidth = 8 * (1 - t);
+
+			ctx.beginPath();
+			ctx.arc(
+				fx.x,
+				fx.y,
+				radius,
+				0,
+				Math.PI * 2
+			);
+			ctx.stroke();
+
+			const fragmentCount = 8;
+
+			for (let i = 0; i < fragmentCount; i++) {
+				const angle =
+					i * Math.PI * 2 / fragmentCount;
+
+				const distance =
+					fx.radius * (0.4 + t * 1.2);
+
+				const x =
+					fx.x + Math.cos(angle) * distance;
+
+				const y =
+					fx.y + Math.sin(angle) * distance;
+
+				const fragmentSize =
+					8 * (1 - t);
+
+				if (fragmentSize <= 0)
+					continue;
+
+				ctx.beginPath();
+				ctx.arc(
+					x,
+					y,
+					fragmentSize,
+					0,
+					Math.PI * 2
+				);
+
+				ctx.fillStyle = "#ffffff";
+				ctx.fill();
+			}
+
+			ctx.restore();
+		}
+	}
+
+	/**
+	 * Draws the explosion produced when a bubble hits a spike.
+	 */
+	drawBubbleExplosionFx(
+		ctx: CanvasRenderingContext2D
+	) {
+		for (const fx of this.bubbleExplosionFx) {
+			const t = Math.min(fx.age / fx.duration, 1);
+
+			ctx.save();
+
+			ctx.globalAlpha = 1 - t;
+
+			const radius =
+				fx.radius * (0.4 + t * 2.2);
+
+			ctx.strokeStyle = "#ffffff";
+			ctx.lineWidth =
+				12 * (1 - t) + 2;
+
+			ctx.beginPath();
+			ctx.arc(
+				fx.x,
+				fx.y,
+				radius,
+				0,
+				Math.PI * 2
+			);
+			ctx.stroke();
+
+			const fragmentCount = 14;
+
+			for (let i = 0; i < fragmentCount; i++) {
+				const angle =
+					i * Math.PI * 2 / fragmentCount +
+					fx.age * 4;
+
+				const distance =
+					fx.radius * (0.5 + t * 2.0);
+
+				const x =
+					fx.x + Math.cos(angle) * distance;
+
+				const y =
+					fx.y + Math.sin(angle) * distance;
+
+				const fragmentSize =
+					14 * (1 - t);
+
+				if (fragmentSize <= 0)
+					continue;
+
+				ctx.beginPath();
+
+				ctx.arc(
+					x,
+					y,
+					fragmentSize,
+					0,
+					Math.PI * 2
+				);
+
+				ctx.fillStyle = "#ffffff";
+				ctx.fill();
+			}
+
+			ctx.restore();
+		}
+	}
+
+	/**
+	 * Draws the visual effect produced when entering/grabbing a bubble.
+	 */
+	drawBubbleGrabFx(
+		ctx: CanvasRenderingContext2D
+	) {
+		for (const fx of this.bubbleGrabFx) {
+			const t = Math.min(fx.age / fx.duration, 1);
+
+			ctx.save();
+
+			ctx.globalAlpha = 1 - t;
+
+			const radius =
+				fx.radius * (0.35 + t * 0.9);
+
+			ctx.strokeStyle = "#ffffff";
+			ctx.lineWidth =
+				7 * (1 - t) + 1;
+
+			ctx.beginPath();
+
+			ctx.arc(
+				fx.x,
+				fx.y,
+				radius,
+				0,
+				Math.PI * 2
+			);
+
+			ctx.stroke();
+
+			ctx.restore();
+		}
 	}
 }
-
 
 class TutorialData {
 	constructor(private readonly game: GMSoapBubble) {}
@@ -345,6 +613,26 @@ function getSkinIconPath(id: string) {
 }
 
 
+class ClientDataConsumer {
+	bubbleBurstEvents: { x: number; y: number }[] = [];
+	bubbleExplosionEvents: { x: number; y: number }[] = [];
+
+	consumeBubbleBurstEvents() {
+		const events = this.bubbleBurstEvents;
+		this.bubbleBurstEvents = [];
+
+		return events;
+	}
+
+	consumeBubbleExplosionEvents() {
+		const events = this.bubbleExplosionEvents;
+		this.bubbleExplosionEvents = [];
+
+		return events;
+	}
+}
+
+
 // ---------------------------------------------------------------------------
 // GAME MODE
 // ---------------------------------------------------------------------------
@@ -380,7 +668,10 @@ export class GMSoapBubble extends GameMode {
 	nextSpikeY0 = 0;
 	nextSpikeY1 = 0;
 
-	private constructor(total: number) {
+	private constructor(
+		total: number,
+		public readonly clientConsumer: ClientDataConsumer | null
+	) {
 		super();
 
 		this.players = Array.from(
@@ -397,7 +688,7 @@ export class GMSoapBubble extends GameMode {
 		const rng = () => Math.random(); // allowed only in createServ
 
 		const {StartData, StartDataClient} = protocols.get();
-		const game = new GMSoapBubble(total);
+		const game = new GMSoapBubble(total, null);
 
 		// Pre-roll the heights of the first spike
 		game.rollNextSpikeHeights(rng);
@@ -490,7 +781,7 @@ export class GMSoapBubble extends GameMode {
 		total: number,
 		playerIdx: number
 	) {
-		const game = new GMSoapBubble(total);
+		const game = new GMSoapBubble(total, new ClientDataConsumer());
 		const {StartData, StartDataClient} = protocols.get();
 		const clientData = new ClientData();
 		let skins: { [k: string]: string; };
@@ -798,25 +1089,36 @@ export class GMSoapBubble extends GameMode {
 		}
 	}
 
-	/**
-	 * Bursts bubbles touching an active spike.
-	 * When a bubble bursts on a spike, all spikes within SPIKE_BURST_RADIUS
-	 * of that spike are destroyed as well.
-	 */
 	private burstBubblesTouchingSpikes() {
 		const activeSpikes = this.spikes.filter(s => s.isActive());
+
 		if (activeSpikes.length === 0)
 			return;
 
 		const triggeredSpikes = new Set<Spike>();
+		const bubblesToBurst = new Set<Bubble>();
 
-		// Find every active spike that touches a bubble.
 		for (const bubble of this.bubbles) {
 			const bubbleCircle = bubble.circle();
 
 			for (const spike of activeSpikes) {
 				if (collisions.CircleCircle(bubbleCircle, spike.circle())) {
 					triggeredSpikes.add(spike);
+					bubblesToBurst.add(bubble);
+
+					// The bubble itself bursts here.
+					if (this.clientConsumer) {
+						this.clientConsumer.bubbleBurstEvents.push({
+							x: bubble.x,
+							y: bubble.y
+						});
+	
+						// The spike causes an explosion at the collision point.
+						this.clientConsumer.bubbleExplosionEvents.push({
+							x: spike.getX(),
+							y: spike.getY()
+						});
+					}
 				}
 			}
 		}
@@ -824,25 +1126,27 @@ export class GMSoapBubble extends GameMode {
 		if (triggeredSpikes.size === 0)
 			return;
 
-		// A bubble touching one spike destroys all spikes around it.
+		// Destroy all spikes in the explosion radius.
 		this.spikes = this.spikes.filter(spike => {
 			for (const triggered of triggeredSpikes) {
 				const dx = spike.getX() - triggered.getX();
 				const dy = spike.getY() - triggered.getY();
 
-				if (dx * dx + dy * dy <= SPIKE_BURST_RADIUS * SPIKE_BURST_RADIUS)
+				if (
+					dx * dx + dy * dy <=
+					SPIKE_BURST_RADIUS * SPIKE_BURST_RADIUS
+				) {
 					return false;
+				}
 			}
 
 			return true;
 		});
 
-		// Destroy every bubble that touched a triggered spike.
-		this.bubbles = this.bubbles.filter(bubble => {
-			return ![...triggeredSpikes].some(spike =>
-				collisions.CircleCircle(bubble.circle(), spike.circle())
-			);
-		});
+		// Destroy all bubbles touching a triggered spike.
+		this.bubbles = this.bubbles.filter(
+			bubble => !bubblesToBurst.has(bubble)
+		);
 	}
 
 	/**
@@ -1141,41 +1445,56 @@ export class GMSoapBubble extends GameMode {
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
 		_data: any,
-		_imageLoader: ImageLoader
+		_imageLoader: ImageLoader,
+		addCamZ: number,
+		dt: number
 	) {
 		ctx.imageSmoothingEnabled = false;
 
 		const imageLoader = _imageLoader.getFolder('soapBubble');
-
 		const data = _data as ClientData;
+
 		if (data.firstFrame) {
 			data.firstFrame = false;
+
 			imageLoader.setColorRule('target', 0, [
 				{prev: "#ff00ff", next: "#ff0044"}
 			]);
 
 			imageLoader.setColorRule('target', 1, [
 				{prev: "#ff00ff", next: "#4444ff"}
-			])
+			]);
 		}
+
+		// Detect client-side events before replacing the previous snapshot.
+		data.updateGameEvents(this);
+
+		// Advance and remove expired visual effects.
+		data.updateFx(dt);
 
 		data.update(this);
 
 		ctx.fillStyle = BACKGROUND_COLOR;
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-		// Origin is the center of the screen
+		// Origin is the center of the screen.
 		ctx.save();
 		ctx.translate(HALF_WIDTH, HALF_HEIGHT);
+
+		// The red team sees the game vertically mirrored.
 		if (this.players[playerIdx].team === 'red') {
 			ctx.scale(1, -1);
 		}
-
 
 		this.drawGoals(ctx, imageLoader);
 		this.drawSpikes(ctx, imageLoader);
 		this.drawBubbles(ctx, imageLoader);
 		this.drawHands(ctx, imageLoader, data);
+
+		// Client-only visual effects.
+		// data.drawBubbleBurstFx(ctx);
+		data.drawBubbleExplosionFx(ctx);
+		data.drawBubbleGrabFx(ctx);
 
 		ctx.restore();
 	}
