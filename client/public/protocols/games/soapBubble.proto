@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package game_soapBubble;
+
+message Empty {}
+
+// Integer game coordinates (origin = center of the screen)
+message Point {
+    sint32 x = 1;
+    sint32 y = 2;
+}
+
+
+// ---- Shared state (GMSoapBubble.save / load) ----
+
+message PlayerState {
+    bool connected = 1;
+    sint32 internalScore = 2;   // intra-team ranking score (can be negative)
+    sint32 targetX = 3;         // last pointer position
+    sint32 targetY = 4;
+}
+
+message BubbleState {
+    // double: keeps the simulation bit-exact between server and clients
+    double x = 1;
+    double y = 2;
+    double vx = 3;
+    double vy = 4;
+    sint32 holder = 5;          // -1 = nobody
+    sint32 lastGrabber = 6;     // -1 = nobody
+}
+
+message SpikeState {
+    double x0 = 1;
+    double y0 = 2;
+    double x1 = 3;
+    double y1 = 4;
+    double age = 5;             // seconds since spawn (waiting phase included)
+}
+
+message State {
+    repeated PlayerState players = 1;
+    repeated BubbleState bubbles = 2;
+    repeated SpikeState spikes = 3;
+
+    sint32 redScore = 4;
+    sint32 blueScore = 5;
+
+    double bubbleTimer = 6;
+    double spikeTimer = 7;
+    bool spikeFromRight = 8;
+
+    // Pre-rolled random heights of the next spike (rolled by the server only)
+    double nextSpikeY0 = 9;
+    double nextSpikeY1 = 10;
+}
+
+
+// ---- Inputs ----
+
+message QInput {
+    double timestamp = 1;
+    oneof action {
+        Point pointerDown = 2;   // press started: tries to grab a bubble here
+        Point pointerMove = 3;   // pointer moved (only sent when it changed)
+        Empty pointerUp = 4;     // press ended: releases the held bubble
+    }
+}
+
+message Input {
+    QInput data = 1;
+    float player = 2;
+}
+
+message ServerMessage {
+    double timestamp = 1;
+    bytes state = 2;
+    repeated Input inputs = 3;
+}
+
+message ClientMessage {
+    double timestamp = 1;
+    repeated QInput inputs = 2;
+}
+
+
+// ---- Start data ----
+
+message StartData {
+    string skin = 1;
+    int32 preferTeam = 2;   // 0 = none, 1 = red, -1 = blue
+}
+
+message StartPlayerInfo {
+    string skin = 1;
+    bool isRed = 2;
+}
+
+message StartDataClient {
+    repeated StartPlayerInfo players = 1;
+}

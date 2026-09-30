@@ -1,0 +1,48 @@
+/* Root overlay: fixed on top of the canvas, never intercepts pointer events
+   (the whole screen is used to drag bubbles). */
+.game-soapBubble-root {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	justify-content: center;
+
+	width: 96vw;
+
+	font-family: sans-serif;
+	font-size: 4vh;
+
+	pointer-events: none;
+}
+
+/* Scoreboard container: "red - blue" laid out horizontally. */
+.game-soapBubble-scores {
+	display: flex;
+	align-items: center;
+	gap: 2vw;
+
+	padding: 0.5vh 2vw;
+	border-radius: 2vh;
+
+	background: rgba(0, 0, 0, 0.35);
+	color: #ffffff;
+}
+
+/* Red team score (owns the top edge). */
+.game-soapBubble-red-score {
+	color: #ff4d79;
+	font-weight: bold;
+}
+
+/* Blue team score (owns the bottom edge). */
+.game-soapBubble-blue-score {
+	color: #4d88ff;
+	font-weight: bold;
+}
+
+/* Separator between the two scores. */
+.game-soapBubble-dash {
+	opacity: 0.7;
+}

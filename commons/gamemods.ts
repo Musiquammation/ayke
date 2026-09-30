@@ -25,9 +25,11 @@ import bots_moveArmy from "./bots/bots-moveArmy";
 import bots_popit from "./bots/bots-popit";
 import bots_lavaBall from "./bots/bots-lavaBall";
 import bots_crayzoll from "./bots/bots-crayzoll";
+import bots_soapBubble from "./bots/bots-soapBubble";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
+import { GMSoapBubble } from "./gamemods/GMSoapBubble";
 
 
 interface Player {
@@ -254,6 +256,25 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_popit
+	},
+
+	soapBubble: {
+		type: 'multiplayer',
+		server: GMSoapBubble.createServ,
+		client: GMSoapBubble.createClient,
+		dom: GMSoapBubble.generateClientDom,
+		textures: GMSoapBubble.TEXTURES,
+		name: "Soap bubble",
+		description: "",
+		tropheesPerPlayer: 3,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_soapBubble
 	},
 
 	lavaBall: {
