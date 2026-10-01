@@ -13,6 +13,7 @@
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/status-bar": "^8.0.3",
+    "@dimforge/rapier2d-compat": "^0.21.0",
     "alpinejs": "^3.16.2",
     "marked": "^18.0.13",
     "prando": "^6.0.1",
