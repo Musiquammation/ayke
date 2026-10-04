@@ -6,7 +6,7 @@ message Empty {}
 
 
 // ---------------------------------------------------------------------------
-// Shared state (GMCastleDefense.save / load)
+// Shared state (GMCastle.save / load)
 // ---------------------------------------------------------------------------
 
 message PlayerState {

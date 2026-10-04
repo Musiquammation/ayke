@@ -88,6 +88,9 @@ const BOT_SOFT_DECELERATION = 600;
 const BOT_HARD_DECELERATION = 1200;
 const BOT_SPAWN_X = 2 * CELL;
 const BOT_SPAWN_Y = FLOOR_TOP_Y - BOT_SIZE / 2 - 2;
+const SPAWN_DEBUG_INTERVAL = 1;
+const SPAWN_MIN_Y = BOT_SIZE / 2;
+const SPAWN_MAX_Y = LEVEL_HEIGHT - BOT_SIZE / 2;
 const BOT_FRAME_SIZE = 32;           // size of one sprite frame in the sheet
 const BOT_RUNNING_SPEED = 100;       // speed from which the 'running' animation is used
 /** A bot that dies of the void is credited to the last element that touched it within this window. */
@@ -175,13 +178,7 @@ const DAMAGE_TIER_INTACT = 0;
 const DAMAGE_TIER_CRACKED = 1;
 const DAMAGE_TIER_FRAGILE = 2;
 const DAMAGE_TIER_SENSITIVE = 3;
-const CRACK_COUNT_BY_TIER = [0, 3, 6, 9];
-const CRACK_LINE_WIDTH = 1.5;
-const CRACK_COLOR = 'rgba(0, 0, 0, 0.65)';
-const FRAGILE_SHADE_COLOR = 'rgba(0, 0, 0, 0.18)';
-const SENSITIVE_FLASH_BASE = 0.15;
-const SENSITIVE_FLASH_AMPLITUDE = 0.15;
-const SENSITIVE_FLASH_SPEED = 0.012;
+const DAMAGE_OVERLAY_OPACITY_BY_TIER = [0, 0.08, 0.16, 0.24];
 const DAMAGE_BAR_HEIGHT = 5;
 const DAMAGE_BAR_OFFSET = 8;
 const DAMAGE_BAR_BG = 'rgba(0, 0, 0, 0.6)';
@@ -272,6 +269,9 @@ const CARD_H = 100;
 const CARD_GAP = 10;
 const CARD_BOTTOM_MARGIN = 20;
 const CARD_ICON_SIZE = 52;
+const PLACEMENT_OPTION_SIZE = 34;
+const PLACEMENT_OPTION_GAP = 6;
+const PLACEMENT_OPTION_MARGIN = 6;
 const CARD_BAR_WIDTH = SLOT_COUNT * CARD_W + (SLOT_COUNT - 1) * CARD_GAP;
 const CARD_BAR_LEFT = (WIDTH - CARD_BAR_WIDTH) / 2;
 const CARD_BAR_TOP = HEIGHT - CARD_H - CARD_BOTTOM_MARGIN;
@@ -279,12 +279,8 @@ const ELIXIR_BAR_HEIGHT = 26;
 const ELIXIR_BAR_GAP = 10;
 const ELIXIR_BAR_TOP = CARD_BAR_TOP - ELIXIR_BAR_GAP - ELIXIR_BAR_HEIGHT;
 const UI_PADDING = 12;
-const UI_TOP = ELIXIR_BAR_TOP - UI_PADDING;
-const FLIP_RADIUS = 34;
-const FLIP_GAP = 20;
-const FLIP_CENTER_X = CARD_BAR_LEFT + CARD_BAR_WIDTH + FLIP_GAP + FLIP_RADIUS;
-const FLIP_CENTER_Y = CARD_BAR_TOP + CARD_H / 2;
-const UI_RIGHT = FLIP_CENTER_X + FLIP_RADIUS + UI_PADDING;
+const UI_TOP = CARD_BAR_TOP - PLACEMENT_OPTION_MARGIN - PLACEMENT_OPTION_SIZE - UI_PADDING;
+const UI_RIGHT = CARD_BAR_LEFT + CARD_BAR_WIDTH + UI_PADDING;
 const UI_LEFT = CARD_BAR_LEFT - UI_PADDING;
 /** A finger released this close to the canvas border is considered "off screen" -> cancel. */
 const EDGE_CANCEL_MARGIN = 8;
@@ -293,8 +289,8 @@ const FONT_PRICE = 'bold 18px sans-serif';
 const FONT_ELIXIR = 'bold 18px sans-serif';
 const FONT_PREVIEW = 'bold 22px sans-serif';
 const FONT_LOADING = 'bold 40px sans-serif';
-const FONT_FLIP = 'bold 30px sans-serif';
-const FONT_FLIP_LABEL = 'bold 13px sans-serif';
+const FONT_PLACEMENT_OPTION = 'bold 20px sans-serif';
+const FONT_REMOVE = 'bold 30px sans-serif';
 const PRICE_BADGE_RADIUS = 15;
 const PRICE_BADGE_MARGIN = 6;
 
@@ -404,11 +400,7 @@ function damageTier(ratio: number): number {
 	return DAMAGE_TIER_SENSITIVE;
 }
 
-/**
- * Draws the "wear" effect of an element on top of its sprite:
- * cracks (growing with the tier), a dark shade, a red flash and, during the
- * very last 10% of the life, a small life bar.
- */
+/** Draws a deliberately simple wear effect: a progressively darker overlay and a final life bar. */
 function drawDamageOverlay(
 	ctx: CanvasRenderingContext2D,
 	cx: number,
@@ -416,7 +408,7 @@ function drawDamageOverlay(
 	w: number,
 	h: number,
 	ratio: number,
-	seed: number
+	_seed: number
 ) {
 	const tier = damageTier(ratio);
 	if (tier === DAMAGE_TIER_INTACT) return;
@@ -425,34 +417,11 @@ function drawDamageOverlay(
 	const top = cy - h / 2;
 
 	ctx.save();
-	ctx.beginPath();
-	ctx.rect(left, top, w, h);
-	ctx.clip();
-
-	// Cracks: deterministic pseudo random segments, more of them at each tier
-	ctx.strokeStyle = CRACK_COLOR;
-	ctx.lineWidth = CRACK_LINE_WIDTH;
-	for (let i = 0; i < CRACK_COUNT_BY_TIER[tier]; i++) {
-		ctx.beginPath();
-		ctx.moveTo(left + hash01(seed, i * 4) * w, top + hash01(seed, i * 4 + 1) * h);
-		ctx.lineTo(left + hash01(seed, i * 4 + 2) * w, top + hash01(seed, i * 4 + 3) * h);
-		ctx.stroke();
-	}
-
-	if (tier >= DAMAGE_TIER_FRAGILE) {
-		ctx.fillStyle = FRAGILE_SHADE_COLOR;
-		ctx.fillRect(left, top, w, h);
-	}
-
-	if (tier === DAMAGE_TIER_SENSITIVE) {
-		// Cosmetic flashing only (not part of the game state)
-		const flash = SENSITIVE_FLASH_BASE + SENSITIVE_FLASH_AMPLITUDE * Math.sin(Date.now() * SENSITIVE_FLASH_SPEED);
-		ctx.fillStyle = `rgba(255, 0, 0, ${flash})`;
-		ctx.fillRect(left, top, w, h);
-	}
+	ctx.globalAlpha = DAMAGE_OVERLAY_OPACITY_BY_TIER[tier];
+	ctx.fillStyle = '#000000';
+	ctx.fillRect(left, top, w, h);
 	ctx.restore();
 
-	// Life bar, relative to the last 10% of the life
 	if (ratio < DAMAGE_BAR_THRESHOLD) {
 		const y = top - DAMAGE_BAR_OFFSET;
 		ctx.fillStyle = DAMAGE_BAR_BG;
@@ -469,11 +438,10 @@ function drawDamageOverlay(
 /**
  * Decides what a bot wants to do this frame.
  * MOCK: every bot always runs to the right and keeps jumping.
- * `botId` is the engine id of the bot being controlled (needed to tell bots apart).
+ * The engine argument is intentionally unused for now; this is the mock requested for the first playable version.
  */
 function getBotInput<TEngineData extends platformEngine.EngineData>(
-	engine: platformEngine.IBlockEngine<TEngineData>,
-	botId: BlockId
+	_engine: platformEngine.IBlockEngine<TEngineData>
 ): { xDir: number; jump: boolean } {
 	return { xDir: 1, jump: true };
 }
@@ -557,6 +525,8 @@ interface ElementSpec {
 	cols: number;
 	rows: number;
 	fallbackColor: string;
+	/** Optional selectable placement variants shown above this element's card. */
+	placementVariants?: readonly string[];
 }
 
 interface ElementInit {
@@ -941,7 +911,12 @@ class SpawnerElement extends PlacedElement {
 		this.cooldown -= dt;
 		if (this.cooldown > 0) return;
 		this.cooldown += SPAWNER_INTERVAL;
-		engine.getGame().queueMonster(this.owner, this.x - MONSTER_SPAWN_OFFSET_X, this.y);
+		console.log('[CastleDefense] Spawner tick', { uid: this.uid, owner: this.owner, x: this.x, y: this.y });
+		engine.getGame().queueMonster(
+			this.owner,
+			this.x - MONSTER_SPAWN_OFFSET_X,
+			this.y - this.getSize().height / 2 - MONSTER_SIZE / 2 - 1
+		);
 	}
 }
 
@@ -951,6 +926,7 @@ class RampElement extends PlacedElement {
 	static readonly SPEC: ElementSpec = {
 		id: 'ramp', label: 'Ramp', texture: TEX_RAMP, price: RAMP_PRICE,
 		maxHp: RAMP_HP, cols: 1, rows: 1, fallbackColor: '#8d6e63',
+		placementVariants: ['\u2197', '\u2196'],
 	};
 	static readonly DATA_MESSAGE = 'RampData';
 	static create(init: ElementInit) { return initElement(new RampElement(), init); }
@@ -1064,7 +1040,7 @@ class Bot extends GameBlock {
 	override processBeforeEngine(id: BlockId, dt: number, engine: Engine): void {
 		this.lastTouchAge = Math.min(this.lastTouchAge + dt, KILL_CREDIT_WINDOW + 1);
 
-		const input = getBotInput(engine, id);
+		const input = getBotInput(engine);
 		this.direction.dir = input.xDir * BOT_RUN_SPEED;
 		if (input.jump && this.walker.onFloor()) {
 			this.velocity.y = -BOT_JUMP_SPEED;
@@ -1292,7 +1268,7 @@ interface DragState {
 
 type UiHit =
 	| { kind: 'card'; tool: number }
-	| { kind: 'flip' }
+	| { kind: 'placementVariant'; tool: number; variant: number }
 	| { kind: 'bar' };
 
 /** Maps a card slot (0..SLOT_COUNT-1) to a tool id. The last slot is the remove tool. */
@@ -1303,10 +1279,34 @@ function cardRect(slot: number) {
 }
 
 /** Which part of the bottom UI is under the point (if any). */
+function placementVariantRect(tool: number, variant: number, variantCount: number) {
+	const slot = tool;
+	const card = cardRect(slot);
+	const totalW = variantCount * PLACEMENT_OPTION_SIZE + (variantCount - 1) * PLACEMENT_OPTION_GAP;
+	const left = card.x + (card.w - totalW) / 2;
+	return {
+		x: left + variant * (PLACEMENT_OPTION_SIZE + PLACEMENT_OPTION_GAP),
+		y: card.y - PLACEMENT_OPTION_MARGIN - PLACEMENT_OPTION_SIZE,
+		w: PLACEMENT_OPTION_SIZE,
+		h: PLACEMENT_OPTION_SIZE,
+	};
+}
+
+/** Which part of the bottom UI is under the point (if any). */
 function hitTestUi(x: number, y: number): UiHit | null {
 	if (x < UI_LEFT || x > UI_RIGHT || y < UI_TOP) return null;
 
-	if (Math.hypot(x - FLIP_CENTER_X, y - FLIP_CENTER_Y) <= FLIP_RADIUS) return { kind: 'flip' };
+	for (let slot = 0; slot < ELEMENT_TYPE_COUNT; slot++) {
+		const spec = ELEMENT_CLASSES[slot].SPEC;
+		const variants = spec.placementVariants;
+		if (!variants || variants.length < 2) continue;
+		for (let variant = 0; variant < variants.length; variant++) {
+			const r = placementVariantRect(slot, variant, variants.length);
+			if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+				return { kind: 'placementVariant', tool: slot, variant };
+			}
+		}
+	}
 
 	for (let slot = 0; slot < SLOT_COUNT; slot++) {
 		const r = cardRect(slot);
@@ -1437,7 +1437,7 @@ class ClientData {
 			this.drag = { pointerId: p.id, tool: hit.tool, x: p.x, y: p.y };
 			return 'drag';
 		}
-		if (hit.kind === 'flip') this.variant = this.variant === 0 ? 1 : 0;
+		if (hit.kind === 'placementVariant') this.variant = hit.variant;
 		return 'ui';
 	}
 
@@ -1473,9 +1473,11 @@ class ClientData {
 			return { col: Math.floor(world.x / CELL), row: Math.floor(world.y / CELL) };
 		}
 		const spec = ELEMENT_CLASSES[tool].SPEC;
+		const pointerCol = Math.floor(world.x / CELL - 0.5);
+		const pointerRow = Math.floor(world.y / CELL - 0.5);
 		return {
-			col: Math.round(world.x / CELL - spec.cols / 2),
-			row: Math.round(world.y / CELL - spec.rows / 2),
+			col: pointerCol - Math.floor((spec.cols - 1) / 2) - (spec.cols % 2 === 0 ? 1 : 0),
+			row: pointerRow - Math.floor((spec.rows - 1) / 2) - (spec.rows % 2 === 0 ? 1 : 0),
 		};
 	}
 
@@ -1489,6 +1491,11 @@ class ClientData {
 
 	private finishDrag(game: GMCastle): Fields | null {
 		const d = this.drag!;
+		const hit = hitTestUi(d.x, d.y);
+		if (hit?.kind === 'placementVariant' && hit.tool === d.tool) {
+			this.variant = hit.variant;
+			return null;
+		}
 		if (this.isReleaseCancelled(d)) return null;
 
 		const { col, row } = this.getDragCell(d.tool, d.x, d.y);
@@ -1572,6 +1579,7 @@ export class GMCastle extends GameMode {
 	waveIndex = 0;
 	spawnQueue = 0;
 	spawnTimer = 0;
+	private spawnDebugTimer = 0;
 	nextUid = 0;
 
 	/** Engine storage (typed per block kind, keyed by engine BlockId). */
@@ -1694,7 +1702,10 @@ export class GMCastle extends GameMode {
 	}
 
 	queueMonster(owner: number, x: number, y: number) {
-		this.monsterQueue.push({ owner, x, y });
+		const safeX = clamp(x, MONSTER_SIZE / 2, LEVEL_WIDTH - MONSTER_SIZE / 2);
+		const safeY = clamp(y, SPAWN_MIN_Y, SPAWN_MAX_Y);
+		console.log('[CastleDefense] Monster spawn queued', { owner, x, y, safeX, safeY });
+		this.monsterQueue.push({ owner, x: safeX, y: safeY });
 	}
 
 	/** Kills a bot; the owner of the killing element scores a point. */
@@ -1816,20 +1827,34 @@ export class GMCastle extends GameMode {
 	/* ---------------------------------- waves --------------------------------- */
 
 	private runWaves(dt: number) {
+		this.spawnDebugTimer -= dt;
 		this.waveTimer -= dt;
-		if (this.waveTimer <= 0) {
-			this.spawnQueue += Math.min(WAVE_MAX_SIZE, WAVE_BASE_SIZE + this.waveIndex * WAVE_SIZE_GROWTH);
+		while (this.waveTimer <= 0) {
+			const waveSize = Math.min(WAVE_MAX_SIZE, WAVE_BASE_SIZE + this.waveIndex * WAVE_SIZE_GROWTH);
+			this.spawnQueue += waveSize;
 			this.waveIndex++;
 			this.waveTimer += WAVE_INTERVAL;
+			console.log('[CastleDefense] Wave spawned', { wave: this.waveIndex, size: waveSize, queuedBots: this.spawnQueue });
 		}
 
-		if (this.spawnQueue > 0) {
-			this.spawnTimer -= dt;
-			if (this.spawnTimer <= 0) {
-				this.register(Bot.create(), 'bot', this.storage.bots);
-				this.spawnQueue--;
-				this.spawnTimer += BOT_SPAWN_INTERVAL;
-			}
+		this.spawnTimer -= dt;
+		while (this.spawnQueue > 0 && this.spawnTimer <= 0) {
+			const bot = Bot.create();
+			const registered = this.register(bot, 'bot', this.storage.bots);
+			this.spawnQueue--;
+			this.spawnTimer += BOT_SPAWN_INTERVAL;
+			console.log('[CastleDefense] Bot spawned', {
+				uid: registered.uid, engineId: registered.engineId, x: registered.x, y: registered.y,
+				queuedBots: this.spawnQueue,
+			});
+		}
+
+		if (this.spawnDebugTimer <= 0) {
+			this.spawnDebugTimer = SPAWN_DEBUG_INTERVAL;
+			console.log('[CastleDefense] Spawn state', {
+				wave: this.waveIndex, waveTimer: this.waveTimer, spawnQueue: this.spawnQueue,
+				bots: this.storage.bots.size, monsters: this.storage.monsters.size,
+			});
 		}
 	}
 
@@ -1844,7 +1869,12 @@ export class GMCastle extends GameMode {
 		}
 		for (const m of this.monsterQueue.splice(0)) {
 			const colorId = this.colorIdOf(m.owner) ?? COLOR_ID_RED;
-			this.register(Monster.create(m.owner, colorId, m.x, m.y), 'monster', this.storage.monsters);
+			const monster = Monster.create(m.owner, colorId, m.x, m.y);
+			const registered = this.register(monster, 'monster', this.storage.monsters);
+			console.log('[CastleDefense] Monster spawned', {
+				uid: registered.uid, engineId: registered.engineId, owner: registered.owner,
+				x: registered.x, y: registered.y, monsters: this.storage.monsters.size,
+			});
 		}
 	}
 
@@ -2121,8 +2151,8 @@ export class GMCastle extends GameMode {
 
 	/** Blue grid around the pointer whose opacity decreases with the distance. */
 	private drawFadingGrid(ctx: CanvasRenderingContext2D, wx: number, wy: number) {
-		const centerCol = Math.floor(wx / CELL);
-		const centerRow = Math.floor(wy / CELL);
+		const centerCol = Math.floor(wx / CELL) + 0.5;
+		const centerRow = Math.floor(wy / CELL) + 0.5;
 
 		for (let dr = -GRID_RADIUS_CELLS; dr <= GRID_RADIUS_CELLS; dr++) {
 			for (let dc = -GRID_RADIUS_CELLS; dc <= GRID_RADIUS_CELLS; dc++) {
@@ -2155,6 +2185,9 @@ export class GMCastle extends GameMode {
 		let rectCols = 1;
 		let rectRows = 1;
 
+		ctx.save();
+		ctx.translate(.5 * CELL, .5 * CELL);
+
 		if (drag.tool === TOOL_REMOVE) {
 			const target = this.elementAtCell(col, row);
 			if (target) {
@@ -2186,6 +2219,8 @@ export class GMCastle extends GameMode {
 		ctx.lineWidth = 1;
 
 		this.drawPreviewLabel(ctx, world.x, world.y, check.cost, ok);
+
+		ctx.restore();
 	}
 
 	private drawPreviewLabel(ctx: CanvasRenderingContext2D, wx: number, wy: number, cost: number | null, ok: boolean) {
@@ -2239,7 +2274,7 @@ export class GMCastle extends GameMode {
 				ctx.fillStyle = COLOR_REMOVE_TOOL;
 				ctx.fillRect(iconX - CARD_ICON_SIZE / 2, iconY - CARD_ICON_SIZE / 2, CARD_ICON_SIZE, CARD_ICON_SIZE);
 				ctx.fillStyle = COLOR_CARD_TEXT;
-				ctx.font = FONT_FLIP;
+				ctx.font = FONT_REMOVE;
 				ctx.textAlign = 'center';
 				ctx.fillText('\u2716', iconX, iconY + 10);
 			}
@@ -2267,17 +2302,28 @@ export class GMCastle extends GameMode {
 			}
 		}
 
-		// Ramp orientation button
-		ctx.fillStyle = COLOR_CARD_BG;
-		ctx.beginPath();
-		ctx.arc(FLIP_CENTER_X, FLIP_CENTER_Y, FLIP_RADIUS, 0, Math.PI * 2);
-		ctx.fill();
-		ctx.fillStyle = COLOR_CARD_TEXT;
-		ctx.font = FONT_FLIP;
-		ctx.textAlign = 'center';
-		ctx.fillText(data.variant === 0 ? '\u2197' : '\u2196', FLIP_CENTER_X, FLIP_CENTER_Y + 8);
-		ctx.font = FONT_FLIP_LABEL;
-		ctx.fillText('Ramp', FLIP_CENTER_X, FLIP_CENTER_Y + FLIP_RADIUS - 8);
+		// Generic placement variants are displayed above the selected element card.
+		if (data.drag) {
+			const spec = ELEMENT_CLASSES[data.drag.tool]?.SPEC;
+			const variants = spec?.placementVariants;
+			if (variants && variants.length > 1) {
+				for (let variant = 0; variant < variants.length; variant++) {
+					const r = placementVariantRect(data.drag.tool, variant, variants.length);
+					const selected = data.variant === variant;
+					ctx.fillStyle = selected ? COLOR_CARD_SELECTED : COLOR_CARD_BG;
+					ctx.fillRect(r.x, r.y, r.w, r.h);
+					ctx.strokeStyle = selected ? COLOR_CARD_SELECTED : COLOR_FALLBACK_OUTLINE;
+					ctx.lineWidth = selected ? 2 : 1;
+					ctx.strokeRect(r.x, r.y, r.w, r.h);
+					ctx.lineWidth = 1;
+					ctx.fillStyle = COLOR_CARD_TEXT;
+					ctx.font = FONT_PLACEMENT_OPTION;
+					ctx.textAlign = 'center';
+					ctx.fillText(variants[variant], r.x + r.w / 2, r.y + r.h / 2 + 7);
+				}
+			}
+		}
+
 	}
 
 	override onDisconnection(id: number): void {
