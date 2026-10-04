@@ -6,7 +6,8 @@
     "bundle": "vite build --mode bundle",
     "build": "vite build",
     "server": "tsx watch server/server.ts",
-    "test": "tsx draft/test.ts"
+    "test": "tsx draft/test.ts",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

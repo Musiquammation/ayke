@@ -1,0 +1,206 @@
+syntax = "proto3";
+
+package game_castle;
+
+message Empty {}
+
+
+// ---------------------------------------------------------------------------
+// Shared state (GMCastleDefense.save / load)
+// ---------------------------------------------------------------------------
+
+message PlayerState {
+	bool connected = 1;
+	bool isRed = 2;
+	float elixir = 3;
+	int32 kills = 4;
+}
+
+// One message per element type. They are encoded to bytes by PlacedElement.save()
+// and embedded in BlockState.data. Common fields come first (1..5).
+
+message BlockData {
+	float hp = 1;
+	int32 owner = 2;       // player index, -1 = neutral
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+}
+
+message SpikeData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+}
+
+message TrampolineData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+}
+
+message ArcherData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+	float cooldown = 6;
+}
+
+message FireBarData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+	float angle = 6;
+}
+
+message ThwompData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+	int32 phase = 6;
+	float timer = 7;
+	float offsetY = 8;
+}
+
+message SpawnerData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+	float cooldown = 6;
+}
+
+message RampData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+}
+
+// (blockId, typeIdx, bytes data)
+message BlockState {
+	uint32 blockId = 1;
+	int32 typeIdx = 2;
+	bytes data = 3;
+}
+
+message BotState {
+	uint32 blockId = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	int32 lastToucher = 6;
+	float lastTouchAge = 7;
+}
+
+message ArrowState {
+	uint32 blockId = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	float life = 6;
+	int32 owner = 7;
+}
+
+message MonsterState {
+	uint32 blockId = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	float lifetime = 6;
+	int32 owner = 7;
+}
+
+message State {
+	repeated PlayerState players = 1;
+	float time = 2;
+	int32 redScore = 3;
+	int32 blueScore = 4;
+	int32 castleHp = 5;
+
+	// Waves
+	float waveTimer = 6;
+	int32 waveIndex = 7;
+	int32 spawnQueue = 8;
+	float spawnTimer = 9;
+
+	// Next stable id handed to a new block / bot / arrow / monster
+	uint32 nextUid = 10;
+
+	repeated BlockState blocks = 11;
+	repeated BotState bots = 12;
+	repeated ArrowState arrows = 13;
+	repeated MonsterState monsters = 14;
+}
+
+
+// ---------------------------------------------------------------------------
+// Inputs
+// ---------------------------------------------------------------------------
+
+message PlaceInput {
+	int32 typeIdx = 1;
+	int32 col = 2;
+	int32 row = 3;
+	int32 variant = 4;
+}
+
+message RemoveInput {
+	uint32 blockId = 1;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		PlaceInput place = 2;
+		RemoveInput remove = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+// ---------------------------------------------------------------------------
+// Start data
+// ---------------------------------------------------------------------------
+
+message StartData {
+	int32 preferTeam = 1;
+}
+
+message StartPlayerInfo {
+	bool isRed = 1;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}

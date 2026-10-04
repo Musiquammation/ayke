@@ -14,6 +14,7 @@ import { GMMoveArmy } from "./gamemods/GMMoveArmy";
 import { GMPopit } from "./gamemods/GMPopit";
 import { GMLavaBall } from "./gamemods/GMLavaBall";
 import { GMCrayzoll } from "./gamemods/GMCrayzoll";
+import { GMCastle } from "./gamemods/GMCastle";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -25,6 +26,7 @@ import bots_moveArmy from "./bots/bots-moveArmy";
 import bots_popit from "./bots/bots-popit";
 import bots_lavaBall from "./bots/bots-lavaBall";
 import bots_crayzoll from "./bots/bots-crayzoll";
+import bots_castle from "./bots/bots-castle";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
@@ -273,6 +275,25 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_lavaBall
+	},
+
+	castle: {
+		type: 'multiplayer',
+		server: GMCastle.createServ,
+		client: GMCastle.createClient,
+		dom: GMCastle.generateClientDom,
+		textures: GMCastle.TEXTURES,
+		name: "Castle",
+		description: "",
+		tropheesPerPlayer: 3,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 2,
+		nodes: bots_castle
 	},
 
 	separator_comingSoon: {

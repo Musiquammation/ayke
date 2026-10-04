@@ -1,0 +1,95 @@
+/* The HUD is client-only and must never be added to GMExample shared state. */
+.game-castle-root {
+	position: fixed;
+	top: 1.5vh;
+	left: 1.5vw;
+	display: flex;
+	align-items: flex-start;
+	flex-wrap: wrap;
+	gap: 1vh 1vw;
+	width: 97vw;
+	font-family: sans-serif;
+	font-size: 2vh;
+	pointer-events: none;
+	z-index: 20;
+}
+
+/* Compact score/status cells keep the HUD readable on both desktop and mobile. */
+.game-castle-time,
+.game-castle-castle,
+.game-castle-elixir,
+.game-castle-score,
+.game-castle-message {
+	padding: 0.7vh 0.8vw;
+	border-radius: 0.8vh;
+	background: rgba(18, 22, 28, 0.82);
+	backdrop-filter: blur(0.4vh);
+	color: white;
+}
+
+.game-castle-castle {
+	font-weight: 700;
+}
+
+.game-castle-elixir {
+	min-width: 9vw;
+}
+
+.game-castle-cards {
+	position: fixed;
+	left: 1.5vw;
+	bottom: 2vh;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.8vw;
+	max-width: 88vw;
+	pointer-events: auto;
+}
+
+/* Cards remain large enough for touch input without consuming the play field. */
+.game-castle-card {
+	min-width: 7vw;
+	min-height: 7vh;
+	padding: 0.7vh 0.6vw;
+	border: 0.25vh solid rgba(255, 255, 255, 0.24);
+	border-radius: 1vh;
+	background: rgba(30, 35, 42, 0.94);
+	color: white;
+	white-space: pre-line;
+	font-size: 1.6vh;
+	font-weight: 700;
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	touch-action: manipulation;
+}
+
+.game-castle-card.selected {
+	border-color: rgba(255, 255, 255, 0.95);
+	transform: translateY(-0.25vh);
+}
+
+.game-castle-card.active {
+	border-color: rgba(255, 90, 90, 0.95);
+}
+
+.game-castle-card-erase {
+	min-width: 8vw;
+}
+
+.game-castle-message {
+	width: 100%;
+	text-align: center;
+	font-weight: 700;
+}
+
+@media (max-aspect-ratio: 4/3) {
+	.game-castle-root {
+		font-size: 1.7vh;
+	}
+
+	.game-castle-card {
+		min-width: 10vw;
+		min-height: 7.5vh;
+	}
+}
