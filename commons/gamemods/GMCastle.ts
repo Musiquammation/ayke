@@ -88,7 +88,6 @@ const BOT_SOFT_DECELERATION = 600;
 const BOT_HARD_DECELERATION = 1200;
 const BOT_SPAWN_X = 2 * CELL;
 const BOT_SPAWN_Y = FLOOR_TOP_Y - BOT_SIZE / 2 - 2;
-const SPAWN_DEBUG_INTERVAL = 1;
 const SPAWN_MIN_Y = BOT_SIZE / 2;
 const SPAWN_MAX_Y = LEVEL_HEIGHT - BOT_SIZE / 2;
 const BOT_FRAME_SIZE = 32;           // size of one sprite frame in the sheet
@@ -96,7 +95,7 @@ const BOT_RUNNING_SPEED = 100;       // speed from which the 'running' animation
 /** A bot that dies of the void is credited to the last element that touched it within this window. */
 const KILL_CREDIT_WINDOW = 2;
 
-const WAVE_FIRST_DELAY = 4;
+const WAVE_FIRST_DELAY = 0.1;
 const WAVE_INTERVAL = 18;
 const WAVE_BASE_SIZE = 3;
 const WAVE_SIZE_GROWTH = 1;
@@ -272,6 +271,7 @@ const CARD_ICON_SIZE = 52;
 const PLACEMENT_OPTION_SIZE = 34;
 const PLACEMENT_OPTION_GAP = 6;
 const PLACEMENT_OPTION_MARGIN = 6;
+const CARD_CLICK_SLOP = 8;
 const CARD_BAR_WIDTH = SLOT_COUNT * CARD_W + (SLOT_COUNT - 1) * CARD_GAP;
 const CARD_BAR_LEFT = (WIDTH - CARD_BAR_WIDTH) / 2;
 const CARD_BAR_TOP = HEIGHT - CARD_H - CARD_BOTTOM_MARGIN;
@@ -1264,11 +1264,13 @@ interface DragState {
 	tool: number;
 	x: number;
 	y: number;
+	startX: number;
+	startY: number;
 }
 
 type UiHit =
 	| { kind: 'card'; tool: number }
-	| { kind: 'placementVariant'; tool: number; variant: number }
+	| { kind: 'placementVariant'; tool: number; variant: number; location: 'bottom' | 'top' }
 	| { kind: 'bar' };
 
 /** Maps a card slot (0..SLOT_COUNT-1) to a tool id. The last slot is the remove tool. */
@@ -1292,8 +1294,9 @@ function placementVariantRect(tool: number, variant: number, variantCount: numbe
 	};
 }
 
-/** Which part of the bottom UI is under the point (if any). */
-function hitTestUi(x: number, y: number): UiHit | null {
+/** Generic top toolbar for any element exposing placementVariants. */
+/** Which part of the UI is under the point (if any). */
+function hitTestUi(x: number, y: number, _variantMenuTool: number | null = null): UiHit | null {
 	if (x < UI_LEFT || x > UI_RIGHT || y < UI_TOP) return null;
 
 	for (let slot = 0; slot < ELEMENT_TYPE_COUNT; slot++) {
@@ -1303,7 +1306,7 @@ function hitTestUi(x: number, y: number): UiHit | null {
 		for (let variant = 0; variant < variants.length; variant++) {
 			const r = placementVariantRect(slot, variant, variants.length);
 			if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
-				return { kind: 'placementVariant', tool: slot, variant };
+				return { kind: 'placementVariant', tool: slot, variant, location: 'bottom' };
 			}
 		}
 	}
@@ -1330,8 +1333,10 @@ class ClientData {
 
 	readonly camera = new Camera();
 	drag: DragState | null = null;
-	/** Ramp orientation for the next placement (0 / 1). */
+	/** Selected placement variant for the next placement. */
 	variant = 0;
+	/** Generic card whose placement variants are currently exposed in the top toolbar. */
+	variantMenuTool: number | null = null;
 
 	private readonly roles = new Map<number, PointerRole>();
 	private previous = new Map<number, Pointer>();
@@ -1430,14 +1435,32 @@ class ClientData {
 	}
 
 	private classifyNewPointer(p: Pointer): PointerRole {
-		const hit = hitTestUi(p.x, p.y);
+		const hit = hitTestUi(p.x, p.y, this.variantMenuTool);
+
+		// A click outside the active variant toolbar closes it. The new pointer
+		// can still be used normally (camera/card drag) in the same frame.
+		if (this.variantMenuTool !== null && hit?.kind !== 'placementVariant') {
+			this.variantMenuTool = null;
+		}
+
 		if (!hit) return 'camera';
 
 		if (hit.kind === 'card' && !this.drag) {
-			this.drag = { pointerId: p.id, tool: hit.tool, x: p.x, y: p.y };
+			this.drag = {
+				pointerId: p.id,
+				tool: hit.tool,
+				x: p.x,
+				y: p.y,
+				startX: p.x,
+				startY: p.y,
+			};
 			return 'drag';
 		}
-		if (hit.kind === 'placementVariant') this.variant = hit.variant;
+
+		if (hit.kind === 'placementVariant') {
+			this.variant = hit.variant;
+			this.variantMenuTool = hit.tool;
+		}
 		return 'ui';
 	}
 
@@ -1486,14 +1509,29 @@ class ClientData {
 		const outside =
 			d.x < EDGE_CANCEL_MARGIN || d.y < EDGE_CANCEL_MARGIN ||
 			d.x > WIDTH - EDGE_CANCEL_MARGIN || d.y > HEIGHT - EDGE_CANCEL_MARGIN;
-		return outside || hitTestUi(d.x, d.y) !== null;
+		return outside || hitTestUi(d.x, d.y, this.variantMenuTool) !== null;
 	}
 
 	private finishDrag(game: GMCastle): Fields | null {
 		const d = this.drag!;
-		const hit = hitTestUi(d.x, d.y);
+		const hit = hitTestUi(d.x, d.y, this.variantMenuTool);
+
+		// A short press on a variant-enabled card is a click, not a build drag.
+		// It opens the generic variant buttons above the card and leaves them
+		// visible until another click happens elsewhere.
+		const wasClick = Math.hypot(d.x - d.startX, d.y - d.startY) <= CARD_CLICK_SLOP;
+		const startHit = hitTestUi(d.startX, d.startY);
+		if (wasClick && startHit?.kind === 'card' && startHit.tool === d.tool) {
+			const variants = ELEMENT_CLASSES[d.tool]?.SPEC.placementVariants;
+			if (variants && variants.length > 1) {
+				this.variantMenuTool = d.tool;
+			}
+			return null;
+		}
+
 		if (hit?.kind === 'placementVariant' && hit.tool === d.tool) {
 			this.variant = hit.variant;
+			this.variantMenuTool = hit.tool;
 			return null;
 		}
 		if (this.isReleaseCancelled(d)) return null;
@@ -1579,7 +1617,6 @@ export class GMCastle extends GameMode {
 	waveIndex = 0;
 	spawnQueue = 0;
 	spawnTimer = 0;
-	private spawnDebugTimer = 0;
 	nextUid = 0;
 
 	/** Engine storage (typed per block kind, keyed by engine BlockId). */
@@ -1827,7 +1864,6 @@ export class GMCastle extends GameMode {
 	/* ---------------------------------- waves --------------------------------- */
 
 	private runWaves(dt: number) {
-		this.spawnDebugTimer -= dt;
 		this.waveTimer -= dt;
 		while (this.waveTimer <= 0) {
 			const waveSize = Math.min(WAVE_MAX_SIZE, WAVE_BASE_SIZE + this.waveIndex * WAVE_SIZE_GROWTH);
@@ -1846,14 +1882,6 @@ export class GMCastle extends GameMode {
 			console.log('[CastleDefense] Bot spawned', {
 				uid: registered.uid, engineId: registered.engineId, x: registered.x, y: registered.y,
 				queuedBots: this.spawnQueue,
-			});
-		}
-
-		if (this.spawnDebugTimer <= 0) {
-			this.spawnDebugTimer = SPAWN_DEBUG_INTERVAL;
-			console.log('[CastleDefense] Spawn state', {
-				wave: this.waveIndex, waveTimer: this.waveTimer, spawnQueue: this.spawnQueue,
-				bots: this.storage.bots.size, monsters: this.storage.monsters.size,
 			});
 		}
 	}
@@ -2108,7 +2136,7 @@ export class GMCastle extends GameMode {
 			el.draw(ctx, folder, this.colorIdOf(el.owner), 1);
 		}
 		for (const monster of this.storage.monsters.values()) monster.animator.draw(ctx, folder);
-		for (const bot of this.storage.bots.values()) bot.animator.draw(ctx, folder);
+		for (const bot of this.storage.bots.values()) {bot.animator.draw(ctx, folder); if (bot.uid === 120){bot.y = 600; bot.x = 200; console.log(bot.x)}};
 		for (const arrow of this.storage.arrows.values()) arrow.draw(ctx, folder, this.colorIdOf(arrow.owner));
 
 		this.drawDragPreview(ctx, folder, data, playerIdx);
@@ -2302,13 +2330,15 @@ export class GMCastle extends GameMode {
 			}
 		}
 
-		// Generic placement variants are displayed above the selected element card.
-		if (data.drag) {
-			const spec = ELEMENT_CLASSES[data.drag.tool]?.SPEC;
+		// Generic placement variants are shown above the card while dragging,
+		// and remain there after a short click until the user clicks elsewhere.
+		const variantTool = data.variantMenuTool ?? (data.drag ? data.drag.tool : null);
+		if (variantTool !== null) {
+			const spec = ELEMENT_CLASSES[variantTool]?.SPEC;
 			const variants = spec?.placementVariants;
 			if (variants && variants.length > 1) {
 				for (let variant = 0; variant < variants.length; variant++) {
-					const r = placementVariantRect(data.drag.tool, variant, variants.length);
+					const r = placementVariantRect(variantTool, variant, variants.length);
 					const selected = data.variant === variant;
 					ctx.fillStyle = selected ? COLOR_CARD_SELECTED : COLOR_CARD_BG;
 					ctx.fillRect(r.x, r.y, r.w, r.h);

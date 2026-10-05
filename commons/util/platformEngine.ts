@@ -759,12 +759,18 @@ export namespace platformEngine {
 		return result;
 	}
 
-	/**
-	 * Converts normalized polygon coordinates into coordinates relative to
-	 * the center of the Block.
+		/**
+	 * Converts polygon coordinates into coordinates relative to the center
+	 * of the Block.
 	 *
-	 * Block.x / Block.y represent the top-left corner.
-	 * Rapier's collider position represents its center.
+	 * Polygon coordinates are expressed in [-0.5, 0.5] relative to the
+	 * Block center.
+	 *
+	 * For example:
+	 *   (-0.5, -0.5) = top-left
+	 *   ( 0.5, -0.5) = top-right
+	 *   ( 0.5,  0.5) = bottom-right
+	 *   (-0.5,  0.5) = bottom-left
 	 */
 	function createPolygonColliderDesc(
 		polygon: Polygon,
@@ -788,28 +794,33 @@ export namespace platformEngine {
 			const point =
 				points[i];
 
+			/*
+			* Polygon coordinates are normalized in [0, 1].
+			*
+			* The Block position is its center, so convert the polygon
+			* coordinates into coordinates relative to that center.
+			*
+			* (0, 0) -> top-left
+			* (0.5, 0.5) -> center
+			* (1, 1) -> bottom-right
+			*/
 			vertices[i * 2] =
-				point.x * size.width
-				- size.width / 2;
+				(point.x - 0.5)
+				* size.width;
 
 			vertices[
 				i * 2 + 1
 			] =
-				point.y * size.height
-				- size.height / 2;
+				(point.y - 0.5)
+				* size.height;
 		}
 
 		/*
-		* In Rapier 2D, convexDecomposition receives a polyline.
-		*
 		* The indices form a closed polygon:
 		*   0 -> 1
 		*   1 -> 2
 		*   ...
 		*   n -> 0
-		*
-		* Rapier decomposes the concave polygon into a compound
-		* of convex parts.
 		*/
 		const indices =
 			new Uint32Array(
@@ -1206,16 +1217,11 @@ export namespace platformEngine {
 			direction: Direction,
 			dt: number,
 		): void {
-			const size =
-				block.getSize();
-
 			this.x =
-				block.x
-				+ size.width / 2;
+				block.x;
 
 			this.y =
-				block.y
-				+ size.height / 2;
+				block.y;
 
 			const velocity =
 				block.getVelocity();
@@ -1421,8 +1427,8 @@ export namespace platformEngine {
 			ctx.drawImage(
 				image,
 
-				frame * this.width,
-				row * this.height,
+				0 * this.width,
+				0 * this.height,
 
 				this.width,
 				this.height,
@@ -1432,6 +1438,15 @@ export namespace platformEngine {
 
 				this.width,
 				this.height,
+			);
+
+			ctx.fillStyle = "#f04";
+			ctx.fillRect(
+				-this.width / 2,
+				-this.height / 2,
+				this.width,
+				this.height,
+
 			);
 
 			ctx.restore();
@@ -1616,17 +1631,9 @@ export namespace platformEngine {
 				return;
 			}
 
-			const size =
-				this.getSize();
-
 			this.physicsCollider.setTranslation({
-				x:
-					this._x
-					+ size.width / 2,
-
-				y:
-					this._y
-					+ size.height / 2,
+				x: this._x,
+				y: this._y,
 			});
 		}
 
@@ -2009,8 +2016,6 @@ export namespace platformEngine {
 			const id =
 				this.nextId++;
 
-			const size =
-				block.getSize();
 
 			const descriptor =
 				createColliderDesc(
@@ -2032,13 +2037,8 @@ export namespace platformEngine {
 			* The collider position is the block center.
 			*/
 			collider.setTranslation({
-				x:
-					block.x
-					+ size.width / 2,
-
-				y:
-					block.y
-					+ size.height / 2,
+				x: block.x,
+				y: block.y
 			});
 
 			block.bindPhysicsCollider(
@@ -2576,13 +2576,7 @@ export namespace platformEngine {
 				}
 			}
 
-			const speedX =
-				vx + effectX;
-
-			const speedY =
-				vy + effectY;
-
-			return {
+			const state: MoverState<TEngineData> = {
 				entry,
 				collider,
 
@@ -2596,16 +2590,16 @@ export namespace platformEngine {
 
 				nextEffects,
 
-				speedX,
-				speedY,
+				speedX: vx + effectX,
+				speedY: vy + effectY,
 
 				nextX:
 					block.x
-					+ speedX * dt,
+					+ (vx + effectX) * dt,
 
 				nextY:
 					block.y
-					+ speedY * dt,
+					+ (vy + effectY) * dt,
 
 				startX:
 					block.x,
@@ -2613,6 +2607,56 @@ export namespace platformEngine {
 				startY:
 					block.y,
 			};
+
+			/*
+			 * Refresh contacts at the START of the frame. The previous
+			 * implementation only refreshed them after movement, which leaves
+			 * one frame where gravity/input can request movement into a surface.
+			 */
+			this.refreshWalkerContacts(
+				state,
+			);
+
+			/*
+			 * A persistent contact blocks the corresponding component before the
+			 * movement is submitted to Rapier. This makes the gameplay velocity
+			 * exactly zero on the blocked axis instead of correcting one frame late.
+			 */
+			this.stabilizeVelocityAgainstContacts(
+				state,
+			);
+
+			state.speedX =
+				state.nextVx;
+
+			for (
+				const effect
+				of state.nextEffects
+			) {
+				state.speedX +=
+					effect.vx;
+			}
+
+			state.speedY =
+				state.nextVy;
+
+			for (
+				const effect
+				of state.nextEffects
+			) {
+				state.speedY +=
+					effect.vy;
+			}
+
+			state.nextX =
+				state.startX
+				+ state.speedX * dt;
+
+			state.nextY =
+				state.startY
+				+ state.speedY * dt;
+
+			return state;
 		}
 
 
@@ -2838,6 +2882,27 @@ export namespace platformEngine {
 			state.nextY =
 				state.startY
 				+ corrected.y;
+
+			/*
+			* The character controller is the source of truth for the movement
+			* that actually happened. Rebuild the gameplay velocity from that
+			* movement before processing the collision notes below.
+			*
+			* This is important when the character is already within the
+			* controller's collision offset: in that case relying only on a
+			* reported contact can leave a small downward/upward velocity alive
+			* (for example gravity's ~33 px/s contribution).
+			*
+			* Effects are kept separately, so only the base velocity is rebuilt.
+			* The sum of base velocity + surviving effects therefore exactly
+			* matches the movement accepted by Rapier.
+			*/
+			this.syncVelocityWithCorrectedMovement(
+				state,
+				corrected.x,
+				corrected.y,
+				dt,
+			);
 
 			/*
 			* Rapier reports collisions chronologically.
@@ -3114,8 +3179,221 @@ export namespace platformEngine {
 
 
 		/* ---------------------------------------------------------------------- */
+		/* Persistent contact stabilization                                        */
+		/* ---------------------------------------------------------------------- */
+
+		private stabilizeVelocityAgainstContacts(
+			state:
+				MoverState<TEngineData>,
+		): void {
+			if (
+				state.forcedVelocity
+			) {
+				return;
+			}
+
+			const walker =
+				state.entry.block.getWalker();
+
+			if (!walker) {
+				return;
+			}
+
+			const speedX =
+				state.nextVx
+				+ state.nextEffects.reduce(
+						(total, effect) =>
+							total + effect.vx,
+						0,
+					);
+
+			const speedY =
+				state.nextVy
+				+ state.nextEffects.reduce(
+						(total, effect) =>
+							total + effect.vy,
+						0,
+					);
+
+			/*
+			 * Floor / ceiling. Y points down.
+			 */
+			if (walker.onFloor() && speedY > 0) {
+				state.nextVy = 0;
+				for (const effect of state.nextEffects) {
+					effect.vy =
+						Math.min(effect.vy, 0);
+				}
+			}
+
+			if (walker.onCeiling() && speedY < 0) {
+				state.nextVy = 0;
+				for (const effect of state.nextEffects) {
+					effect.vy =
+						Math.max(effect.vy, 0);
+				}
+			}
+
+			/*
+			 * Walls. Only the component pointing INTO the wall is cancelled.
+			 */
+			if (walker.onLeft() && speedX < 0) {
+				state.nextVx = 0;
+				for (const effect of state.nextEffects) {
+					effect.vx =
+						Math.max(effect.vx, 0);
+				}
+			}
+
+			if (walker.onRight() && speedX > 0) {
+				state.nextVx = 0;
+				for (const effect of state.nextEffects) {
+					effect.vx =
+						Math.min(effect.vx, 0);
+				}
+			}
+		}
+
+		private refreshWalkerContacts(
+			state:
+				MoverState<TEngineData>,
+		): void {
+			const walker =
+				state.entry.block.getWalker();
+
+			if (!walker) {
+				return;
+			}
+
+			walker.clear();
+
+			for (const side of SIDES) {
+				const direction =
+					SIDE_DIRECTION[side];
+
+				this.characterController
+					.computeColliderMovement(
+						state.collider,
+						{
+							x:
+							direction.x
+							* CONTACT_PROBE_DISTANCE,
+							y:
+							direction.y
+							* CONTACT_PROBE_DISTANCE,
+						},
+						undefined,
+						undefined,
+						otherCollider =>
+							this.shouldCollide(
+								state,
+								otherCollider,
+							),
+					);
+
+				for (
+					let i = 0;
+					i <
+						this.characterController
+							.numComputedCollisions();
+					i++
+				) {
+					const collision =
+						this.characterController
+							.computedCollision(i);
+
+					if (
+						!collision
+						|| !collision.collider
+					) {
+						continue;
+					}
+
+					const normal =
+						collision.normal1;
+
+					const opposing =
+						normal.x * direction.x
+						+ normal.y * direction.y;
+
+					if (opposing >= -0.5) {
+						continue;
+					}
+
+					const otherId =
+						this.colliderToId.get(
+							collision.collider.handle,
+						);
+
+					if (otherId === undefined) {
+						continue;
+					}
+
+					walker.setContact(
+						side,
+						otherId,
+					);
+
+					break;
+				}
+			}
+		}
+
+
+		/* ---------------------------------------------------------------------- */
 		/* Velocity collision resolution                                          */
 		/* ---------------------------------------------------------------------- */
+
+		private syncVelocityWithCorrectedMovement(
+			state:
+				MoverState<TEngineData>,
+			movementX: number,
+			movementY: number,
+			dt: number,
+		): void {
+			if (
+				state.forcedVelocity
+				|| !(dt > 0)
+			) {
+				return;
+			}
+
+			const resolvedVx =
+				movementX / dt;
+
+			const resolvedVy =
+				movementY / dt;
+
+			let effectX = 0;
+			let effectY = 0;
+
+			for (
+				const effect
+				of state.nextEffects
+			) {
+				effectX += effect.vx;
+				effectY += effect.vy;
+			}
+
+			state.nextVx =
+				this.cleanResolvedVelocity(
+					resolvedVx - effectX,
+				);
+
+			state.nextVy =
+				this.cleanResolvedVelocity(
+					resolvedVy - effectY,
+				);
+		}
+
+		private cleanResolvedVelocity(
+			value: number,
+		): number {
+			return Math.abs(value) <= 1e-7
+				? 0
+				: value;
+		}
+
 
 		private cancelVelocityIntoNormal(
 			state:
@@ -3141,10 +3419,33 @@ export namespace platformEngine {
 				);
 
 			state.nextVx =
-				velocity.x;
+				this.cleanResolvedVelocity(
+					velocity.x,
+				);
 
 			state.nextVy =
-				velocity.y;
+				this.cleanResolvedVelocity(
+					velocity.y,
+				);
+
+			/*
+			* Rapier keeps a small collision skin around the character. As a
+			* result, the corrected translation can contain a tiny velocity in
+			* the direction opposite to the surface (for example -0.006 while
+			* standing on the floor). That is not gameplay motion and must not
+			* leak into the Block velocity.
+			*
+			* For axis-aligned gameplay contacts, force the blocked axis to the
+			* exact mathematical zero. The tangential component is preserved.
+			*/
+			if (
+				Math.abs(ny)
+				>= Math.abs(nx)
+			) {
+				state.nextVy = 0;
+			} else {
+				state.nextVx = 0;
+			}
 
 			/*
 			* Velocity effects are velocities as well, so remove their component
