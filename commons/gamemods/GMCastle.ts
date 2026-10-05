@@ -68,7 +68,7 @@ const VOID_Y = LEVEL_HEIGHT + CELL * 3;
 const CASTLE_HP = 20;
 const MATCH_DURATION = 300;          // 5 minutes
 const TIMER_VISIBLE_SECONDS = 60;    // the clock is only displayed during the last minute
-const NEUTRAL_BLOCK_LIFETIME = 60;   // neutral floor blocks break after one minute
+const NEUTRAL_BLOCK_LIFETIME = 180;  // neutral floor blocks break after one minute
 const NO_OWNER = -1;
 const GRAVITY = 1500;
 
@@ -103,7 +103,7 @@ const BOT_RUNNING_SPEED = 100;       // speed from which the 'running' animation
 const KILL_CREDIT_WINDOW = 2;
 
 const WAVE_FIRST_DELAY = 0.1;
-const WAVE_INTERVAL = 18;
+const WAVE_INTERVAL = 2;
 const WAVE_BASE_SIZE = 3;
 const WAVE_SIZE_GROWTH = 1;
 const WAVE_MAX_SIZE = 14;
@@ -2223,7 +2223,7 @@ class Camera {
 	}
 }
 
-type PointerRole = 'drag' | 'camera' | 'ui';
+type PointerRole = 'drag' | 'camera' | 'ui' | 'blockPaint';
 
 interface DragState {
 	pointerId: number;
@@ -2304,6 +2304,12 @@ class ClientData {
 	variant = 0;
 	/** Generic card whose placement variants are currently exposed in the top toolbar. */
 	variantMenuTool: number | null = null;
+	/** True after clicking the Block card; dragging on the level then paints blocks. */
+	blockPlacementMode = false;
+	/** Grid coordinates already emitted while the current Block placement mode is active. */
+	private readonly blockPlacementCells = new Set<string>();
+	/** Card currently selected in the HUD, independent from an active pointer drag. */
+	selectedTool: number | null = null;
 
 	private readonly roles = new Map<number, PointerRole>();
 	private previous = new Map<number, Pointer>();
@@ -2373,26 +2379,40 @@ class ClientData {
 		const actions: Fields[] = [];
 		const current = new Map(pointers.map(p => [p.id, p] as [number, Pointer]));
 
-		// 1. Pointers that disappeared: a released drag is resolved here
+		// 1. Pointers that disappeared: a released drag is resolved here.
 		for (const id of [...this.roles.keys()]) {
 			if (current.has(id)) continue;
-			if (this.drag && this.drag.pointerId === id) {
+
+			if (this.roles.get(id) === 'drag' && this.drag?.pointerId === id) {
 				const action = this.finishDrag(game);
 				if (action) actions.push(action);
 				this.drag = null;
+			} else if (this.roles.get(id) === 'blockPaint' && this.drag?.pointerId === id) {
+				// Releasing a Block-paint pointer only stops painting; placement already
+				// happened cell by cell while the pointer was moving.
+				this.drag = null;
 			}
+
 			this.roles.delete(id);
 		}
 
-		// 2. New pointers: decide what they are going to do
+		// 2. New pointers: decide what they are going to do.
 		for (const p of pointers) {
 			if (!this.roles.has(p.id)) this.roles.set(p.id, this.classifyNewPointer(p));
 		}
 
-		// 3. Follow the dragging pointer
+		// 3. Follow the active placement pointer.
 		if (this.drag) {
 			const p = current.get(this.drag.pointerId);
-			if (p) { this.drag.x = p.x; this.drag.y = p.y; }
+			if (p) {
+				this.drag.x = p.x;
+				this.drag.y = p.y;
+
+				if (this.roles.get(this.drag.pointerId) === 'blockPaint') {
+					const action = this.paintBlockAtPointer(game, p.x, p.y);
+					if (action) actions.push(action);
+				}
+			}
 		}
 
 		// 4. Camera
@@ -2410,9 +2430,9 @@ class ClientData {
 			this.variantMenuTool = null;
 		}
 
-		if (!hit) return 'camera';
-
-		if (hit.kind === 'card' && !this.drag) {
+		if (hit?.kind === 'card' && !this.drag) {
+			// Keep the pointer as a drag candidate. The persistent selection is
+			// committed on release so a click can also toggle the current selection.
 			this.drag = {
 				pointerId: p.id,
 				tool: hit.tool,
@@ -2424,11 +2444,72 @@ class ClientData {
 			return 'drag';
 		}
 
+		if (!hit) {
+			if (this.blockPlacementMode && !this.drag) {
+				this.drag = {
+				pointerId: p.id,
+					tool: TYPE_BLOCK,
+					x: p.x,
+					y: p.y,
+					startX: p.x,
+					startY: p.y,
+				};
+				return 'blockPaint';
+			}
+
+			// A selected non-Block card owns level clicks until it is deselected.
+			// This prevents the same click/drag from falling through to camera pan.
+			if (this.selectedTool !== null && !this.drag) {
+				this.drag = {
+					pointerId: p.id,
+					tool: this.selectedTool,
+					x: p.x,
+					y: p.y,
+					startX: p.x,
+					startY: p.y,
+				};
+				return 'drag';
+			}
+			return 'camera';
+		}
+
 		if (hit.kind === 'placementVariant') {
 			this.variant = hit.variant;
 			this.variantMenuTool = hit.tool;
 		}
 		return 'ui';
+	}
+
+	private enableBlockPlacementMode(): void {
+		this.blockPlacementMode = true;
+		this.blockPlacementCells.clear();
+		this.variantMenuTool = null;
+	}
+
+	private disableBlockPlacementMode(): void {
+		this.blockPlacementMode = false;
+		this.blockPlacementCells.clear();
+	}
+
+	/**
+	 * Places one Block when the pointer enters a new grid cell.
+	 * The local coordinate set prevents duplicate actions at the same (col, row).
+	 */
+	private paintBlockAtPointer(game: GMCastle, sx: number, sy: number): Fields | null {
+		const { col, row } = this.getDragCell(TYPE_BLOCK, sx, sy);
+		const key = `${col},${row}`;
+
+		if (this.blockPlacementCells.has(key)) return null;
+		this.blockPlacementCells.add(key);
+
+		if (game.checkPlacement(this.localPlayer, TYPE_BLOCK, col, row).status !== 'ok') {
+			return null;
+		}
+
+		return {
+			action: 'place',
+			place: { typeIdx: TYPE_BLOCK, col, row, variant: this.variant },
+		};
 	}
 
 	private updateCamera(pointers: Pointer[], wheel: number) {
@@ -2463,8 +2544,8 @@ class ClientData {
 			return { col: Math.floor(world.x / CELL), row: Math.floor(world.y / CELL) };
 		}
 		const spec = ELEMENT_CLASSES[tool].SPEC;
-		const pointerCol = Math.floor(world.x / CELL - 0.5);
-		const pointerRow = Math.floor(world.y / CELL - 0.5);
+		const pointerCol = Math.floor(world.x / CELL);
+		const pointerRow = Math.floor(world.y / CELL);
 		return {
 			col: pointerCol - Math.floor((spec.cols - 1) / 2) - (spec.cols % 2 === 0 ? 1 : 0),
 			row: pointerRow - Math.floor((spec.rows - 1) / 2) - (spec.rows % 2 === 0 ? 1 : 0),
@@ -2488,7 +2569,28 @@ class ClientData {
 		// visible until another click happens elsewhere.
 		const wasClick = Math.hypot(d.x - d.startX, d.y - d.startY) <= CARD_CLICK_SLOP;
 		const startHit = hitTestUi(d.startX, d.startY);
+		if (wasClick && startHit?.kind === 'card' && startHit.tool === TYPE_BLOCK) {
+			// Clicking the selected Block card toggles the continuous placement mode.
+			if (this.selectedTool === TYPE_BLOCK) {
+				this.selectedTool = null;
+				this.disableBlockPlacementMode();
+			} else {
+				this.selectedTool = TYPE_BLOCK;
+				this.enableBlockPlacementMode();
+			}
+			return null;
+		}
+
 		if (wasClick && startHit?.kind === 'card' && startHit.tool === d.tool) {
+			// Clicking an already selected card gives the camera control back.
+			if (this.selectedTool === d.tool) {
+				this.selectedTool = null;
+				if (d.tool === TYPE_BLOCK) this.disableBlockPlacementMode();
+				return null;
+			}
+
+			this.selectedTool = d.tool;
+			if (d.tool !== TYPE_BLOCK) this.disableBlockPlacementMode();
 			const variants = ELEMENT_CLASSES[d.tool]?.SPEC.placementVariants;
 			if (variants && variants.length > 1) {
 				this.variantMenuTool = d.tool;
@@ -2502,6 +2604,14 @@ class ClientData {
 			return null;
 		}
 		if (this.isReleaseCancelled(d)) return null;
+
+		// A real drag that starts on a card is the explicit way to deselect it.
+		// A placement made from an already selected card keeps that selection active,
+		// exactly like the Block selection mode.
+		if (startHit?.kind === 'card') {
+			this.selectedTool = null;
+			if (d.tool === TYPE_BLOCK) this.disableBlockPlacementMode();
+		}
 
 		const { col, row } = this.getDragCell(d.tool, d.x, d.y);
 
@@ -3180,6 +3290,10 @@ export class GMCastle extends GameMode {
 		const drag = data.drag;
 		if (!drag) return;
 
+		ctx.save();
+		ctx.translate(CELL/2, CELL/2);
+
+
 		const world = data.camera.screenToWorld(drag.x, drag.y);
 		this.drawFadingGrid(ctx, world.x, world.y);
 
@@ -3189,8 +3303,6 @@ export class GMCastle extends GameMode {
 		let rectCols = 1;
 		let rectRows = 1;
 
-		ctx.save();
-		ctx.translate(.5 * CELL, .5 * CELL);
 
 		if (drag.tool === TOOL_REMOVE) {
 			const target = this.elementAtCell(col, row);
@@ -3206,8 +3318,11 @@ export class GMCastle extends GameMode {
 				ctx.lineWidth = 1;
 			}
 			this.drawPreviewLabel(ctx, world.x, world.y, target ? cost : null, ok);
+			ctx.restore();
 			return;
 		}
+
+		ctx.translate(-CELL/2, -CELL/2);
 
 		const check = this.checkPlacement(playerIdx, drag.tool, col, row);
 		ok = check.status === 'ok';
@@ -3259,7 +3374,8 @@ export class GMCastle extends GameMode {
 		for (let slot = 0; slot < SLOT_COUNT; slot++) {
 			const tool = slotToTool(slot);
 			const r = cardRect(slot);
-			const selected = data.drag?.tool === tool;
+			// Keep the selected card highlighted, including while it is being dragged.
+			const selected = data.drag?.tool === tool || data.selectedTool === tool;
 			const spec = tool === TOOL_REMOVE ? null : ELEMENT_CLASSES[tool].SPEC;
 			const affordable = spec ? player.elixir >= spec.price : true;
 
