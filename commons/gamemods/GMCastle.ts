@@ -89,6 +89,9 @@ const BOT_HARD_DECELERATION = 1200;
 const BOT_JUMP_HOLD_TIME = 0.08;
 const BOT_JUMP_COOLDOWN = 0.20;
 const BOT_WALL_JUMP_SPEED = 1000;
+const BOT_WALL_JUMP_LOCK_TIME = 0.16;
+const BOT_WALL_JUMP_REVERSE_TIME = 0.10;
+const BOT_WALL_JUMP_MAX_REPEAT_PER_SECOND = 5;
 const BOT_JUMP_ACCELERATION = 1000;
 const BOT_FALL_ACCELERATION = 2000;
 const BOT_WALL_SLIDE_MAX_SPEED = 100;
@@ -444,42 +447,61 @@ function drawDamageOverlay(
 
 namespace Bots {
 	/* -------------------------------------------------------------------------- */
-	/* Navigation and controller constants                                        */
+	/* Navigation and tactical constants                                          */
 	/* -------------------------------------------------------------------------- */
 
-	// The complete navigation graph is rebuilt only when the level changes.
-	const PATH_REPLAN_INTERVAL = 1.25;
-	const PATH_STUCK_TIMEOUT = 0.75;
-	const PATH_NODE_REACHED_DISTANCE = 18;
+	/*
+	 * The navigation layer follows the same architecture used by dedicated
+	 * platformer navigation systems: represent traversable surfaces as nodes,
+	 * validate jump trajectories against geometry, then use A* to select a route.
+	 * The important addition here is a reactive hazard layer which is evaluated
+	 * every frame because fire bars, thwomps and arrows are dynamic.
+	 *
+	 * Reference:
+	 * - https://devlog.levi.dev/2021/09/building-platformer-ai-part-4-platform.html
+	 * - https://devlog.levi.dev/2021/09/building-platformer-ai-part-3.html
+	 */
 
-	// A walk edge may absorb small height differences (ramps in particular).
-	const NAV_WALK_MAX_VERTICAL_DELTA = CELL * 0.60;
+	const PATH_REPLAN_INTERVAL = 0.75;
+	const PATH_STUCK_TIMEOUT = 0.55;
+	const PATH_NODE_REACHED_DISTANCE = 14;
+	const PATH_X_TOLERANCE = 8;
 
-	// Jump simulation uses the same jump impulse / gravity as the bot controller.
-	const NAV_GRAVITY = 2000;
+	const NAV_WALK_MAX_VERTICAL_DELTA = CELL * 0.65;
+	const NAV_GRAVITY = BOT_FALL_ACCELERATION;
 	const NAV_JUMP_SPEED = BOT_JUMP_SPEED;
-	const NAV_MAX_JUMP_UP = NAV_JUMP_SPEED * NAV_JUMP_SPEED / (2 * NAV_GRAVITY) + 8;
+	const NAV_MAX_JUMP_UP =
+		NAV_JUMP_SPEED * NAV_JUMP_SPEED / (2 * NAV_GRAVITY) + CELL * 0.15;
 	const NAV_MAX_JUMP_DOWN = CELL * 7;
-	const NAV_MAX_JUMP_TIME = 1.25;
-	const NAV_JUMP_HORIZONTAL_MARGIN = 0.90;
-	const NAV_JUMP_SAMPLES = 12;
+	const NAV_MAX_JUMP_TIME = 1.35;
+	const NAV_JUMP_HORIZONTAL_MARGIN = 0.82;
+	const NAV_JUMP_SAMPLES = 18;
 
-	// The bot only needs to enter the castle's horizontal footprint.
-	const NAV_GOAL_X = CASTLE_RECT.x - CELL / 2;
-	const NAV_GOAL_MIN_Y = CASTLE_RECT.y - BOT_SIZE;
-	const NAV_GOAL_MAX_Y = CASTLE_RECT.y + CASTLE_RECT.h + BOT_SIZE;
+	const NAV_GOAL_X = CASTLE_RECT.x - BOT_SIZE * 0.45;
+	const NAV_GOAL_MIN_Y = CASTLE_RECT.y - BOT_SIZE * 1.5;
+	const NAV_GOAL_MAX_Y = CASTLE_RECT.y + CASTLE_RECT.h + BOT_SIZE * 1.5;
 
-	// Waypoints are expressed in world-space bot-center coordinates.
-	const BOT_WAYPOINT_X_TOLERANCE = 10;
+	// Wall-jumps are stateful actions, not a side effect of merely touching a wall.
+	const WALL_JUMP_COOLDOWN = 0.22;
+	const WALL_JUMP_LOCK_TIME = 0.16;
+	const WALL_JUMP_REVERSE_TIME = 0.10;
+	const WALL_JUMP_MIN_UPWARD_VELOCITY = -80;
+	const WALL_JUMP_MAX_REPEAT_PER_SECOND = 5;
 
-	// The jump is kept for a short time to reproduce the player's variable jump
-	// behaviour instead of applying the jump impulse and immediately cutting it.
-	const BOT_JUMP_HOLD_TIME = 0.08;
-	const BOT_JUMP_COOLDOWN = 0.20;
-	const BOT_WALL_JUMP_SPEED = 1000;
-	const BOT_JUMP_ACCELERATION = 1000;
-	const BOT_FALL_ACCELERATION = 2000;
-	const BOT_WALL_SLIDE_MAX_SPEED = 100;
+	// Hazard margins are deliberately larger than the actual collision shape.
+	const SPIKE_LOOK_AHEAD = CELL * 1.65;
+	const SPIKE_JUMP_LOOK_AHEAD = CELL * 2.25;
+	const FIREBAR_DANGER_RADIUS = FIREBAR_BALL_RADIUS + BOT_SIZE * 0.65;
+	const FIREBAR_PREDICTION_TIME = 0.90;
+	const FIREBAR_SAMPLES = 9;
+	const THWOMP_HORIZONTAL_MARGIN = BOT_SIZE * 0.80;
+	const THWOMP_VERTICAL_MARGIN = BOT_SIZE * 0.50;
+	const THWOMP_PREDICTION_TIME = 0.80;
+	const ARROW_DANGER_RADIUS = BOT_SIZE * 0.75;
+	const ARROW_PREDICTION_TIME = 0.45;
+	const ARROW_SAMPLES = 5;
+
+	type WallSide = 'left' | 'right';
 
 	type Waypoint = {
 		x: number;
@@ -508,6 +530,12 @@ namespace Bots {
 		revision: number;
 		nodes: NavNode[];
 		edges: NavEdge[][];
+	};
+
+	type HazardDecision = {
+		xDir: number | null;
+		jump: boolean;
+		priority: number;
 	};
 
 	class MinHeap {
@@ -573,46 +601,67 @@ namespace Bots {
 	}
 
 	/**
-	 * Per-bot runtime cache.
+	 * Runtime state is intentionally not serialized.
 	 *
-	 * The route is derived from the current world and is deliberately not part
-	 * of the protobuf state. load() resets it, then the first frame rebuilds it.
+	 * The bot remembers its current route and, more importantly, the state of its
+	 * wall-jump controller. This prevents the classic "touch wall -> jump ->
+	 * immediately turn around -> jump again" oscillation.
 	 */
 	export class BotData {
 		engineId = -1;
+
 		navigationRevision = -1;
 		path: Waypoint[] = [];
 		pathIndex = 0;
 		repathTimer = PATH_REPLAN_INTERVAL;
 		stuckTimer = 0;
+
 		lastX = NaN;
+		lastY = NaN;
+		lastProgressTime = 0;
+
 		jumpCooldown = 0;
 		jumpHoldTimer = 0;
 
+		wallJumpLockTimer = 0;
+		wallJumpReverseTimer = 0;
+		lastWallJumpSide: WallSide | null = null;
+		lastWallJumpAt = -Infinity;
+		wallJumpCountWindow = 0;
+		wallJumpWindowAge = 0;
+
+		hazardCooldown = 0;
+
 		reset(): void {
 			this.engineId = -1;
+
 			this.navigationRevision = -1;
 			this.path.length = 0;
 			this.pathIndex = 0;
 			this.repathTimer = PATH_REPLAN_INTERVAL;
 			this.stuckTimer = 0;
+
 			this.lastX = NaN;
+			this.lastY = NaN;
+			this.lastProgressTime = 0;
+
 			this.jumpCooldown = 0;
 			this.jumpHoldTimer = 0;
+
+			this.wallJumpLockTimer = 0;
+			this.wallJumpReverseTimer = 0;
+			this.lastWallJumpSide = null;
+			this.lastWallJumpAt = -Infinity;
+			this.wallJumpCountWindow = 0;
+			this.wallJumpWindowAge = 0;
+
+			this.hazardCooldown = 0;
 		}
 	}
 
-	// One graph cache is shared by every bot in the same game.
 	const graphCache = new WeakMap<GMCastle, NavigationGraph>();
 
-	/**
-	 * Computes the vertical coordinate of a standing bot on an element.
-	 * Ramps expose a sloped top instead of a horizontal one.
-	 */
-	function getSurfaceY(
-		element: PlacedElement,
-		col: number,
-	): number {
+	function getSurfaceY(element: PlacedElement, col: number): number {
 		const top = element.y - element.getSize().height / 2;
 
 		if (!(element instanceof RampElement)) return top;
@@ -623,45 +672,94 @@ namespace Bots {
 			1,
 		);
 
-		if (element.variant === 0) {
-			return top + CELL * (1 - localX);
-		}
-
-		return top + CELL * localX;
+		/*
+		 * RampElement.variant 0 rises toward +X, so its surface is highest on
+		 * the right side. The navigation graph uses the exact same slope.
+		 */
+		return element.variant === 0
+			? top + CELL * (1 - localX)
+			: top + CELL * localX;
 	}
 
-	/**
-	 * Returns true when a bot-sized rectangle overlaps an element rectangle.
-	 * The conservative AABB test is intentional for navigation: a path that is
-	 * slightly too conservative is preferable to one that sends a bot through a
-	 * solid or a spike.
-	 */
-	function intersectsElement(
-		x: number,
-		y: number,
-		element: PlacedElement,
-	): boolean {
-		const botRect = {
+	function botRectAt(x: number, y: number) {
+		return {
 			x: x - BOT_SIZE / 2,
 			y: y - BOT_SIZE / 2,
 			w: BOT_SIZE,
 			h: BOT_SIZE,
 		};
+	}
 
-		return collisions.RectRect(botRect, rectOf(element));
+	function intersectsElement(
+		x: number,
+		y: number,
+		element: PlacedElement,
+	): boolean {
+		return collisions.RectRect(botRectAt(x, y), rectOf(element));
+	}
+
+	function isDangerousSupport(element: PlacedElement): boolean {
+		/*
+		 * These objects are useful geometry but poor surfaces to route through.
+		 * A thwomp can move, a fire bar is continuously lethal, and spikes kill
+		 * immediately. The bot can still jump across all three.
+		 */
+		return (
+			element instanceof SpikeElement
+			|| element instanceof FireBarElement
+			|| element instanceof ThwompElement
+		);
+	}
+
+	function getSupportAt(
+		game: GMCastle,
+		x: number,
+		y: number,
+	): PlacedElement | null {
+		const feetY = y + BOT_SIZE / 2;
+		let best: PlacedElement | null = null;
+		let bestDistance = Infinity;
+
+		for (const element of game.storage.elements.values()) {
+			if (isDangerousSupport(element)) continue;
+
+			const r = rectOf(element);
+			if (x < r.x - 2 || x > r.x + r.w + 2) continue;
+
+			const surfaceY = element instanceof RampElement
+				? getSurfaceY(
+					element,
+					clamp(
+						Math.floor((x - r.x) / CELL) + element.col,
+						element.col,
+						element.col + element.getSpec().cols - 1,
+					),
+				)
+				: r.y;
+
+			const distance = Math.abs(feetY - surfaceY);
+			if (distance <= BOT_SIZE * 0.75 && distance < bestDistance) {
+				best = element;
+				bestDistance = distance;
+			}
+		}
+
+		return best;
 	}
 
 	/**
-	 * Builds one navigation node for every exposed top cell.
-	 * Spikes are never used as support nodes because they are hazards.
+	 * A surface node is created only when the bot can actually stand there.
+	 * This is stricter than the old implementation and prevents spikes, fire
+	 * bars and thwomps from accidentally becoming valid navigation platforms.
 	 */
 	function buildNodes(game: GMCastle): NavNode[] {
 		const nodes: NavNode[] = [];
 
 		for (const element of game.storage.elements.values()) {
-			if (element instanceof SpikeElement) continue;
+			if (isDangerousSupport(element)) continue;
 
 			const spec = element.getSpec();
+			const rect = rectOf(element);
 
 			for (let r = 0; r < spec.rows; r++) {
 				const row = element.row + r;
@@ -669,13 +767,11 @@ namespace Bots {
 				for (let c = 0; c < spec.cols; c++) {
 					const col = element.col + c;
 
-					// Only the highest cell of a footprint exposes a usable top.
+					// Only the highest exposed cell has a usable top surface.
 					if (game.elementAtCell(col, row - 1) !== null) continue;
 
 					const x = (col + 0.5) * CELL;
-					const surfaceY = getSurfaceY(element, col);
-					const y = surfaceY - BOT_SIZE / 2;
-					const elementRect = rectOf(element);
+					const y = getSurfaceY(element, col) - BOT_SIZE / 2;
 
 					if (
 						y < BOT_SIZE / 2
@@ -684,8 +780,17 @@ namespace Bots {
 						continue;
 					}
 
-					// Do not create a waypoint below an immediate ceiling.
-					if (game.elementAtCell(col, row - 1) !== null) {
+					/*
+					 * Do not create a node if a spike/firebar/thwomp is already
+					 * occupying the bot's standing rectangle.
+					 */
+					if (
+						[...game.storage.elements.values()].some(other =>
+							other.uid !== element.uid
+							&& isDangerousSupport(other)
+							&& intersectsElement(x, y, other)
+						)
+					) {
 						continue;
 					}
 
@@ -696,8 +801,8 @@ namespace Bots {
 						row,
 						supportUid: element.uid,
 						support: element,
-						supportLeftX: elementRect.x,
-						supportRightX: elementRect.x + elementRect.w,
+						supportLeftX: rect.x,
+						supportRightX: rect.x + rect.w,
 					});
 				}
 			}
@@ -706,20 +811,14 @@ namespace Bots {
 		return nodes;
 	}
 
-	/**
-	 * Computes horizontal displacement during a jump.
-	 *
-	 * The route contains an explicit takeoff waypoint at the edge of the
-	 * supporting platform, so the bot has time to reach its running speed first.
-	 */
 	function horizontalJumpDistance(time: number): number {
-		return BOT_RUN_SPEED * time;
+		/*
+		 * The actual controller accelerates toward BOT_RUN_SPEED. Planning with
+		 * the full speed is optimistic, so use a conservative factor.
+		 */
+		return BOT_RUN_SPEED * time * 0.90;
 	}
 
-	/**
-	 * Returns the point from which a jump should be taken.
-	 * The bot walks to the edge of its current support before jumping.
-	 */
 	function getJumpTakeoff(
 		from: NavNode,
 		to: NavNode,
@@ -727,31 +826,25 @@ namespace Bots {
 		const direction = Math.sign(to.x - from.x);
 
 		if (direction === 0) {
-			return {
-				x: from.x,
-				y: from.y,
-			};
+			return { x: from.x, y: from.y };
 		}
 
 		const x = direction > 0
-			? from.supportRightX - BOT_SIZE / 2 - 2
-			: from.supportLeftX + BOT_SIZE / 2 + 2;
+			? from.supportRightX - BOT_SIZE / 2 - 3
+			: from.supportLeftX + BOT_SIZE / 2 + 3;
 
-		const localX =
-			clamp(
-				x - from.supportLeftX,
-				0,
-				from.supportRightX - from.supportLeftX,
-			);
+		const localX = clamp(
+			x - from.supportLeftX,
+			0,
+			from.supportRightX - from.supportLeftX,
+		);
 
 		let surfaceY =
 			from.support.y - from.support.getSize().height / 2;
 
 		if (from.support instanceof RampElement) {
-			const ratio =
-				(from.supportRightX - from.supportLeftX) > 0
-					? localX / (from.supportRightX - from.supportLeftX)
-					: 0.5;
+			const width = from.supportRightX - from.supportLeftX;
+			const ratio = width > 0 ? localX / width : 0.5;
 
 			surfaceY = from.support.variant === 0
 				? surfaceY + CELL * (1 - ratio)
@@ -764,10 +857,6 @@ namespace Bots {
 		};
 	}
 
-	/**
-	 * Returns the descending landing time of a jump, or null when the target is
-	 * outside the jump's ballistic envelope.
-	 */
 	function getJumpTime(deltaY: number): number | null {
 		const discriminant =
 			NAV_JUMP_SPEED * NAV_JUMP_SPEED
@@ -783,10 +872,156 @@ namespace Bots {
 		return time;
 	}
 
-	/**
-	 * Tests the complete ballistic arc against the current level geometry.
-	 */
-	function isJumpArcClear(
+	function pointHitsThwomp(
+		game: GMCastle,
+		x: number,
+		y: number,
+		time: number,
+	): boolean {
+		const rect = botRectAt(x, y);
+
+		for (const element of game.storage.elements.values()) {
+			if (!(element instanceof ThwompElement)) continue;
+
+			const triggerLeft =
+				element.x - THWOMP_TRIGGER_HALF_WIDTH - THWOMP_HORIZONTAL_MARGIN;
+			const triggerRight =
+				element.x + THWOMP_TRIGGER_HALF_WIDTH + THWOMP_HORIZONTAL_MARGIN;
+
+			const triggerTop = element.y + THWOMP_VERTICAL_MARGIN;
+			const triggerBottom =
+				element.y + THWOMP_TRIGGER_DEPTH + BOT_SIZE;
+
+			/*
+			 * During the rising phase the danger shrinks with the thwomp.
+			 * During idle/slam/rest, entering the trigger corridor is unsafe.
+			 */
+			if (element.phase === THWOMP_PHASE_RISE) {
+				continue;
+			}
+
+			if (
+				rect.x + rect.w > triggerLeft
+				&& rect.x < triggerRight
+				&& rect.y + rect.h > triggerTop
+				&& rect.y < triggerBottom
+			) {
+				return true;
+			}
+
+			/*
+			 * The thwomp is about to be triggered when the bot is below it.
+			 * Predicting the trigger prevents the bot from "running under it"
+			 * during the same frame in which the state switches to SLAM.
+			 */
+			if (
+				time <= THWOMP_PREDICTION_TIME
+				&& Math.abs(x - element.x)
+					<= THWOMP_TRIGGER_HALF_WIDTH + BOT_SIZE
+				&& y > element.y
+				&& y - element.y <= THWOMP_TRIGGER_DEPTH
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	function pointHitsFireBar(
+		game: GMCastle,
+		x: number,
+		y: number,
+		time: number,
+	): boolean {
+		const rect = botRectAt(x, y);
+
+		for (const element of game.storage.elements.values()) {
+			if (!(element instanceof FireBarElement)) continue;
+
+			for (let i = 0; i < FIREBAR_SAMPLES; i++) {
+				const t = time + FIREBAR_PREDICTION_TIME * i / FIREBAR_SAMPLES;
+				const angle =
+					element.angle + FIREBAR_ROTATION_SPEED * t;
+
+				for (let ballIndex = 1; ballIndex <= FIREBAR_BALLS; ballIndex++) {
+					const ball = {
+						x:
+							element.x
+							+ Math.cos(angle)
+								* ballIndex
+								* FIREBAR_BALL_SPACING,
+						y:
+							element.y
+							+ Math.sin(angle)
+								* ballIndex
+								* FIREBAR_BALL_SPACING,
+						r: FIREBAR_BALL_RADIUS,
+					};
+
+					/*
+					 * RectCircle is exact enough for the actual collision model;
+					 * the extra danger radius is handled by a second circle test.
+					 */
+					if (collisions.RectCircle(rect, ball)) return true;
+
+					const dx = x - ball.x;
+					const dy = y - ball.y;
+					if (
+						dx * dx + dy * dy
+						<= (ball.r + FIREBAR_DANGER_RADIUS) ** 2
+					) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	function pointHitsArrow(
+		game: GMCastle,
+		x: number,
+		y: number,
+		time: number,
+	): boolean {
+		const rect = botRectAt(x, y);
+
+		for (const arrow of game.storage.arrows.values()) {
+			if (arrow.consumed) continue;
+
+			for (let i = 0; i <= ARROW_SAMPLES; i++) {
+				const t = time + ARROW_PREDICTION_TIME * i / ARROW_SAMPLES;
+				const ax = arrow.x + (arrow as any).forced.x * t;
+				const ay = arrow.y + (arrow as any).forced.y * t;
+
+				if (
+					collisions.RectRect(
+						rect,
+						{
+							x: ax - ARROW_LENGTH / 2,
+							y: ay - ARROW_THICKNESS / 2,
+							w: ARROW_LENGTH,
+							h: ARROW_THICKNESS,
+						},
+					)
+				) {
+					return true;
+				}
+
+				const dx = x - ax;
+				const dy = y - ay;
+				if (dx * dx + dy * dy <= ARROW_DANGER_RADIUS ** 2) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	function isStaticArcClear(
 		game: GMCastle,
 		from: NavNode,
 		to: NavNode,
@@ -794,22 +1029,18 @@ namespace Bots {
 		time: number,
 	): boolean {
 		const direction = Math.sign(to.x - takeoff.x);
-		const startY = takeoff.y;
 
-		for (let i = 1; i < NAV_JUMP_SAMPLES; i++) {
+		for (let i = 1; i <= NAV_JUMP_SAMPLES; i++) {
 			const t = time * i / NAV_JUMP_SAMPLES;
-
 			const x =
 				takeoff.x
 				+ direction * horizontalJumpDistance(t);
-
 			const y =
-				startY
+				takeoff.y
 				- NAV_JUMP_SPEED * t
 				+ 0.5 * NAV_GRAVITY * t * t;
 
 			for (const element of game.storage.elements.values()) {
-				// The source and landing supports are touched intentionally.
 				if (
 					element.uid === from.supportUid
 					|| element.uid === to.supportUid
@@ -817,17 +1048,56 @@ namespace Bots {
 					continue;
 				}
 
-				if (intersectsElement(x, y, element)) return false;
+				/*
+				 * Spikes are lethal but not solid. They must therefore be
+				 * explicitly rejected rather than treated as normal geometry.
+				 */
+				if (
+					element instanceof SpikeElement
+					&& intersectsElement(x, y, element)
+				) {
+					return false;
+				}
+
+				/*
+				 * Fire bars and thwomps are moving hazards. A trajectory which
+				 * intersects their predicted danger volume is rejected.
+				 */
+				if (
+					element instanceof FireBarElement
+					&& pointHitsFireBar(game, x, y, t)
+				) {
+					return false;
+				}
+
+				if (
+					element instanceof ThwompElement
+					&& pointHitsThwomp(game, x, y, t)
+				) {
+					return false;
+				}
+
+				/*
+				 * Ordinary solid geometry remains a hard obstacle.
+				 * Ramps are intentionally included here because their AABB is
+				 * conservative during a jump; being conservative is safer.
+				 */
+				if (
+					!(element instanceof SpikeElement)
+					&& !(element instanceof FireBarElement)
+					&& !(element instanceof ThwompElement)
+					&& intersectsElement(x, y, element)
+				) {
+					return false;
+				}
 			}
+
+			if (pointHitsArrow(game, x, y, t)) return false;
 		}
 
 		return true;
 	}
 
-	/**
-	 * Adds walking and jump edges around a node. The graph is sparse: only a few
-	 * neighbouring columns can be reached by one jump.
-	 */
 	function buildEdges(
 		game: GMCastle,
 		nodes: NavNode[],
@@ -844,8 +1114,12 @@ namespace Bots {
 		for (let fromIndex = 0; fromIndex < nodes.length; fromIndex++) {
 			const from = nodes[fromIndex];
 
-			// A jump cannot move farther than the ballistic controller can.
-			for (let column = from.col - 3; column <= from.col + 3; column++) {
+			/*
+			 * Adjacent-cell walking handles flat blocks and ramps. For ramps,
+			 * the vertical difference is measured from the exact surface height,
+			 * so the bot naturally walks up/down the slope instead of jumping.
+			 */
+			for (let column = from.col - 1; column <= from.col + 1; column++) {
 				const candidates = byColumn.get(column);
 				if (!candidates) continue;
 
@@ -856,7 +1130,6 @@ namespace Bots {
 					const walkingDx = Math.abs(to.x - from.x);
 					const walkingDy = to.y - from.y;
 
-					// Walking edges are effectively free of vertical planning cost.
 					if (
 						Math.abs(column - from.col) <= 1
 						&& Math.abs(walkingDy) <= NAV_WALK_MAX_VERTICAL_DELTA
@@ -865,20 +1138,35 @@ namespace Bots {
 							to: toIndex,
 							cost:
 								walkingDx
-								+ Math.abs(walkingDy) * 0.5,
+								+ Math.abs(walkingDy) * 0.75,
 							jump: false,
 						});
-						continue;
 					}
+				}
+			}
 
+			/*
+			 * Jump candidates are deliberately local. A single jump cannot
+			 * magically cross half the map, and keeping the graph sparse makes
+			 * replanning cheap even with many bots.
+			 */
+			for (
+				let column = from.col - 4;
+				column <= from.col + 4;
+				column++
+			) {
+				const candidates = byColumn.get(column);
+				if (!candidates) continue;
+
+				for (const toIndex of candidates) {
+					if (toIndex === fromIndex) continue;
+
+					const to = nodes[toIndex];
 					const takeoff = getJumpTakeoff(from, to);
 					const dx = Math.abs(to.x - takeoff.x);
 					const dy = to.y - takeoff.y;
 
-					if (
-						dy < -NAV_MAX_JUMP_UP
-						|| dy > NAV_MAX_JUMP_DOWN
-					) {
+					if (dy < -NAV_MAX_JUMP_UP || dy > NAV_MAX_JUMP_DOWN) {
 						continue;
 					}
 
@@ -891,11 +1179,20 @@ namespace Bots {
 						+ CELL * 0.20;
 
 					if (dx > horizontalReach) continue;
-					if (!isJumpArcClear(game, from, to, takeoff, time)) continue;
 
+					if (!isStaticArcClear(game, from, to, takeoff, time)) {
+						continue;
+					}
+
+					/*
+					 * Prefer walking when both choices are valid. This keeps the
+					 * bot stable and reserves jumps for genuine traversal.
+					 */
 					edges[fromIndex].push({
 						to: toIndex,
-						cost: Math.hypot(dx, dy) + CELL * 0.8,
+						cost:
+							Math.hypot(dx, dy)
+							+ CELL * 1.10,
 						jump: true,
 					});
 				}
@@ -905,9 +1202,6 @@ namespace Bots {
 		return edges;
 	}
 
-	/**
-	 * Returns a graph cached for the current level revision.
-	 */
 	function getNavigationGraph(game: GMCastle): NavigationGraph {
 		const revision = game.getNavigationRevision();
 		const cached = graphCache.get(game);
@@ -915,7 +1209,7 @@ namespace Bots {
 		if (cached?.revision === revision) return cached;
 
 		const nodes = buildNodes(game);
-		const graph = {
+		const graph: NavigationGraph = {
 			revision,
 			nodes,
 			edges: buildEdges(game, nodes),
@@ -937,27 +1231,31 @@ namespace Bots {
 		);
 	}
 
-	/**
-	 * Finds the graph node nearest to the bot. When grounded, prefer nodes on a
-	 * similar height to avoid starting an A* search from an unrelated platform.
-	 */
-	function findStartNode(
-		bot: Bot,
-		nodes: NavNode[],
-	): number {
+	function findStartNode(bot: Bot, nodes: NavNode[]): number {
 		let best = -1;
 		let bestScore = Infinity;
 
 		for (let i = 0; i < nodes.length; i++) {
 			const node = nodes[i];
-			const heightPenalty =
-				bot.walker.onFloor()
-					? Math.abs(node.y - bot.y) * 2
+
+			/*
+			 * A grounded bot should start on the same vertical layer. An airborne
+			 * bot is allowed to select the nearest reachable surface, which makes
+			 * replanning during a jump much less destructive.
+			 */
+			const heightPenalty = bot.walker.onFloor()
+				? Math.abs(node.y - bot.y) * 2.5
+				: Math.abs(node.y - bot.y) * 0.35;
+
+			const hazardPenalty =
+				node.support instanceof TrampolineElement
+					? 8
 					: 0;
 
 			const score =
-				norm2(node.x - bot.x, node.y - bot.y)
-				+ heightPenalty * heightPenalty;
+				Math.hypot(node.x - bot.x, node.y - bot.y)
+				+ heightPenalty
+				+ hazardPenalty;
 
 			if (score < bestScore) {
 				bestScore = score;
@@ -968,10 +1266,6 @@ namespace Bots {
 		return best;
 	}
 
-	/**
-	 * Runs A* over the cached platform graph and turns the resulting node path
-	 * into movement waypoints.
-	 */
 	function findPath(
 		bot: Bot,
 		graph: NavigationGraph,
@@ -997,10 +1291,11 @@ namespace Bots {
 			const currentItem = open.pop()!;
 			const current = currentItem.node;
 
-			// Older heap entries may contain a worse score.
 			if (
 				currentItem.priority
-				> gScore[current] + heuristic(graph.nodes[current]) + 0.0001
+				> gScore[current]
+					+ heuristic(graph.nodes[current])
+					+ 0.0001
 			) {
 				continue;
 			}
@@ -1021,7 +1316,8 @@ namespace Bots {
 
 				open.push({
 					node: edge.to,
-					priority: tentative + heuristic(graph.nodes[edge.to]),
+					priority:
+						tentative + heuristic(graph.nodes[edge.to]),
 				});
 			}
 		}
@@ -1039,12 +1335,8 @@ namespace Bots {
 
 			if (cameJump[current]) {
 				const takeoff =
-					getJumpTakeoff(
-						graph.nodes[parent],
-						node,
-					);
+					getJumpTakeoff(graph.nodes[parent], node);
 
-				// First reach the edge, then trigger the jump toward the target.
 				reversed.push({
 					x: node.x,
 					y: node.y,
@@ -1069,7 +1361,6 @@ namespace Bots {
 
 		reversed.reverse();
 
-		// Do not keep the initial node as a target: the bot is already near it.
 		while (
 			reversed.length > 0
 			&& Math.hypot(
@@ -1084,18 +1375,30 @@ namespace Bots {
 	}
 
 	function advancePath(bot: Bot): void {
-		const path = bot.botData.path;
+		const data = bot.botData;
 
-		while (bot.botData.pathIndex < path.length) {
-			const waypoint = path[bot.botData.pathIndex];
-			const dx = waypoint.x - bot.x;
-			const dy = waypoint.y - bot.y;
+		while (data.pathIndex < data.path.length) {
+			const waypoint = data.path[data.pathIndex];
 
 			if (
-				Math.abs(dx) <= PATH_NODE_REACHED_DISTANCE
-				&& Math.abs(dy) <= PATH_NODE_REACHED_DISTANCE
+				Math.abs(waypoint.x - bot.x) <= PATH_NODE_REACHED_DISTANCE
+				&& Math.abs(waypoint.y - bot.y) <= PATH_NODE_REACHED_DISTANCE
 			) {
-				bot.botData.pathIndex++;
+				data.pathIndex++;
+				continue;
+			}
+
+			/*
+			 * Takeoff waypoints are crossed by the actual jump. Once the bot is
+			 * clearly past them, never let a tiny collision correction make it
+			 * walk backwards to the old waypoint.
+			 */
+			if (
+				waypoint.jump
+				&& bot.y < waypoint.y - CELL * 0.75
+				&& bot.velocity.y < 0
+			) {
+				data.pathIndex++;
 				continue;
 			}
 
@@ -1103,23 +1406,23 @@ namespace Bots {
 		}
 	}
 
-	function shouldReplan(
-		bot: Bot,
-		game: GMCastle,
-	): boolean {
+	function shouldReplan(bot: Bot, game: GMCastle): boolean {
 		const data = bot.botData;
 
 		return (
 			data.navigationRevision !== game.getNavigationRevision()
-			|| data.pathIndex >= data.path.length && data.path.length > 0
-			|| data.path.length === 0 && data.repathTimer >= PATH_REPLAN_INTERVAL
+			|| (
+				data.path.length > 0
+				&& data.pathIndex >= data.path.length
+			)
+			|| (
+				data.path.length === 0
+				&& data.repathTimer >= PATH_REPLAN_INTERVAL
+			)
 			|| data.stuckTimer >= PATH_STUCK_TIMEOUT
 		);
 	}
 
-	/**
-	 * Computes a new route only when necessary and stores it on the bot.
-	 */
 	function replan(bot: Bot, game: GMCastle): void {
 		const data = bot.botData;
 		const graph = getNavigationGraph(game);
@@ -1131,45 +1434,442 @@ namespace Bots {
 		data.stuckTimer = 0;
 	}
 
-	function chooseLocalDirection(
+	function getWallSide(bot: Bot): WallSide | null {
+		if (bot.walker.onLeft()) return 'left';
+		if (bot.walker.onRight()) return 'right';
+		return null;
+	}
+
+	function wallSideSign(side: WallSide): number {
+		return side === 'left' ? -1 : 1;
+	}
+
+	function chooseBaseDirection(
 		bot: Bot,
 		waypoint: Waypoint | undefined,
 	): number {
 		if (!waypoint) return 1;
 
 		const dx = waypoint.x - bot.x;
-		if (Math.abs(dx) <= BOT_WAYPOINT_X_TOLERANCE) return 0;
+
+		/*
+		 * Hysteresis prevents a bot from alternating left/right every frame when
+		 * it is centered over a waypoint or when collision resolution jitters it.
+		 */
+		if (Math.abs(dx) <= PATH_X_TOLERANCE) {
+			if (Math.abs(bot.velocity.x) < BOT_RUN_SPEED * 0.25) return 0;
+			return Math.sign(bot.velocity.x);
+		}
 
 		return Math.sign(dx);
 	}
 
-	function chooseJump(
+	function isSpikeAhead(
+		game: GMCastle,
+		bot: Bot,
+		xDir: number,
+	): boolean {
+		if (!bot.walker.onFloor() || xDir === 0) return false;
+
+		const start = BOT_SIZE / 2;
+		const end = SPIKE_LOOK_AHEAD;
+
+		for (const element of game.storage.elements.values()) {
+			if (!(element instanceof SpikeElement)) continue;
+
+			const rect = rectOf(element);
+			const centerDistance = (element.x - bot.x) * xDir;
+
+			if (
+				centerDistance >= start
+				&& centerDistance <= end
+				&& Math.abs(bot.y - rect.y) <= BOT_SIZE
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	function isSpikeUnderLanding(
+		game: GMCastle,
+		x: number,
+		y: number,
+	): boolean {
+		for (const element of game.storage.elements.values()) {
+			if (!(element instanceof SpikeElement)) continue;
+
+			if (
+				collisions.RectRect(
+					botRectAt(x, y),
+					rectOf(element),
+				)
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	function chooseFireBarResponse(
+		game: GMCastle,
+		bot: Bot,
+		baseDir: number,
+	): HazardDecision {
+		let nearestDistance = Infinity;
+		let nearestDx = 0;
+		let nearestDy = 0;
+		let dangerous = false;
+
+		for (const element of game.storage.elements.values()) {
+			if (!(element instanceof FireBarElement)) continue;
+
+			for (const ball of element.getBalls()) {
+				const dx = bot.x - ball.x;
+				const dy = bot.y - ball.y;
+				const distance = Math.hypot(dx, dy);
+
+				if (distance < nearestDistance) {
+					nearestDistance = distance;
+					nearestDx = dx;
+					nearestDy = dy;
+				}
+			}
+		}
+
+		if (
+			nearestDistance === Infinity
+			|| nearestDistance > FIREBAR_DANGER_RADIUS * 1.8
+		) {
+			if (pointHitsFireBar(game, bot.x, bot.y, 0)) {
+				dangerous = true;
+			} else {
+				return { xDir: null, jump: false, priority: 0 };
+			}
+		} else {
+			dangerous = true;
+		}
+
+		if (!dangerous) {
+			return { xDir: null, jump: false, priority: 0 };
+		}
+
+		/*
+		 * Escape radially first. A fire bar rotates around a fixed center, so
+		 * simply jumping every time is unreliable; moving away from the current
+		 * fireball gives the controller a deterministic escape direction.
+		 */
+		let escapeDir =
+			Math.abs(nearestDx) > BOT_SIZE * 0.25
+				? Math.sign(nearestDx)
+				: -baseDir;
+
+		if (escapeDir === 0) escapeDir = 1;
+
+		const shouldJump =
+			bot.walker.onFloor()
+			&& Math.abs(nearestDy) <= FIREBAR_DANGER_RADIUS
+			&& bot.botData.jumpCooldown <= 0;
+
+		return {
+			xDir: escapeDir,
+			jump: shouldJump,
+			priority: 100,
+		};
+	}
+
+	function chooseThwompResponse(
+		game: GMCastle,
+		bot: Bot,
+		baseDir: number,
+	): HazardDecision {
+		for (const element of game.storage.elements.values()) {
+			if (!(element instanceof ThwompElement)) continue;
+
+			const dx = bot.x - element.x;
+			const dy = bot.y - element.y;
+
+			if (
+				Math.abs(dx)
+					> THWOMP_TRIGGER_HALF_WIDTH + BOT_SIZE
+				|| dy <= 0
+				|| dy > THWOMP_TRIGGER_DEPTH + BOT_SIZE
+			) {
+				continue;
+			}
+
+			/*
+			 * Never continue deeper into a thwomp trigger. If the bot is already
+			 * inside it, move to the nearest side. During SLAM/REST, waiting is
+			 * safer than trying to jump through the crusher.
+			 */
+			if (element.phase !== THWOMP_PHASE_RISE) {
+				const escapeDir =
+					Math.abs(dx) < BOT_SIZE * 0.5
+						? (baseDir <= 0 ? -1 : 1)
+						: Math.sign(dx);
+
+				return {
+					xDir: escapeDir,
+					jump:
+						element.phase === THWOMP_PHASE_SLAM
+						&& bot.walker.onFloor()
+						&& bot.botData.jumpCooldown <= 0
+						&& dy > THWOMP_MAX_DROP * 0.85,
+					priority: 95,
+				};
+			}
+
+			/*
+			 * The thwomp is rising: cross only if the bot is moving out of the
+			 * trigger, otherwise brake and let the safe window open.
+			 */
+			if (
+				Math.abs(dx)
+					< THWOMP_TRIGGER_HALF_WIDTH + BOT_SIZE * 0.4
+				&& Math.sign(dx) === baseDir
+			) {
+				return {
+					xDir: 0,
+					jump: false,
+					priority: 80,
+				};
+			}
+		}
+
+		return { xDir: null, jump: false, priority: 0 };
+	}
+
+	function chooseArrowResponse(
+		game: GMCastle,
+		bot: Bot,
+		baseDir: number,
+	): HazardDecision {
+		if (!pointHitsArrow(game, bot.x, bot.y, 0)) {
+			return { xDir: null, jump: false, priority: 0 };
+		}
+
+		let nearestDx = 0;
+		let nearestDy = 0;
+		let nearest = Infinity;
+
+		for (const arrow of game.storage.arrows.values()) {
+			if (arrow.consumed) continue;
+
+			const dx = bot.x - arrow.x;
+			const dy = bot.y - arrow.y;
+			const distance = Math.hypot(dx, dy);
+
+			if (distance < nearest) {
+				nearest = distance;
+				nearestDx = dx;
+				nearestDy = dy;
+			}
+		}
+
+		const horizontalEscape =
+			Math.abs(nearestDx) > BOT_SIZE * 0.3
+				? Math.sign(nearestDx)
+				: -baseDir;
+
+		return {
+			xDir: horizontalEscape || 1,
+			jump:
+				bot.walker.onFloor()
+				&& Math.abs(nearestDy) < BOT_SIZE * 1.2
+				&& bot.botData.jumpCooldown <= 0,
+			priority: 90,
+		};
+	}
+
+	function chooseHazardResponse(
+		game: GMCastle,
+		bot: Bot,
+		baseDir: number,
+	): HazardDecision {
+		/*
+		 * Highest priority first. A lethal collision must always override the
+		 * navigation objective.
+		 */
+		const fireBar = chooseFireBarResponse(game, bot, baseDir);
+		if (fireBar.priority > 0) return fireBar;
+
+		const thwomp = chooseThwompResponse(game, bot, baseDir);
+		if (thwomp.priority > 0) return thwomp;
+
+		const arrow = chooseArrowResponse(game, bot, baseDir);
+		if (arrow.priority > 0) return arrow;
+
+		if (isSpikeAhead(game, bot, baseDir)) {
+			return {
+				xDir: baseDir,
+				jump:
+					bot.botData.jumpCooldown <= 0
+					&& bot.walker.onFloor(),
+				priority: 85,
+			};
+		}
+
+		return { xDir: null, jump: false, priority: 0 };
+	}
+
+	function shouldWallJump(
 		bot: Bot,
 		data: BotData,
 		waypoint: Waypoint | undefined,
 		xDir: number,
-	): boolean {
-		if (data.jumpCooldown > 0) return false;
+	): { jump: boolean; wallSide: WallSide | null; xDir: number } {
+		const wallSide = getWallSide(bot);
 
-		const floorJump =
+		if (!wallSide) {
+			return {
+				jump: false,
+				wallSide: null,
+				xDir,
+			};
+		}
+
+		/*
+		 * Do not immediately jump just because a wall is touched. That was the
+		 * source of the old chaotic wall-jump behaviour.
+		 */
+		if (data.jumpCooldown > 0 || data.wallJumpLockTimer > 0) {
+			return {
+				jump: false,
+				wallSide,
+				xDir,
+			};
+		}
+
+		if (
+			data.lastWallJumpSide === wallSide
+			&& data.wallJumpReverseTimer > 0
+		) {
+			return {
+				jump: false,
+				wallSide,
+				xDir: wallSide === 'left' ? 1 : -1,
+			};
+		}
+
+		const targetDx = waypoint
+			? waypoint.x - bot.x
+			: CASTLE_RECT.x - bot.x;
+		const targetDy = waypoint
+			? waypoint.y - bot.y
+			: -CELL;
+
+		/*
+		 * A wall-jump is justified when:
+		 * 1. the target is above us and the current wall blocks progress, or
+		 * 2. the bot is moving into the wall and is genuinely stuck.
+		 *
+		 * The second condition is intentionally conservative.
+		 */
+		const targetIsAbove = targetDy < -BOT_SIZE * 0.75;
+		const pushingIntoWall =
+			(wallSide === 'left' && xDir < 0)
+			|| (wallSide === 'right' && xDir > 0);
+
+		const stuckAgainstWall =
+			pushingIntoWall
+			&& data.stuckTimer >= 0.16;
+
+		if (!targetIsAbove && !stuckAgainstWall) {
+			return {
+				jump: false,
+				wallSide,
+				xDir: wallSide === 'left' ? 1 : -1,
+			};
+		}
+
+		/*
+		 * Avoid pathological infinite wall-jump loops. A healthy bot can still
+		 * climb several times per second, but it cannot spam the same wall every
+		 * frame.
+		 */
+		if (
+			data.wallJumpWindowAge < 1
+			&& data.wallJumpCountWindow >= WALL_JUMP_MAX_REPEAT_PER_SECOND
+		) {
+			return {
+				jump: false,
+				wallSide,
+				xDir: wallSide === 'left' ? 1 : -1,
+			};
+		}
+
+		const away = wallSide === 'left' ? 1 : -1;
+
+		return {
+			jump: true,
+			wallSide,
+			xDir: away,
+		};
+	}
+
+	function chooseJump(
+		game: GMCastle,
+		bot: Bot,
+		data: BotData,
+		waypoint: Waypoint | undefined,
+		xDir: number,
+	): { jump: boolean; xDir: number } {
+		if (data.jumpCooldown > 0) {
+			return { jump: false, xDir };
+		}
+
+		const wall = shouldWallJump(bot, data, waypoint, xDir);
+		if (wall.jump) return { jump: true, xDir: wall.xDir };
+
+		if (
 			bot.walker.onFloor()
-			&& waypoint?.jump === true;
+			&& waypoint?.jump === true
+		) {
+			/*
+			 * Do not jump from a trampoline. The trampoline collision already
+			 * supplies the vertical impulse; manually jumping would fight it.
+			 */
+			const support = getSupportAt(
+				game,
+				bot.x,
+				bot.y,
+			);
 
-		const wallJump =
-			(bot.walker.onLeft() && xDir < 0)
-			|| (bot.walker.onRight() && xDir > 0);
+			if (!(support instanceof TrampolineElement)) {
+				return { jump: true, xDir };
+			}
+		}
 
-		// A planned jump is triggered from the source platform. A wall jump is
-		// the local recovery when the current path can no longer be followed.
-		return floorJump || wallJump;
+		return { jump: false, xDir };
+	}
+
+	function chooseNavigationDirection(
+		bot: Bot,
+		waypoint: Waypoint | undefined,
+	): number {
+		if (!waypoint) {
+			/*
+			 * When A* cannot find a path, the tactical controller still knows the
+			 * global objective. This is preferable to stopping forever.
+			 */
+			return bot.x < NAV_GOAL_X ? 1 : 0;
+		}
+
+		return chooseBaseDirection(bot, waypoint);
 	}
 
 	/**
-	 * Decides what a bot wants to do this frame.
+	 * Main bot decision function.
 	 *
-	 * The first level of the AI is A* over a cached platform graph. The second
-	 * level is a reactive controller that follows the selected waypoint and
-	 * uses wall-jumps as a recovery mechanism.
+	 * The function intentionally returns only intent:
+	 * - xDir: -1, 0 or +1
+	 * - jump: a one-frame jump request
+	 *
+	 * Physics remain in Bot.processBeforeEngine, which keeps the AI deterministic
+	 * and prevents the navigation code from bypassing the engine's collision model.
 	 */
 	export function getBotInput<TEngineData extends platformEngine.EngineData>(
 		engine: platformEngine.IBlockEngine<TEngineData>,
@@ -1178,7 +1878,6 @@ namespace Bots {
 		const game = engine.getGame() as unknown as GMCastle;
 		const data = bot.botData;
 
-		// Once the bot center is at the castle entrance, keep moving right.
 		if (bot.x >= CASTLE_RECT.x - BOT_SIZE / 2) {
 			return { xDir: 1, jump: false };
 		}
@@ -1190,18 +1889,54 @@ namespace Bots {
 		}
 
 		const waypoint = data.path[data.pathIndex];
-		const xDir = chooseLocalDirection(bot, waypoint);
-		const jump = chooseJump(bot, data, waypoint, xDir);
+		let xDir = chooseNavigationDirection(bot, waypoint);
 
-		// If A* has no valid route, fall back to the same simple local policy as
-		// the original bot: run right and jump when a wall is reached.
-		if (!waypoint) {
-			return {
-				xDir: 1,
-				jump:
-					data.jumpCooldown <= 0
-					&& bot.walker.onRight(),
-			};
+		/*
+		 * Tactical hazards are evaluated after pathfinding. This is a classic
+		 * layered controller: global route first, local collision avoidance second.
+		 */
+		const hazard = chooseHazardResponse(game, bot, xDir);
+
+		if (hazard.priority > 0 && hazard.xDir !== null) {
+			xDir = hazard.xDir;
+		}
+
+		let jump = hazard.jump;
+
+		/*
+		 * A spike is a static, one-shot hazard. If a planned landing is directly
+		 * on it, abandon that jump rather than blindly following A*.
+		 */
+		if (
+			waypoint?.jump
+			&& isSpikeUnderLanding(game, waypoint.x, waypoint.y)
+		) {
+			jump = false;
+			data.pathIndex++;
+		}
+
+		if (!jump) {
+			const jumpDecision = chooseJump(
+				game,
+				bot,
+				data,
+				waypoint,
+				xDir,
+			);
+
+			if (jumpDecision.jump) {
+				jump = true;
+				xDir = jumpDecision.xDir;
+			}
+		}
+
+		/*
+		 * During a wall-jump the horizontal input must remain directed away from
+		 * the wall. This is the key difference from the old "push into wall"
+		 * behaviour and removes most wall-jump oscillation.
+		 */
+		if (data.wallJumpLockTimer > 0 && data.lastWallJumpSide) {
+			xDir = data.lastWallJumpSide === 'left' ? 1 : -1;
 		}
 
 		return { xDir, jump };
@@ -1209,12 +1944,10 @@ namespace Bots {
 }
 
 /*
- * Export only the two bot-AI API symbols requested by the game mode.
- * The namespace itself stays implementation-private.
+ * Export only the bot-AI API used by the game mode.
  */
 export import BotData = Bots.BotData;
 export import getBotInput = Bots.getBotInput;
-
 
 /* ========================================================================== */
 /* PLAYER                                                                     */
@@ -1843,25 +2576,41 @@ class Bot extends GameBlock {
 		dt: number,
 		engine: Engine
 	): void {
-		this.lastTouchAge =
-			Math.min(
-				this.lastTouchAge + dt,
-				KILL_CREDIT_WINDOW + 1
-			);
+		this.lastTouchAge = Math.min(
+			this.lastTouchAge + dt,
+			KILL_CREDIT_WINDOW + 1,
+		);
 
-		/*
-		 * Engine ids are not stable across load().
-		 * Keep the cached value synchronized so BotData can identify the
-		 * currently attached engine entry if the cache is extended later.
-		 */
 		this.botData.engineId = id;
 
 		this.botData.repathTimer += dt;
 		this.botData.jumpCooldown = Math.max(
 			0,
-			this.botData.jumpCooldown - dt
+			this.botData.jumpCooldown - dt,
+		);
+		this.botData.wallJumpLockTimer = Math.max(
+			0,
+			this.botData.wallJumpLockTimer - dt,
+		);
+		this.botData.wallJumpReverseTimer = Math.max(
+			0,
+			this.botData.wallJumpReverseTimer - dt,
+		);
+		this.botData.hazardCooldown = Math.max(
+			0,
+			this.botData.hazardCooldown - dt,
 		);
 
+		this.botData.wallJumpWindowAge += dt;
+		if (this.botData.wallJumpWindowAge >= 1) {
+			this.botData.wallJumpWindowAge = 0;
+			this.botData.wallJumpCountWindow = 0;
+		}
+
+		/*
+		 * Measure progress only while grounded. Airborne motion is expected and
+		 * should never be mistaken for being stuck.
+		 */
 		if (
 			Number.isFinite(this.botData.lastX)
 			&& this.walker.onFloor()
@@ -1872,20 +2621,17 @@ class Bot extends GameBlock {
 				this.botData.stuckTimer += dt;
 			} else {
 				this.botData.stuckTimer = 0;
+				this.botData.lastProgressTime = 0;
 			}
 		} else {
 			this.botData.stuckTimer = 0;
 		}
 
 		this.botData.lastX = this.x;
+		this.botData.lastY = this.y;
 
 		const input = getBotInput(engine, this);
 
-		/*
-		 * The controller deliberately mirrors the player's directional model:
-		 * xDir is converted into a target speed and the engine accelerates toward
-		 * it through Direction.acc / deceleration.
-		 */
 		const left = input.xDir < 0;
 		const right = input.xDir > 0;
 
@@ -1898,39 +2644,55 @@ class Bot extends GameBlock {
 		}
 
 		/*
-		 * Jumping follows the same rules as the player:
-		 * - jump from the floor;
-		 * - wall-jump only when moving into the wall.
+		 * A jump request is consumed exactly once. The AI does not directly move
+		 * the bot; it only requests the same physical actions a player would use.
 		 */
-		const wallJumpLeft =
-			this.walker.onLeft()
-			&& this.direction.dir < 0;
-
-		const wallJumpRight =
-			this.walker.onRight()
-			&& this.direction.dir > 0;
-
 		if (input.jump) {
+			const wallJumpLeft =
+				this.walker.onLeft()
+				&& this.direction.dir < 0;
+
+			const wallJumpRight =
+				this.walker.onRight()
+				&& this.direction.dir > 0;
+
 			if (this.walker.onFloor()) {
 				this.velocity.y = -BOT_JUMP_SPEED;
 				this.botData.jumpHoldTimer = BOT_JUMP_HOLD_TIME;
 				this.botData.jumpCooldown = BOT_JUMP_COOLDOWN;
-			} else if (wallJumpLeft) {
-				this.velocity.x = BOT_WALL_JUMP_SPEED;
+			} else if (wallJumpLeft || wallJumpRight) {
+				const wallSide = wallJumpLeft ? 'left' as const : 'right' as const;
+
+				/*
+				 * The wall jump always launches away from the wall. We also lock
+				 * the steering direction briefly so the acceleration system cannot
+				 * immediately cancel the impulse.
+				 */
+				this.velocity.x =
+					wallSide === 'left'
+						? BOT_WALL_JUMP_SPEED
+						: -BOT_WALL_JUMP_SPEED;
 				this.velocity.y = -BOT_JUMP_SPEED;
+
 				this.botData.jumpHoldTimer = BOT_JUMP_HOLD_TIME;
-				this.botData.jumpCooldown = BOT_JUMP_COOLDOWN;
-			} else if (wallJumpRight) {
-				this.velocity.x = -BOT_WALL_JUMP_SPEED;
-				this.velocity.y = -BOT_JUMP_SPEED;
-				this.botData.jumpHoldTimer = BOT_JUMP_HOLD_TIME;
-				this.botData.jumpCooldown = BOT_JUMP_COOLDOWN;
+				this.botData.jumpCooldown = BOT_WALL_JUMP_LOCK_TIME + BOT_JUMP_COOLDOWN;
+				this.botData.wallJumpLockTimer = BOT_WALL_JUMP_LOCK_TIME;
+				this.botData.wallJumpReverseTimer = BOT_WALL_JUMP_REVERSE_TIME;
+				this.botData.lastWallJumpSide = wallSide;
+				this.botData.lastWallJumpAt = 0;
+				this.botData.wallJumpCountWindow++;
+				this.botData.stuckTimer = 0;
 			}
 		}
 
 		/*
-		 * Match the player's variable jump:
-		 * holding jump reduces the effective gravity while rising.
+		 * Variable-height jump:
+		 * - while the short jump-hold window is active, use the lighter
+		 *   acceleration;
+		 * - otherwise use the normal fall acceleration.
+		 *
+		 * This mirrors the player physics instead of giving bots an artificial
+		 * movement advantage.
 		 */
 		const holdingJump =
 			this.botData.jumpHoldTimer > 0
@@ -1944,23 +2706,25 @@ class Bot extends GameBlock {
 
 		this.botData.jumpHoldTimer = Math.max(
 			0,
-			this.botData.jumpHoldTimer - dt
+			this.botData.jumpHoldTimer - dt,
 		);
 
 		/*
-		 * Match the player's wall-slide clamp.
+		 * Wall slide is allowed only while actually pushing into the wall. During
+		 * the post-wall-jump lock, the launch velocity must remain untouched.
 		 */
-		if (
-			(this.direction.dir < 0 && this.walker.onLeft())
-			|| (this.direction.dir > 0 && this.walker.onRight())
-		) {
-			this.velocity.y = Math.min(
-				this.velocity.y,
-				BOT_WALL_SLIDE_MAX_SPEED
-			);
+		if (this.botData.wallJumpLockTimer <= 0) {
+			if (
+				(this.direction.dir < 0 && this.walker.onLeft())
+				|| (this.direction.dir > 0 && this.walker.onRight())
+			) {
+				this.velocity.y = Math.min(
+					this.velocity.y,
+					BOT_WALL_SLIDE_MAX_SPEED,
+				);
+			}
 		}
 	}
-
 	override processAfterEngine(
 		_id: BlockId,
 		dt: number,
