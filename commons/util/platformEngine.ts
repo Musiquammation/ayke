@@ -1914,7 +1914,7 @@ export namespace platformEngine {
 	/* Platformer engine                                                          */
 	/* -------------------------------------------------------------------------- */
 
-	class PlatformerEngine<
+	export class PlatformerEngine<
 		TEngineData extends EngineData,
 	> implements IBlockEngine<TEngineData> {
 		private nextId = 0;

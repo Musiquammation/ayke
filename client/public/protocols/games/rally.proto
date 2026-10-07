@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package game_rally;
+
+
+message Empty {}
+
+
+message PlayerState {
+	double x = 1;
+	double y = 2;
+
+	double vx = 3;
+	double vy = 4;
+
+	double dir = 5;
+
+	double alive = 6;
+
+	bool connected = 7;
+	bool isRed = 8;
+
+	int32 itemCount = 9;
+
+	double itemCooldown = 10;
+	double boostTimer = 11;
+
+	bool finished = 12;
+	double finishTime = 13;
+}
+
+
+message State {
+	repeated PlayerState players = 1;
+
+	double time = 2;
+
+	int64 internalFrameTick = 3;
+
+	/*
+	 * One value per moving platform, in the static level order.
+	 *
+	 * The platform trajectory itself is predefined by the level and is
+	 * therefore deliberately absent from the protobuf.
+	 */
+	repeated double movingPlatforms = 4;
+}
+
+
+message QInput {
+	double timestamp = 1;
+
+	oneof action {
+		Empty jump = 2;
+		Empty item = 3;
+	}
+}
+
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+message StartData {
+	string skin = 1;
+	int32 preferTeam = 2;
+}
+
+
+message StartPlayerInfo {
+	float x = 1;
+	float y = 2;
+
+	string skin = 3;
+
+	bool isRed = 4;
+}
+
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+
+	/*
+	 * Identifies a predefined level.
+	 *
+	 * The level geometry itself is never transmitted.
+	 */
+	int32 levelIndex = 2;
+}

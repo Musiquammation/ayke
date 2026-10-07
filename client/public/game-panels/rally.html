@@ -1,0 +1,219 @@
+<div x-data="data">
+	<style>
+		.game-rally-create {
+			display: flex;
+			flex-direction: column;
+			gap: 2vh;
+
+			font-family: sans-serif;
+			font-size: 2vh;
+		}
+
+		.game-rally-create-row {
+			display: flex;
+			align-items: center;
+			gap: 1vw;
+		}
+
+		.game-rally-skin-select {
+			position: relative;
+		}
+
+		.game-rally-skin-select-button {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+
+			min-width: 15vw;
+			padding: 1vh 1vw;
+
+			cursor: pointer;
+		}
+
+		.game-rally-skin-current {
+			display: flex;
+			align-items: center;
+			gap: 0.7vw;
+		}
+
+		.game-rally-skin-current img {
+			width: 4vh;
+			height: 4vh;
+			image-rendering: pixelated;
+		}
+
+		.game-rally-skin-options {
+			position: absolute;
+
+			left: 0;
+			top: calc(100% + 0.5vh);
+
+			min-width: 100%;
+
+			background: #222;
+			border: 1px solid #555;
+
+			z-index: 10;
+		}
+
+		.game-rally-skin-option {
+			display: flex;
+			align-items: center;
+
+			gap: 0.7vw;
+			padding: 0.8vh 0.8vw;
+
+			cursor: pointer;
+		}
+
+		.game-rally-skin-option:hover {
+			background: #333;
+		}
+
+		.game-rally-skin-option.selected {
+			background: #444;
+		}
+
+		.game-rally-skin-option.disabled {
+			opacity: 0.4;
+		}
+
+		.game-rally-skin-option img {
+			width: 4vh;
+			height: 4vh;
+			image-rendering: pixelated;
+		}
+
+		.game-rally-team-buttons {
+			display: flex;
+			gap: 0.5vw;
+		}
+
+		.game-rally-team-button {
+			padding: 1vh 1vw;
+			cursor: pointer;
+		}
+
+		.game-rally-team-button.selected {
+			outline: 0.25vh solid currentColor;
+		}
+
+		.game-rally-team-red {
+			color: #ff4444;
+		}
+
+		.game-rally-team-blue {
+			color: #4488ff;
+		}
+	</style>
+
+	<div class="game-rally-create">
+		<div class="game-rally-create-row">
+			<span>Skin:</span>
+
+			<div
+				class="game-rally-skin-select"
+				x-data="{ open: false }"
+				@click.outside="open = false"
+			>
+				<button
+					type="button"
+					class="game-rally-skin-select-button"
+					@click="open = !open"
+				>
+					<div class="game-rally-skin-current">
+						<img
+							:src="getSkinIconPath(skin)"
+							:alt="SKINS[skin]"
+						>
+
+						<span x-text="SKINS[skin]"></span>
+					</div>
+
+					<span
+						x-text="open ? '▲' : '▼'"
+					></span>
+				</button>
+
+				<div
+					class="game-rally-skin-options"
+					x-show="open"
+					x-transition
+				>
+					<template
+						x-for="(name, id) in SKINS"
+						:key="id"
+					>
+						<div
+							class="game-rally-skin-option"
+							:class="{
+								selected: skin === id,
+								disabled: !hasSkin(id)
+							}"
+							@click="
+								if (hasSkin(id)) {
+									skin = id;
+									open = false;
+								}
+							"
+						>
+							<img
+								:src="getSkinIconPath(id)"
+								:alt="name"
+							>
+
+							<span
+								x-text="name"
+							></span>
+						</div>
+					</template>
+				</div>
+			</div>
+		</div>
+
+		<div class="game-rally-create-row">
+			<span>Preferred team:</span>
+
+			<div class="game-rally-team-buttons">
+				<button
+					type="button"
+					class="game-rally-team-button"
+					@click="preferTeam = 0"
+					:class="{
+						selected: preferTeam === 0
+					}"
+				>
+					None
+				</button>
+
+				<button
+					type="button"
+					class="
+						game-rally-team-button
+						game-rally-team-red
+					"
+					@click="preferTeam = 1"
+					:class="{
+						selected: preferTeam === 1
+					}"
+				>
+					Red
+				</button>
+
+				<button
+					type="button"
+					class="
+						game-rally-team-button
+						game-rally-team-blue
+					"
+					@click="preferTeam = -1"
+					:class="{
+						selected: preferTeam === -1
+					}"
+				>
+					Blue
+				</button>
+			</div>
+		</div>
+	</div>
+</div>

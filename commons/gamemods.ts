@@ -27,9 +27,11 @@ import bots_popit from "./bots/bots-popit";
 import bots_lavaBall from "./bots/bots-lavaBall";
 import bots_crayzoll from "./bots/bots-crayzoll";
 import bots_castle from "./bots/bots-castle";
+import bots_rally from "./bots/bots-rally";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
+import { GMRally } from "./gamemods/GMRally";
 
 
 interface Player {
@@ -294,6 +296,25 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
 		nodes: bots_castle
+	},
+
+	rally: {
+		type: 'multiplayer',
+		server: GMRally.createServ,
+		client: GMRally.createClient,
+		dom: GMRally.generateClientDom,
+		textures: GMRally.TEXTURES,
+		name: "Rally",
+		description: "",
+		tropheesPerPlayer: 3,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 2,
+		nodes: bots_rally
 	},
 
 	separator_comingSoon: {

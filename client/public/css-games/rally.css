@@ -1,0 +1,90 @@
+/* -------------------------------------------------------------------------- */
+/* Rally HUD root                                                             */
+/* -------------------------------------------------------------------------- */
+
+.game-rally-root {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	justify-content: center;
+
+	width: 96vw;
+
+	font-family: sans-serif;
+	font-size: 2vh;
+
+	pointer-events: none;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Rally HUD elements                                                         */
+/* -------------------------------------------------------------------------- */
+
+.game-rally-time {
+	position: absolute;
+
+	top: 1vh;
+	left: 50%;
+
+	transform: translateX(-50%);
+
+	font-size: 4vh;
+	font-weight: bold;
+
+	text-shadow:
+		0.2vh 0.2vh 0 #000;
+}
+
+
+.game-rally-score {
+	display: flex;
+	align-items: center;
+	gap: 1vw;
+
+	font-size: 3vh;
+	font-weight: bold;
+}
+
+
+.game-rally-red-score {
+	color: #ff4444;
+}
+
+
+.game-rally-blue-score {
+	color: #4488ff;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Local-player indicators                                                    */
+/* -------------------------------------------------------------------------- */
+
+.game-rally-item {
+	position: absolute;
+
+	right: 3vw;
+	bottom: 3vh;
+
+	padding: 1vh 1vw;
+
+	border-radius: 1vh;
+
+	background: rgba(0, 0, 0, 0.6);
+
+	font-size: 2.5vh;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Mobile/game overlay helpers                                                */
+/* -------------------------------------------------------------------------- */
+
+.game-rally-root button {
+	font-family: sans-serif;
+	font-size: 2vh;
+}
