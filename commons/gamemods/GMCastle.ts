@@ -442,23 +442,600 @@ function drawDamageOverlay(
 	}
 }
 
-
-
+/* ========================================================================== */
+/* BOTS API - navigation des bots vers le château                             */
+/* ========================================================================== */
+/*
+ * Principe
+ * --------
+ * 1. La grille est relue (elementAtCell) uniquement quand la carte change.
+ * 2. Noeuds du graphe :
+ *      - FloorNode : un Segment horizontal sur lequel le bot peut marcher
+ *                    (xmin / xmax = extrémités du centre du bot, déjà rognées
+ *                    par les murs / pointes voisins).
+ *      - WallNode  : le bot collé à un mur (côté, colonne, tranche de 10 px).
+ * 3. Arêtes, calculées par simulation (Courb + collisions AABB sur la grille) :
+ *      - drop     : le bot tombe par le bout d'un floor,
+ *      - jump     : saut depuis le floor (2 courbes : montée + descente),
+ *      - slide    : glissement le long d'un mur,
+ *      - letgo    : on lâche le mur,
+ *      - wallJump : saut depuis le mur (2 courbes aussi).
+ *    Une simulation s'arrête dès que le bot touche un floor (-> FloorNode),
+ *    touche un mur (-> WallNode), touche le château (-> but) ou meurt.
+ * 4. Un Dijkstra INVERSE depuis le château donne, pour chaque noeud, la
+ *    prochaine arête à prendre. Il est partagé par tous les bots, donc le coût
+ *    par bot et par frame est O(1).
+ */
 namespace botsApi {
+	/* ---------------------------------------------------------------------- */
+	/* Réglages                                                                */
+	/* ---------------------------------------------------------------------- */
+
+	/** true : les pointes sont des obstacles mortels que les bots évitent. */
+	const AVOID_SPIKES = true;
+
+	/** Mettre à false pour couper tous les logs. */
+	const DEBUG = true;
+	/** Intervalle (s) entre deux logs d'état d'un même bot (en plus des logs à chaque changement de décision). */
+	const LOG_INTERVAL = 0.5;
+	const r1 = (v: number) => Math.round(v * 10) / 10;
+
+	const H = BOT_SIZE / 2;
+	const EPS = 1e-4;
+	const SIM_DT = 1 / 120;
+	const SIM_MAX_TIME = 3;
+	/** Pas d'échantillonnage des points de départ de saut sur un floor (px). */
+	const TAKEOFF_STEP = 10;
+	/** Hauteur d'une tranche de mur (px). */
+	const BUCKET = 10;
+	const BUCKETS = Math.ceil(LEVEL_HEIGHT / BUCKET);
+	/** Pénalité (en secondes équivalentes) par saut / chute : préfère les chemins simples. */
+	const HOP_COST = 0.3;
+	const SLIDE_TIME = 0.06;
+	/** Le bot est considéré « au sol » s'il est à moins de GROUND_TOL px d'un floor et presque immobile en y. */
+	const GROUND_TOL = 4;
+	const GROUND_VY = 30;
+	/** Dépassement max (px) du point de départ d'un saut qui est encore toléré. */
+	const TAKEOFF_OVERSHOOT = 8;
+	/** Vitesse horizontale moyenne pendant la montée d'un saut mural (kick -> vitesse de course). */
+	const WALL_JUMP_VX = (BOT_WALL_JUMP_KICK + BOT_RUN_SPEED) / 2;
+	const WALL_JUMP_COOLDOWN = 1 / BOT_WALL_JUMP_MAX_REPEAT_PER_SECOND;
+
+	// Classes de cellules
+	const FREE = 0;
+	const SOLID = 1;          // solide sur lequel on peut se poser
+	const SOLID_NO_STAND = 2; // solide mais on ne s'y pose pas (trampoline, rampe, bords du niveau)
+	const DEADLY = 3;         // pointes
+
+	type Dir = -1 | 0 | 1;
+	const sgn = (v: number): Dir => (v > 0 ? 1 : v < 0 ? -1 : 0);
+
+	/* ---------------------------------------------------------------------- */
+	/* Géométrie                                                               */
+	/* ---------------------------------------------------------------------- */
+
+	/** Segment (floor ou mur). xmin / xmax sont les bornes calculées après intersection avec les blocs. */
+	export class Segment {
+		constructor(
+			readonly x0: number,
+			readonly y0: number,
+			readonly x1: number,
+			readonly y1: number,
+		) {}
+		get xmin() { return Math.min(this.x0, this.x1); }
+		get xmax() { return Math.max(this.x0, this.x1); }
+	}
+
+	/** Parabole : x(t) = x + vx t ; y(t) = y + vy t + g t^2 / 2 (y vers le bas). */
+	export class Courb {
+		constructor(
+			readonly x: number,
+			readonly y: number,
+			readonly v0: { x: number; y: number },
+			readonly gravity: number,
+		) {}
+		at(t: number) {
+			return {
+				x: this.x + this.v0.x * t,
+				y: this.y + this.v0.y * t + 0.5 * this.gravity * t * t,
+			};
+		}
+	}
+
+	/** Courbes idéales (sans collision) d'un saut : montée + descente. */
+	function jumpCurves(x: number, y: number, vxUp: number, vxDown: number, vy0: number): Courb[] {
+		const up = new Courb(x, y, { x: vxUp, y: vy0 }, GRAVITY);
+		const apex = up.at(Math.max(0, -vy0 / GRAVITY));
+		return [up, new Courb(apex.x, apex.y, { x: vxDown, y: 0 }, GRAVITY)];
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* Graphe                                                                  */
+	/* ---------------------------------------------------------------------- */
+
+	type EdgeKind = 'walk' | 'drop' | 'jump' | 'slide' | 'letgo' | 'wallJump';
+
+	interface Edge {
+		to: number;
+		kind: EdgeKind;
+		/** Floor : x (centre du bot) où déclencher le saut / la chute. */
+		takeoffX: number;
+		/** Direction pendant la montée (ou la chute) et pendant la descente. */
+		dirUp: Dir;
+		dirDown: Dir;
+		/** Durée de vol simulée (s) et coût utilisé par Dijkstra. */
+		time: number;
+		cost: number;
+		/** Courbes idéales, pour debug / affichage. */
+		curves: Courb[];
+	}
+
+	interface FloorNode {
+		kind: 'floor';
+		id: number;
+		row: number;
+		xl: number;
+		xr: number;
+		y: number;
+		seg: Segment;
+		leftOpen: boolean;
+		rightOpen: boolean;
+		edges: Edge[];
+	}
+
+	interface WallNode {
+		kind: 'wall';
+		id: number;
+		side: -1 | 1; // côté où se trouve le mur
+		col: number;
+		bucket: number;
+		x: number;
+		y: number;
+		edges: Edge[];
+	}
+
+	type NavNode = FloorNode | WallNode;
+
+	type SimResult =
+		| { type: 'land'; node: number; time: number }
+		| { type: 'wall'; node: number; time: number }
+		| { type: 'goal'; time: number }
+		| { type: 'fail' };
+
+	const wallKey = (side: number, col: number, bucket: number) =>
+		(bucket * LEVEL_COLS + col) * 2 + (side > 0 ? 1 : 0);
+
+	function classify(el: PlacedElement | null): number {
+		if (!el) return FREE;
+		if (el instanceof SpikeElement) return AVOID_SPIKES ? DEADLY : SOLID_NO_STAND;
+		if (el instanceof TrampolineElement || el instanceof RampElement) return SOLID_NO_STAND;
+		return SOLID;
+	}
+
+	class NavMap {
+		readonly grid = new Uint8Array(LEVEL_COLS * LEVEL_ROWS);
+		readonly nodes: NavNode[] = [];
+		readonly floorsByRow: FloorNode[][] = Array.from({ length: LEVEL_ROWS }, () => []);
+		readonly wallIds = new Map<number, number>();
+		goalId = 0;
+		/** next[node] = arête à suivre pour rejoindre le château (null = aucun chemin). */
+		next: (Edge | null)[] = [];
+
+		constructor(game: GMCastle, readonly version: number) {
+			const t0 = Date.now();
+			for (let r = 0; r < LEVEL_ROWS; r++) {
+				for (let c = 0; c < LEVEL_COLS; c++) {
+					this.grid[r * LEVEL_COLS + c] = classify(game.elementAtCell(c, r));
+				}
+			}
+			this.buildFloors();
+			this.buildWalls();
+			this.goalId = this.nodes.length;
+			for (const n of this.nodes) {
+				if (n.kind === 'floor') this.floorEdges(n);
+				else this.wallEdges(n);
+			}
+			this.solve();
+			this.logSummary(Date.now() - t0);
+		}
+
+		private logSummary(ms: number) {
+			if (!DEBUG) return;
+			const floors = this.nodes.filter((n): n is FloorNode => n.kind === 'floor');
+			const walls = this.nodes.length - floors.length;
+			const kinds: Record<string, number> = {};
+			let edges = 0;
+			for (const n of this.nodes) for (const e of n.edges) { edges++; kinds[e.kind] = (kinds[e.kind] ?? 0) + 1; }
+			const solid = this.grid.reduce((a, k) => a + (k !== FREE ? 1 : 0), 0);
+			const reachable = this.next.filter(e => e !== null).length;
+			for (const f of floors) {
+				const e = this.next[f.id];
+			}
+		}
+
+		/* ------------------------------ grille ------------------------------ */
+
+		cell(c: number, r: number): number {
+			if (c < 0 || c >= LEVEL_COLS) return SOLID_NO_STAND; // bords du niveau = murs
+			if (r < 0 || r >= LEVEL_ROWS) return FREE;
+			return this.grid[r * LEVEL_COLS + c];
+		}
+
+		/** Masque des cellules touchées par l'AABB du bot : 1 = solide, 2 = mortel, 4 = solide sur lequel se poser. */
+		private probe(x: number, y: number, inflate = 0): number {
+			const c0 = Math.floor((x - H - inflate) / CELL);
+			const c1 = Math.ceil((x + H + inflate) / CELL) - 1;
+			const r0 = Math.floor((y - H - inflate) / CELL);
+			const r1 = Math.ceil((y + H + inflate) / CELL) - 1;
+			let mask = 0;
+			for (let r = r0; r <= r1; r++) {
+				for (let c = c0; c <= c1; c++) {
+					const k = this.cell(c, r);
+					if (k === FREE) continue;
+					if (k === DEADLY) mask |= 2;
+					else {
+						mask |= 1;
+						if (k === SOLID) mask |= 4;
+					}
+				}
+			}
+			return mask;
+		}
+
+		/** Floor sous le bot posé à (x, y) : -1 si aucun. */
+		floorAt(row: number, x: number, tol = 0): FloorNode | null {
+			for (const n of this.floorsByRow[row] ?? []) {
+				if (x >= n.xl - tol && x <= n.xr + tol) return n;
+			}
+			return null;
+		}
+
+		wallAt(side: number, col: number, bucket: number): WallNode | null {
+			const id = this.wallIds.get(wallKey(side, col, bucket));
+			return id === undefined ? null : (this.nodes[id] as WallNode);
+		}
+
+		/* ------------------------------ noeuds ------------------------------ */
+
+		private canStand(c: number, r: number): boolean {
+			return this.cell(c, r) === FREE && this.cell(c, r + 1) === SOLID;
+		}
+
+		private buildFloors() {
+			for (let r = 0; r < LEVEL_ROWS - 1; r++) {
+				let c = 0;
+				while (c < LEVEL_COLS) {
+					if (!this.canStand(c, r)) { c++; continue; }
+					const c0 = c;
+					while (c < LEVEL_COLS && this.canStand(c, r)) c++;
+					this.addFloor(r, c0, c - 1);
+				}
+			}
+		}
+
+		/** Un Segment sur tout le floor : bornes xmin / xmax = intersection avec les blocs voisins. */
+		private addFloor(r: number, c0: number, c1: number) {
+			const left = this.cell(c0 - 1, r);
+			const right = this.cell(c1 + 1, r);
+			const leftOpen = left === FREE;
+			const rightOpen = right === FREE;
+			const xl = leftOpen ? c0 * CELL - H + 1 : c0 * CELL + H + (left === DEADLY ? 2 : 0);
+			const xr = rightOpen ? (c1 + 1) * CELL + H - 1 : (c1 + 1) * CELL - H - (right === DEADLY ? 2 : 0);
+			const y = (r + 1) * CELL - H;
+			const node: FloorNode = {
+				kind: 'floor', id: this.nodes.length, row: r, xl, xr, y,
+				seg: new Segment(xl, y, xr, y), leftOpen, rightOpen, edges: [],
+			};
+			this.nodes.push(node);
+			this.floorsByRow[r].push(node);
+		}
+
+		/** Un noeud mur pour chaque (côté, colonne, tranche de 10 px) où le bot peut être collé à un mur. */
+		private buildWalls() {
+			for (let col = 0; col < LEVEL_COLS; col++) {
+				for (const side of [-1, 1] as const) {
+					const x = side > 0 ? (col + 1) * CELL - H - EPS : col * CELL + H + EPS;
+					for (let b = 0; b < BUCKETS; b++) {
+						const y = b * BUCKET + BUCKET / 2;
+						if (this.probe(x, y) !== 0 || (this.probe(x, y, 1.5) & 2)) continue;
+						if (!this.touchesWall(x, y, side)) continue;
+						const id = this.nodes.length;
+						this.nodes.push({ kind: 'wall', id, side, col, bucket: b, x, y, edges: [] });
+						this.wallIds.set(wallKey(side, col, b), id);
+					}
+				}
+			}
+		}
+
+		private touchesWall(x: number, y: number, side: number): boolean {
+			const wc = Math.floor(x / CELL) + side;
+			const r0 = Math.floor((y - H) / CELL);
+			const r1 = Math.ceil((y + H) / CELL) - 1;
+			for (let r = r0; r <= r1; r++) {
+				const k = this.cell(wc, r);
+				if (k === SOLID || k === SOLID_NO_STAND) return true;
+			}
+			return false;
+		}
+
+		/* ----------------------------- simulation --------------------------- */
+
+		/**
+		 * Vol du bot : vx = vxUp tant que vy < 0, vxDown ensuite (le bot peut changer de direction en l'air).
+		 * originSide : mur dont on part (son contact ne compte pas tant qu'on ne l'a pas quitté).
+		 */
+		private simulate(
+			x0: number, y0: number, vxUp: number, vxDown: number, vy0: number, originSide: number,
+		): SimResult {
+			let x = x0;
+			let y = y0;
+			let vy = vy0;
+			let armed = originSide === 0;
+			const steps = Math.ceil(SIM_MAX_TIME / SIM_DT);
+
+			for (let i = 1; i <= steps; i++) {
+				const time = i * SIM_DT;
+				vy += GRAVITY * SIM_DT;
+				const vx = vy < 0 ? vxUp : vxDown;
+
+				// --- horizontal ---
+				let wall = 0;
+				if (vx !== 0) {
+					x += vx * SIM_DT;
+					if (this.probe(x, y) & 1) {
+						x = vx > 0
+							? Math.ceil((x + H) / CELL) * CELL - CELL - H - EPS
+							: (Math.floor((x - H) / CELL) + 1) * CELL + H + EPS;
+						wall = vx > 0 ? 1 : -1;
+					}
+				}
+
+				// --- vertical ---
+				y += vy * SIM_DT;
+				let landed = false;
+				if (this.probe(x, y) & 1) {
+					if (vy > 0) {
+						y = (Math.ceil((y + H) / CELL) - 1) * CELL - H - EPS;
+						landed = true;
+					} else {
+						y = (Math.floor((y - H) / CELL) + 1) * CELL + H + EPS;
+					}
+					vy = 0;
+				}
+
+				// --- issues ---
+				if (this.probe(x, y, 1.5) & 2) return { type: 'fail' };
+				if (y - H > LEVEL_HEIGHT + CELL) return { type: 'fail' }; // le vide
+				if (
+					x - H < CASTLE_RECT.x + CASTLE_RECT.w && x + H > CASTLE_RECT.x &&
+					y - H < CASTLE_RECT.y + CASTLE_RECT.h && y + H > CASTLE_RECT.y
+				) return { type: 'goal', time };
+
+				if (landed) {
+					const row = Math.floor((y + H + 1) / CELL);
+					let stand = false;
+					const c0 = Math.floor((x - H) / CELL);
+					const c1 = Math.ceil((x + H) / CELL) - 1;
+					for (let c = c0; c <= c1; c++) if (this.cell(c, row) === SOLID) stand = true;
+					const floor = stand ? this.floorAt(row - 1, x) : null;
+					return floor ? { type: 'land', node: floor.id, time } : { type: 'fail' };
+				}
+
+				if (wall === 0) armed = true;
+				else if (armed) {
+					const b = Math.floor(y / BUCKET);
+					const col = Math.floor(x / CELL);
+					for (const bb of [b, b - 1, b + 1]) {
+						const node = this.wallAt(wall, col, bb);
+						if (node) return { type: 'wall', node: node.id, time };
+					}
+					return { type: 'fail' };
+				}
+			}
+			return { type: 'fail' };
+		}
+
+		/** Ajoute l'arête issue d'une simulation (une seule arête, la moins chère, par couple from -> to). */
+		private link(
+			from: NavNode, res: SimResult,
+			e: { kind: EdgeKind; takeoffX: number; dirUp: Dir; dirDown: Dir; curves: Courb[] },
+		) {
+			let to: number;
+			if (res.type === 'land' || res.type === 'wall') to = res.node;
+			else if (res.type === 'goal') to = this.goalId;
+			else return;
+			if (to === from.id) return;
+
+			const cost = res.time + HOP_COST;
+			const old = from.edges.findIndex(x => x.to === to);
+			if (old >= 0 && from.edges[old].cost <= cost) return;
+			const edge: Edge = { ...e, to, time: res.time, cost };
+			if (old >= 0) from.edges[old] = edge; else from.edges.push(edge);
+		}
+
+		/* ------------------------------ arêtes ------------------------------ */
+
+		private floorEdges(n: FloorNode) {
+			const castle = CASTLE_RECT;
+
+			// Le floor touche le château : on n'a plus qu'à marcher dessus.
+			if (
+				n.xl < castle.x + castle.w + H && n.xr > castle.x - H &&
+				n.y - H < castle.y + castle.h && n.y + H > castle.y
+			) {
+				n.edges.push({
+					to: this.goalId, kind: 'walk', takeoffX: castle.x + castle.w / 2,
+					dirUp: 1, dirDown: 1, time: 0, cost: 0, curves: [],
+				});
+			}
+
+			// Chute par un bout : le bot continue tout droit puis tombe (Courb).
+			const y0 = n.y - EPS;
+			if (n.leftOpen) {
+				const x = n.xl - 1;
+				const v = -BOT_RUN_SPEED;
+				this.link(n, this.simulate(x, y0, v, v, 0, 0), {
+					kind: 'drop', takeoffX: n.xl, dirUp: -1, dirDown: -1,
+					curves: [new Courb(x, y0, { x: v, y: 0 }, GRAVITY)],
+				});
+			}
+			if (n.rightOpen) {
+				const x = n.xr + 1;
+				const v = BOT_RUN_SPEED;
+				this.link(n, this.simulate(x, y0, v, v, 0, 0), {
+					kind: 'drop', takeoffX: n.xr, dirUp: 1, dirDown: 1,
+					curves: [new Courb(x, y0, { x: v, y: 0 }, GRAVITY)],
+				});
+			}
+
+			// Tous les sauts possibles (nouvelle branche du BFS) : montée + descente.
+			const vy0 = -BOT_JUMP_SPEED;
+			for (let x = n.xl; ; x += TAKEOFF_STEP) {
+				if (x > n.xr) x = n.xr;
+				for (const d of [-1, 1] as const) {
+					const run = d * BOT_RUN_SPEED;
+					for (const [up, down] of [[run, run], [run, 0], [0, run]]) {
+						this.link(n, this.simulate(x, y0, up, down, vy0, 0), {
+							kind: 'jump', takeoffX: x, dirUp: sgn(up), dirDown: sgn(down),
+							curves: jumpCurves(x, y0, up, down, vy0),
+						});
+					}
+				}
+				if (x >= n.xr) break;
+			}
+		}
+
+		private wallEdges(n: WallNode) {
+			const away = -n.side;
+
+			// Se laisser glisser le long du mur, puis tomber à la fin du mur.
+			const below = this.wallAt(n.side, n.col, n.bucket + 1);
+			if (below) {
+				n.edges.push({
+					to: below.id, kind: 'slide', takeoffX: n.x, dirUp: n.side, dirDown: n.side,
+					time: SLIDE_TIME, cost: SLIDE_TIME, curves: [],
+				});
+			} else {
+				const v = n.side * BOT_RUN_SPEED;
+				this.link(n, this.simulate(n.x, n.y, v, v, 0, n.side), {
+					kind: 'drop', takeoffX: n.x, dirUp: n.side, dirDown: n.side,
+					curves: [new Courb(n.x, n.y, { x: v, y: 0 }, GRAVITY)],
+				});
+			}
+
+			// Lâcher le mur.
+			const out = away * BOT_RUN_SPEED;
+			this.link(n, this.simulate(n.x, n.y, out, out, 0, n.side), {
+				kind: 'letgo', takeoffX: n.x, dirUp: away as Dir, dirDown: away as Dir,
+				curves: [new Courb(n.x, n.y, { x: out, y: 0 }, GRAVITY)],
+			});
+
+			// Sauts depuis le mur : kick à l'opposé du mur, puis on s'éloigne / on revient / on tombe droit.
+			const vy0 = -BOT_JUMP_SPEED;
+			const kick = away * WALL_JUMP_VX;
+			for (const down of [away * BOT_RUN_SPEED, 0, n.side * BOT_RUN_SPEED]) {
+				this.link(n, this.simulate(n.x, n.y, kick, down, vy0, n.side), {
+					kind: 'wallJump', takeoffX: n.x, dirUp: away as Dir, dirDown: sgn(down),
+					curves: jumpCurves(n.x, n.y, kick, down, vy0),
+				});
+			}
+		}
+
+		/* ------------------------------ Dijkstra ----------------------------- */
+
+		/** Dijkstra inverse depuis le château : une seule fois par version de la carte. */
+		private solve() {
+			const N = this.nodes.length + 1;
+			const dist = new Float64Array(N).fill(Infinity);
+			const done = new Uint8Array(N);
+			const rev: { from: number; edge: Edge }[][] = Array.from({ length: N }, () => []);
+			for (const n of this.nodes) for (const e of n.edges) rev[e.to].push({ from: n.id, edge: e });
+
+			this.next = new Array<Edge | null>(N).fill(null);
+			dist[this.goalId] = 0;
+			for (;;) {
+				let v = -1;
+				let best = Infinity;
+				for (let i = 0; i < N; i++) if (!done[i] && dist[i] < best) { best = dist[i]; v = i; }
+				if (v < 0) break;
+				done[v] = 1;
+				for (const { from, edge } of rev[v]) {
+					const nd = best + edge.cost;
+					if (nd < dist[from]) { dist[from] = nd; this.next[from] = edge; }
+				}
+			}
+		}
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* Cache : un graphe par partie, recalculé uniquement si la carte change    */
+	/* ---------------------------------------------------------------------- */
+
+	const navCache = new WeakMap<object, NavMap>();
+
+	/**
+	 * Version de la carte.
+	 * NB : mapModificationCount ne bouge que pour les poses / retraits des joueurs. Or les éléments
+	 * qui expirent (hp <= 0, sol neutre) sortent via removeEntity, qui n'incrémente que
+	 * navigationRevision. On utilise donc getNavigationRevision() (même rôle, plus fiable).
+	 * Pour coller strictement à la demande : `return game.mapModificationCount;`
+	 */
+	function mapVersion(game: GMCastle): number {
+		return game.getNavigationRevision();
+	}
+
+	function getNav(game: GMCastle): NavMap {
+		const version = mapVersion(game);
+		let nav = navCache.get(game);
+		if (!nav || nav.version !== version) {
+			nav = new NavMap(game, version);
+			navCache.set(game, nav);
+		}
+		return nav;
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* Données par bot (transitoires, jamais sérialisées)                       */
+	/* ---------------------------------------------------------------------- */
+
 	export class Data {
+		/** Arête en cours d'exécution (sert à piloter la direction en l'air). */
+		edge: Edge | null = null;
+		jumpCooldown = 0;
+		logTimer = 0;
+		lastKey = '';
+
 		save(): Fields {
 			return {};
 		}
 
-		load(obj: Fields) {
-
+		load(_obj: Fields) {
+			this.edge = null;
+			this.jumpCooldown = 0;
+			this.logTimer = 0;
+			this.lastKey = '';
 		}
 	}
 
-	interface BotInput {
+	export interface BotInput {
+		/** Direction horizontale voulue : -1 gauche, 0 rien, 1 droite. */
+		dir: Dir;
 		jump: boolean;
 		glueFloor: boolean;
+		/** Le contrôleur considère le bot au sol (walker.onFloor() n'est pas fiable) : le Bot doit autoriser le saut. */
+		grounded: boolean;
 	}
+
+	/** Pas de chemin / bot hors graphe : on fonce vers le château et on saute devant un mur. */
+	function fallback(bot: Bot, grounded: boolean): Omit<BotInput, 'grounded'> {
+		return { dir: 1, jump: grounded && bot.walker.onRight(), glueFloor: false };
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* Contrôleur                                                              */
+	/* ---------------------------------------------------------------------- */
+
+	interface Trace { why: string; gap: number }
 
 	export function getBotInput<TEngineData extends platformEngine.EngineData>(
 		engine: platformEngine.IBlockEngine<TEngineData>,
@@ -466,11 +1043,109 @@ namespace botsApi {
 		dt: number,
 	): BotInput {
 		const game = engine.getGame() as GMCastle;
-		console.log(game.mapModificationCount);
+		const nav = getNav(game);
+		const data = bot.botData;
+		data.jumpCooldown = Math.max(0, data.jumpCooldown - dt);
+		data.logTimer -= dt;
 
-		return {jump: true, glueFloor: true}
+		const trace: Trace = { why: '', gap: NaN };
+		const input = decide(nav, bot, dt, trace);
+
+		if (DEBUG) {
+			const key = `${trace.why}|${input.dir}|${input.jump}`;
+			if (key !== data.lastKey || data.logTimer <= 0) {
+				const w = bot.walker;
+				const e = data.edge;
+				data.lastKey = key;
+				data.logTimer = LOG_INTERVAL;
+			}
+		}
+		return input;
+	}
+
+	function decide(nav: NavMap, bot: Bot, dt: number, trace: Trace): BotInput {
+		const data = bot.botData;
+		const walker = bot.walker;
+
+		// walker.onFloor() ne suffit pas (le bot peut flotter à ~2 px du sol) : on regarde aussi la géométrie.
+		const row = Math.floor(bot.y / CELL);
+		const node = nav.floorAt(row, bot.x, 2);
+		trace.gap = node ? node.y - bot.y : NaN;
+		const grounded = walker.onFloor()
+			|| (node !== null && Math.abs(trace.gap) <= GROUND_TOL && Math.abs(bot.velocity.y) <= GROUND_VY);
+
+		const out = (why: string, input: Omit<BotInput, 'grounded'>): BotInput => {
+			trace.why = why;
+			return { ...input, grounded };
+		};
+
+		/* ---- au sol : on suit l'arête du floor courant ---- */
+		if (grounded) {
+			if (!node) {
+				data.edge = null;
+				return out(`GROUND no floor node (row=${row} x=${r1(bot.x)}; floors on row: ${
+					nav.floorsByRow[row]?.map(f => `[${r1(f.xl)}..${r1(f.xr)}]`).join(' ') || 'none'}) -> fallback`, fallback(bot, grounded));
+			}
+			const edge = nav.next[node.id];
+			data.edge = edge;
+			if (!edge) return out(`GROUND floor#${node.id} has NO PATH -> fallback`, fallback(bot, grounded));
+
+			if (edge.kind === 'walk') {
+				return out(`GROUND floor#${node.id} walk to castle`, { dir: sgn(edge.takeoffX - bot.x) || 1, jump: false, glueFloor: false });
+			}
+			if (edge.kind === 'drop') {
+				return out(`GROUND floor#${node.id} walk to the ${edge.dirUp > 0 ? 'right' : 'left'} end and drop`, { dir: edge.dirUp, jump: false, glueFloor: false });
+			}
+
+			// jump : rejoindre le point de départ, puis sauter
+			const dx = edge.takeoffX - bot.x;
+			const s = edge.dirUp;
+			const past = s * (bot.x - edge.takeoffX); // > 0 : on a dépassé le point de départ dans le sens du saut
+			const blockedAhead = s > 0 ? walker.onRight() : s < 0 ? walker.onLeft() : false;
+
+			if (Math.abs(dx) <= Math.max(2, BOT_RUN_SPEED * dt)) {
+				return out(`GROUND floor#${node.id} JUMP at takeoff x=${r1(bot.x)}`, { dir: edge.dirUp, jump: true, glueFloor: false });
+			}
+			if (past > 0 && (blockedAhead || past <= TAKEOFF_OVERSHOOT)) {
+				return out(`GROUND floor#${node.id} JUMP ${blockedAhead ? 'against the wall' : 'overshoot'} x=${r1(bot.x)} (takeoff ${r1(edge.takeoffX)})`,
+					{ dir: edge.dirUp, jump: true, glueFloor: false });
+			}
+			return out(`GROUND floor#${node.id} going to takeoff x=${r1(edge.takeoffX)} (dx=${r1(dx)})`, { dir: sgn(dx), jump: false, glueFloor: false });
+		}
+
+		/* ---- collé à un mur (en l'air) : sauter, lâcher, ou glisser ---- */
+		const onLeft = walker.onLeft();
+		const onRight = walker.onRight();
+		if (onLeft || onRight) {
+			const side = onRight ? 1 : -1;
+			const col = Math.floor(bot.x / CELL);
+			const bucket = Math.floor(bot.y / BUCKET);
+			const wnode = nav.wallAt(side, col, bucket);
+			const edge = wnode ? nav.next[wnode.id] : null;
+			if (edge) {
+				data.edge = edge;
+				if (edge.kind === 'wallJump' && data.jumpCooldown <= 0) {
+					data.jumpCooldown = Math.max(WALL_JUMP_COOLDOWN, BOT_JUMP_COOLDOWN);
+					return out(`WALL side=${side} col=${col} bucket=${bucket} WALL-JUMP`, { dir: edge.dirUp, jump: true, glueFloor: true });
+				}
+				if (edge.kind === 'letgo') {
+					return out(`WALL side=${side} col=${col} bucket=${bucket} let go`, { dir: edge.dirUp, jump: false, glueFloor: false });
+				}
+			}
+			return out(`WALL side=${side} col=${col} bucket=${bucket} node=${wnode ? '#' + wnode.id : 'NONE'} edge=${edge ? edge.kind : 'none'} -> slide`,
+				{ dir: side, jump: false, glueFloor: false });
+		}
+
+		/* ---- en l'air : on applique les directions de l'arête (montée puis descente) ---- */
+		const e = data.edge;
+		if (e) {
+			const up = bot.velocity.y < 0;
+			return out(`AIR following ${e.kind} (${up ? 'rising' : 'falling'})`, { dir: up ? e.dirUp : e.dirDown, jump: false, glueFloor: false });
+		}
+		return out('AIR no edge', { dir: sgn(bot.velocity.x) || 1, jump: false, glueFloor: false });
 	}
 }
+
 
 import getBotInput = botsApi.getBotInput;
 import BotData = botsApi.Data;
@@ -695,6 +1370,8 @@ class Bot extends GameBlock {
 	lastToucher = NO_OWNER;
 	lastTouchAge = KILL_CREDIT_WINDOW + 1;
 
+	private dbgJumpT = 0;
+
 	static create(): Bot {
 		const bot = new Bot();
 		bot.x = BOT_SPAWN_X;
@@ -737,43 +1414,41 @@ class Bot extends GameBlock {
 			: NO_OWNER;
 	}
 
-	override processBeforeEngine(
-		id: BlockId,
-		dt: number,
-		engine: Engine
-	): void {
+	override processBeforeEngine(id: BlockId, dt: number, engine: Engine): void {
 		this.lastTouchAge = Math.min(this.lastTouchAge + dt, KILL_CREDIT_WINDOW + 1);
 
 		const input = getBotInput(engine, this, dt);
+		if (input.dir !== 0) this.direction.dir = input.dir * BOT_RUN_SPEED;
 
-		if (this.direction.dir === 0) {
-			this.direction.dir = 1;
-		}
+		this.velocity.y += GRAVITY * dt;
 
 		if (input.jump) {
-			if (this.walker.onFloor()) {
+			const groundJump = this.walker.onFloor() || input.grounded;
+			console.log(`[Bot#${this.uid}] JUMP requested groundJump=${groundJump} onFloor=${this.walker.onFloor()} grounded=${input.grounded} glue=${input.glueFloor} vy=${this.velocity.y}`);
+			this.dbgJumpT = 0.3;
+
+			if (groundJump) {
 				this.velocity.y = -BOT_JUMP_SPEED;
 			} else if (input.glueFloor) {
 				if (this.walker.onLeft()) {
 					this.velocity.x = BOT_WALL_JUMP_KICK;
 					this.velocity.y = -BOT_JUMP_SPEED;
-					this.direction.dir = 1;
+					this.direction.dir = BOT_RUN_SPEED;
 				} else if (this.walker.onRight()) {
 					this.velocity.x = -BOT_WALL_JUMP_KICK;
 					this.velocity.y = -BOT_JUMP_SPEED;
-					this.direction.dir = -1;
+					this.direction.dir = -BOT_RUN_SPEED;
 				}
 			}
 		}
 
-		/*
-		 * Wall-slide clamp (same as the player).
-		 */
-		if (
-			input.glueFloor &&
-			(this.walker.onLeft() && this.walker.onRight())
-		) {
+		if (input.glueFloor && this.walker.onLeft() && this.walker.onRight()) {
 			this.velocity.y = Math.min(this.velocity.y, BOT_WALL_SLIDE_MAX_SPEED);
+		}
+
+		if (this.dbgJumpT > 0) {
+			this.dbgJumpT -= dt;
+			console.log(`[Bot#${this.uid}] after engine y=${this.y} vy=${this.velocity.y} onFloor=${this.walker.onFloor()}`);
 		}
 	}
 
@@ -2113,15 +2788,16 @@ export class GMCastle extends GameMode {
 			this.spawnQueue += waveSize;
 			this.waveIndex++;
 			this.waveTimer += WAVE_INTERVAL;
-			console.log('[CastleDefense] Wave spawned', { wave: this.waveIndex, size: waveSize, queuedBots: this.spawnQueue });
 		}
 
 		this.spawnTimer -= dt;
 		while (this.spawnQueue > 0 && this.spawnTimer <= 0) {
 			const bot = Bot.create();
 			const registered = this.register(bot, 'bot', this.storage.bots);
+			/// TODO: remove
 			this.spawnQueue--;
 			this.spawnTimer += BOT_SPAWN_INTERVAL;
+
 			console.log('[CastleDefense] Bot spawned', {
 				uid: registered.uid, engineId: registered.engineId, x: registered.x, y: registered.y,
 				queuedBots: this.spawnQueue,
