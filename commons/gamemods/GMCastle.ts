@@ -173,7 +173,6 @@ const MONSTER_JUMP_SPEED = 450;
 const MONSTER_ACCELERATION = 600;
 const MONSTER_SOFT_DECELERATION = 500;
 const MONSTER_HARD_DECELERATION = 900;
-const MONSTER_SPAWN_OFFSET_X = CELL * 0.7;
 
 // ---- Element: ramp ---------------------------------------------------------
 const RAMP_PRICE = 1;
@@ -195,8 +194,8 @@ const DAMAGE_BAR_BG = 'rgba(0, 0, 0, 0.6)';
 const DAMAGE_BAR_FG = '#ff3b30';
 
 // ---- Textures --------------------------------------------------------------
-const GAME_FOLDER = 'castleDefense';
-const ASSET_ROOT = '/assets/games/castleDefense';
+const GAME_FOLDER = 'castle';
+const ASSET_ROOT = '/assets/games/castle';
 const TEX_BLOCK = 'block';
 const TEX_SPIKE = 'spike';
 const TEX_TRAMPOLINE = 'trampoline';
@@ -210,9 +209,17 @@ const TEX_ARROW = 'arrow';
 const TEX_MONSTER = 'monster';
 const TEX_BOT = 'bot';
 const TEX_CASTLE = 'castle';
+// Distant SVG layers, rendered as repeated tiles with independent parallax.
+const TEX_BACKGROUND_HILLS = 'background_hills';
+const TEX_BACKGROUND_TREES = 'background_trees';
+const TEX_BACKGROUND_CLOUDS = 'background_clouds';
+const BACKGROUND_TEXTURES = [
+	TEX_BACKGROUND_HILLS, TEX_BACKGROUND_TREES, TEX_BACKGROUND_CLOUDS,
+];
 const TEXTURE_NAMES = [
 	TEX_BLOCK, TEX_SPIKE, TEX_TRAMPOLINE, TEX_ARCHER, TEX_FIREBAR, TEX_FIREBALL,
 	TEX_THWOMP, TEX_SPAWNER, TEX_RAMP, TEX_ARROW, TEX_MONSTER, TEX_BOT, TEX_CASTLE,
+	...BACKGROUND_TEXTURES,
 ];
 /** Textures that exist in a red (0) and a blue (1) version. */
 const COLORED_TEXTURES = [
@@ -226,8 +233,6 @@ const COLOR_ID_BLUE = 1;
 const ANIMATION_LINES_PER_STATE = 1;               // sprite-sheet lines used by each animator state
 
 // ---- Colours used when a texture is missing / for the UI -------------------
-const COLOR_SKY_TOP = '#6ec6ff';
-const COLOR_SKY_BOTTOM = '#d6f0ff';
 const COLOR_VOID = '#101820';
 const COLOR_FALLBACK_OUTLINE = 'rgba(0, 0, 0, 0.5)';
 const COLOR_FIREBALL = '#ff9100';
@@ -260,6 +265,18 @@ const PREVIEW_ALPHA = 0.7;
 const PREVIEW_OUTLINE_WIDTH = 3;
 const PREVIEW_LABEL_OFFSET_Y = 18;
 
+// ---- Distant SVG background --------------------------------------------------
+// These assets are loaded as normal game SVG textures. They are repeated only
+// across the camera's visible area instead of covering the whole level at once.
+const BACKGROUND_HILLS_PARALLAX = 0.16;
+const BACKGROUND_TREES_PARALLAX = 0.28;
+const BACKGROUND_CLOUDS_PARALLAX = 0.08;
+const BACKGROUND_HILLS_SCALE = 1.0;
+const BACKGROUND_TREES_SCALE = 0.92;
+const BACKGROUND_CLOUDS_SCALE = 1.08;
+const BACKGROUND_TILE_WIDTH = 1600;
+const BACKGROUND_TILE_HEIGHT = 900;
+
 // ---- Camera ----------------------------------------------------------------
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 2.2;
@@ -271,7 +288,7 @@ const MIN_PINCH_DISTANCE = 10;
 // ---- Pointers / UI layout --------------------------------------------------
 const MOUSE_POINTER_ID = -1;
 const TOOL_REMOVE = -1;                  // pseudo "card" used to delete elements
-const ELEMENT_TYPE_COUNT = 8;
+const ELEMENT_TYPE_COUNT = 7;
 const SLOT_COUNT = ELEMENT_TYPE_COUNT + 1;
 const CARD_W = 130;
 const CARD_H = 100;
@@ -2099,20 +2116,20 @@ class ClientData {
 
 	constructor() {
 		this.html = document.createElement("div");
-		this.html.classList.add("game-castleDefense-root");
+		this.html.classList.add("game-castle-root");
 
 		this.castle = document.createElement("div");
-		this.castle.classList.add("game-castleDefense-castle");
+		this.castle.classList.add("game-castle-castle");
 
 		this.time = document.createElement("div");
-		this.time.classList.add("game-castleDefense-time");
+		this.time.classList.add("game-castle-time");
 
 		const scores = document.createElement("div");
-		scores.classList.add("game-castleDefense-scores");
+		scores.classList.add("game-castle-scores");
 		this.redScore = document.createElement("div");
 		this.blueScore = document.createElement("div");
-		this.redScore.classList.add("game-castleDefense-red-score");
-		this.blueScore.classList.add("game-castleDefense-blue-score");
+		this.redScore.classList.add("game-castle-red-score");
+		this.blueScore.classList.add("game-castle-blue-score");
 
 		const dash = document.createElement("div");
 		dash.textContent = "-";
@@ -3015,13 +3032,52 @@ export class GMCastle extends GameMode {
 		this.drawHud(ctx, folder, data, playerIdx);
 	}
 
-	/** Sky, forbidden build zones, bot portal and castle. */
+	/**
+	 * Draws the distant scenery before gameplay objects.
+	 *
+	 * The old procedural sky is deliberately gone: the scene is now made from
+	 * externally loaded SVG layers. Each layer is tiled only across the area
+	 * visible through the current camera. Its parallax factor is independent from
+	 * the gameplay camera, so the scenery feels much farther away.
+	 */
+	private drawDistantBackground(ctx: CanvasRenderingContext2D, folder: Folder, data: ClientData) {
+		const cam = data.camera;
+		const visibleWorldW = WIDTH / cam.zoom;
+		const visibleWorldH = HEIGHT / cam.zoom;
+		const left = cam.x - visibleWorldW / 2;
+		const top = cam.y - visibleWorldH / 2;
+
+		const layers: Array<{ texture: string; parallax: number; scale: number }> = [
+			{ texture: TEX_BACKGROUND_CLOUDS, parallax: BACKGROUND_CLOUDS_PARALLAX, scale: BACKGROUND_CLOUDS_SCALE },
+			{ texture: TEX_BACKGROUND_HILLS, parallax: BACKGROUND_HILLS_PARALLAX, scale: BACKGROUND_HILLS_SCALE },
+			{ texture: TEX_BACKGROUND_TREES, parallax: BACKGROUND_TREES_PARALLAX, scale: BACKGROUND_TREES_SCALE },
+		];
+
+		for (const layer of layers) {
+			const image = folder.get(layer.texture);
+			const tileW = BACKGROUND_TILE_WIDTH * layer.scale;
+			const tileH = BACKGROUND_TILE_HEIGHT * layer.scale;
+
+			// The distant coordinate follows only a fraction of camera movement.
+			const parallaxLeft = cam.x * (1 - layer.parallax) + left * layer.parallax;
+			const parallaxTop = cam.y * (1 - layer.parallax) + top * layer.parallax;
+			const startX = Math.floor((parallaxLeft - tileW) / tileW) * tileW;
+			const endX = parallaxLeft + visibleWorldW * layer.parallax + tileW;
+			const startY = Math.floor((parallaxTop - tileH) / tileH) * tileH;
+			const endY = parallaxTop + visibleWorldH * layer.parallax + tileH;
+
+			ctx.save();
+			for (let x = startX; x <= endX; x += tileW) {
+				ctx.drawImage(image, x, CELL*2.5, tileW, tileH);
+			}
+		
+			ctx.restore();
+		}
+	}
+
+	/** Gameplay-only decorations: forbidden build zones, portal and castle. */
 	private drawLevel(ctx: CanvasRenderingContext2D, folder: Folder, data: ClientData) {
-		const sky = ctx.createLinearGradient(0, 0, 0, LEVEL_HEIGHT);
-		sky.addColorStop(0, COLOR_SKY_TOP);
-		sky.addColorStop(1, COLOR_SKY_BOTTOM);
-		ctx.fillStyle = sky;
-		ctx.fillRect(0, 0, LEVEL_WIDTH, LEVEL_HEIGHT);
+		this.drawDistantBackground(ctx, folder, data);
 
 		// While building, darken the columns where nothing can be placed
 		if (data.drag) {

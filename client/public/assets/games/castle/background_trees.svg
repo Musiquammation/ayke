@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Minimal tree silhouettes made only from stacked triangles. -->
+  <g fill="#356b45">
+    <polygon points="70,650 130,430 190,650"/>
+    <polygon points="300,650 370,360 440,650"/>
+    <polygon points="520,650 580,400 640,650"/>
+    <polygon points="760,650 840,330 920,650"/>
+    <polygon points="1030,650 1100,390 1170,650"/>
+    <polygon points="1270,650 1340,350 1410,650"/>
+    <polygon points="1450,650 1510,420 1570,650"/>
+  </g>
+  <g fill="#294f36">
+    <polygon points="140,650 190,490 240,650"/>
+    <polygon points="430,650 480,450 530,650"/>
+    <polygon points="900,650 950,470 1000,650"/>
+    <polygon points="1180,650 1230,440 1280,650"/>
+  </g>
+</svg>
