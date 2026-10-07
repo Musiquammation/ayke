@@ -53,10 +53,10 @@ const CASTLE_ROWS = 5;
 const CASTLE_COL = LEVEL_COLS - CASTLE_COLS;
 const BUILD_MAX_COL = CASTLE_COL;
 
-/** Axis-aligned rectangle of the castle (top-left anchored, like collisions.Rect). */
+/** Axis-aligned rectangle of the castle. x/y are the CENTER, like all engine rectangles. */
 const CASTLE_RECT = {
-	x: CASTLE_COL * CELL,
-	y: FLOOR_TOP_Y - CASTLE_ROWS * CELL,
+	x: (CASTLE_COL + CASTLE_COLS / 2) * CELL,
+	y: FLOOR_TOP_Y - (CASTLE_ROWS / 2) * CELL,
 	w: CASTLE_COLS * CELL,
 	h: CASTLE_ROWS * CELL,
 };
@@ -223,7 +223,6 @@ const TEXTURE_PLACEHOLDER_COLOR = '#ff00ff';       // colour painted in the PNG 
 const TEAM_COLORS = ['#ff0044', '#0044ff'];        // index 0 = red, 1 = blue
 const COLOR_ID_RED = 0;
 const COLOR_ID_BLUE = 1;
-const PLACEHOLDER_MAX_SIZE = 2;                    // ImageLoader's placeholder is 2x2 px
 const ANIMATION_LINES_PER_STATE = 1;               // sprite-sheet lines used by each animator state
 
 // ---- Colours used when a texture is missing / for the UI -------------------
@@ -365,12 +364,12 @@ function hash01(a: number, b: number): number {
 	return s - Math.floor(s);
 }
 
-/** Top-left anchored rectangle of a block (collisions.Rect convention). */
+/** Rectangle in the engine/collisions convention: x/y are the CENTER. */
 function rectOf(block: platformEngine.Block<any, any>) {
 	const size = block.getSize();
 	return {
-		x: block.x - size.width / 2,
-		y: block.y - size.height / 2,
+		x: block.x,
+		y: block.y,
 		w: size.width,
 		h: size.height,
 	};
@@ -378,8 +377,7 @@ function rectOf(block: platformEngine.Block<any, any>) {
 
 /**
  * Draws a texture centered on (cx, cy).
- * If the texture is not available yet (2x2 placeholder), a coloured rectangle is drawn instead,
- * so the game stays playable without any art.
+ * Missing 2x2 placeholder textures are skipped; no geometric fallback is drawn.
  */
 function drawTexture(
 	ctx: CanvasRenderingContext2D,
@@ -393,13 +391,6 @@ function drawTexture(
 	fallback: string
 ) {
 	const tex = colorId === undefined ? folder.get(name) : folder.get(name, colorId);
-	if (tex.width <= PLACEHOLDER_MAX_SIZE) {
-		ctx.fillStyle = fallback;
-		ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
-		ctx.strokeStyle = COLOR_FALLBACK_OUTLINE;
-		ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
-		return;
-	}
 	ctx.drawImage(tex, cx - w / 2, cy - h / 2, w, h);
 }
 
@@ -806,10 +797,11 @@ namespace botsApi {
 				// --- issues ---
 				if (this.probe(x, y, 1.5) & 2) return { type: 'fail' };
 				if (y - H > LEVEL_HEIGHT + CELL) return { type: 'fail' }; // le vide
-				if (
-					x - H < CASTLE_RECT.x + CASTLE_RECT.w && x + H > CASTLE_RECT.x &&
-					y - H < CASTLE_RECT.y + CASTLE_RECT.h && y + H > CASTLE_RECT.y
-				) return { type: 'goal', time };
+				// CASTLE_RECT and bot coordinates use center-based rectangles.
+				if (collisions.RectRect(
+					{ x, y, w: H * 2, h: H * 2 },
+					CASTLE_RECT,
+				)) return { type: 'goal', time };
 
 				if (landed) {
 					const row = Math.floor((y + H + 1) / CELL);
@@ -860,11 +852,11 @@ namespace botsApi {
 
 			// Le floor touche le château : on n'a plus qu'à marcher dessus.
 			if (
-				n.xl < castle.x + castle.w + H && n.xr > castle.x - H &&
-				n.y - H < castle.y + castle.h && n.y + H > castle.y
+				n.xl < castle.x + castle.w / 2 + H && n.xr > castle.x - castle.w / 2 - H &&
+				n.y < castle.y + castle.h / 2 + H && n.y > castle.y - castle.h / 2 - H
 			) {
 				n.edges.push({
-					to: this.goalId, kind: 'walk', takeoffX: castle.x + castle.w / 2,
+					to: this.goalId, kind: 'walk', takeoffX: castle.x,
 					dirUp: 1, dirDown: 1, time: 0, cost: 0, curves: [],
 				});
 			}
@@ -1754,38 +1746,6 @@ class ThwompElement extends PlacedElement {
 	}
 }
 
-/* ----------------------------- monster spawner --------------------------- */
-
-class SpawnerElement extends PlacedElement {
-	static readonly SPEC: ElementSpec = {
-		id: 'spawner', label: 'Spawner', texture: TEX_SPAWNER, price: SPAWNER_PRICE,
-		maxHp: SPAWNER_HP, cols: 1, rows: 1, fallbackColor: '#7b1fa2',
-	};
-	static readonly DATA_MESSAGE = 'SpawnerData';
-	static create(init: ElementInit) { return initElement(new SpawnerElement(), init); }
-
-	cooldown = 0;
-
-	getSpec() { return SpawnerElement.SPEC; }
-	getTypeIdx() { return TYPE_SPAWNER; }
-
-	override save(): Fields { return { ...super.save(), cooldown: this.cooldown }; }
-	override load(obj: Fields) { super.load(obj); this.cooldown = obj.cooldown; }
-
-	/** Periodically releases a monster walking toward the incoming bots (leftwards). */
-	protected override tick(dt: number, engine: Engine): void {
-		this.cooldown -= dt;
-		if (this.cooldown > 0) return;
-		this.cooldown += SPAWNER_INTERVAL;
-		console.log('[CastleDefense] Spawner tick', { uid: this.uid, owner: this.owner, x: this.x, y: this.y });
-		engine.getGame().queueMonster(
-			this.owner,
-			this.x - MONSTER_SPAWN_OFFSET_X,
-			this.y - this.getSize().height / 2 - MONSTER_SIZE / 2 - 1
-		);
-	}
-}
-
 /* ---------------------------------- ramp --------------------------------- */
 
 class RampElement extends PlacedElement {
@@ -1810,28 +1770,18 @@ class RampElement extends PlacedElement {
 	}
 
 	protected override drawBody(ctx: CanvasRenderingContext2D, folder: Folder, colorId: number | undefined) {
-		const poly = this.getPolygon()!;
-		const left = this.x - CELL / 2;
-		const top = this.y - CELL / 2;
-
-		ctx.save();
-		ctx.beginPath();
-		poly.sides.forEach((p, i) => {
-			const px = left + p.x * CELL;
-			const py = top + p.y * CELL;
-			if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-		});
-		ctx.closePath();
-		ctx.clip();
-
-		// The texture is drawn for a ramp rising to the right: mirror it for variant 1
+		// The SVG fills the complete 40x40 texture and owns its transparent silhouette.
+		// Variant 1 is mirrored; getPolygon() remains the collision shape.
 		if (this.variant === 1) {
+			ctx.save();
 			ctx.translate(this.x, 0);
 			ctx.scale(-1, 1);
 			ctx.translate(-this.x, 0);
+			super.drawBody(ctx, folder, colorId);
+			ctx.restore();
+			return;
 		}
 		super.drawBody(ctx, folder, colorId);
-		ctx.restore();
 	}
 }
 
@@ -1843,13 +1793,12 @@ const TYPE_TRAMPOLINE = 2;
 const TYPE_ARCHER = 3;
 const TYPE_FIREBAR = 4;
 const TYPE_THWOMP = 5;
-const TYPE_SPAWNER = 6;
-const TYPE_RAMP = 7;
+const TYPE_RAMP = 6;
 
 /** Index in this array == typeIdx sent over the network. */
 const ELEMENT_CLASSES: ElementClass[] = [
 	BlockElement, SpikeElement, TrampolineElement, ArcherTowerElement,
-	FireBarElement, ThwompElement, SpawnerElement, RampElement,
+	FireBarElement, ThwompElement, RampElement,
 ];
 
 /* ========================================================================== */
@@ -2825,12 +2774,14 @@ export class GMCastle extends GameMode {
 		}
 	}
 
-	/** Castle contact (-1 hp) and void deaths. */
+	/** Castle contact: the bot disappears and deals exactly 1 HP of damage. */
 	private checkBotsAfterUpdate() {
 		for (const bot of [...this.storage.bots.values()]) {
 			if (bot.dead) continue;
 
 			if (collisions.RectRect(rectOf(bot), CASTLE_RECT)) {
+				// Mark the bot as dead before removing it so this contact can only
+				// damage the castle once.
 				bot.dead = true;
 				this.castleHp = Math.max(0, this.castleHp - 1);
 				this.removeEntity(bot.uid);
@@ -2931,7 +2882,7 @@ export class GMCastle extends GameMode {
 	static readonly SKINS_IDS = Object.keys(GMCastle.SKINS);
 
 	static readonly TEXTURES: { [k: string]: string } = Object.fromEntries(
-		TEXTURE_NAMES.map(name => [name, `${ASSET_ROOT}/${name}.png`])
+		TEXTURE_NAMES.map(name => [name, `${ASSET_ROOT}/${name}.${name === TEX_BOT ? "png" : "svg"}`])
 	);
 
 	override init(): void {}
@@ -3086,14 +3037,15 @@ export class GMCastle extends GameMode {
 		// Castle + its life bar
 		drawTexture(
 			ctx, folder, TEX_CASTLE, undefined,
-			CASTLE_RECT.x + CASTLE_RECT.w / 2, CASTLE_RECT.y + CASTLE_RECT.h / 2,
+			CASTLE_RECT.x, CASTLE_RECT.y,
 			CASTLE_RECT.w, CASTLE_RECT.h, COLOR_CASTLE
 		);
-		const barY = CASTLE_RECT.y - DAMAGE_BAR_OFFSET - DAMAGE_BAR_HEIGHT;
+		const barY = CASTLE_RECT.y - CASTLE_RECT.h / 2 - DAMAGE_BAR_OFFSET - DAMAGE_BAR_HEIGHT;
 		ctx.fillStyle = COLOR_CASTLE_BAR_BG;
-		ctx.fillRect(CASTLE_RECT.x, barY, CASTLE_RECT.w, DAMAGE_BAR_HEIGHT);
+		const castleLeft = CASTLE_RECT.x - CASTLE_RECT.w / 2;
+		ctx.fillRect(castleLeft, barY, CASTLE_RECT.w, DAMAGE_BAR_HEIGHT);
 		ctx.fillStyle = COLOR_CASTLE_BAR_FG;
-		ctx.fillRect(CASTLE_RECT.x, barY, CASTLE_RECT.w * (this.castleHp / CASTLE_HP), DAMAGE_BAR_HEIGHT);
+		ctx.fillRect(castleLeft, barY, CASTLE_RECT.w * (this.castleHp / CASTLE_HP), DAMAGE_BAR_HEIGHT);
 	}
 
 	/** Blue grid around the pointer whose opacity decreases with the distance. */
