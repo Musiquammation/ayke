@@ -96,6 +96,7 @@ message BlockState {
 	bytes data = 3;
 }
 
+
 message BotState {
 	uint32 blockId = 1;
 	float x = 2;
@@ -104,6 +105,11 @@ message BotState {
 	float vy = 5;
 	int32 lastToucher = 6;
 	float lastTouchAge = 7;
+
+	float jumpCooldown = 8;
+	float logTimer = 9;
+	string lastKey = 10;
+
 }
 
 message ArrowState {
@@ -125,6 +131,7 @@ message MonsterState {
 	float lifetime = 6;
 	int32 owner = 7;
 }
+
 
 message State {
 	repeated PlayerState players = 1;

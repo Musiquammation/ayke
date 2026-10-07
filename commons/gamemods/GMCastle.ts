@@ -209,12 +209,21 @@ const TEX_ARROW = 'arrow';
 const TEX_MONSTER = 'monster';
 const TEX_BOT = 'bot';
 const TEX_CASTLE = 'castle';
-// Distant SVG layers, rendered as repeated tiles with independent parallax.
-const TEX_BACKGROUND_HILLS = 'background_hills';
-const TEX_BACKGROUND_TREES = 'background_trees';
-const TEX_BACKGROUND_CLOUDS = 'background_clouds';
+// Distant SVG layers. They are loaded as regular game textures and tiled only
+// horizontally inside the camera's visible range. There is deliberately no Y tiling.
+const TEX_BACKGROUND_CLOUDS_FAR = 'background_clouds_far';
+const TEX_BACKGROUND_CLOUDS_MID = 'background_clouds_mid';
+const TEX_BACKGROUND_MOUNTAINS_FAR = 'background_mountains_far';
+const TEX_BACKGROUND_HILLS_FAR = 'background_hills_mid_far';
+const TEX_BACKGROUND_HILLS_MID = 'background_hills_mid';
+const TEX_BACKGROUND_HILLS_NEAR = 'background_hills_mid_near';
+const TEX_BACKGROUND_TREES_MID = 'background_trees_mid';
+const TEX_BACKGROUND_TREES_NEAR = 'background_trees_near';
 const BACKGROUND_TEXTURES = [
-	TEX_BACKGROUND_HILLS, TEX_BACKGROUND_TREES, TEX_BACKGROUND_CLOUDS,
+	TEX_BACKGROUND_CLOUDS_FAR, TEX_BACKGROUND_CLOUDS_MID,
+	TEX_BACKGROUND_MOUNTAINS_FAR,
+	TEX_BACKGROUND_HILLS_FAR, TEX_BACKGROUND_HILLS_MID, TEX_BACKGROUND_HILLS_NEAR,
+	TEX_BACKGROUND_TREES_MID, TEX_BACKGROUND_TREES_NEAR,
 ];
 const TEXTURE_NAMES = [
 	TEX_BLOCK, TEX_SPIKE, TEX_TRAMPOLINE, TEX_ARCHER, TEX_FIREBAR, TEX_FIREBALL,
@@ -266,16 +275,27 @@ const PREVIEW_OUTLINE_WIDTH = 3;
 const PREVIEW_LABEL_OFFSET_Y = 18;
 
 // ---- Distant SVG background --------------------------------------------------
-// These assets are loaded as normal game SVG textures. They are repeated only
-// across the camera's visible area instead of covering the whole level at once.
-const BACKGROUND_HILLS_PARALLAX = 0.16;
-const BACKGROUND_TREES_PARALLAX = 0.28;
-const BACKGROUND_CLOUDS_PARALLAX = 0.08;
-const BACKGROUND_HILLS_SCALE = 1.0;
-const BACKGROUND_TREES_SCALE = 0.92;
-const BACKGROUND_CLOUDS_SCALE = 1.08;
+const BACKGROUND_LAYERS = [
+	// Far
+	{ texture: TEX_BACKGROUND_CLOUDS_FAR, parallaxX: 0.17, parallaxY: 0.051, zoomResponse: 0.20, scale: 1.05, y: -170, opacity: 0.92 },
+	{ texture: TEX_BACKGROUND_MOUNTAINS_FAR, parallaxX: 0.476, parallaxY: 0.136, zoomResponse: 0.45, scale: 1.00, y: -80, opacity: 0.92 },
+
+	// Mid
+	{ texture: TEX_BACKGROUND_CLOUDS_MID, parallaxX: 0.765, parallaxY: 0.238, zoomResponse: 0.70, scale: 1.00, y: 10, opacity: 0.86 },
+	// The original hills artwork is split into three depth planes.
+	{ texture: TEX_BACKGROUND_HILLS_FAR, parallaxX: 0.884, parallaxY: 0.289, zoomResponse: 0.72, scale: 1.02, y: 120, opacity: 0.96 },
+	{ texture: TEX_BACKGROUND_HILLS_MID, parallaxX: 1.19, parallaxY: 0.425, zoomResponse: 0.95, scale: 1.02, y: 120, opacity: 0.96 },
+	{ texture: TEX_BACKGROUND_HILLS_NEAR, parallaxX: 1.496, parallaxY: 0.561, zoomResponse: 1.12, scale: 1.02, y: 120, opacity: 0.96 },
+	{ texture: TEX_BACKGROUND_TREES_MID, parallaxX: 1.615, parallaxY: 0.68, zoomResponse: 1.20, scale: 1.00, y: 80, opacity: 1.00 },
+
+	// Near
+	{ texture: TEX_BACKGROUND_TREES_NEAR, parallaxX: 2.295, parallaxY: 1.02, zoomResponse: 1.50, scale: 1.00, y: 190, opacity: 1.00 },
+] as const;
+
 const BACKGROUND_TILE_WIDTH = 1600;
-const BACKGROUND_TILE_HEIGHT = 900;
+const BACKGROUND_TILE_HEIGHT = 1400;
+const BACKGROUND_SKY_TOP = '#78c8f2';
+const BACKGROUND_SKY_BOTTOM = '#f6d58b';
 
 // ---- Camera ----------------------------------------------------------------
 const ZOOM_MIN = 0.6;
@@ -1015,14 +1035,17 @@ namespace botsApi {
 		lastKey = '';
 
 		save(): Fields {
-			return {};
+			return {
+				jumpCooldown: this.jumpCooldown,
+				logTimer: this.logTimer,
+				lastKey: this.lastKey,
+			};
 		}
 
-		load(_obj: Fields) {
-			this.edge = null;
-			this.jumpCooldown = 0;
-			this.logTimer = 0;
-			this.lastKey = '';
+		load(obj: Fields) {
+			this.jumpCooldown = obj.jumpCooldown;
+			this.logTimer = obj.logTimer;
+			this.lastKey = obj.lastKey;
 		}
 	}
 
@@ -3000,7 +3023,12 @@ export class GMCastle extends GameMode {
 		}
 		data.update(this, playerIdx);
 
-		ctx.fillStyle = COLOR_VOID;
+		// The old flat void background is removed. The sky is painted in screen
+		// space so it always fills the viewport, independently from camera motion.
+		const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+		sky.addColorStop(0, BACKGROUND_SKY_TOP);
+		sky.addColorStop(1, BACKGROUND_SKY_BOTTOM);
+		ctx.fillStyle = sky;
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
 		if (!this.engine) {
@@ -3042,35 +3070,49 @@ export class GMCastle extends GameMode {
 	 */
 	private drawDistantBackground(ctx: CanvasRenderingContext2D, folder: Folder, data: ClientData) {
 		const cam = data.camera;
-		const visibleWorldW = WIDTH / cam.zoom;
-		const visibleWorldH = HEIGHT / cam.zoom;
-		const left = cam.x - visibleWorldW / 2;
-		const top = cam.y - visibleWorldH / 2;
+		const levelCenterX = LEVEL_WIDTH / 2;
+		const levelCenterY = LEVEL_HEIGHT / 2;
 
-		const layers: Array<{ texture: string; parallax: number; scale: number }> = [
-			{ texture: TEX_BACKGROUND_CLOUDS, parallax: BACKGROUND_CLOUDS_PARALLAX, scale: BACKGROUND_CLOUDS_SCALE },
-			{ texture: TEX_BACKGROUND_HILLS, parallax: BACKGROUND_HILLS_PARALLAX, scale: BACKGROUND_HILLS_SCALE },
-			{ texture: TEX_BACKGROUND_TREES, parallax: BACKGROUND_TREES_PARALLAX, scale: BACKGROUND_TREES_SCALE },
-		];
+		/*
+		 * The background is deliberately rendered in SCREEN SPACE.
+		 *
+		 * Gameplay is rendered afterwards with the normal camera transform:
+		 *   translate(center) -> scale(zoom) -> translate(-camera)
+		 *
+		 * Keeping the background outside that transform is important: otherwise
+		 * every layer stays synchronised with the camera and only appears to have
+		 * a different offset. Here each plane computes its own screen position.
+		 *
+		 * Each layer independently controls:
+		 *   - parallaxX/Y: how much camera translation reaches the layer;
+		 *   - zoomResponse: how much camera zoom reaches the layer;
+		 *   - scale/y/opacity: its own visual depth and anchoring.
+		 */
+		const cameraOffsetX = cam.x - levelCenterX;
+		const cameraOffsetY = cam.y - levelCenterY;
 
-		for (const layer of layers) {
+		for (const layer of BACKGROUND_LAYERS) {
 			const image = folder.get(layer.texture);
-			const tileW = BACKGROUND_TILE_WIDTH * layer.scale;
-			const tileH = BACKGROUND_TILE_HEIGHT * layer.scale;
 
-			// The distant coordinate follows only a fraction of camera movement.
-			const parallaxLeft = cam.x * (1 - layer.parallax) + left * layer.parallax;
-			const parallaxTop = cam.y * (1 - layer.parallax) + top * layer.parallax;
-			const startX = Math.floor((parallaxLeft - tileW) / tileW) * tileW;
-			const endX = parallaxLeft + visibleWorldW * layer.parallax + tileW;
-			const startY = Math.floor((parallaxTop - tileH) / tileH) * tileH;
-			const endY = parallaxTop + visibleWorldH * layer.parallax + tileH;
+			// response=0 => almost fixed screen size; response=1 => full camera zoom.
+			const zoom = 1 + (cam.zoom - 1) * layer.zoomResponse;
+			const tileW = BACKGROUND_TILE_WIDTH * layer.scale * zoom;
+			const tileH = BACKGROUND_TILE_HEIGHT * layer.scale * zoom;
+
+			// Camera motion becomes screen motion only through this layer's depth.
+			const centerX = WIDTH / 2 - cameraOffsetX * layer.parallaxX * cam.zoom;
+			const centerY = HEIGHT / 2 + layer.y - cameraOffsetY * layer.parallaxY * cam.zoom;
+
+			// Tile horizontally, but never vertically. The vertical position is
+			// controlled by the layer's own depth plane instead.
+			const firstX = Math.floor((-tileW - centerX) / tileW) * tileW + centerX;
+			const lastX = Math.ceil((WIDTH + tileW - centerX) / tileW) * tileW + centerX;
 
 			ctx.save();
-			for (let x = startX; x <= endX; x += tileW) {
-				ctx.drawImage(image, x, CELL*2.5, tileW, tileH);
+			ctx.globalAlpha = layer.opacity;
+			for (let x = firstX; x <= lastX; x += tileW) {
+				ctx.drawImage(image, x, centerY - tileH, tileW, tileH);
 			}
-		
 			ctx.restore();
 		}
 	}
