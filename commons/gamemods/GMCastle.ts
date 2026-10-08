@@ -1228,7 +1228,7 @@ function isGhostPair(a: GameBlock, b: GameBlock): boolean {
 	// Walking creatures never push each other
 	const aMob = a instanceof Bot || a instanceof Monster;
 	const bMob = b instanceof Bot || b instanceof Monster;
-	if (aMob && bMob) return true;
+	// if (aMob && bMob) return true;
 	// Spikes are not solid: creatures touching them simply die
 	if (a instanceof SpikeElement || b instanceof SpikeElement) return true;
 	return false;
