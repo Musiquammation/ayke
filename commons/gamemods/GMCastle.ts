@@ -3205,16 +3205,27 @@ export class GMCastle extends GameMode {
 	) {
 		const data = _data as ClientData;
 
-		// Refreshes data.rawMouseX/Y (evalMouseCoords is called by the controller)
 		mouse.getCoords();
 
-		const pointers: Pointer[] = (mobile ? mobile.getDigits() : [])
-			.map(d => ({ id: d.id, x: d.x, y: d.y }));
+		const pointers: Pointer[] = (
+			(mobile ? mobile.getDigits() : [])
+			.map(d => ({
+				id: d.id,
+				x: d.x0 * WIDTH / window.innerWidth,
+				y: d.y0 * HEIGHT / window.innerHeight
+			}))
+		);
+
 		if (mouse.press(0)) {
 			pointers.push({ id: MOUSE_POINTER_ID, x: data.rawMouseX, y: data.rawMouseY });
 		}
 
-		const wheel = (mouse as unknown as WheelSource).getWheelDelta?.() ?? 0;
+		if (pointers.length) {
+			console.log(pointers);
+		}
+
+		const wheel = 0;
+
 		return data.processPointers(this, pointers, wheel);
 	}
 

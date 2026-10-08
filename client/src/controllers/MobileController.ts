@@ -405,12 +405,14 @@ export class MobileController implements IMobileController {
 		ctx.restore();
 	}
 
-	getDigits(): { x: number; y: number, id: number }[] {
+	getDigits() {
 		return Array.from(this.touches.values())
 			.filter((touch) => typeof touch.target === "number")
 			.map((touch) => ({
 				x: touch.gameX,
 				y: touch.gameY,
+				x0: touch.screenX,
+				y0: touch.screenY,
 				id: touch.target as number
 			}));
 	}
