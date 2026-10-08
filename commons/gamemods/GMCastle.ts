@@ -3220,12 +3220,7 @@ export class GMCastle extends GameMode {
 			pointers.push({ id: MOUSE_POINTER_ID, x: data.rawMouseX, y: data.rawMouseY });
 		}
 
-		if (pointers.length) {
-			console.log(pointers);
-		}
-
 		const wheel = 0;
-
 		return data.processPointers(this, pointers, wheel);
 	}
 
@@ -3438,13 +3433,26 @@ export class GMCastle extends GameMode {
 				const check = this.checkRemoval(playerIdx, target.uid);
 				ok = check.status === 'ok';
 				cost = check.cost;
+
 				const spec = target.getSpec();
-				rectCols = spec.cols; rectRows = spec.rows;
+				rectCols = spec.cols;
+				rectRows = spec.rows;
+
+				ctx.translate(-CELL/2, -CELL/2);
+
 				ctx.strokeStyle = COLOR_REMOVE_TARGET;
 				ctx.lineWidth = PREVIEW_OUTLINE_WIDTH;
-				ctx.strokeRect(target.col * CELL, target.row * CELL, rectCols * CELL, rectRows * CELL);
+				ctx.strokeRect(
+					target.col * CELL,
+					target.row * CELL,
+					rectCols * CELL,
+					rectRows * CELL,
+				);
 				ctx.lineWidth = 1;
+
+				ctx.translate(CELL/2, CELL/2);
 			}
+
 			this.drawPreviewLabel(ctx, world.x, world.y, target ? cost : null, ok);
 			ctx.restore();
 			return;
