@@ -65,10 +65,10 @@ const CASTLE_RECT = {
 const VOID_Y = LEVEL_HEIGHT + CELL * 3;
 
 // ---- Match rules -----------------------------------------------------------
-const CASTLE_HP = 200;
+const CASTLE_HP = 100;
 const MATCH_DURATION = 300;          // 5 minutes
 const TIMER_VISIBLE_SECONDS = 60;    // the clock is only displayed during the last minute
-const NEUTRAL_BLOCK_LIFETIME = 180;  // neutral floor blocks break after one minute
+const NEUTRAL_BLOCK_LIFETIME = Infinity;
 const NO_OWNER = -1;
 const GRAVITY = 1500;
 
@@ -112,7 +112,7 @@ const WAVE_INTERVAL = 2;
 const WAVE_BASE_SIZE = 3;
 const WAVE_SIZE_GROWTH = 1;
 const WAVE_MAX_SIZE = 14;
-const BOT_SPAWN_INTERVAL = 0.9;
+const BOT_SPAWN_INTERVAL = 0.6;
 
 // ---- Element: block --------------------------------------------------------
 const BLOCK_PRICE = 1;
@@ -128,11 +128,11 @@ const TRAMPOLINE_HP = 30;
 const TRAMPOLINE_BOUNCE_SPEED = 900;
 
 // ---- Element: archer tower (1x2 cells) + arrows ----------------------------
-const ARCHER_PRICE = 4;
+const ARCHER_PRICE = 3;
 const ARCHER_HP = 25;
 const ARCHER_ROWS = 2;
 const ARCHER_RANGE = 450;
-const ARCHER_COOLDOWN = 1.2;
+const ARCHER_COOLDOWN = 0.9;
 const ARCHER_MUZZLE_OFFSET = 10;     // distance of the muzzle below the tower top
 const ARROW_SPEED = 600;
 const ARROW_LIFETIME = 2.5;
@@ -140,7 +140,7 @@ const ARROW_LENGTH = 28;
 const ARROW_THICKNESS = 8;
 
 // ---- Element: rotating fire bar -------------------------------------------
-const FIREBAR_PRICE = 3;
+const FIREBAR_PRICE = 5;
 const FIREBAR_HP = 25;
 const FIREBAR_BALLS = 5;
 const FIREBAR_BALL_SPACING = 22;
@@ -148,7 +148,7 @@ const FIREBAR_BALL_RADIUS = 10;
 const FIREBAR_ROTATION_SPEED = 2.2;  // radians / second
 
 // ---- Element: thwomp (2x2 cells) ------------------------------------------
-const THWOMP_PRICE = 4;
+const THWOMP_PRICE = 2;
 const THWOMP_HP = 25;
 const THWOMP_CELLS = 2;
 const THWOMP_TRIGGER_HALF_WIDTH = 60;
@@ -2267,9 +2267,8 @@ class ClientData {
 	}
 
 	static showTime(time: number) {
-		const minutes = Math.floor(time / 60);
 		const seconds = Math.floor(time % 60);
-		return `${minutes}:${pad2(seconds)}`;
+		return pad2(seconds);
 	}
 
 	/** Refreshes the DOM HUD (castle, scores, last-minute timer). */
@@ -2881,7 +2880,6 @@ export class GMCastle extends GameMode {
 		while (this.spawnQueue > 0 && this.spawnTimer <= 0) {
 			const bot = Bot.create();
 			const registered = this.register(bot, 'bot', this.storage.bots);
-			/// TODO: remove
 			this.spawnQueue--;
 			this.spawnTimer += BOT_SPAWN_INTERVAL;
 
