@@ -1187,6 +1187,10 @@ export namespace platformEngine {
 			current: number
 		): StateReturn;
 
+		getVisualZoom() {
+			return 1;
+		}
+
 		frame(
 			block: Block<any, any>,
 			walker: Walker,
@@ -1208,7 +1212,7 @@ export namespace platformEngine {
 
 				this.index++;
 				const count = this.linesDescriptors[this.state].count;
-				this.tick += this.linesDescriptors[this.state].count;
+				this.tick += this.linesDescriptors[this.state].delay;
 				if (this.index < count) {
 					return;
 				}
@@ -1217,9 +1221,11 @@ export namespace platformEngine {
 				return;
 			}
 
+
 			if (u.type === 'switch') {
 				this.state = u.state;
 				this.tick = this.linesDescriptors[u.state].delay;
+				this.index = 0;
 				return;
 			}
 
@@ -1237,19 +1243,18 @@ export namespace platformEngine {
 			ctx: CanvasRenderingContext2D,
 			imageLoader: ImageLoaderFolder
 		): void {
-			const image = (
-				imageLoader.get(
-					this.texture,
-					this.textureMode
-						?? undefined,
-				)
+			const image = imageLoader.get(
+				this.texture,
+				this.textureMode ?? undefined,
 			);
 
 			const {width, height} = block.getSize();
+			const visualZoom = this.getVisualZoom();
 
 			ctx.save();
 			ctx.imageSmoothingEnabled = false;
-			ctx.translate(block.x, block.y,);
+
+			ctx.translate(block.x, block.y);
 
 			const velocity = block.getVelocity();
 			if (velocity) {
@@ -1259,12 +1264,19 @@ export namespace platformEngine {
 					this.facingLeft = false;
 				}
 			}
-			
+
 			if (this.facingLeft) {
-				ctx.scale(-1, 1,);
+				ctx.scale(-1, 1);
 			}
 
+			// Move the origin to the feet.
+			ctx.translate(0, height / 2);
 
+			// Zoom around the feet.
+			ctx.scale(visualZoom, visualZoom);
+
+			// Move back so the feet are at the origin.
+			ctx.translate(0, -height / 2);
 
 			ctx.drawImage(
 				image,
@@ -1389,6 +1401,16 @@ export namespace platformEngine {
 		}
 
 		getWalker(): Walker | null {
+			return null;
+		}
+
+		/**
+		 * Returns the animator used by this block on the client.
+		 *
+		 * The platform engine only calls this method when isClient is true.
+		 * Server-side engines therefore never instantiate or load animators.
+		 */
+		createAnimator(): Animator | null {
 			return null;
 		}
 
@@ -1611,6 +1633,10 @@ export namespace platformEngine {
 
 		getGame():
 			TEngineData['Game'];
+
+		getAnimator(key: BlockId): Animator | null;
+		
+
 	}
 
 
@@ -1758,6 +1784,13 @@ export namespace platformEngine {
 				BlockEntry<TEngineData>
 			>();
 
+		/*
+		 * Animators are client-only state. Keeping them outside BlockEntry also
+		 * guarantees that server-side engine instances never instantiate them.
+		 */
+		private readonly animators =
+			new Map<BlockId, Animator>();
+
 		private readonly colliderToId =
 			new Map<
 				number,
@@ -1893,6 +1926,21 @@ export namespace platformEngine {
 				},
 			);
 
+			/*
+			 * Animators are loaded only on the client. The block remains entirely
+			 * usable on the server without importing or constructing its animator.
+			 */
+			if (this.isClient) {
+				const animator = block.createAnimator();
+
+				if (animator) {
+					this.animators.set(
+						id,
+						animator,
+					);
+				}
+			}
+
 			return id;
 		}
 
@@ -1921,6 +1969,8 @@ export namespace platformEngine {
 
 				entry.block.unbindPhysicsCollider();
 			}
+
+			this.animators.delete(id);
 
 			return this.entries.delete(
 				id,
@@ -1997,6 +2047,10 @@ export namespace platformEngine {
 			return this.game;
 		}
 
+		getAnimator(key: BlockId) {
+			return this.animators.get(key) ?? null;
+		}
+
 		/**
 		 * Releases the Rapier resources owned by this engine.
 		 */
@@ -2016,6 +2070,7 @@ export namespace platformEngine {
 			}
 
 			this.entries.clear();
+			this.animators.clear();
 			this.colliderToId.clear();
 
 			this.world.removeCharacterController(
@@ -2289,7 +2344,46 @@ export namespace platformEngine {
 				}
 
 				/* ------------------------------------------------------------------ */
-				/* 11. Destruction                                                     */
+				/* 11. Animation                                                       */
+				/* ------------------------------------------------------------------ */
+
+				if (this.isClient) {
+					for (
+						const [id, animator]
+						of this.animators
+					) {
+						const entry =
+							this.entries.get(id);
+
+						if (!entry) {
+							continue;
+						}
+
+						const walker =
+							entry.block.getWalker();
+
+						const direction =
+							entry.block.getDirection();
+
+						if (!walker || !direction) {
+							continue;
+						}
+
+						/*
+						 * frame() drives the animator state and calls animator.update()
+						 * with the current animation state.
+						 */
+						animator.frame(
+							entry.block,
+							walker,
+							direction,
+							dt,
+						);
+					}
+				}
+
+				/* ------------------------------------------------------------------ */
+				/* 12. Destruction                                                     */
 				/* ------------------------------------------------------------------ */
 
 				for (

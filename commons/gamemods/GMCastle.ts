@@ -65,7 +65,7 @@ const CASTLE_RECT = {
 const VOID_Y = LEVEL_HEIGHT + CELL * 3;
 
 // ---- Match rules -----------------------------------------------------------
-const CASTLE_HP = 20;
+const CASTLE_HP = 200;
 const MATCH_DURATION = 300;          // 5 minutes
 const TIMER_VISIBLE_SECONDS = 60;    // the clock is only displayed during the last minute
 const NEUTRAL_BLOCK_LIFETIME = 180;  // neutral floor blocks break after one minute
@@ -1440,7 +1440,7 @@ class BotAnimator extends platformEngine.Animator {
 			return {type: 'loop'};
 		}
 
-		if (!walker.onCeiling()) {
+		if (!walker.onFloor()) {
 			if (bot.velocity.y < 0) {
 				if (current === S.JUMPING) {
 					return {type: 'loop'};
@@ -1482,6 +1482,10 @@ class BotAnimator extends platformEngine.Animator {
 		);
 	}
 
+	getVisualZoom(): number {
+		return 1.3;
+	}
+
 }
 
 /** An enemy walking toward the castle. Dies on the first hit. */
@@ -1494,7 +1498,6 @@ class Bot extends GameBlock {
 		softDec: BOT_SOFT_DECELERATION,
 		hardDec: BOT_HARD_DECELERATION,
 	};
-	readonly animator = new BotAnimator();
 	readonly effects = new platformEngine.VelocityEffectHandler();
 
 	/** Per-bot navigation cache shared with the bot controller. */
@@ -1535,6 +1538,10 @@ class Bot extends GameBlock {
 
 	override getVelocityEffects() {
 		return this.effects;
+	}
+
+	override createAnimator() {
+		return new BotAnimator();
 	}
 
 	markTouched(player: number) {
@@ -1593,8 +1600,6 @@ class Bot extends GameBlock {
 		if (this.walker.onCeiling() && this.velocity.y < 0) this.velocity.y = 0;
 		if (this.walker.onLeft() && this.velocity.x < 0) this.velocity.x = 0;
 		if (this.walker.onRight() && this.velocity.x > 0) this.velocity.x = 0;
-
-		this.animator.update(this, this.walker, this.direction, dt);
 	}
 
 	save(): Fields {
@@ -3146,9 +3151,19 @@ export class GMCastle extends GameMode {
 		for (const el of this.storage.elements.values()) {
 			el.draw(ctx, folder, this.colorIdOf(el.owner), 1);
 		}
-		for (const monster of this.storage.monsters.values()) monster.draw(ctx, folder);
-		for (const bot of this.storage.bots.values()) bot.animator.draw(bot, ctx, folder);
-		for (const arrow of this.storage.arrows.values()) arrow.draw(ctx, folder, this.colorIdOf(arrow.owner));
+
+		for (const monster of this.storage.monsters.values()) {
+			monster.draw(ctx, folder);
+		}
+
+		for (const [key, bot] of this.storage.bots) {
+			const a = this.engine.getAnimator(key);
+			a?.draw(bot, ctx, folder);
+		}
+
+		for (const arrow of this.storage.arrows.values()) {
+			arrow.draw(ctx, folder, this.colorIdOf(arrow.owner));
+		}
 
 		this.drawDragPreview(ctx, folder, data, playerIdx);
 		ctx.restore();
