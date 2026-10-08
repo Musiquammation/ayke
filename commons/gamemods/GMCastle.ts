@@ -1508,6 +1508,7 @@ class Bot extends GameBlock {
 	/** Last player whose element interacted with this bot (credit for void deaths). */
 	lastToucher = NO_OWNER;
 	lastTouchAge = KILL_CREDIT_WINDOW + 1;
+	isOnTrampoline = false;
 
 
 	static create(): Bot {
@@ -1557,6 +1558,7 @@ class Bot extends GameBlock {
 	}
 
 	override processBeforeEngine(id: BlockId, dt: number, engine: Engine): void {
+		this.isOnTrampoline = false;
 		this.lastTouchAge = Math.min(this.lastTouchAge + dt, KILL_CREDIT_WINDOW + 1);
 
 		const input = getBotInput(engine, this, dt);
@@ -1600,6 +1602,11 @@ class Bot extends GameBlock {
 		if (this.walker.onCeiling() && this.velocity.y < 0) this.velocity.y = 0;
 		if (this.walker.onLeft() && this.velocity.x < 0) this.velocity.x = 0;
 		if (this.walker.onRight() && this.velocity.x > 0) this.velocity.x = 0;
+
+		if (this.isOnTrampoline) {
+			this.velocity.y = -TRAMPOLINE_BOUNCE_SPEED;
+		}
+
 	}
 
 	save(): Fields {
@@ -1686,8 +1693,11 @@ class TrampolineElement extends PlacedElement {
 		if (side !== 'ceiling') return;
 		const velocity = other.block.getVelocity();
 		if (!velocity) return;
-		velocity.y = -TRAMPOLINE_BOUNCE_SPEED;
-		if (other.block instanceof Bot) other.block.markTouched(this.owner);
+		
+		if (other.block instanceof Bot) {
+			other.block.isOnTrampoline = true;
+			other.block.markTouched(this.owner);
+		}
 	}
 }
 
