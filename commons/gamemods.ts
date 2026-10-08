@@ -64,6 +64,7 @@ interface MultiplayerFactory {
 	iconExtension: string,
 	defaultPlayerCount: number,
 	tropheeRoalPixelsPerTrophy: number,
+	protoFields?: readonly string[],
 	nodes: {
 		root: ActionNode<GameMode, any>,
 		data: (()=>any)
@@ -293,6 +294,7 @@ export const gamemods: Record<
 		tropheeRoalPixelsPerTrophy: 3.5,
 		iconExtension: 'png',
 		defaultPlayerCount: 2,
+		protoFields: GMCastle.PROTO_FIELDS as readonly string[],
 		nodes: bots_castle
 	},
 

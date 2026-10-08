@@ -10,7 +10,7 @@ import { ImageLoader, ImageLoaderFolder } from "../util/ImageLoader";
 import { platformEngine } from "../util/platformEngine";
 import { GameRandomGenerator } from "../util/GameRandomGenerator";
 
-const protocols = getProtocol('castle', 'multiplayer', [
+const PROTO_FIELDS = [
 	'BlockData',
 	'SpikeData',
 	'TrampolineData',
@@ -19,7 +19,9 @@ const protocols = getProtocol('castle', 'multiplayer', [
 	'ThwompData',
 	'SpawnerData',
 	'RampData',
-]);
+] as const;
+
+const protocols = getProtocol('castle', 'multiplayer', PROTO_FIELDS);
 
 interface PlayerInput {
 	data: Uint8Array;
@@ -2718,6 +2720,8 @@ interface RemovalCheck {
 export class GMCastle extends GameMode {
 	static readonly types = { Player };
 
+	static readonly PROTO_FIELDS = PROTO_FIELDS;
+
 	static readonly DATA = {
 		GRAVITY, WIDTH, HEIGHT, CELL, LEVEL_COLS, LEVEL_ROWS, CASTLE_HP,
 	};
@@ -3595,6 +3599,7 @@ export class GMCastle extends GameMode {
 		const messages = protocols.get();
 		const def = ELEMENT_CLASSES[el.getTypeIdx()];
 
+		console.log(def.DATA_MESSAGE, messages[def.DATA_MESSAGE]);
 		return messages[def.DATA_MESSAGE].encode(el.save()).finish();
 	}
 

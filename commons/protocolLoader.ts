@@ -32,7 +32,16 @@ export function initProtocols(loader: ProtocolLoaderFn): void {
 
 	for (const name in gamemods) {
 		const type = gamemods[name].type;
-		if (type !== 'ui-separator') {
+		if (type === 'multiplayer') {
+			const fields = gamemods[name].protoFields;
+			if (fields) {
+				getProtocol(name, type, fields).load();
+			} else {
+				getProtocol(name, type).load();
+			}
+		}
+
+		if (type === 'solo') {
 			getProtocol(name, type).load();
 		}
 	}
@@ -139,6 +148,8 @@ export function getProtocol<const T extends readonly string[]>(
 					]),
 				)
 				: {};
+
+			console.log(name, fields, additionalTypes);
 
 			if (type === 'multiplayer') {
 				loadedProtocols.set(name, {
