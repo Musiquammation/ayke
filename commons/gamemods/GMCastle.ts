@@ -115,7 +115,7 @@ const WAVE_MAX_SIZE = 14;
 const BOT_SPAWN_INTERVAL = 0.6;
 
 // ---- Element: block --------------------------------------------------------
-const BLOCK_PRICE = 1;
+const BLOCK_PRICE = 0.5;
 const BLOCK_HP = 30;
 
 // ---- Element: spike --------------------------------------------------------
@@ -287,7 +287,15 @@ const BACKGROUND_LAYERS = [
 	{ texture: TEX_BACKGROUND_TREES_MID, parallaxX: 1.615, parallaxY: 0.68, zoomResponse: 1.20, scale: 1.00, y: 80, opacity: 1.00 },
 
 	// Near
-	{ texture: TEX_BACKGROUND_TREES_NEAR, parallaxX: 2.295, parallaxY: 1.02, zoomResponse: 1.50, scale: 1.00, y: 190, opacity: 1.00 },
+	{
+		texture: TEX_BACKGROUND_TREES_NEAR,
+		parallaxX: 1.00,
+		parallaxY: 1.00,
+		zoomResponse: 1.00,
+		scale: 1.00,
+		y: 190,
+		opacity: 1.00,
+	}
 ] as const;
 
 const BACKGROUND_TILE_WIDTH = 1600;
@@ -2219,20 +2227,26 @@ class ClientData {
 	/** Raw mouse position in canvas coordinates (filled by evalMouseCoords). */
 	rawMouseX = 0;
 	rawMouseY = 0;
+
 	/** Mouse position in world coordinates. */
 	mouseX = 0;
 	mouseY = 0;
 
 	readonly camera = new Camera();
 	drag: DragState | null = null;
+
 	/** Selected placement variant for the next placement. */
 	variant = 0;
+
 	/** Generic card whose placement variants are currently exposed in the top toolbar. */
 	variantMenuTool: number | null = null;
+
 	/** True after clicking the Block card; dragging on the level then paints blocks. */
 	blockPlacementMode = false;
+
 	/** Grid coordinates already emitted while the current Block placement mode is active. */
 	private readonly blockPlacementCells = new Set<string>();
+
 	/** Card currently selected in the HUD, independent from an active pointer drag. */
 	selectedTool: number | null = null;
 
@@ -2242,35 +2256,75 @@ class ClientData {
 	readonly html: HTMLDivElement;
 	readonly time: HTMLDivElement;
 	readonly castle: HTMLDivElement;
-	readonly redScore: HTMLDivElement;
-	readonly blueScore: HTMLDivElement;
+
+	readonly score: HTMLDivElement;
+	readonly scoreYou: HTMLDivElement;
+	readonly scoreOpponent: HTMLDivElement;
+	readonly scoreYouValue: HTMLDivElement;
+	readonly scoreOpponentValue: HTMLDivElement;
 
 	constructor() {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-castle-root");
 
+		/* ------------------------------------------------------------------ */
+		/* Castle                                                              */
+		/* ------------------------------------------------------------------ */
+
 		this.castle = document.createElement("div");
 		this.castle.classList.add("game-castle-castle");
+
+		/* ------------------------------------------------------------------ */
+		/* Timer                                                               */
+		/* ------------------------------------------------------------------ */
 
 		this.time = document.createElement("div");
 		this.time.classList.add("game-castle-time");
 
-		const scores = document.createElement("div");
-		scores.classList.add("game-castle-scores");
-		this.redScore = document.createElement("div");
-		this.blueScore = document.createElement("div");
-		this.redScore.classList.add("game-castle-red-score");
-		this.blueScore.classList.add("game-castle-blue-score");
+		/* ------------------------------------------------------------------ */
+		/* Score                                                               */
+		/* ------------------------------------------------------------------ */
+
+		this.score = document.createElement("div");
+		this.score.classList.add("game-castle-score");
+
+		this.scoreYou = document.createElement("div");
+		this.scoreYou.classList.add(
+			"game-castle-score-you",
+		);
+		this.scoreYou.textContent = "You";
+
+		this.scoreOpponent = document.createElement("div");
+		this.scoreOpponent.classList.add(
+			"game-castle-score-opponent",
+		);
+		this.scoreOpponent.textContent = "Opponent";
 
 		const dash = document.createElement("div");
-		dash.textContent = "-";
+		dash.classList.add("game-castle-score-dash");
 
-		scores.appendChild(this.redScore);
-		scores.appendChild(dash);
-		scores.appendChild(this.blueScore);
+		this.scoreYouValue = document.createElement("div");
+		this.scoreYouValue.classList.add(
+			"game-castle-score-you-value",
+		);
+
+		this.scoreOpponentValue = document.createElement("div");
+		this.scoreOpponentValue.classList.add(
+			"game-castle-score-opponent-value",
+		);
+
+		this.score.appendChild(this.scoreYou);
+		this.score.appendChild(this.scoreOpponent);
+		this.score.appendChild(dash);
+		this.score.appendChild(this.scoreYouValue);
+		this.score.appendChild(this.scoreOpponentValue);
+
+		/* ------------------------------------------------------------------ */
+		/* Root                                                                */
+		/* ------------------------------------------------------------------ */
 
 		this.html.appendChild(this.castle);
-		this.html.appendChild(scores);
+		this.html.appendChild(this.score);
 		this.html.appendChild(this.time);
 
 		this.camera.clamp();
@@ -2284,11 +2338,72 @@ class ClientData {
 	/** Refreshes the DOM HUD (castle, scores, last-minute timer). */
 	update(game: GMCastle, _playerIdx: number) {
 		this.time.textContent = ClientData.showTime(game.time);
-		// The clock only shows up during the last minute
-		this.time.style.display = game.time <= TIMER_VISIBLE_SECONDS ? '' : 'none';
-		this.redScore.textContent = pad2(game.redScore);
-		this.blueScore.textContent = pad2(game.blueScore);
-		this.castle.textContent = `Castle ${game.castleHp}/${CASTLE_HP}`;
+
+		// The clock only shows up during the last minute.
+		this.time.style.display =
+			game.time <= TIMER_VISIBLE_SECONDS
+				? ''
+				: 'none';
+
+		this.castle.textContent =
+			`Castle ${game.castleHp}/${CASTLE_HP}`;
+
+		const isRed = this.localPlayer === 0;
+
+		const youScore = isRed
+			? game.redScore
+			: game.blueScore;
+
+		const opponentScore = isRed
+			? game.blueScore
+			: game.redScore;
+
+		this.scoreYouValue.textContent = pad2(youScore);
+		this.scoreOpponentValue.textContent = pad2(opponentScore);
+
+		/* ------------------------------------------------------------------ */
+		/* Colors                                                              */
+		/* ------------------------------------------------------------------ */
+
+		this.scoreYou.classList.toggle(
+			"game-castle-red",
+			isRed,
+		);
+
+		this.scoreYou.classList.toggle(
+			"game-castle-blue",
+			!isRed,
+		);
+
+		this.scoreYouValue.classList.toggle(
+			"game-castle-red",
+			isRed,
+		);
+
+		this.scoreYouValue.classList.toggle(
+			"game-castle-blue",
+			!isRed,
+		);
+
+		this.scoreOpponent.classList.toggle(
+			"game-castle-red",
+			!isRed,
+		);
+
+		this.scoreOpponent.classList.toggle(
+			"game-castle-blue",
+			isRed,
+		);
+
+		this.scoreOpponentValue.classList.toggle(
+			"game-castle-red",
+			!isRed,
+		);
+
+		this.scoreOpponentValue.classList.toggle(
+			"game-castle-blue",
+			isRed,
+		);
 	}
 
 	/* ---------------------------- pointer handling --------------------------- */
@@ -3051,7 +3166,7 @@ export class GMCastle extends GameMode {
 		if (!this.engine) return null;
 
 		if (this.isFinished()) {
-			return produceFinish ? this.produceFinish() : null;
+			dt /= 2;
 		}
 
 		this.time = Math.max(0, this.time - dt);

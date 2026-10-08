@@ -1,4 +1,3 @@
-/* The HUD is client-only and must never be added to GMExample shared state. */
 .game-castle-root {
 	position: fixed;
 	top: 1.5vh;
@@ -14,12 +13,9 @@
 	z-index: 20;
 }
 
-/* Compact score/status cells keep the HUD readable on both desktop and mobile. */
 .game-castle-time,
 .game-castle-castle,
-.game-castle-elixir,
-.game-castle-score,
-.game-castle-message {
+.game-castle-score {
 	padding: 0.7vh 0.8vw;
 	border-radius: 0.8vh;
 	background: rgba(18, 22, 28, 0.82);
@@ -31,9 +27,81 @@
 	font-weight: 700;
 }
 
-.game-castle-elixir {
-	min-width: 9vw;
+.game-castle-time {
+	margin-left: auto;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Score                                                                      */
+/* -------------------------------------------------------------------------- */
+
+.game-castle-score {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	grid-template-rows: auto auto;
+	align-items: center;
+	column-gap: 1vw;
+	min-width: 14vw;
+	text-align: center;
+}
+
+.game-castle-score-you,
+.game-castle-score-opponent {
+	font-weight: 700;
+}
+
+.game-castle-score-you {
+	grid-column: 1;
+	grid-row: 1;
+}
+
+.game-castle-score-opponent {
+	grid-column: 3;
+	grid-row: 1;
+}
+
+.game-castle-score-dash {
+	grid-column: 1 / 4;
+	grid-row: 2;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.game-castle-score-values {
+	display: contents;
+}
+
+.game-castle-red {
+	color: #ff5555;
+}
+
+.game-castle-blue {
+	color: #5599ff;
+}
+
+.game-castle-score-you-value,
+.game-castle-score-opponent-value {
+	font-size: 2.5vh;
+	font-weight: 800;
+}
+
+.game-castle-score-you-value {
+	grid-column: 1;
+	grid-row: 2;
+}
+
+.game-castle-score-opponent-value {
+	grid-column: 3;
+	grid-row: 2;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Cards                                                                      */
+/* -------------------------------------------------------------------------- */
 
 .game-castle-cards {
 	position: fixed;
@@ -46,7 +114,6 @@
 	pointer-events: auto;
 }
 
-/* Cards remain large enough for touch input without consuming the play field. */
 .game-castle-card {
 	min-width: 7vw;
 	min-height: 7vh;
@@ -86,6 +153,10 @@
 @media (max-aspect-ratio: 4/3) {
 	.game-castle-root {
 		font-size: 1.7vh;
+	}
+
+	.game-castle-score {
+		min-width: 22vw;
 	}
 
 	.game-castle-card {
