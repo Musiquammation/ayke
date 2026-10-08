@@ -1152,301 +1152,134 @@ export namespace platformEngine {
 	}
 
 
-	/* -------------------------------------------------------------------------- */
-	/* Animation                                                                  */
-	/* -------------------------------------------------------------------------- */
-
-	export const ANIMATOR_STATES = [
-		'idle',
-		'walking',
-		'running',
-		'turn',
-		'startJumping',
-		'jumping',
-		'falling',
-		'wall',
-		'wallJump',
-		'wallHang',
-		'land-idle',
-		'land-walking',
-		'land-running',
-	] as const;
-
-	export type AnimatorState =
-		typeof ANIMATOR_STATES[number];
-
-	export interface AnimatorFrame {
-		state: AnimatorState;
-		frame: number;
+	interface LineDescriptor {
+		delay: number;
+		count: number;
 	}
 
-	export class Animator {
-		private state:
-			AnimatorState = 'idle';
+	export type StateReturn = (
+		{type: 'loop'} |
+		{type: 'switch', state: number} |
+		{type: 'next', state: number}
+	);
 
-		private stateTime = 0;
-
-		private frameTime = 0;
-
-		private wasGrounded = true;
-
+	export abstract class Animator {
+		private state = 0;
+		private index = 0;
+		private tick;
 		private facingLeft = false;
-
-		private x = 0;
-
-		private y = 0;
 
 		constructor(
 			public readonly width: number,
 			public readonly height: number,
 			private readonly texture: string,
 			private readonly textureMode: number | null,
-			public readonly linesPerState:
-				Record<
-					AnimatorState,
-					number
-				>,
-			public readonly runningSpeed:
-				number = Infinity,
+			public readonly linesDescriptors: Record<number, LineDescriptor>,
+			public readonly runningSpeed: number = Infinity,
 		) {
+			this.tick = linesDescriptors[0].delay;
 		}
 
-		update(
+		abstract update(
 			block: Block<any, any>,
 			walker: Walker,
 			direction: Direction,
-			dt: number,
-		): void {
-			this.x =
-				block.x;
+			current: number
+		): StateReturn;
 
-			this.y =
-				block.y;
+		frame(
+			block: Block<any, any>,
+			walker: Walker,
+			direction: Direction,
+			dt: number
+		) {
+			const u = this.update(
+				block,
+				walker,
+				direction,
+				this.state
+			);
 
-			const velocity =
-				block.getVelocity();
-
-			const vx =
-				velocity?.x ?? 0;
-
-			const vy =
-				velocity?.y ?? 0;
-
-			if (vx < 0) {
-				this.facingLeft = true;
-			} else if (vx > 0) {
-				this.facingLeft = false;
-			}
-
-			const previous =
-				this.state;
-
-			const grounded =
-				walker.onFloor();
-
-			const pushingWall =
-				(
-					walker.onLeft()
-					&& direction.dir < 0
-				)
-				|| (
-					walker.onRight()
-					&& direction.dir > 0
-				);
-
-			const wasOnWall =
-				previous === 'wall'
-				|| previous === 'wallHang';
-
-			const running =
-				Math.abs(vx)
-				> this.runningSpeed;
-
-			const moving =
-				Math.abs(vx)
-				> IDLE_SPEED_EPSILON;
-
-			const inOneShot = (
-				state: AnimatorState,
-				duration: number,
-			): boolean =>
-				previous === state
-				&& this.stateTime < duration;
-
-			let next:
-				AnimatorState;
-
-			if (!grounded) {
-				if (pushingWall) {
-					next =
-						wasOnWall
-							? (
-								inOneShot(
-									'wallHang',
-									WALL_HANG_DURATION,
-								)
-									? 'wallHang'
-									: 'wall'
-							)
-							: 'wallHang';
-				} else if (vy < 0) {
-					if (
-						wasOnWall
-						|| inOneShot(
-							'wallJump',
-							WALL_JUMP_DURATION,
-						)
-					) {
-						next =
-							'wallJump';
-					} else if (
-						this.wasGrounded
-						|| inOneShot(
-							'startJumping',
-							JUMP_START_DURATION,
-						)
-					) {
-						next =
-							'startJumping';
-					} else {
-						next =
-							'jumping';
-					}
-				} else {
-					next =
-						'falling';
+			if (u.type === 'loop') {
+				this.tick -= dt;
+				if (this.tick > 0) {
+					return;
 				}
-			} else if (
-				!this.wasGrounded
-			) {
-				next =
-					running
-						? 'land-running'
-						: moving
-							? 'land-walking'
-							: 'land-idle';
-			} else if (
-				previous.startsWith('land-')
-				&& this.stateTime
-					< LANDING_DURATION
-			) {
-				next =
-					previous;
-			} else if (pushingWall) {
-				next =
-					'wall';
-			} else if (
-				direction.dir !== 0
-				&& vx * direction.dir < 0
-			) {
-				next =
-					'turn';
-			} else if (running) {
-				next =
-					'running';
-			} else if (moving) {
-				next =
-					'walking';
-			} else {
-				next =
-					'idle';
+
+				this.index++;
+				const count = this.linesDescriptors[this.state].count;
+				this.tick += this.linesDescriptors[this.state].count;
+				if (this.index < count) {
+					return;
+				}
+
+				this.index = 0;
+				return;
 			}
 
-			if (next !== previous) {
-				this.state = next;
-				this.stateTime = 0;
-				this.frameTime = 0;
-			} else {
-				this.stateTime += dt;
-				this.frameTime += dt;
+			if (u.type === 'switch') {
+				this.state = u.state;
+				this.tick = this.linesDescriptors[u.state].delay;
+				return;
 			}
 
-			this.wasGrounded =
-				grounded;
-		}
+			this.tick -= dt;
+			if (this.tick > 0) {
+				return;
+			}
 
-		getState(): AnimatorFrame {
-			const count =
-				Math.max(
-					1,
-					this.linesPerState[
-						this.state
-					],
-				);
-
-			return {
-				state: this.state,
-
-				frame:
-					Math.floor(
-						this.frameTime
-						* ANIMATION_FPS,
-					) % count,
-			};
+			this.state = u.state;
+			this.tick += this.linesDescriptors[u.state].delay;
 		}
 
 		draw(
+			block: Block<any, any>,
 			ctx: CanvasRenderingContext2D,
-			imageLoader: ImageLoaderFolder,
+			imageLoader: ImageLoaderFolder
 		): void {
-			const {
-				state,
-				frame,
-			} =
-				this.getState();
-
-			const image =
+			const image = (
 				imageLoader.get(
 					this.texture,
 					this.textureMode
 						?? undefined,
-				);
-
-			const row =
-				ANIMATOR_STATES.indexOf(
-					state,
-				);
-
-			ctx.save();
-
-			ctx.imageSmoothingEnabled =
-				false;
-
-			ctx.translate(
-				this.x,
-				this.y,
+				)
 			);
 
-			if (this.facingLeft) {
-				ctx.scale(
-					-1,
-					1,
-				);
+			const {width, height} = block.getSize();
+
+			ctx.save();
+			ctx.imageSmoothingEnabled = false;
+			ctx.translate(block.x, block.y,);
+
+			const velocity = block.getVelocity();
+			if (velocity) {
+				if (velocity.x < 0) {
+					this.facingLeft = true;
+				} else if (velocity.x > 0) {
+					this.facingLeft = false;
+				}
 			}
+			
+			if (this.facingLeft) {
+				ctx.scale(-1, 1,);
+			}
+
+
 
 			ctx.drawImage(
 				image,
 
-				0 * this.width,
-				0 * this.height,
+				this.index * this.width,
+				this.state * this.height,
 
 				this.width,
 				this.height,
 
-				-this.width / 2,
-				-this.height / 2,
+				-width / 2,
+				-height / 2,
 
-				this.width,
-				this.height,
-			);
-
-			ctx.fillStyle = "#f04";
-			ctx.fillRect(
-				-this.width / 2,
-				-this.height / 2,
-				this.width,
-				this.height,
-
+				width,
+				height,
 			);
 
 			ctx.restore();

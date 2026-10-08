@@ -6,7 +6,7 @@ import { collisions } from "../util/collisions";
 import { norm2 } from "../util/norm2";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
-import { ImageLoader } from "../util/ImageLoader";
+import { ImageLoader, ImageLoaderFolder } from "../util/ImageLoader";
 import { platformEngine } from "../util/platformEngine";
 import { GameRandomGenerator } from "../util/GameRandomGenerator";
 
@@ -100,7 +100,8 @@ const BOT_SPAWN_X = 2 * CELL;
 const BOT_SPAWN_Y = FLOOR_TOP_Y - BOT_SIZE / 2 - 2;
 const SPAWN_MIN_Y = BOT_SIZE / 2;
 const SPAWN_MAX_Y = LEVEL_HEIGHT - BOT_SIZE / 2;
-const BOT_FRAME_SIZE = 32;           // size of one sprite frame in the sheet
+const BOT_FRAME_WIDTH = 32;
+const BOT_FRAME_HEIGHT = 48;
 const BOT_RUNNING_SPEED = 100;       // speed from which the 'running' animation is used
 /** A bot that dies of the void is credited to the last element that touched it within this window. */
 const KILL_CREDIT_WINDOW = 2;
@@ -162,9 +163,6 @@ const THWOMP_PHASE_REST = 2;
 const THWOMP_PHASE_RISE = 3;
 
 // ---- Element: monster spawner + monsters ----------------------------------
-const SPAWNER_PRICE = 5;
-const SPAWNER_HP = 20;
-const SPAWNER_INTERVAL = 3;
 const MONSTER_SIZE = 30;
 const MONSTER_LIFETIME = 8;
 const MONSTER_KILL_LIFETIME_COST = 2;
@@ -207,7 +205,7 @@ const TEX_SPAWNER = 'spawner';
 const TEX_RAMP = 'ramp';
 const TEX_ARROW = 'arrow';
 const TEX_MONSTER = 'monster';
-const TEX_BOT = 'bot';
+const TEX_BOT = 'player';
 const TEX_CASTLE = 'castle';
 // Distant SVG layers. They are loaded as regular game textures and tiled only
 // horizontally inside the camera's visible range. There is deliberately no Y tiling.
@@ -1373,6 +1371,119 @@ abstract class PlacedElement extends GameBlock {
 /* BLOCK 3 - BOT BLOCK                                                        */
 /* ========================================================================== */
 
+enum BotAnimatorState {
+	IDLE,
+	WALKING,
+	RUNNING,
+	JUMPING,
+	FALLING,
+	WALL_SLIDE,
+	WALL_JUMP,
+	WALL_HANG,
+	HURT,
+};
+
+class BotAnimator extends platformEngine.Animator {
+	static readonly ANIMATION_LINES = {
+		[BotAnimatorState.IDLE] : {delay: 0.2, count: 8},
+		[BotAnimatorState.WALKING] : {delay: 0.2, count: 8},
+		[BotAnimatorState.RUNNING] : {delay: 0.2, count: 8},
+		[BotAnimatorState.JUMPING] : {delay: 0.2, count: 4},
+		[BotAnimatorState.FALLING] : {delay: 0.2, count: 4},
+		[BotAnimatorState.WALL_SLIDE] : {delay: 0.2, count: 4},
+		[BotAnimatorState.WALL_JUMP] : {delay: 0.2, count: 5},
+		[BotAnimatorState.WALL_HANG] : {delay: 0.2, count: 5},
+		[BotAnimatorState.HURT] : {delay: 0.2, count: 1},
+	};
+
+	constructor() {
+		super(
+			BOT_FRAME_WIDTH,
+			BOT_FRAME_HEIGHT,
+			TEX_BOT,
+			null,
+			BotAnimator.ANIMATION_LINES,
+			BOT_RUNNING_SPEED
+		);
+	}
+
+	update(
+		block: platformEngine.Block<any, any>,
+		walker: platformEngine.Walker,
+		direction: platformEngine.Direction,
+		current: number
+	): platformEngine.StateReturn {
+		const bot = block as Bot;
+		const S = BotAnimatorState;
+
+		if (
+			(walker.onLeft() && direction.dir < 0) ||
+			(walker.onRight() && direction.dir > 0)
+		) {
+			// On a wall
+			if (current === S.WALL_HANG) {
+				return {type: 'next', state: S.WALL_SLIDE};
+			}
+
+			if (current === S.WALL_SLIDE) {
+				return {type: 'loop'};
+			}
+
+			return {type: 'switch', state: S.WALL_HANG};
+		}
+
+		if (current === S.WALL_SLIDE && bot.velocity.y < 0) {
+			return {type: 'switch', state: S.WALL_JUMP};
+		}
+
+		if (current === S.WALL_JUMP && bot.velocity.y < 0) {
+			return {type: 'loop'};
+		}
+
+		if (!walker.onCeiling()) {
+			if (bot.velocity.y < 0) {
+				if (current === S.JUMPING) {
+					return {type: 'loop'};
+				} else {
+					return {type: 'switch', state: S.FALLING};
+				}
+			} else {
+				if (current === S.FALLING) {
+					return {type: 'loop'};
+				} else {
+					return {type: 'switch', state: S.FALLING};
+				}
+			}
+		}
+
+		const running = (Math.abs(bot.velocity.x) > 40);
+		const idle = bot.velocity.x === 0;
+
+		if (idle) {
+			return (
+				current === S.IDLE ?
+				{type: 'loop'} :
+				{type: 'switch', state: S.IDLE}
+			);
+		}
+
+		if (running) {
+			return (
+				current === S.RUNNING ?
+				{type: 'loop'} :
+				{type: 'switch', state: S.RUNNING}
+			);
+		}
+
+		return (
+			current === S.WALKING ?
+			{type: 'loop'} :
+			{type: 'switch', state: S.WALKING}
+		);
+	}
+
+}
+
 /** An enemy walking toward the castle. Dies on the first hit. */
 class Bot extends GameBlock {
 	readonly walker = new platformEngine.Walker();
@@ -1383,15 +1494,8 @@ class Bot extends GameBlock {
 		softDec: BOT_SOFT_DECELERATION,
 		hardDec: BOT_HARD_DECELERATION,
 	};
+	readonly animator = new BotAnimator();
 	readonly effects = new platformEngine.VelocityEffectHandler();
-	readonly animator = new platformEngine.Animator(
-		BOT_FRAME_SIZE,
-		BOT_FRAME_SIZE,
-		TEX_BOT,
-		null,
-		ANIMATION_LINES,
-		BOT_RUNNING_SPEED
-	);
 
 	/** Per-bot navigation cache shared with the bot controller. */
 	readonly botData = new BotData();
@@ -1402,7 +1506,6 @@ class Bot extends GameBlock {
 	lastToucher = NO_OWNER;
 	lastTouchAge = KILL_CREDIT_WINDOW + 1;
 
-	private dbgJumpT = 0;
 
 	static create(): Bot {
 		const bot = new Bot();
@@ -1456,8 +1559,6 @@ class Bot extends GameBlock {
 
 		if (input.jump) {
 			const groundJump = this.walker.onFloor() || input.grounded;
-			console.log(`[Bot#${this.uid}] JUMP requested groundJump=${groundJump} onFloor=${this.walker.onFloor()} grounded=${input.grounded} glue=${input.glueFloor} vy=${this.velocity.y}`);
-			this.dbgJumpT = 0.3;
 
 			if (groundJump) {
 				this.velocity.y = -BOT_JUMP_SPEED;
@@ -1476,11 +1577,6 @@ class Bot extends GameBlock {
 
 		if (input.glueFloor && this.walker.onLeft() && this.walker.onRight()) {
 			this.velocity.y = Math.min(this.velocity.y, BOT_WALL_SLIDE_MAX_SPEED);
-		}
-
-		if (this.dbgJumpT > 0) {
-			this.dbgJumpT -= dt;
-			console.log(`[Bot#${this.uid}] after engine y=${this.y} vy=${this.velocity.y} onFloor=${this.walker.onFloor()}`);
 		}
 	}
 
@@ -1846,9 +1942,6 @@ const ELEMENT_CLASSES: ElementClass[] = [
 /* ========================================================================== */
 
 /** All animator states use the same number of sprite-sheet lines. */
-const ANIMATION_LINES = Object.fromEntries(
-	platformEngine.ANIMATOR_STATES.map(s => [s, ANIMATION_LINES_PER_STATE])
-) as Record<platformEngine.AnimatorState, number>;
 
 
 
@@ -1860,15 +1953,11 @@ class Monster extends GameBlock {
 		dir: 0, acc: MONSTER_ACCELERATION, softDec: MONSTER_SOFT_DECELERATION, hardDec: MONSTER_HARD_DECELERATION,
 	};
 	readonly effects = new platformEngine.VelocityEffectHandler();
-	readonly animator: platformEngine.Animator;
 
 	lifetime = MONSTER_LIFETIME;
 
 	constructor(public owner: number, colorId: number) {
 		super();
-		this.animator = new platformEngine.Animator(
-			BOT_FRAME_SIZE, BOT_FRAME_SIZE, TEX_MONSTER, colorId, ANIMATION_LINES, BOT_RUNNING_SPEED
-		);
 	}
 
 	static create(owner: number, colorId: number, x: number, y: number): Monster {
@@ -1899,7 +1988,7 @@ class Monster extends GameBlock {
 	}
 
 	override processAfterEngine(_id: BlockId, dt: number, _engine: Engine): void {
-		this.animator.update(this, this.walker, this.direction, dt);
+		
 	}
 
 	/** Touching a bot kills it, at the price of some of the monster's remaining lifetime. */
@@ -1908,6 +1997,10 @@ class Monster extends GameBlock {
 			engine.getGame().killBot(other.block, this.owner);
 			this.lifetime -= MONSTER_KILL_LIFETIME_COST;
 		}
+	}
+
+	draw(ctx: CanvasRenderingContext2D, loader: ImageLoaderFolder) {
+
 	}
 
 	save(): Fields {
@@ -2921,9 +3014,12 @@ export class GMCastle extends GameMode {
 	static readonly SKINS = { 'default': "Default" };
 	static readonly SKINS_IDS = Object.keys(GMCastle.SKINS);
 
-	static readonly TEXTURES: { [k: string]: string } = Object.fromEntries(
-		TEXTURE_NAMES.map(name => [name, `${ASSET_ROOT}/${name}.${name === TEX_BOT ? "png" : "svg"}`])
-	);
+	static readonly TEXTURES: { [k: string]: string } = {
+		...Object.fromEntries(
+			TEXTURE_NAMES.map(name => [name, `${ASSET_ROOT}/${name}.${name === TEX_BOT ? "png" : "svg"}`])
+		),
+		player: `${ASSET_ROOT}/player.png`,
+	};
 
 	override init(): void {}
 
@@ -3050,8 +3146,8 @@ export class GMCastle extends GameMode {
 		for (const el of this.storage.elements.values()) {
 			el.draw(ctx, folder, this.colorIdOf(el.owner), 1);
 		}
-		for (const monster of this.storage.monsters.values()) monster.animator.draw(ctx, folder);
-		for (const bot of this.storage.bots.values()) bot.animator.draw(ctx, folder);
+		for (const monster of this.storage.monsters.values()) monster.draw(ctx, folder);
+		for (const bot of this.storage.bots.values()) bot.animator.draw(bot, ctx, folder);
 		for (const arrow of this.storage.arrows.values()) arrow.draw(ctx, folder, this.colorIdOf(arrow.owner));
 
 		this.drawDragPreview(ctx, folder, data, playerIdx);
