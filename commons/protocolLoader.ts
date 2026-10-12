@@ -149,7 +149,6 @@ export function getProtocol<const T extends readonly string[]>(
 				)
 				: {};
 
-			console.log(name, fields, additionalTypes);
 
 			if (type === 'multiplayer') {
 				loadedProtocols.set(name, {

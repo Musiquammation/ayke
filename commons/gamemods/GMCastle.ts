@@ -19,6 +19,7 @@ const PROTO_FIELDS = [
 	'ThwompData',
 	'SpawnerData',
 	'RampData',
+	'FloorBlockData',
 ] as const;
 
 const protocols = getProtocol('castle', 'multiplayer', PROTO_FIELDS);
@@ -46,6 +47,8 @@ const LEVEL_HEIGHT = LEVEL_ROWS * CELL;
 /** First row of the neutral floor (the floor is FLOOR_ROWS cells thick). */
 const FLOOR_ROWS = 2;
 const FLOOR_ROW = LEVEL_ROWS - FLOOR_ROWS;
+const FLOOR_WIDTH = LEVEL_WIDTH;
+const FLOOR_HEIGHT = FLOOR_ROWS * CELL;
 const FLOOR_TOP_Y = FLOOR_ROW * CELL;
 
 /** Players may only build in columns [BUILD_MIN_COL, BUILD_MAX_COL). */
@@ -70,7 +73,6 @@ const VOID_Y = LEVEL_HEIGHT + CELL * 3;
 const CASTLE_HP = 100;
 const MATCH_DURATION = 300;          // 5 minutes
 const TIMER_VISIBLE_SECONDS = 60;    // the clock is only displayed during the last minute
-const NEUTRAL_BLOCK_LIFETIME = Infinity;
 const NO_OWNER = -1;
 const GRAVITY = 1500;
 
@@ -113,8 +115,8 @@ const WAVE_FIRST_DELAY = 0.1;
 const WAVE_INTERVAL = 2;
 const WAVE_BASE_SIZE = 3;
 const WAVE_SIZE_GROWTH = 1;
-const WAVE_MAX_SIZE = 14;
-const BOT_SPAWN_INTERVAL = 0.6;
+const WAVE_MAX_SIZE = 5;
+const BOT_SPAWN_INTERVAL = 0.2;
 
 // ---- Element: block --------------------------------------------------------
 const BLOCK_PRICE = 0.5;
@@ -479,40 +481,39 @@ function drawDamageOverlay(
 }
 
 /* ========================================================================== */
-/* BOTS API - navigation des bots vers le château                             */
+/* BOTS API - bot navigation toward the castle                               */
 /* ========================================================================== */
 /*
- * Principe
- * --------
- * 1. La grille est relue (elementAtCell) uniquement quand la carte change.
- * 2. Noeuds du graphe :
- *      - FloorNode : un Segment horizontal sur lequel le bot peut marcher
- *                    (xmin / xmax = extrémités du centre du bot, déjà rognées
- *                    par les murs / pointes voisins).
- *      - WallNode  : le bot collé à un mur (côté, colonne, tranche de 10 px).
- * 3. Arêtes, calculées par simulation (Courb + collisions AABB sur la grille) :
- *      - drop     : le bot tombe par le bout d'un floor,
- *      - jump     : saut depuis le floor (2 courbes : montée + descente),
- *      - slide    : glissement le long d'un mur,
- *      - letgo    : on lâche le mur,
- *      - wallJump : saut depuis le mur (2 courbes aussi).
- *    Une simulation s'arrête dès que le bot touche un floor (-> FloorNode),
- *    touche un mur (-> WallNode), touche le château (-> but) ou meurt.
- * 4. Un Dijkstra INVERSE depuis le château donne, pour chaque noeud, la
- *    prochaine arête à prendre. Il est partagé par tous les bots, donc le coût
- *    par bot et par frame est O(1).
+ * Principle
+ * ---------
+ * 1. The grid is read through elementAtCell only when the map changes.
+ * 2. Graph nodes:
+ *      - FloorNode: a horizontal segment on which the bot can walk
+ *                   (xmin / xmax are the bot-center limits, already trimmed
+ *                   by neighbouring walls / spikes).
+ *      - WallNode: the bot attached to a wall (side, column, 10 px bucket).
+ * 3. Edges are computed by simulation (Courb + AABB collisions on the grid):
+ *      - drop: the bot walks off the end of a floor and falls,
+ *      - jump: jump from the floor (two curves: rising + falling),
+ *      - slide: slide along a wall,
+ *      - letgo: release the wall,
+ *      - wallJump: jump from the wall (also two curves).
+ *    A simulation stops as soon as the bot touches a floor (-> FloorNode),
+ *    touches a wall (-> WallNode), touches the castle (-> goal), or dies.
+ * 4. An inverse Dijkstra from the castle gives the next edge for every node.
+ *    It is shared by all bots, so the per-bot, per-frame cost is O(1).
  */
 namespace botsApi {
 	/* ---------------------------------------------------------------------- */
-	/* Réglages                                                                */
+	/* Settings                                                                */
 	/* ---------------------------------------------------------------------- */
 
-	/** true : les pointes sont des obstacles mortels que les bots évitent. */
+	/** true: spikes are deadly obstacles that bots avoid. */
 	const AVOID_SPIKES = true;
 
-	/** Mettre à false pour couper tous les logs. */
-	const DEBUG = true;
-	/** Intervalle (s) entre deux logs d'état d'un même bot (en plus des logs à chaque changement de décision). */
+	/** Set to false to disable all logs. */
+	const DEBUG = false;
+	/** Seconds between state logs for one bot, in addition to decision-change logs. */
 	const LOG_INTERVAL = 0.5;
 	const r1 = (v: number) => Math.round(v * 10) / 10;
 
@@ -520,24 +521,24 @@ namespace botsApi {
 	const EPS = 1e-4;
 	const SIM_DT = 1 / 120;
 	const SIM_MAX_TIME = 3;
-	/** Pas d'échantillonnage des points de départ de saut sur un floor (px). */
+	/** Sampling step for jump takeoff points on a floor (px). */
 	const TAKEOFF_STEP = 10;
-	/** Hauteur d'une tranche de mur (px). */
+	/** Height of one wall bucket (px). */
 	const BUCKET = 10;
 	const BUCKETS = Math.ceil(LEVEL_HEIGHT / BUCKET);
-	/** Pénalité (en secondes équivalentes) par saut / chute : préfère les chemins simples. */
+	/** Equivalent-time penalty per jump / drop: prefers simpler paths. */
 	const HOP_COST = 0.3;
 	const SLIDE_TIME = 0.06;
-	/** Le bot est considéré « au sol » s'il est à moins de GROUND_TOL px d'un floor et presque immobile en y. */
+	/** The bot is considered grounded when it is within GROUND_TOL px of a floor and nearly stationary vertically. */
 	const GROUND_TOL = 4;
 	const GROUND_VY = 30;
-	/** Dépassement max (px) du point de départ d'un saut qui est encore toléré. */
+	/** Maximum tolerated overshoot (px) beyond a jump takeoff point. */
 	const TAKEOFF_OVERSHOOT = 8;
-	/** Vitesse horizontale moyenne pendant la montée d'un saut mural (kick -> vitesse de course). */
+	/** Average horizontal speed during the rising phase of a wall jump (kick -> run speed). */
 	const WALL_JUMP_VX = (BOT_WALL_JUMP_KICK + BOT_RUN_SPEED) / 2;
 	const WALL_JUMP_COOLDOWN = 1 / BOT_WALL_JUMP_MAX_REPEAT_PER_SECOND;
 
-	// Classes de cellules
+	// Cell classes
 	const FREE = 0;
 	const SOLID = 1;          // solide sur lequel on peut se poser
 	const SOLID_NO_STAND = 2; // solide mais on ne s'y pose pas (trampoline, rampe, bords du niveau)
@@ -547,10 +548,10 @@ namespace botsApi {
 	const sgn = (v: number): Dir => (v > 0 ? 1 : v < 0 ? -1 : 0);
 
 	/* ---------------------------------------------------------------------- */
-	/* Géométrie                                                               */
+	/* Geometry                                                               */
 	/* ---------------------------------------------------------------------- */
 
-	/** Segment (floor ou mur). xmin / xmax sont les bornes calculées après intersection avec les blocs. */
+	/** Segment (floor or wall). xmin / xmax are bounds after intersection with blocks. */
 	export class Segment {
 		constructor(
 			readonly x0: number,
@@ -562,7 +563,7 @@ namespace botsApi {
 		get xmax() { return Math.max(this.x0, this.x1); }
 	}
 
-	/** Parabole : x(t) = x + vx t ; y(t) = y + vy t + g t^2 / 2 (y vers le bas). */
+	/** Parabola: x(t) = x + vx t; y(t) = y + vy t + g t^2 / 2 (y increases downward). */
 	export class Courb {
 		constructor(
 			readonly x: number,
@@ -578,7 +579,7 @@ namespace botsApi {
 		}
 	}
 
-	/** Courbes idéales (sans collision) d'un saut : montée + descente. */
+	/** Ideal collision-free jump curves: rising + falling. */
 	function jumpCurves(x: number, y: number, vxUp: number, vxDown: number, vy0: number): Courb[] {
 		const up = new Courb(x, y, { x: vxUp, y: vy0 }, GRAVITY);
 		const apex = up.at(Math.max(0, -vy0 / GRAVITY));
@@ -586,7 +587,7 @@ namespace botsApi {
 	}
 
 	/* ---------------------------------------------------------------------- */
-	/* Graphe                                                                  */
+	/* Graph                                                                  */
 	/* ---------------------------------------------------------------------- */
 
 	type EdgeKind = 'walk' | 'drop' | 'jump' | 'slide' | 'letgo' | 'wallJump';
@@ -594,15 +595,15 @@ namespace botsApi {
 	interface Edge {
 		to: number;
 		kind: EdgeKind;
-		/** Floor : x (centre du bot) où déclencher le saut / la chute. */
+		/** Floor: bot-center x at which to trigger a jump / drop. */
 		takeoffX: number;
-		/** Direction pendant la montée (ou la chute) et pendant la descente. */
+		/** Direction during the rising (or dropping) phase and during the falling phase. */
 		dirUp: Dir;
 		dirDown: Dir;
-		/** Durée de vol simulée (s) et coût utilisé par Dijkstra. */
+		/** Simulated flight time (s) and Dijkstra cost. */
 		time: number;
 		cost: number;
-		/** Courbes idéales, pour debug / affichage. */
+		/** Ideal curves, used for debugging / display. */
 		curves: Courb[];
 	}
 
@@ -622,7 +623,7 @@ namespace botsApi {
 	interface WallNode {
 		kind: 'wall';
 		id: number;
-		side: -1 | 1; // côté où se trouve le mur
+		side: -1 | 1; // wall side
 		col: number;
 		bucket: number;
 		x: number;
@@ -654,7 +655,7 @@ namespace botsApi {
 		readonly floorsByRow: FloorNode[][] = Array.from({ length: LEVEL_ROWS }, () => []);
 		readonly wallIds = new Map<number, number>();
 		goalId = 0;
-		/** next[node] = arête à suivre pour rejoindre le château (null = aucun chemin). */
+		/** next[node] = edge to follow to reach the castle (null = no path). */
 		next: (Edge | null)[] = [];
 
 		constructor(game: GMCastle, readonly version: number) {
@@ -689,7 +690,7 @@ namespace botsApi {
 			}
 		}
 
-		/* ------------------------------ grille ------------------------------ */
+		/* ------------------------------ grid -------------------------------- */
 
 		cell(c: number, r: number): number {
 			if (c < 0 || c >= LEVEL_COLS) return SOLID_NO_STAND; // bords du niveau = murs
@@ -697,7 +698,7 @@ namespace botsApi {
 			return this.grid[r * LEVEL_COLS + c];
 		}
 
-		/** Masque des cellules touchées par l'AABB du bot : 1 = solide, 2 = mortel, 4 = solide sur lequel se poser. */
+		/** Mask of cells touched by the bot AABB: 1 = solid, 2 = deadly, 4 = standable solid. */
 		private probe(x: number, y: number, inflate = 0): number {
 			const c0 = Math.floor((x - H - inflate) / CELL);
 			const c1 = Math.ceil((x + H + inflate) / CELL) - 1;
@@ -718,7 +719,7 @@ namespace botsApi {
 			return mask;
 		}
 
-		/** Floor sous le bot posé à (x, y) : -1 si aucun. */
+		/** Floor below the bot at (x, y): -1 if none. */
 		floorAt(row: number, x: number, tol = 0): FloorNode | null {
 			for (const n of this.floorsByRow[row] ?? []) {
 				if (x >= n.xl - tol && x <= n.xr + tol) return n;
@@ -731,7 +732,7 @@ namespace botsApi {
 			return id === undefined ? null : (this.nodes[id] as WallNode);
 		}
 
-		/* ------------------------------ noeuds ------------------------------ */
+		/* ------------------------------ nodes -------------------------------- */
 
 		private canStand(c: number, r: number): boolean {
 			return this.cell(c, r) === FREE && this.cell(c, r + 1) === SOLID;
@@ -749,7 +750,7 @@ namespace botsApi {
 			}
 		}
 
-		/** Un Segment sur tout le floor : bornes xmin / xmax = intersection avec les blocs voisins. */
+		/** One segment across the whole floor: xmin / xmax are trimmed against neighbouring blocks. */
 		private addFloor(r: number, c0: number, c1: number) {
 			const left = this.cell(c0 - 1, r);
 			const right = this.cell(c1 + 1, r);
@@ -766,7 +767,7 @@ namespace botsApi {
 			this.floorsByRow[r].push(node);
 		}
 
-		/** Un noeud mur pour chaque (côté, colonne, tranche de 10 px) où le bot peut être collé à un mur. */
+		/** One wall node for each (side, column, 10 px bucket) where the bot can attach to a wall. */
 		private buildWalls() {
 			for (let col = 0; col < LEVEL_COLS; col++) {
 				for (const side of [-1, 1] as const) {
@@ -797,8 +798,8 @@ namespace botsApi {
 		/* ----------------------------- simulation --------------------------- */
 
 		/**
-		 * Vol du bot : vx = vxUp tant que vy < 0, vxDown ensuite (le bot peut changer de direction en l'air).
-		 * originSide : mur dont on part (son contact ne compte pas tant qu'on ne l'a pas quitté).
+		 * Bot flight: vx = vxUp while vy < 0, then vxDown (the bot may change direction in mid-air).
+		 * originSide: the wall the bot starts from; its contact is ignored until it has been left.
 		 */
 		private simulate(
 			x0: number, y0: number, vxUp: number, vxDown: number, vy0: number, originSide: number,
@@ -872,7 +873,7 @@ namespace botsApi {
 			return { type: 'fail' };
 		}
 
-		/** Ajoute l'arête issue d'une simulation (une seule arête, la moins chère, par couple from -> to). */
+		/** Adds the edge produced by a simulation (only the cheapest edge per from -> to pair). */
 		private link(
 			from: NavNode, res: SimResult,
 			e: { kind: EdgeKind; takeoffX: number; dirUp: Dir; dirDown: Dir; curves: Courb[] },
@@ -890,12 +891,12 @@ namespace botsApi {
 			if (old >= 0) from.edges[old] = edge; else from.edges.push(edge);
 		}
 
-		/* ------------------------------ arêtes ------------------------------ */
+		/* ------------------------------ edges -------------------------------- */
 
 		private floorEdges(n: FloorNode) {
 			const castle = CASTLE_RECT;
 
-			// Le floor touche le château : on n'a plus qu'à marcher dessus.
+			// The floor touches the castle, so the bot only needs to walk across it.
 			if (
 				n.xl < castle.x + castle.w / 2 + H && n.xr > castle.x - castle.w / 2 - H &&
 				n.y < castle.y + castle.h / 2 + H && n.y > castle.y - castle.h / 2 - H
@@ -906,7 +907,7 @@ namespace botsApi {
 				});
 			}
 
-			// Chute par un bout : le bot continue tout droit puis tombe (Courb).
+			// Drop from an open end: the bot keeps walking and then falls (Courb).
 			const y0 = n.y - EPS;
 			if (n.leftOpen) {
 				const x = n.xl - 1;
@@ -925,7 +926,7 @@ namespace botsApi {
 				});
 			}
 
-			// Tous les sauts possibles (nouvelle branche du BFS) : montée + descente.
+			// Try all jump options (new BFS branch): rising + falling.
 			const vy0 = -BOT_JUMP_SPEED;
 			for (let x = n.xl; ; x += TAKEOFF_STEP) {
 				if (x > n.xr) x = n.xr;
@@ -945,7 +946,7 @@ namespace botsApi {
 		private wallEdges(n: WallNode) {
 			const away = -n.side;
 
-			// Se laisser glisser le long du mur, puis tomber à la fin du mur.
+			// Slide along the wall, then drop when the wall ends.
 			const below = this.wallAt(n.side, n.col, n.bucket + 1);
 			if (below) {
 				n.edges.push({
@@ -960,14 +961,14 @@ namespace botsApi {
 				});
 			}
 
-			// Lâcher le mur.
+			// Release the wall.
 			const out = away * BOT_RUN_SPEED;
 			this.link(n, this.simulate(n.x, n.y, out, out, 0, n.side), {
 				kind: 'letgo', takeoffX: n.x, dirUp: away as Dir, dirDown: away as Dir,
 				curves: [new Courb(n.x, n.y, { x: out, y: 0 }, GRAVITY)],
 			});
 
-			// Sauts depuis le mur : kick à l'opposé du mur, puis on s'éloigne / on revient / on tombe droit.
+			// Wall jumps: kick away from the wall, then move away / return / fall straight.
 			const vy0 = -BOT_JUMP_SPEED;
 			const kick = away * WALL_JUMP_VX;
 			for (const down of [away * BOT_RUN_SPEED, 0, n.side * BOT_RUN_SPEED]) {
@@ -980,7 +981,7 @@ namespace botsApi {
 
 		/* ------------------------------ Dijkstra ----------------------------- */
 
-		/** Dijkstra inverse depuis le château : une seule fois par version de la carte. */
+		/** Inverse Dijkstra from the castle: computed once per map version. */
 		private solve() {
 			const N = this.nodes.length + 1;
 			const dist = new Float64Array(N).fill(Infinity);
@@ -1005,17 +1006,16 @@ namespace botsApi {
 	}
 
 	/* ---------------------------------------------------------------------- */
-	/* Cache : un graphe par partie, recalculé uniquement si la carte change    */
+	/* Cache: one graph per match, recomputed only when the map changes         */
 	/* ---------------------------------------------------------------------- */
 
 	const navCache = new WeakMap<object, NavMap>();
 
 	/**
-	 * Version de la carte.
-	 * NB : mapModificationCount ne bouge que pour les poses / retraits des joueurs. Or les éléments
-	 * qui expirent (hp <= 0, sol neutre) sortent via removeEntity, qui n'incrémente que
-	 * navigationRevision. On utilise donc getNavigationRevision() (même rôle, plus fiable).
-	 * Pour coller strictement à la demande : `return game.mapModificationCount;`
+	 * Map version.
+	 * NOTE: mapModificationCount changes only for player placements/removals, while
+	 * expired elements (hp <= 0) are removed through removeEntity and only increment
+	 * navigationRevision. Therefore getNavigationRevision() is the more reliable source.
 	 */
 	function mapVersion(game: GMCastle): number {
 		return game.getNavigationRevision();
@@ -1032,47 +1032,86 @@ namespace botsApi {
 	}
 
 	/* ---------------------------------------------------------------------- */
-	/* Données par bot (transitoires, jamais sérialisées)                       */
+	/* Per-bot data                                                            */
 	/* ---------------------------------------------------------------------- */
 
+	type BotEdgeState = Pick<Edge, 'kind' | 'takeoffX' | 'dirUp' | 'dirDown'>;
+	const NAV_EDGE_PREFIX = 'nav1:';
+	const EDGE_KINDS: readonly EdgeKind[] = ['walk', 'drop', 'jump', 'slide', 'letgo', 'wallJump'];
+
+	function encodeEdge(edge: BotEdgeState | null): string {
+		if (!edge) return '';
+		// BotState.lastKey is an existing protobuf string field. Store the active
+		// steering intent there so a save/load in mid-air cannot discard the route.
+		return NAV_EDGE_PREFIX + JSON.stringify({
+			kind: edge.kind,
+			takeoffX: edge.takeoffX,
+			dirUp: edge.dirUp,
+			dirDown: edge.dirDown,
+		});
+	}
+
+	function decodeEdge(value: unknown): BotEdgeState | null {
+		if (typeof value !== 'string' || !value.startsWith(NAV_EDGE_PREFIX)) return null;
+		try {
+			const parsed = JSON.parse(value.slice(NAV_EDGE_PREFIX.length)) as Partial<BotEdgeState>;
+			if (
+				typeof parsed.kind !== 'string' || !EDGE_KINDS.includes(parsed.kind as EdgeKind) ||
+				typeof parsed.takeoffX !== 'number' || !Number.isFinite(parsed.takeoffX) ||
+				(parsed.dirUp !== -1 && parsed.dirUp !== 0 && parsed.dirUp !== 1) ||
+				(parsed.dirDown !== -1 && parsed.dirDown !== 0 && parsed.dirDown !== 1)
+			) return null;
+			return {
+				kind: parsed.kind as EdgeKind,
+				takeoffX: parsed.takeoffX,
+				dirUp: parsed.dirUp,
+				dirDown: parsed.dirDown,
+			};
+		} catch {
+			return null;
+		}
+	}
+
 	export class Data {
-		/** Arête en cours d'exécution (sert à piloter la direction en l'air). */
-		edge: Edge | null = null;
+		/** Active navigation edge; essential while a bot is airborne. */
+		edge: BotEdgeState | null = null;
 		jumpCooldown = 0;
 		logTimer = 0;
-		lastKey = '';
+		/** Debug-only decision key; deliberately not part of authoritative state. */
+		debugKey = '';
 
 		save(): Fields {
 			return {
 				jumpCooldown: this.jumpCooldown,
 				logTimer: this.logTimer,
-				lastKey: this.lastKey,
+				lastKey: encodeEdge(this.edge),
 			};
 		}
 
 		load(obj: Fields) {
-			this.jumpCooldown = obj.jumpCooldown;
-			this.logTimer = obj.logTimer;
-			this.lastKey = obj.lastKey;
+			this.jumpCooldown = Number.isFinite(obj.jumpCooldown) ? obj.jumpCooldown : 0;
+			this.logTimer = Number.isFinite(obj.logTimer) ? obj.logTimer : 0;
+			this.edge = decodeEdge(obj.lastKey);
+			this.debugKey = '';
 		}
 	}
 
 	export interface BotInput {
-		/** Direction horizontale voulue : -1 gauche, 0 rien, 1 droite. */
+		/** Desired horizontal direction: -1 left, 0 neutral, 1 right. */
 		dir: Dir;
 		jump: boolean;
 		glueFloor: boolean;
-		/** Le contrôleur considère le bot au sol (walker.onFloor() n'est pas fiable) : le Bot doit autoriser le saut. */
+		/** Controller-side grounded state; walker.onFloor() is not always reliable, so Bot must allow jumping. */
 		grounded: boolean;
 	}
 
-	/** Pas de chemin / bot hors graphe : on fonce vers le château et on saute devant un mur. */
+	/** No path / bot outside the graph: run toward the castle and jump in front of a wall. */
 	function fallback(bot: Bot, grounded: boolean): Omit<BotInput, 'grounded'> {
 		return { dir: 1, jump: grounded && bot.walker.onRight(), glueFloor: false };
 	}
 
 	/* ---------------------------------------------------------------------- */
-	/* Contrôleur                                                              */
+	/* Controller                                                              */
 	/* ---------------------------------------------------------------------- */
 
 	interface Trace { why: string; gap: number }
@@ -1093,10 +1132,10 @@ namespace botsApi {
 
 		if (DEBUG) {
 			const key = `${trace.why}|${input.dir}|${input.jump}`;
-			if (key !== data.lastKey || data.logTimer <= 0) {
+			if (key !== data.debugKey || data.logTimer <= 0) {
 				const w = bot.walker;
 				const e = data.edge;
-				data.lastKey = key;
+				data.debugKey = key;
 				data.logTimer = LOG_INTERVAL;
 			}
 		}
@@ -1107,7 +1146,7 @@ namespace botsApi {
 		const data = bot.botData;
 		const walker = bot.walker;
 
-		// walker.onFloor() ne suffit pas (le bot peut flotter à ~2 px du sol) : on regarde aussi la géométrie.
+		// walker.onFloor() is not sufficient because the bot can float ~2 px above the floor; also inspect the geometry.
 		const row = Math.floor(bot.y / CELL);
 		const node = nav.floorAt(row, bot.x, 2);
 		trace.gap = node ? node.y - bot.y : NaN;
@@ -1119,7 +1158,7 @@ namespace botsApi {
 			return { ...input, grounded };
 		};
 
-		/* ---- au sol : on suit l'arête du floor courant ---- */
+		/* ---- grounded: follow the current floor edge ---- */
 		if (grounded) {
 			if (!node) {
 				data.edge = null;
@@ -1137,10 +1176,10 @@ namespace botsApi {
 				return out(`GROUND floor#${node.id} walk to the ${edge.dirUp > 0 ? 'right' : 'left'} end and drop`, { dir: edge.dirUp, jump: false, glueFloor: false });
 			}
 
-			// jump : rejoindre le point de départ, puis sauter
+			// jump: move to the takeoff point, then jump
 			const dx = edge.takeoffX - bot.x;
 			const s = edge.dirUp;
-			const past = s * (bot.x - edge.takeoffX); // > 0 : on a dépassé le point de départ dans le sens du saut
+			const past = s * (bot.x - edge.takeoffX); // > 0: the bot has passed the takeoff point in the jump direction
 			const blockedAhead = s > 0 ? walker.onRight() : s < 0 ? walker.onLeft() : false;
 
 			if (Math.abs(dx) <= Math.max(2, BOT_RUN_SPEED * dt)) {
@@ -1153,7 +1192,7 @@ namespace botsApi {
 			return out(`GROUND floor#${node.id} going to takeoff x=${r1(edge.takeoffX)} (dx=${r1(dx)})`, { dir: sgn(dx), jump: false, glueFloor: false });
 		}
 
-		/* ---- collé à un mur (en l'air) : sauter, lâcher, ou glisser ---- */
+		/* ---- attached to a wall (mid-air): jump, release, or slide ---- */
 		const onLeft = walker.onLeft();
 		const onRight = walker.onRight();
 		if (onLeft || onRight) {
@@ -1176,7 +1215,7 @@ namespace botsApi {
 				{ dir: side, jump: false, glueFloor: false });
 		}
 
-		/* ---- en l'air : on applique les directions de l'arête (montée puis descente) ---- */
+		/* ---- mid-air: apply the edge directions (rising then falling) ---- */
 		const e = data.edge;
 		if (e) {
 			const up = bot.velocity.y < 0;
@@ -1319,7 +1358,7 @@ abstract class PlacedElement extends GameBlock {
 	abstract getTypeIdx(): number;
 
 	getMaxHp(): number {
-		return this.owner === NO_OWNER ? NEUTRAL_BLOCK_LIFETIME : this.getSpec().maxHp;
+		return this.getSpec().maxHp;
 	}
 
 	override getSize(): Size {
@@ -1366,13 +1405,16 @@ abstract class PlacedElement extends GameBlock {
 		drawTexture(ctx, folder, spec.texture, colorId, this.x, this.y, size.width, size.height, spec.fallbackColor);
 	}
 
-	/** Draws the element and its wear effect. */
+	/** Draws the element and its wear effect when it has a finite lifetime. */
 	draw(ctx: CanvasRenderingContext2D, folder: Folder, colorId: number | undefined, alpha: number) {
 		ctx.save();
 		ctx.globalAlpha = alpha;
 		this.drawBody(ctx, folder, colorId);
 		const size = this.getSize();
-		drawDamageOverlay(ctx, this.x, this.y, size.width, size.height, this.hp / this.getMaxHp(), this.uid);
+		const maxHp = this.getMaxHp();
+		if (Number.isFinite(maxHp)) {
+			drawDamageOverlay(ctx, this.x, this.y, size.width, size.height, this.hp / maxHp, this.uid);
+		}
 		ctx.restore();
 	}
 }
@@ -1572,7 +1614,9 @@ class Bot extends GameBlock {
 		this.lastTouchAge = Math.min(this.lastTouchAge + dt, KILL_CREDIT_WINDOW + 1);
 
 		const input = getBotInput(engine, this, dt);
-		if (input.dir !== 0) this.direction.dir = input.dir * BOT_RUN_SPEED;
+		// A neutral input is meaningful: it must decelerate instead of leaving
+		// the previous target velocity active forever.
+		this.direction.dir = input.dir * BOT_RUN_SPEED;
 
 		this.velocity.y += GRAVITY * dt;
 
@@ -1638,11 +1682,12 @@ class Bot extends GameBlock {
 		this.velocity.y = obj.vy;
 		this.lastToucher = obj.lastToucher;
 		this.lastTouchAge = obj.lastTouchAge;
-
-		/*
-		 * Navigation is derived from the current level.
-		 * It is intentionally not serialized as part of the game state.
-		 */
+		// The presence of this bot in an authoritative snapshot means it is alive.
+		// Contacts are recomputed by the next physics step, not serialized.
+		this.dead = false;
+		this.isOnTrampoline = false;
+		this.walker.clear();
+		this.direction.dir = 0;
 		this.botData.load(obj);
 	}
 }
@@ -1659,6 +1704,81 @@ class BlockElement extends PlacedElement {
 
 	getSpec() { return BlockElement.SPEC; }
 	getTypeIdx() { return TYPE_BLOCK; }
+}
+
+/* ------------------------------- floor block ------------------------------ */
+
+/**
+ * Static level floor represented by one engine block instead of one BlockElement per cell.
+ * It has no lifetime and draws the BlockElement texture tiled at the normal cell size.
+ * Its geometry is fixed by the level constants, so its protobuf payload is empty.
+ */
+class FloorBlockElement extends PlacedElement {
+	static readonly SPEC: ElementSpec = {
+		id: 'floor', label: 'Floor', texture: TEX_BLOCK, price: 0,
+		maxHp: Infinity, cols: LEVEL_COLS, rows: FLOOR_ROWS, fallbackColor: '#8d6e63',
+	};
+	static readonly DATA_MESSAGE = 'FloorBlockData';
+
+	static create(_init: ElementInit) {
+		return initElement(new FloorBlockElement(), {
+			col: 0,
+			row: FLOOR_ROW,
+			owner: NO_OWNER,
+			variant: 0,
+		});
+	}
+
+	getSpec() { return FloorBlockElement.SPEC; }
+	getTypeIdx() { return TYPE_FLOOR; }
+
+	override snapToCell() {
+		this.col = 0;
+		this.row = FLOOR_ROW;
+		this.x = FLOOR_WIDTH / 2;
+		this.y = FLOOR_TOP_Y + FLOOR_HEIGHT / 2;
+	}
+
+	override processBeforeEngine(_id: BlockId, dt: number, engine: Engine): void {
+		this.tick(dt, engine);
+	}
+
+	override save(): Fields {
+		return {};
+	}
+
+	override load(_obj: Fields) {
+		this.owner = NO_OWNER;
+		this.variant = 0;
+		this.hp = Infinity;
+		this.snapToCell();
+	}
+
+	protected override drawBody(
+		ctx: CanvasRenderingContext2D,
+		folder: Folder,
+		_colorId: number | undefined,
+	) {
+		const size = this.getSize();
+		const left = this.x - size.width / 2;
+		const top = this.y - size.height / 2;
+
+		for (let y = top + CELL / 2; y < top + size.height; y += CELL) {
+			for (let x = left + CELL / 2; x < left + size.width; x += CELL) {
+				drawTexture(
+					ctx,
+					folder,
+					BlockElement.SPEC.texture,
+					undefined,
+					x,
+					y,
+					CELL,
+					CELL,
+					BlockElement.SPEC.fallbackColor,
+				);
+			}
+		}
+	}
 }
 
 /* --------------------------------- spike --------------------------------- */
@@ -1955,11 +2075,15 @@ const TYPE_ARCHER = 3;
 const TYPE_FIREBAR = 4;
 const TYPE_THWOMP = 5;
 const TYPE_RAMP = 6;
+const TYPE_FLOOR = 7;
 
-/** Index in this array == typeIdx sent over the network. */
+/**
+ * Index in this array == typeIdx sent over the network.
+ * The first seven entries are player-selectable; the floor is state-only.
+ */
 const ELEMENT_CLASSES: ElementClass[] = [
 	BlockElement, SpikeElement, TrampolineElement, ArcherTowerElement,
-	FireBarElement, ThwompElement, RampElement,
+	FireBarElement, ThwompElement, RampElement, FloorBlockElement,
 ];
 
 /* ========================================================================== */
@@ -2041,6 +2165,9 @@ class Monster extends GameBlock {
 		this.velocity.x = obj.vx;
 		this.velocity.y = obj.vy;
 		this.lifetime = obj.lifetime;
+		this.owner = obj.owner;
+		this.walker.clear();
+		this.direction.dir = 0;
 	}
 }
 
@@ -2099,6 +2226,9 @@ class Arrow extends GameBlock {
 		this.forced.x = obj.vx;
 		this.forced.y = obj.vy;
 		this.life = obj.life;
+		this.owner = obj.owner;
+		// An arrow present in a snapshot has not yet been consumed authoritatively.
+		this.consumed = false;
 	}
 
 	draw(ctx: CanvasRenderingContext2D, folder: Folder, colorId: number | undefined) {
@@ -2781,23 +2911,20 @@ export class GMCastle extends GameMode {
 			isClient, this.storage, this, { x: 0, y: GRAVITY }
 		);
 
-		if (this.pendingState) {
+		if (this.pendingState?.byteLength) {
 			this.applyState(this.pendingState);
 			this.pendingState = null;
 		} else {
+			this.pendingState = null;
 			this.buildInitialLevel();
 		}
 	}
 
-	/** Neutral, unbreakable-by-players floor that disappears after one minute. */
+	/** Creates the fixed, unbreakable floor as one large physics element. */
 	private buildInitialLevel() {
-		for (let col = 0; col < LEVEL_COLS; col++) {
-			for (let r = 0; r < FLOOR_ROWS; r++) {
-				this.registerElement(
-					BlockElement.create({ col, row: FLOOR_ROW + r, owner: NO_OWNER, variant: 0 })
-				);
-			}
-		}
+		this.registerElement(
+			FloorBlockElement.create({ col: 0, row: FLOOR_ROW, owner: NO_OWNER, variant: 0 }),
+		);
 	}
 
 	/* --------------------------- entity bookkeeping -------------------------- */
@@ -2812,15 +2939,19 @@ export class GMCastle extends GameMode {
 		return block;
 	}
 
-	private registerElement(el: PlacedElement, uid: number | null = null) {
-		this.register(el, 'element', this.storage.elements, uid);
-		this.navigationRevision++;
+	private indexElement(el: PlacedElement) {
 		const spec = el.getSpec();
 		for (let r = 0; r < spec.rows; r++) {
 			for (let c = 0; c < spec.cols; c++) {
 				this.cellOwner.set(cellKey(el.col + c, el.row + r), el.uid);
 			}
 		}
+	}
+
+	private registerElement(el: PlacedElement, uid: number | null = null) {
+		this.register(el, 'element', this.storage.elements, uid);
+		this.navigationRevision++;
+		this.indexElement(el);
 		return el;
 	}
 
@@ -2851,11 +2982,6 @@ export class GMCastle extends GameMode {
 		}
 	}
 
-	private clearWorld() {
-		for (const uid of [...this.entities.keys()]) this.removeEntity(uid);
-		this.cellOwner.clear();
-	}
-
 	/* ----------------- API used by the blocks (deferred actions) ------------- */
 
 	queueRemoval(uid: number) { this.removalQueue.push(uid); }
@@ -2867,7 +2993,6 @@ export class GMCastle extends GameMode {
 	queueMonster(owner: number, x: number, y: number) {
 		const safeX = clamp(x, MONSTER_SIZE / 2, LEVEL_WIDTH - MONSTER_SIZE / 2);
 		const safeY = clamp(y, SPAWN_MIN_Y, SPAWN_MAX_Y);
-		console.log('[CastleDefense] Monster spawn queued', { owner, x, y, safeX, safeY });
 		this.monsterQueue.push({ owner, x: safeX, y: safeY });
 	}
 
@@ -2924,7 +3049,9 @@ export class GMCastle extends GameMode {
 	 * Replacing an opponent's element costs the price PLUS the removal cost.
 	 */
 	checkPlacement(playerIdx: number, typeIdx: number, col: number, row: number): PlacementCheck {
-		const def = ELEMENT_CLASSES[typeIdx];
+		const def = typeIdx >= 0 && typeIdx < ELEMENT_TYPE_COUNT
+			? ELEMENT_CLASSES[typeIdx]
+			: undefined;
 		const player = this.players[playerIdx];
 		if (!def || !player) return { status: 'invalid', cost: 0, replaceUid: null };
 
@@ -2999,7 +3126,7 @@ export class GMCastle extends GameMode {
 	private runWaves(dt: number) {
 		this.waveTimer -= dt;
 		while (this.waveTimer <= 0) {
-			const waveSize = Math.min(WAVE_MAX_SIZE, WAVE_BASE_SIZE + this.waveIndex * WAVE_SIZE_GROWTH);
+			const waveSize = WAVE_MAX_SIZE;
 			this.spawnQueue += waveSize;
 			this.waveIndex++;
 			this.waveTimer += WAVE_INTERVAL;
@@ -3008,14 +3135,9 @@ export class GMCastle extends GameMode {
 		this.spawnTimer -= dt;
 		while (this.spawnQueue > 0 && this.spawnTimer <= 0) {
 			const bot = Bot.create();
-			const registered = this.register(bot, 'bot', this.storage.bots);
+			this.register(bot, 'bot', this.storage.bots);
 			this.spawnQueue--;
 			this.spawnTimer += BOT_SPAWN_INTERVAL;
-
-			console.log('[CastleDefense] Bot spawned', {
-				uid: registered.uid, engineId: registered.engineId, x: registered.x, y: registered.y,
-				queuedBots: this.spawnQueue,
-			});
 		}
 	}
 
@@ -3031,11 +3153,7 @@ export class GMCastle extends GameMode {
 		for (const m of this.monsterQueue.splice(0)) {
 			const colorId = this.colorIdOf(m.owner) ?? COLOR_ID_RED;
 			const monster = Monster.create(m.owner, colorId, m.x, m.y);
-			const registered = this.register(monster, 'monster', this.storage.monsters);
-			console.log('[CastleDefense] Monster spawned', {
-				uid: registered.uid, engineId: registered.engineId, owner: registered.owner,
-				x: registered.x, y: registered.y, monsters: this.storage.monsters.size,
-			});
+			this.register(monster, 'monster', this.storage.monsters);
 		}
 	}
 
@@ -3172,6 +3290,8 @@ export class GMCastle extends GameMode {
 		if (this.isFinished()) {
 			dt /= 2;
 		}
+
+		const start = performance.now();
 
 		this.time = Math.max(0, this.time - dt);
 		for (const p of this.players) p.regen(dt);
@@ -3599,7 +3719,6 @@ export class GMCastle extends GameMode {
 		const messages = protocols.get();
 		const def = ELEMENT_CLASSES[el.getTypeIdx()];
 
-		console.log(def.DATA_MESSAGE, messages[def.DATA_MESSAGE]);
 		return messages[def.DATA_MESSAGE].encode(el.save()).finish();
 	}
 
@@ -3635,7 +3754,6 @@ export class GMCastle extends GameMode {
 	}
 
 	override load(data: Uint8Array) {
-		// The engine is created asynchronously: remember the state until it is ready
 		if (!this.engine) {
 			this.pendingState = data;
 			return;
@@ -3643,15 +3761,33 @@ export class GMCastle extends GameMode {
 		this.applyState(data);
 	}
 
-	/** Rebuilds the whole world from a saved state. */
+	/** Applies an authoritative snapshot without recreating unchanged live blocks. */
 	private applyState(data: Uint8Array) {
 		const { State } = protocols.get();
 		const messages = protocols.get();
 		const obj = decodeFullMessage(State.decode(data));
 
-		this.clearWorld();
+		// Deferred work belongs to the old simulation timeline. A full snapshot is
+		// authoritative, so stale removals/projectile/spawn requests must not leak
+		// into the restored timeline.
+		this.removalQueue.length = 0;
+		this.arrowQueue.length = 0;
+		this.monsterQueue.length = 0;
 
-		for (let i = 0; i < obj.players.length; i++) {
+		const incomingUids = new Set<number>();
+		for (const b of obj.blocks) incomingUids.add(b.blockId);
+		for (const b of obj.bots) incomingUids.add(b.blockId);
+		for (const a of obj.arrows) incomingUids.add(a.blockId);
+		for (const m of obj.monsters) incomingUids.add(m.blockId);
+
+		// Remove only entities that disappeared from the snapshot. Preserving the
+		// other objects also preserves their engine IDs and client-only Animator
+		// instances between online state updates.
+		for (const uid of [...this.entities.keys()]) {
+			if (!incomingUids.has(uid)) this.removeEntity(uid);
+		}
+
+		for (let i = 0; i < Math.min(this.players.length, obj.players.length); i++) {
 			this.players[i].load(obj.players[i]);
 		}
 		this.time = obj.time;
@@ -3662,28 +3798,69 @@ export class GMCastle extends GameMode {
 		this.waveIndex = obj.waveIndex;
 		this.spawnQueue = obj.spawnQueue;
 		this.spawnTimer = obj.spawnTimer;
-		this.nextUid = obj.nextUid;
+		let maxIncomingUid = -1;
+		for (const uid of incomingUids) maxIncomingUid = Math.max(maxIncomingUid, uid);
+		this.nextUid = Math.max(obj.nextUid ?? 0, maxIncomingUid + 1);
 
+		// The cell index is derived from element state; rebuild it without forcing
+		// a navigation-graph rebuild when the map geometry did not change.
+		this.cellOwner.clear();
 		for (const b of obj.blocks) {
 			const def = ELEMENT_CLASSES[b.typeIdx];
-			const el = def.create({ col: 0, row: 0, owner: NO_OWNER, variant: 0 });
-			el.load(decodeFullMessage(messages[def.DATA_MESSAGE].decode(b.data)));
-			this.registerElement(el, b.blockId);
+			if (!def) throw new Error(`Invalid castle element typeIdx: ${b.typeIdx}`);
+			const fields = decodeFullMessage(messages[def.DATA_MESSAGE].decode(b.data));
+			const current = this.entities.get(b.blockId);
+
+			if (current instanceof PlacedElement && current.getTypeIdx() === b.typeIdx) {
+				const oldCol = current.col;
+				const oldRow = current.row;
+				const oldVariant = current.variant;
+				current.load(fields);
+				if (b.typeIdx !== TYPE_FLOOR &&
+					(oldCol !== current.col || oldRow !== current.row || oldVariant !== current.variant)) {
+					this.navigationRevision++;
+				}
+				this.indexElement(current);
+			} else {
+				if (current) this.removeEntity(b.blockId);
+				const el = def.create({ col: 0, row: 0, owner: NO_OWNER, variant: 0 });
+				el.load(fields);
+				this.registerElement(el, b.blockId);
+			}
 		}
+
 		for (const o of obj.bots) {
-			const bot = new Bot();
-			bot.load(o);
-			this.register(bot, 'bot', this.storage.bots, o.blockId);
+			const current = this.entities.get(o.blockId);
+			if (current instanceof Bot) {
+				current.load(o);
+			} else {
+				if (current) this.removeEntity(o.blockId);
+				const bot = new Bot();
+				bot.load(o);
+				this.register(bot, 'bot', this.storage.bots, o.blockId);
+			}
 		}
 		for (const o of obj.arrows) {
-			const arrow = new Arrow(o.owner);
-			arrow.load(o);
-			this.register(arrow, 'arrow', this.storage.arrows, o.blockId);
+			const current = this.entities.get(o.blockId);
+			if (current instanceof Arrow) {
+				current.load(o);
+			} else {
+				if (current) this.removeEntity(o.blockId);
+				const arrow = new Arrow(o.owner);
+				arrow.load(o);
+				this.register(arrow, 'arrow', this.storage.arrows, o.blockId);
+			}
 		}
 		for (const o of obj.monsters) {
-			const monster = new Monster(o.owner, this.colorIdOf(o.owner) ?? COLOR_ID_RED);
-			monster.load(o);
-			this.register(monster, 'monster', this.storage.monsters, o.blockId);
+			const current = this.entities.get(o.blockId);
+			if (current instanceof Monster) {
+				current.load(o);
+			} else {
+				if (current) this.removeEntity(o.blockId);
+				const monster = new Monster(o.owner, this.colorIdOf(o.owner) ?? COLOR_ID_RED);
+				monster.load(o);
+				this.register(monster, 'monster', this.storage.monsters, o.blockId);
+			}
 		}
 	}
 

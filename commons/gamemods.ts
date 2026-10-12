@@ -286,7 +286,7 @@ export const gamemods: Record<
 		textures: GMCastle.TEXTURES,
 		name: "Castle",
 		description: "",
-		tropheesPerPlayer: 3,
+		tropheesPerPlayer: 15,
 		explainationSlides: null,
 		computerOnly: false,
 		skins: [],

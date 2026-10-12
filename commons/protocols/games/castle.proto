@@ -27,6 +27,11 @@ message BlockData {
 	int32 variant = 5;
 }
 
+// The floor is represented by one fixed, permanent element.
+// Its position and size are deterministic from the level constants, so no
+// per-floor payload is needed.
+message FloorBlockData {}
+
 message SpikeData {
 	float hp = 1;
 	int32 owner = 2;
@@ -109,7 +114,6 @@ message BotState {
 	float jumpCooldown = 8;
 	float logTimer = 9;
 	string lastKey = 10;
-
 }
 
 message ArrowState {

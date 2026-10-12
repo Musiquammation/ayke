@@ -1235,7 +1235,11 @@ export namespace platformEngine {
 			}
 
 			this.state = u.state;
-			this.tick += this.linesDescriptors[u.state].delay;
+			// A `next` transition starts a fresh animation row. Keeping the previous
+			// frame index can select a frame outside the new row (for example a
+			// 5-frame wall-hang animation transitioning to a 4-frame wall-slide).
+			this.index = 0;
+			this.tick = this.linesDescriptors[u.state].delay;
 		}
 
 		draw(
