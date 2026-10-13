@@ -84,6 +84,7 @@ const ELIXIR_REGEN_PER_SECOND = 0.6;
 const REMOVAL_BASE_FACTOR = 1;
 
 // ---- Bots (waves) ----------------------------------------------------------
+const BOT_MAX_LENGTH = 50;
 const BOT_SIZE = 30;
 const BOT_RUN_SPEED = 140;           // target horizontal speed (px/s) written into Direction.dir
 const BOT_JUMP_SPEED = 560;
@@ -1277,7 +1278,7 @@ function isGhostPair(a: GameBlock, b: GameBlock): boolean {
 	// Walking creatures never push each other
 	const aMob = a instanceof Bot || a instanceof Monster;
 	const bMob = b instanceof Bot || b instanceof Monster;
-	// if (aMob && bMob) return true;
+	if (aMob && bMob) return true;
 	// Spikes are not solid: creatures touching them simply die
 	if (a instanceof SpikeElement || b instanceof SpikeElement) return true;
 	return false;
@@ -3135,7 +3136,11 @@ export class GMCastle extends GameMode {
 		this.spawnTimer -= dt;
 		while (this.spawnQueue > 0 && this.spawnTimer <= 0) {
 			const bot = Bot.create();
-			this.register(bot, 'bot', this.storage.bots);
+
+			// if (this.storage.bots.size < BOT_MAX_LENGTH) {
+				this.register(bot, 'bot', this.storage.bots);
+			// }
+
 			this.spawnQueue--;
 			this.spawnTimer += BOT_SPAWN_INTERVAL;
 		}
@@ -3277,6 +3282,10 @@ export class GMCastle extends GameMode {
 		return Array.from({ length: count }, () => 0);
 	}
 
+	useDefaultNetworkBehavior(): boolean {
+		return false;
+	}
+
 	/* ----------------------------------- run ----------------------------------- */
 
 	override run(
@@ -3284,14 +3293,15 @@ export class GMCastle extends GameMode {
 		produceFinish: boolean,
 		_rng: GameRandomGenerator | null
 	): FinishGame | null {
+		if (dt >= .1)
+			dt = .1;
+
 		// Until the engine exists nothing can be simulated
 		if (!this.engine) return null;
 
 		if (this.isFinished()) {
 			dt /= 2;
 		}
-
-		const start = performance.now();
 
 		this.time = Math.max(0, this.time - dt);
 		for (const p of this.players) p.regen(dt);
