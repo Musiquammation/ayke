@@ -365,7 +365,7 @@ type Size = platformEngine.Size;
 type Polygon = platformEngine.Polygon;
 type Velocity = platformEngine.Velocity;
 type Direction = platformEngine.Direction;
-type Folder = platformEngine.ImageLoaderFolder;
+type Folder = ImageLoaderFolder;
 type Engine = platformEngine.IBlockEngine<CDEngineData>;
 type Entry = platformEngine.BlockEntry<CDEngineData>;
 

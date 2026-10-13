@@ -5,7 +5,7 @@ import { getProtocol } from "../protocolLoader";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { GameRandomGenerator } from "../util/GameRandomGenerator";
-import { ImageLoader } from "../util/ImageLoader";
+import { ImageLoader, ImageLoaderFolder } from "../util/ImageLoader";
 import { platformEngine } from "../util/platformEngine";
 
 const protocols = getProtocol('rally', 'multiplayer');
@@ -47,13 +47,21 @@ const WALLJUMP_BOOST_TIME = 0.35;   // how long WALLJUMP_VELOCITY replaces RUN_S
 // collected, but are only handed to the player after ITEM_ROLL_TIME.
 const BOX_RESPAWN = 6;
 const BOX_SIZE = 56;
-const ITEM_ROLL_TIME = 1.35;
+const ITEM_ROLL_TIME = 1.8;
 const BOOST_TIME = 2;
 const BOOST_MULT = 1.6;
 const STAR_TIME = 5;
 const BANANA_LIFETIME = 14;
 const SHELL_LIFETIME = 6;
 const SHELL_SPEED = 820;
+// Red shells always travel in their launch direction. Target distance only
+// changes their speed; these bounds guarantee they never stop or reverse.
+const VX_MIN = SHELL_SPEED * 0.72;
+const VX_MAX = SHELL_SPEED * 1.35;
+const RED_SHELL_ACCEL = 760;
+const SHELL_JUMP_VELOCITY = 560;
+const BLUE_SHELL_SPEED = SHELL_SPEED * 1.08;
+const HAZARD_SIZE = 30;
 const HIT_KNOCKBACK = 560;
 const HIT_JUMP = 640;
 
@@ -217,14 +225,11 @@ class RallyAnimator extends platformEngine.Animator {
 			current === s ? { type: 'loop' } : { type: 'switch', state: s };
 
 		if (b.stunned) return to(S.STUNNED);
-		if (b.wallSliding) return to(S.WALL_SLIDE);
-		if (!walker.onFloor()) {
-			if (b.velocity.y < 0) {
-				return b.wallJumping ? to(S.WALL_JUMP) : to(S.JUMPING);
-			}
-			return to(S.FALLING);
-		}
-		return Math.abs(b.velocity.x) > 10 ? to(S.RUNNING) : to(S.IDLE);
+		const grounded = walker.onFloor();
+		if (!grounded && b.wallJumping) return to(S.WALL_JUMP);
+		if (!grounded && b.wallSliding) return to(S.WALL_SLIDE);
+		if (!grounded) return b.velocity.y < -35 ? to(S.JUMPING) : to(S.FALLING);
+		return Math.abs(b.velocity.x) > 20 ? to(S.RUNNING) : to(S.IDLE);
 	}
 
 	getVisualZoom(): number {
@@ -391,7 +396,8 @@ class Player {
 		this.pendingItem = ITEM_NONE;
 		this.itemRollTimer = 0;
 		this.itemQueued = false;
-		this.respawn = RESPAWN_TIME;
+		// A lap wrap is not a death respawn: keep the player visible and active.
+		this.respawn = 0;
 		this.checkpoint = -1;
 		this.subCheckpoint = -1;
 		this.hit = false;
@@ -535,6 +541,7 @@ class ClientData {
 	readonly redScore: HTMLDivElement;
 	readonly blueScore: HTMLDivElement;
 	readonly item: HTMLDivElement;
+	readonly itemCanvas: HTMLCanvasElement;
 	readonly banner: HTMLDivElement;
 
 	readonly camera = new Camera();
@@ -542,10 +549,18 @@ class ClientData {
 	private lastRespawn = 0;
 	private lastX = Number.NaN;
 	private lastY = Number.NaN;
+	private wasRollingItem = false;
+	private revealUntil = 0;
+	private revealItem = ITEM_NONE;
 
 	constructor() {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-rally-root");
+		this.html.style.pointerEvents = "none";
+		this.html.style.position = "absolute";
+		this.html.style.inset = "0";
+		this.html.style.width = "100%";
+		this.html.style.height = "100%";
 
 		this.levelName = document.createElement("div");
 		this.levelName.classList.add("game-rally-level");
@@ -563,8 +578,34 @@ class ClientData {
 		dash.textContent = "-";
 		scores.append(this.redScore, dash, this.blueScore);
 
+		// Item roulette is a real HUD panel, fixed to the top of the screen.
+		// No floating item/name is drawn over the player's head anymore.
 		this.item = document.createElement("div");
 		this.item.classList.add("game-rally-item");
+		this.item.setAttribute("aria-label", "Item roulette");
+		this.item.style.cssText = [
+			"position:absolute", "top:14px", "right:24px", "left:auto", "transform:none",
+			"width:156px", "height:156px", "padding:7px", "display:none", "align-items:center",
+			"justify-content:center", "box-sizing:border-box", "border-radius:18px",
+			"background:linear-gradient(145deg,#f8ffff 0%,#9fb9d5 38%,#455d82 100%)",
+			"border:2px solid #253a5a", "box-shadow:0 0 0 3px #e4f2ff,0 8px 24px #0008,inset 0 2px 2px #fff",
+			"z-index:100", "pointer-events:none"
+		].join(";");
+		const viewport = document.createElement("div");
+		viewport.style.cssText = [
+			"position:relative", "width:100%", "height:100%", "overflow:hidden", "border-radius:10px",
+			"background:radial-gradient(ellipse at 45% 25%,#426fa4 0%,#193158 72%)",
+			"box-shadow:inset 0 0 16px #000a,0 0 0 1px #11213c"
+		].join(";");
+		this.itemCanvas = document.createElement("canvas");
+		this.itemCanvas.width = 142;
+		this.itemCanvas.height = 142;
+		this.itemCanvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;";
+		viewport.append(this.itemCanvas);
+		const shine = document.createElement("div");
+		shine.style.cssText = "position:absolute;inset:0;pointer-events:none;background:linear-gradient(125deg,#ffffff2b 0%,transparent 38%,transparent 68%,#ffffff10 100%);";
+		viewport.append(shine);
+		this.item.append(viewport);
 
 		this.banner = document.createElement("div");
 		this.banner.classList.add("game-rally-banner");
@@ -579,6 +620,85 @@ class ClientData {
 		return `${minutes}:${seconds.padStart(4, "0")}`;
 	}
 
+	private updateItemRoulette(game: GMRally, playerIdx: number) {
+		const player = game.players[playerIdx];
+		const rolling = player.itemRollTimer > 0 && player.pendingItem !== ITEM_NONE;
+		const heldItem = rolling ? ITEM_NONE : player.item;
+		this.item.style.display = rolling || heldItem !== ITEM_NONE ? "flex" : "none";
+
+		if (this.wasRollingItem && !rolling) {
+			this.revealItem = player.item;
+			this.revealUntil = game.levelTime + 0.42;
+		}
+		if (rolling) this.revealItem = ITEM_NONE;
+		this.wasRollingItem = rolling;
+
+		const ctx = this.itemCanvas.getContext("2d");
+		if (!ctx) return;
+		const w = this.itemCanvas.width;
+		const h = this.itemCanvas.height;
+		ctx.clearRect(0, 0, w, h);
+		const rouletteItems = [ITEM_BANANA, ITEM_GREEN_SHELL, ITEM_RED_SHELL, ITEM_BLUE_SHELL, ITEM_MUSHROOM, ITEM_STAR];
+
+		if (rolling) {
+			const progress = Math.max(0, Math.min(1, 1 - player.itemRollTimer / ITEM_ROLL_TIME));
+			const eased = 1 - Math.pow(1 - progress, 4.2);
+			const winnerIndex = 48 + (player.pendingItem * 3 % 6);
+			const reelPosition = eased * winnerIndex;
+			const cell = 78;
+			const center = h / 2;
+
+			// Highlighted selection window, while the icon strip decelerates.
+			ctx.save();
+			ctx.fillStyle = "#8fcaff18";
+			ctx.fillRect(3, center - cell / 2, w - 6, cell);
+			ctx.strokeStyle = "#e5f4ffb5";
+			ctx.lineWidth = 2;
+			ctx.beginPath();
+			ctx.moveTo(7, center - cell / 2);
+			ctx.lineTo(w - 7, center - cell / 2);
+			ctx.moveTo(7, center + cell / 2);
+			ctx.lineTo(w - 7, center + cell / 2);
+			ctx.stroke();
+			ctx.restore();
+
+			const first = Math.floor(reelPosition);
+			for (let offset = -2; offset <= 2; offset++) {
+				const index = first + offset;
+				const item = index === winnerIndex
+					? player.pendingItem
+					: rouletteItems[((index * 7 + Math.floor(index / 3) * 5) % rouletteItems.length + rouletteItems.length) % rouletteItems.length];
+				const y = center + (index - reelPosition) * cell;
+				if (y < -cell || y > h + cell) continue;
+				const distance = Math.abs(y - center) / cell;
+				const scale = 1 - Math.min(0.25, distance * 0.14);
+				drawItemTexture(ctx, item, w / 2, y, 58 * scale, 0, game.levelTime * 3 + index * 0.2);
+			}
+			return;
+		}
+
+		const item = heldItem !== ITEM_NONE ? heldItem : this.revealItem;
+		if (item === ITEM_NONE) return;
+		let scale = 1;
+		let rotation = 0;
+		if (game.levelTime < this.revealUntil) {
+			const t = Math.max(0, Math.min(1, 1 - (this.revealUntil - game.levelTime) / 0.42));
+			// A quick overshoot and settle, like a prize reveal.
+			if (t < 0.72) {
+				const q = t / 0.72;
+				scale = 0.52 + 0.63 * (1 - Math.pow(1 - q, 2));
+				rotation = -0.28 * (1 - q);
+			} else {
+				const q = (t - 0.72) / 0.28;
+				scale = 1.15 - 0.15 * q;
+				rotation = 0.05 * (1 - q);
+			}
+		} else if (heldItem !== ITEM_NONE) {
+			scale = 1 + Math.sin(game.levelTime * 4) * 0.025;
+		}
+		drawItemTexture(ctx, item, w / 2, h / 2, 86 * scale, rotation, game.levelTime * 2);
+	}
+
 	/** Refreshes the HTML overlay and the camera for this frame. */
 	update(game: GMRally, playerIdx: number) {
 		const level = game.currentLevel();
@@ -586,13 +706,12 @@ class ClientData {
 		this.time.innerText = ClientData.showTime(LEVEL_TIME_LIMIT - game.levelTime);
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
+		this.updateItemRoulette(game, playerIdx);
 
 		const player = game.players[playerIdx];
-		const itemNames = ["", "BANANE", "CARAPACE VERTE", "CARAPACE ROUGE", "CARAPACE BLEUE", "CHAMPIGNON", "ÉTOILE"];
-		this.item.innerText = player.itemRollTimer > 0 ? "OBJET…" : (itemNames[player.item] ?? "");
 		this.banner.innerText = player.finished
-			? `Terminé · ${player.lapsCompleted}/${LAP_COUNT} tours (#${player.finishRank + 1})`
-			: game.phase === PHASE_DONE ? "Course terminée" : "";
+			? `Finished · ${player.lapsCompleted}/${LAP_COUNT} laps (#${player.finishRank + 1})`
+			: game.phase === PHASE_DONE ? "Race finished" : "";
 
 		// Snap at match start and when a respawn finishes.
 		if (this.lastLevel !== game.levelIndex ||
@@ -661,6 +780,8 @@ interface BananaState {
 	id: number;
 	x: number;
 	y: number;
+	vx: number;
+	vy: number;
 	owner: number;
 	life: number;
 	arming: number;
@@ -678,14 +799,139 @@ interface ShellState {
 	life: number;
 }
 
-const ITEM_GLYPHS: Record<number, string> = {
-	[ITEM_BANANA]: "🍌",
-	[ITEM_GREEN_SHELL]: "🟢",
-	[ITEM_RED_SHELL]: "🔴",
-	[ITEM_BLUE_SHELL]: "🔵",
-	[ITEM_MUSHROOM]: "🍄",
-	[ITEM_STAR]: "⭐",
-};
+/** Draws shaded, game-style item textures without platform-dependent emoji glyphs. */
+function drawItemTexture(
+	ctx: CanvasRenderingContext2D,
+	item: number,
+	cx: number,
+	cy: number,
+	size: number,
+	rotation = 0,
+	phase = 0
+) {
+	if (item === ITEM_NONE || size <= 0) return;
+	ctx.save();
+	ctx.translate(cx, cy + Math.sin(phase) * size * 0.018);
+	ctx.rotate(rotation);
+	ctx.scale(size / 100, size / 100);
+	ctx.lineJoin = "round";
+	ctx.lineCap = "round";
+	ctx.shadowColor = "#0009";
+	ctx.shadowBlur = 7;
+	ctx.shadowOffsetY = 5;
+
+	if (item === ITEM_BANANA) {
+		const body = ctx.createLinearGradient(-34, -34, 30, 30);
+		body.addColorStop(0, "#fff59a");
+		body.addColorStop(0.22, "#ffe64b");
+		body.addColorStop(0.58, "#ffbf13");
+		body.addColorStop(0.83, "#e88a08");
+		body.addColorStop(1, "#a85708");
+		ctx.beginPath();
+		ctx.moveTo(-31, -31);
+		ctx.bezierCurveTo(-9, -41, 20, -18, 18, 7);
+		ctx.bezierCurveTo(17, 23, 7, 34, -8, 33);
+		ctx.bezierCurveTo(2, 20, 5, 9, -3, -2);
+		ctx.bezierCurveTo(-10, -15, -21, -18, -31, -12);
+		ctx.bezierCurveTo(-37, -16, -38, -25, -31, -31);
+		ctx.closePath();
+		ctx.fillStyle = body;
+		ctx.fill();
+		ctx.shadowColor = "transparent";
+		ctx.strokeStyle = "#8c4c0b";
+		ctx.lineWidth = 4.5;
+		ctx.stroke();
+		ctx.fillStyle = "#6d3710";
+		ctx.beginPath(); ctx.roundRect(-35, -33, 12, 9, 3); ctx.fill();
+		ctx.beginPath(); ctx.roundRect(-13, 27, 13, 9, 3); ctx.fill();
+		ctx.strokeStyle = "#fff7b4";
+		ctx.lineWidth = 3;
+		ctx.beginPath(); ctx.moveTo(-23, -25); ctx.bezierCurveTo(-5, -29, 9, -10, 10, 3); ctx.stroke();
+		ctx.strokeStyle = "#d88a0a";
+		ctx.lineWidth = 2;
+		ctx.beginPath(); ctx.moveTo(-7, 9); ctx.quadraticCurveTo(-5, 20, -14, 27); ctx.stroke();
+	} else if (item === ITEM_GREEN_SHELL || item === ITEM_RED_SHELL || item === ITEM_BLUE_SHELL) {
+		const palette = item === ITEM_GREEN_SHELL
+			? ["#d9ff9d", "#58c92b", "#208027", "#0c3e22"]
+			: item === ITEM_RED_SHELL
+				? ["#ffb8a8", "#f33c35", "#b90f27", "#5e1024"]
+				: ["#d5f4ff", "#4bc8ff", "#1761d0", "#102b73"];
+			const shell = ctx.createLinearGradient(-22, -35, 27, 32);
+			shell.addColorStop(0, palette[0]);
+			shell.addColorStop(0.28, palette[1]);
+			shell.addColorStop(0.7, palette[2]);
+			shell.addColorStop(1, palette[3]);
+			ctx.beginPath();
+			ctx.moveTo(-38, 17);
+			ctx.quadraticCurveTo(-43, 10, -34, 1);
+			ctx.lineTo(-29, -15);
+			ctx.quadraticCurveTo(-22, -34, 0, -36);
+			ctx.quadraticCurveTo(24, -35, 31, -13);
+			ctx.lineTo(38, 10);
+			ctx.quadraticCurveTo(42, 19, 29, 23);
+			ctx.lineTo(-28, 23);
+			ctx.quadraticCurveTo(-38, 23, -38, 17);
+			ctx.closePath();
+			ctx.fillStyle = shell; ctx.fill();
+			ctx.shadowColor = "transparent";
+			ctx.strokeStyle = palette[3]; ctx.lineWidth = 5; ctx.stroke();
+			ctx.fillStyle = palette[1];
+			ctx.beginPath();
+			ctx.moveTo(-22, 12); ctx.lineTo(-25, -6); ctx.lineTo(-12, -25);
+			ctx.lineTo(9, -26); ctx.lineTo(25, -8); ctx.lineTo(21, 12); ctx.closePath();
+			ctx.fill();
+			ctx.strokeStyle = palette[3]; ctx.lineWidth = 2.5; ctx.stroke();
+			ctx.beginPath(); ctx.moveTo(-25, -6); ctx.lineTo(-12, -2); ctx.lineTo(-12, -25);
+			ctx.moveTo(9, -26); ctx.lineTo(7, -2); ctx.lineTo(25, -8);
+			ctx.moveTo(-12, -2); ctx.lineTo(7, -2); ctx.lineTo(21, 12);
+			ctx.stroke();
+			ctx.fillStyle = "#ffffff70";
+			ctx.beginPath(); ctx.ellipse(-12, -22, 8, 4, -0.55, 0, Math.PI * 2); ctx.fill();
+			ctx.fillStyle = palette[3];
+			for (const x of [-23, -8, 8, 23]) {
+				ctx.beginPath(); ctx.ellipse(x, 20, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
+			}
+	} else if (item === ITEM_MUSHROOM) {
+		const stem = ctx.createLinearGradient(-10, 1, 15, 36);
+		stem.addColorStop(0, "#fffef0"); stem.addColorStop(0.5, "#e8e2cb"); stem.addColorStop(1, "#aaa28c");
+		ctx.beginPath(); ctx.moveTo(-17, -1); ctx.lineTo(17, -1); ctx.lineTo(20, 28);
+		ctx.quadraticCurveTo(19, 36, 9, 36); ctx.lineTo(-9, 36); ctx.quadraticCurveTo(-19, 35, -20, 27); ctx.closePath();
+		ctx.fillStyle = stem; ctx.fill(); ctx.shadowColor = "transparent"; ctx.strokeStyle = "#655d58"; ctx.lineWidth = 3; ctx.stroke();
+		const cap = ctx.createLinearGradient(-15, -38, 12, 11);
+		cap.addColorStop(0, "#ff9e9a"); cap.addColorStop(0.32, "#f73537"); cap.addColorStop(0.75, "#c70d27"); cap.addColorStop(1, "#8f1029");
+		ctx.beginPath(); ctx.moveTo(-39, 4); ctx.quadraticCurveTo(-43, -24, -18, -34);
+		ctx.quadraticCurveTo(0, -44, 19, -32); ctx.quadraticCurveTo(40, -20, 38, 4);
+		ctx.quadraticCurveTo(18, 14, 0, 10); ctx.quadraticCurveTo(-22, 15, -39, 4); ctx.closePath();
+		ctx.fillStyle = cap; ctx.fill(); ctx.strokeStyle = "#76112b"; ctx.lineWidth = 4; ctx.stroke();
+		ctx.fillStyle = "#fffef0";
+		ctx.beginPath(); ctx.ellipse(-18, -15, 8, 10, -0.3, 0, Math.PI * 2); ctx.fill();
+		ctx.beginPath(); ctx.ellipse(8, -23, 7, 9, 0.2, 0, Math.PI * 2); ctx.fill();
+		ctx.beginPath(); ctx.ellipse(25, -6, 5, 7, 0.5, 0, Math.PI * 2); ctx.fill();
+		ctx.strokeStyle = "#ffffff9c"; ctx.lineWidth = 3;
+		ctx.beginPath(); ctx.moveTo(-28, -3); ctx.quadraticCurveTo(-25, -21, -10, -27); ctx.stroke();
+	} else if (item === ITEM_STAR) {
+		const star = ctx.createLinearGradient(-25, -38, 26, 35);
+		star.addColorStop(0, "#fffda1"); star.addColorStop(0.25, "#ffe94a"); star.addColorStop(0.65, "#ffb90b"); star.addColorStop(1, "#e87500");
+		ctx.beginPath();
+		for (let i = 0; i < 10; i++) {
+			const a = -Math.PI / 2 + i * Math.PI / 5;
+			const r = i % 2 === 0 ? 42 : 19;
+			const x = Math.cos(a) * r, y = Math.sin(a) * r;
+			if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+		}
+		ctx.closePath(); ctx.fillStyle = star; ctx.fill(); ctx.shadowColor = "transparent";
+		ctx.strokeStyle = "#a95204"; ctx.lineWidth = 4; ctx.stroke();
+		ctx.strokeStyle = "#fff8ad"; ctx.lineWidth = 3;
+		ctx.beginPath(); ctx.moveTo(-12, -21); ctx.lineTo(-3, -30); ctx.stroke();
+		ctx.fillStyle = "#653b12";
+		ctx.beginPath(); ctx.ellipse(-9, 2, 3.4, 6, -0.1, 0, Math.PI * 2); ctx.fill();
+		ctx.beginPath(); ctx.ellipse(9, 2, 3.4, 6, 0.1, 0, Math.PI * 2); ctx.fill();
+		ctx.strokeStyle = "#653b12"; ctx.lineWidth = 2.5;
+		ctx.beginPath(); ctx.arc(0, 10, 6, 0.2, Math.PI - 0.2); ctx.stroke();
+	}
+	ctx.restore();
+}
+
 
 export class GMRally extends GameMode {
 	static readonly types = { Player };
@@ -995,9 +1241,11 @@ export class GMRally extends GameMode {
 		this.recomputeScores();
 
 		const level = this.currentLevel();
-		p.resetAtSpawn(level.spawnX, level.spawnY);
+		// Wrap to the start without changing height or briefly hiding the player.
+		const finishY = p.y;
+		p.resetAtSpawn(level.spawnX, finishY);
 		block.x = level.spawnX;
-		block.y = level.spawnY;
+		block.y = finishY;
 		block.velocity.x = 0;
 		block.velocity.y = 0;
 		block.direction.dir = 0;
@@ -1059,6 +1307,8 @@ export class GMRally extends GameMode {
 					id: this.nextEntityId++,
 					x: p.x - p.facing * (PLAYER_W * 0.8),
 					y: p.y + PLAYER_H * 0.35,
+					vx: -p.facing * 115,
+					vy: -70,
 					owner: idx, life: BANANA_LIFETIME, arming: 0.45,
 				});
 				break;
@@ -1083,35 +1333,47 @@ export class GMRally extends GameMode {
 	private spawnShell(owner: number, kind: number, player: Player) {
 		let target = -1;
 		if (kind === ITEM_RED_SHELL) {
-			let bestDistance = Number.POSITIVE_INFINITY;
+			// The red shell locks onto an opponent in the launch direction only.
+			// Its horizontal direction is fixed when it leaves the player.
+			let bestForwardDistance = Number.POSITIVE_INFINITY;
 			for (let i = 0; i < this.players.length; i++) {
 				const other = this.players[i];
-				if (i === owner || other.finished) continue;
-				const distance = other.x - player.x;
-				if (distance * player.facing > 0 && Math.abs(distance) < bestDistance) {
+				if (i === owner || other.finished || other.respawn > 0) continue;
+				const forwardDistance = (other.x - player.x) * player.facing;
+				if (forwardDistance > 0 && forwardDistance < bestForwardDistance) {
 					target = i;
-					bestDistance = Math.abs(distance);
+					bestForwardDistance = forwardDistance;
 				}
 			}
 		} else if (kind === ITEM_BLUE_SHELL) {
-			let bestLap = -1;
-			let bestX = -Infinity;
-			for (let i = 0; i < this.players.length; i++) {
-				const other = this.players[i];
-				if (i === owner || other.finished) continue;
-				if (other.lapsCompleted > bestLap || (other.lapsCompleted === bestLap && other.x > bestX)) {
-					target = i;
-					bestLap = other.lapsCompleted;
-					bestX = other.x;
-				}
-			}
+			target = this.findRaceLeader();
 		}
+
+		const blue = kind === ITEM_BLUE_SHELL;
+		const launchDirection = blue ? 1 : (player.facing < 0 ? -1 : 1);
 		this.shells.push({
 			id: this.nextEntityId++, kind,
-			x: player.x + player.facing * (PLAYER_W * 0.7), y: player.y,
-			vx: player.facing * SHELL_SPEED, vy: 0,
+			x: player.x + launchDirection * (PLAYER_W * 0.9),
+			y: player.y,
+			vx: blue ? BLUE_SHELL_SPEED : launchDirection * SHELL_SPEED,
+			vy: 0,
 			owner, target, life: SHELL_LIFETIME,
 		});
+	}
+
+	/** Highest lap count, then greatest progress along the current lap. */
+	private findRaceLeader(): number {
+		let leader = -1;
+		for (let i = 0; i < this.players.length; i++) {
+			const candidate = this.players[i];
+			if (candidate.finished || !candidate.connected) continue;
+			if (leader < 0 ||
+				candidate.lapsCompleted > this.players[leader].lapsCompleted ||
+				(candidate.lapsCompleted === this.players[leader].lapsCompleted && candidate.x > this.players[leader].x)) {
+				leader = i;
+			}
+		}
+		return leader;
 	}
 
 	private hitPlayer(targetIndex: number) {
@@ -1131,55 +1393,193 @@ export class GMRally extends GameMode {
 		target.vy = block.velocity.y;
 	}
 
-	/** Update authoritative hazards and resolve collisions using center-based AABBs. */
+	private getPlatformRects(): Array<{ x: number; y: number; w: number; h: number }> {
+		if (!this.engine) return [];
+		const rects: Array<{ x: number; y: number; w: number; h: number }> = [];
+		for (const entry of this.engine.getBlocks()) {
+			if (entry.category !== 'platform') continue;
+			const size = entry.block.getSize();
+			rects.push({ x: entry.block.x, y: entry.block.y, w: size.width, h: size.height });
+		}
+		return rects;
+	}
+
+	private hazardIsSupported(
+		hazard: { x: number; y: number },
+		size: number,
+		platforms: Array<{ x: number; y: number; w: number; h: number }>
+	): boolean {
+		const bottom = hazard.y + size / 2;
+		return platforms.some(platform =>
+			Math.abs(bottom - (platform.y - platform.h / 2)) <= 2.5 &&
+			Math.abs(hazard.x - platform.x) * 2 < platform.w + size * 0.82
+		);
+	}
+
+	/** Axis-separated platform collision for falling items and rolling shells. */
+	private moveGroundHazard(
+		hazard: { x: number; y: number; vx: number; vy: number },
+		dt: number,
+		platforms: Array<{ x: number; y: number; w: number; h: number }>,
+		bounceAtWall: boolean,
+		canNeverReverse: boolean
+	) {
+		hazard.vy = Math.min(hazard.vy + GRAVITY * dt, 1250);
+
+		// Horizontal motion and side impacts.
+		hazard.x += hazard.vx * dt;
+		for (const platform of platforms) {
+			if (!overlapsCenter(
+				{ x: hazard.x, y: hazard.y, w: HAZARD_SIZE, h: HAZARD_SIZE }, platform
+			)) continue;
+			if (hazard.vx > 0) hazard.x = platform.x - platform.w / 2 - HAZARD_SIZE / 2;
+			else if (hazard.vx < 0) hazard.x = platform.x + platform.w / 2 + HAZARD_SIZE / 2;
+			if (canNeverReverse) {
+				// The red shell keeps its launch heading and jumps high enough to
+				// clear the obstacle rather than reversing at a wall.
+				const obstacleTop = platform.y - platform.h / 2;
+				const requiredRise = Math.max(0, hazard.y - (obstacleTop - HAZARD_SIZE / 2) + 28);
+				const wallJump = Math.sqrt(2 * GRAVITY * requiredRise);
+				hazard.vy = Math.min(hazard.vy, -Math.max(SHELL_JUMP_VELOCITY, wallJump));
+			} else if (bounceAtWall) {
+				hazard.vx = -hazard.vx * 0.88;
+			} else {
+				hazard.vx = 0;
+			}
+		}
+
+		// Vertical motion and floor/ceiling impacts.
+		hazard.y += hazard.vy * dt;
+		for (const platform of platforms) {
+			if (!overlapsCenter(
+				{ x: hazard.x, y: hazard.y, w: HAZARD_SIZE, h: HAZARD_SIZE }, platform
+			)) continue;
+			if (hazard.vy >= 0) {
+				hazard.y = platform.y - platform.h / 2 - HAZARD_SIZE / 2;
+				hazard.vy = 0;
+			} else {
+				hazard.y = platform.y + platform.h / 2 + HAZARD_SIZE / 2;
+				hazard.vy = 80;
+			}
+		}
+	}
+
+	/** Update authoritative hazards and resolve all projectile contacts. */
 	private updateHazards(dt: number) {
+		const level = this.currentLevel();
+		const platforms = this.getPlatformRects();
 		const playerRect = (p: Player) => ({ x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H });
-		this.bananas = this.bananas.filter(banana => {
+
+		// Bananas have their own vertical velocity, fall onto platforms, and then
+		// stay on the ground. Their full state is replicated in BananaState.
+		const liveBananas: BananaState[] = [];
+		for (const banana of this.bananas) {
 			banana.life -= dt;
 			banana.arming = Math.max(0, banana.arming - dt);
-			if (banana.life <= 0) return false;
+			if (banana.life <= 0) continue;
+			const supported = this.hazardIsSupported(banana, HAZARD_SIZE, platforms);
+			this.moveGroundHazard(banana, dt, platforms, false, false);
+			// Projectiles complete a lap by returning to the start at the same height.
+			if (banana.x > level.finishX) banana.x = level.spawnX;
+			if (supported || this.hazardIsSupported(banana, HAZARD_SIZE, platforms)) {
+				banana.vx *= Math.pow(0.035, dt);
+				if (Math.abs(banana.vx) < 8) banana.vx = 0;
+			}
 			if (banana.arming <= 0) {
+				let hit = false;
 				for (let i = 0; i < this.players.length; i++) {
 					if (i === banana.owner || this.players[i].finished || this.players[i].respawn > 0) continue;
-					if (overlapsCenter(playerRect(this.players[i]), { x: banana.x, y: banana.y, w: 30, h: 30 })) {
+					if (overlapsCenter(playerRect(this.players[i]), { x: banana.x, y: banana.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) {
 						this.hitPlayer(i);
-						return false;
+						hit = true;
+						break;
 					}
 				}
+				if (hit) continue;
 			}
-			return true;
-		});
+			liveBananas.push(banana);
+		}
+		this.bananas = liveBananas;
 
-		this.shells = this.shells.filter(shell => {
+		// Move shells before collision checks so two shells touching in this frame
+		// are always destroyed together, independent of array order.
+		const liveShells: ShellState[] = [];
+		for (const shell of this.shells) {
 			shell.life -= dt;
-			if (shell.life <= 0 || Math.abs(shell.x) > 6000) return false;
-			if ((shell.kind === ITEM_RED_SHELL || shell.kind === ITEM_BLUE_SHELL) && shell.target >= 0) {
-				const target = this.players[shell.target];
-				if (target && !target.finished) {
-					shell.vx = (target.x >= shell.x ? 1 : -1) * SHELL_SPEED;
+			if (shell.life <= 0 || Math.abs(shell.x) > 6000 || Math.abs(shell.y) > 3000) continue;
+
+			if (shell.kind === ITEM_BLUE_SHELL) {
+				// The blue shell flies only forwards and loops around at the finish
+				// line instead of reversing when the leader is behind it.
+				shell.target = this.findRaceLeader();
+				if (shell.target >= 0) {
+					const target = this.players[shell.target];
 					shell.vy = Math.max(-520, Math.min(520, (target.y - shell.y) * 2.2));
-				} else if (shell.kind === ITEM_BLUE_SHELL) {
-					let leader = -1;
-					for (let i = 0; i < this.players.length; i++) {
-						const candidate = this.players[i];
-						if (i !== shell.owner && !candidate.finished && (leader < 0 ||
-							candidate.lapsCompleted > this.players[leader].lapsCompleted ||
-							(candidate.lapsCompleted === this.players[leader].lapsCompleted && candidate.x > this.players[leader].x))) leader = i;
+				} else {
+					shell.vy = 0;
+				}
+				shell.vx = BLUE_SHELL_SPEED;
+				shell.x += shell.vx * dt;
+				shell.y += shell.vy * dt;
+				if (shell.x > level.finishX) shell.x = level.spawnX;
+			} else {
+				if (shell.kind === ITEM_RED_SHELL && shell.target >= 0) {
+					const target = this.players[shell.target];
+					if (target && !target.finished) {
+						const direction = shell.vx < 0 ? -1 : 1;
+						const forwardDx = (target.x - shell.x) * direction;
+						const desiredSpeed = Math.max(VX_MIN, Math.min(VX_MAX, VX_MIN + Math.max(0, forwardDx - 90) * 0.32));
+						const speed = Math.abs(shell.vx);
+						const nextSpeed = speed < desiredSpeed
+							? Math.min(desiredSpeed, speed + RED_SHELL_ACCEL * dt)
+							: Math.max(desiredSpeed, speed - RED_SHELL_ACCEL * dt);
+						// Clamp magnitude and retain its launch-direction sign forever.
+						shell.vx = direction * Math.max(VX_MIN, Math.min(VX_MAX, nextSpeed));
+						if (target.y < shell.y - 24 && this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) {
+							shell.vy = -SHELL_JUMP_VELOCITY;
+						}
 					}
-					shell.target = leader;
+				}
+				this.moveGroundHazard(shell, dt, platforms, shell.kind === ITEM_GREEN_SHELL, shell.kind === ITEM_RED_SHELL);
+				// Red-shell wall logic may change vy but must never change vx sign.
+				if (shell.kind === ITEM_RED_SHELL) {
+					const sign = shell.vx < 0 ? -1 : 1;
+					shell.vx = sign * Math.max(VX_MIN, Math.min(VX_MAX, Math.abs(shell.vx)));
 				}
 			}
-			shell.x += shell.vx * dt;
-			shell.y += shell.vy * dt;
+			// Every shell wraps at the finish line without changing its vertical position.
+			if (shell.x > level.finishX) shell.x = level.spawnX;
+			liveShells.push(shell);
+		}
+
+		// Shell-to-shell contacts destroy both shells, including blue shells.
+		const brokenShells = new Set<number>();
+		for (let i = 0; i < liveShells.length; i++) {
+			for (let j = i + 1; j < liveShells.length; j++) {
+				if (overlapsCenter(
+					{ x: liveShells[i].x, y: liveShells[i].y, w: HAZARD_SIZE, h: HAZARD_SIZE },
+					{ x: liveShells[j].x, y: liveShells[j].y, w: HAZARD_SIZE, h: HAZARD_SIZE }
+				)) {
+					brokenShells.add(liveShells[i].id);
+					brokenShells.add(liveShells[j].id);
+				}
+			}
+		}
+
+		const survivingShells = liveShells.filter(shell => !brokenShells.has(shell.id));
+		const destroyedByPlayer = new Set<number>();
+		for (const shell of survivingShells) {
 			for (let i = 0; i < this.players.length; i++) {
-				if (i === shell.owner || this.players[i].finished || this.players[i].respawn > 0) continue;
-				if (overlapsCenter(playerRect(this.players[i]), { x: shell.x, y: shell.y, w: 30, h: 30 })) {
+				// A blue shell can hurt any player, including its owner, and keeps moving.
+				if ((i === shell.owner && shell.kind !== ITEM_BLUE_SHELL) || this.players[i].finished || this.players[i].respawn > 0) continue;
+				if (overlapsCenter(playerRect(this.players[i]), { x: shell.x, y: shell.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) {
 					this.hitPlayer(i);
-					return false;
+					if (shell.kind !== ITEM_BLUE_SHELL) destroyedByPlayer.add(shell.id);
+					break;
 				}
 			}
-			return true;
-		});
+		}
+		this.shells = survivingShells.filter(shell => !destroyedByPlayer.has(shell.id));
 	}
 
 	/* ---------------------------- Main loop ---------------------------- */
@@ -1277,7 +1677,7 @@ export class GMRally extends GameMode {
 	}
 
 	/** Platforms, item boxes and finish line. */
-	private drawLevel(ctx: CanvasRenderingContext2D, imageLoader: platformEngine.ImageLoaderFolder) {
+	private drawLevel(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
 		const level = this.currentLevel();
 		const engine = this.engine;
 
@@ -1285,19 +1685,6 @@ export class GMRally extends GameMode {
 		const finish = imageLoader.get('finish');
 		ctx.drawImage(finish, level.finishX - 32, -300, 64, 1200);
 
-		// Main checkpoints and sub-checkpoints are visible route markers.
-		for (const cp of level.checkpoints) {
-			const h = cp.h ?? 220;
-			ctx.fillStyle = "#ffd34d";
-			ctx.fillRect(cp.x - 3, cp.y - h / 2, 6, h);
-			ctx.fillRect(cp.x, cp.y - h / 2, 34, 18);
-		}
-		for (const cp of level.subCheckpoints) {
-			const h = cp.h ?? 220;
-			ctx.fillStyle = "#cf87ff";
-			ctx.fillRect(cp.x - 2, cp.y - h / 2, 4, h);
-			ctx.fillRect(cp.x, cp.y - h / 2, 25, 13);
-		}
 
 		// Platforms: drawn from the live blocks so moving ones are at the right place
 		if (engine) {
@@ -1317,19 +1704,20 @@ export class GMRally extends GameMode {
 			ctx.drawImage(box, b.x - BOX_SIZE / 2, b.y - BOX_SIZE / 2, BOX_SIZE, BOX_SIZE);
 		}
 
-		// Hazards are lightweight shared entities, not physics-engine blocks.
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
-		ctx.font = "30px sans-serif";
-		for (const banana of this.bananas) ctx.fillText("🍌", banana.x, banana.y);
-		for (const shell of this.shells) ctx.fillText(ITEM_GLYPHS[shell.kind] ?? "●", shell.x, shell.y);
+		// Hazards use shaded in-game textures rather than platform emoji glyphs.
+		for (const banana of this.bananas) {
+			const tilt = Math.max(-0.45, Math.min(0.45, banana.vy * 0.00045));
+			drawItemTexture(ctx, ITEM_BANANA, banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
+		}
+		for (const shell of this.shells) {
+			drawItemTexture(ctx, shell.kind, shell.x, shell.y, 40, 0, this.levelTime * 2.5 + shell.id * 0.13);
+		}
 	}
 
-	/** Player sprites, team markers, held-item icons and the item roulette. */
-	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: platformEngine.ImageLoaderFolder) {
+	/** Player sprites and team markers. The item roulette now lives in the screen HUD. */
+	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
 		const engine = this.engine;
 		if (!engine) return;
-		const rouletteItems = [ITEM_BANANA, ITEM_GREEN_SHELL, ITEM_RED_SHELL, ITEM_BLUE_SHELL, ITEM_MUSHROOM, ITEM_STAR];
 		for (const [i, p] of this.players.entries()) {
 			const id = this.playerIds[i];
 			const block = engine.getBlock(id);
@@ -1339,18 +1727,6 @@ export class GMRally extends GameMode {
 			engine.getAnimator(id)?.draw(block, ctx, imageLoader);
 			const top = block.y - PLAYER_H / 2;
 			ctx.drawImage(imageLoader.get('team-marker', p.isRed ? 0 : 1), block.x - 12, top - 36, 24, 24);
-
-			const itemToDraw = p.itemRollTimer > 0
-				? rouletteItems[Math.floor(this.levelTime * 14) % rouletteItems.length]
-				: p.item;
-			if (itemToDraw !== ITEM_NONE) {
-				ctx.save();
-				ctx.font = "30px sans-serif";
-				ctx.textAlign = "center";
-				ctx.textBaseline = "middle";
-				ctx.fillText(ITEM_GLYPHS[itemToDraw] ?? "?", block.x, top - 58);
-				ctx.restore();
-			}
 			if (p.starTimer > 0) {
 				ctx.save();
 				ctx.strokeStyle = "#ffe34d";
@@ -1440,7 +1816,11 @@ export class GMRally extends GameMode {
 		this.finishCount = obj.finishCount ?? 0;
 		this.lapFinishCounts = [...(obj.lapFinishCounts ?? Array.from({ length: LAP_COUNT }, () => 0))];
 		this.boxCooldowns = [...(obj.boxCooldowns ?? LEVELS[0].items.map(() => 0))];
-		this.bananas = [...(obj.bananas ?? [])];
+		this.bananas = (obj.bananas ?? []).map((banana: any) => ({
+			...banana,
+			vx: banana.vx ?? 0,
+			vy: banana.vy ?? 0,
+		}));
 		this.shells = [...(obj.shells ?? [])];
 		this.nextEntityId = obj.nextEntityId ?? 1;
 

@@ -58,6 +58,10 @@ message BananaState {
 	int32 owner = 4;
 	float life = 5;
 	float arming = 6;
+	// Added so banana gravity and platform collisions remain deterministic
+	// across authoritative snapshots and clients.
+	float vx = 7;
+	float vy = 8;
 }
 
 message ShellState {
