@@ -46,11 +46,16 @@ interface MultiplayerFactory {
 		total: number,
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	): Promise<{ game: GameMode, data: Uint8Array }>,
-	client(entry: MultiplayerClientEntry, total: number, playerIdx: number): {
+	client(
+		entry: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number,
+		playLocally: boolean
+	): {
 		game: GameMode,
 		data: any,
 		html: HTMLDivElement | null,
-		skins: { [key: string]: string },
+		skins: { [key: string]: string }
 	},
 	dom(unlockedSkins: string[]): {produce: ()=>Uint8Array},
 	textures: { [key: string]: string },

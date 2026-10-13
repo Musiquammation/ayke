@@ -375,7 +375,8 @@ export async function setGameHandler(
 	const {game, data, html, skins} = factory.client(
 		{data: startData, origin: 'server'},
 		total,
-		playerIdx
+		playerIdx,
+		false
 	);
 
 	await imageLoader.load(skins, gamemode);

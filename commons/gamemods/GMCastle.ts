@@ -2928,13 +2928,14 @@ export class GMCastle extends GameMode {
 	private readonly arrowQueue: { owner: number; x: number; y: number; vx: number; vy: number }[] = [];
 	private readonly monsterQueue: { owner: number; x: number; y: number }[] = [];
 
-	private constructor(total: number, isClient: boolean) {
+	private constructor(total: number, isClient: boolean, playLocally = false) {
 		super();
 
 		this.players = Array.from({ length: total }, () => new Player());
 		this.fakeClientData = isClient ? new FakeClientData() : null;
-		// A client never creates a platformer engine: Rapier and entity hooks are server-only.
-		this.engineReady = isClient ? Promise.resolve() : this.initServerEngine();
+		// Remote clients never create a platformer engine; local play needs both the render snapshot
+		// and an authoritative physics engine in the same game instance.
+		this.engineReady = isClient && !playLocally ? Promise.resolve() : this.initServerEngine();
 	}
 
 	/* ------------------------------ engine setup ----------------------------- */
@@ -2944,6 +2945,7 @@ export class GMCastle extends GameMode {
 			false, this.storage, this, { x: 0, y: GRAVITY }
 		);
 		this.buildInitialLevel();
+		this.syncLocalRenderData();
 	}
 
 	/** Creates the fixed, unbreakable floor as one large physics element. */
@@ -3051,6 +3053,40 @@ export class GMCastle extends GameMode {
 		return player.team === DEFAULT_TEAM_RED ? COLOR_ID_RED : COLOR_ID_BLUE;
 	}
 
+	/**
+	 * Local games run the authoritative engine in the browser while still using
+	 * the lightweight snapshot objects expected by the renderer.
+	 */
+	private syncLocalRenderData(): void {
+		const fake = this.fakeClientData;
+		if (!fake || !this.engine) return;
+
+		fake.blocks = [...this.storage.elements.values()].map(
+			element => new FakePlacedElement(element.getTypeIdx(), element.save())
+		);
+		fake.bots = [...this.storage.bots.values()].map(bot => {
+			const animation = getBotAnimator(bot).getFrameState();
+			return {
+				x: bot.x,
+				y: bot.y,
+				animationState: animation.state,
+				animationFrame: animation.index,
+				facingLeft: animation.facingLeft,
+			};
+		});
+		fake.arrows = [...this.storage.arrows.values()].map(arrow => ({
+			x: arrow.x,
+			y: arrow.y,
+			angle: arrow.getAngle(),
+			owner: arrow.owner,
+		}));
+		fake.monsters = [...this.storage.monsters.values()].map(monster => ({
+			x: monster.x,
+			y: monster.y,
+			owner: monster.owner,
+		}));
+	}
+
 	/* ------------------------------ queries / rules --------------------------- */
 
 	/** Returns the revision used to invalidate cached bot navigation. */
@@ -3059,7 +3095,8 @@ export class GMCastle extends GameMode {
 	}
 
 	elementAtCell(col: number, row: number): ElementView | null {
-		if (this.fakeClientData) return this.fakeClientData.elementAtCell(col, row);
+		// Remote clients only have snapshots; local play can query the live authoritative grid.
+		if (!this.engine && this.fakeClientData) return this.fakeClientData.elementAtCell(col, row);
 
 		const uid = this.cellOwner.get(cellKey(col, row));
 		const entity = uid === undefined ? undefined : this.entities.get(uid);
@@ -3273,11 +3310,12 @@ export class GMCastle extends GameMode {
 	static createClient(
 		{ data, origin }: MultiplayerClientEntry,
 		total: number,
-		playerIdx: number
+		playerIdx: number,
+		playLocally: boolean
 	) {
 		const { StartData, StartDataClient } = protocols.get();
 
-		const game = new GMCastle(total, true);
+		const game = new GMCastle(total, true, playLocally);
 		const clientData = new ClientData();
 		clientData.localPlayer = playerIdx;
 
@@ -3350,6 +3388,7 @@ export class GMCastle extends GameMode {
 		this.engine.update(dt);       // physics + all block hooks
 		this.flushQueues();           // removals / arrows / monsters requested during the step
 		this.checkBotsAfterUpdate();  // castle contact + void
+		this.syncLocalRenderData();    // local play has no network snapshots to refresh the renderer
 
 		if (produceFinish && this.isFinished()) return this.produceFinish();
 		return null;
@@ -3775,10 +3814,9 @@ export class GMCastle extends GameMode {
 	}
 
 	override save(): Uint8Array {
-		if (this.fakeClientData) {
-			throw new Error('GMCastle.save() is server-only.');
+		if (!this.engine) {
+			throw new Error('GMCastle.save() requires an authoritative game engine.');
 		}
-		if (!this.engine) return new Uint8Array();
 
 		const { State } = protocols.get();
 		const object: Fields = {
