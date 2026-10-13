@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package game_rally;
+
+message Empty {}
+
+// Shared state of one player (everything needed to restore it after a load)
+message PlayerState {
+	float x = 1;
+	float y = 2;
+	float vx = 3;
+	float vy = 4;
+	bool connected = 5;
+	bool isRed = 6;
+	sint32 facing = 7;       // +1 right, -1 left
+	float jumpBuffer = 8;
+	float wallBoost = 9;
+	float boostTimer = 10;
+	float slowTimer = 11;
+	int32 item = 12;
+	bool itemQueued = 13;
+	float respawn = 14;
+	int32 checkpoint = 15;
+	bool finished = 16;
+	int32 finishRank = 17;
+	int32 points = 18;
+}
+
+// State of GMRally. Levels are predefined in code, so only the index is sent.
+message State {
+	repeated PlayerState players = 1;
+	int32 levelIndex = 2;
+	float levelTime = 3;      // "t" of the moving platforms
+	int32 phase = 4;          // 0 racing, 1 intermission, 2 done
+	float intermission = 5;
+	int32 redScore = 6;
+	int32 blueScore = 7;
+	int32 finishCount = 8;
+	repeated float boxCooldowns = 9;
+	float itemRoll = 10;      // next random value, drawn by the server
+	bool rollDirty = 11;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		Empty jump = 2;
+		Empty item = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	string skin = 1;
+	int32 preferTeam = 2;
+}
+
+// Spawns come from the level definitions, so they are not sent.
+message StartPlayerInfo {
+	string skin = 1;
+	bool isRed = 2;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}
