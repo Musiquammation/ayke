@@ -2,7 +2,6 @@ import { MobileDescriptor } from "../../client/src/controllers/MobileController"
 import { Fields } from "../Fields";
 import { FinishGame, GameMode, MultiplayerClientEntry } from "../GameMode";
 import { getProtocol } from "../protocolLoader";
-import { collisions } from "../util/collisions";
 import { IKeyboardController, IMobileController, IMouseController } from "../util/controllerInterfaces";
 import { decodeFullMessage } from "../util/decodeFullMessage";
 import { GameRandomGenerator } from "../util/GameRandomGenerator";
@@ -44,30 +43,36 @@ const WALLJUMP_VELOCITY = 520;      // horizontal target speed right after a wal
 const WALLJUMP_Y = 760;             // vertical impulse of a wall jump
 const WALLJUMP_BOOST_TIME = 0.35;   // how long WALLJUMP_VELOCITY replaces RUN_SPEED
 
-// Items
+// Items. Items are selected by the authoritative simulation when a box is
+// collected, but are only handed to the player after ITEM_ROLL_TIME.
 const BOX_RESPAWN = 6;
 const BOX_SIZE = 56;
+const ITEM_ROLL_TIME = 1.35;
 const BOOST_TIME = 2;
 const BOOST_MULT = 1.6;
-const SLOW_TIME = 2.5;
-const SLOW_MULT = 0.45;
-const SPRING_VELOCITY = 1250;
-const SLOW_RANGE = 1400;            // max distance ahead for the SLOW item to hit someone
+const STAR_TIME = 5;
+const BANANA_LIFETIME = 14;
+const SHELL_LIFETIME = 6;
+const SHELL_SPEED = 820;
+const HIT_KNOCKBACK = 560;
+const HIT_JUMP = 640;
 
-// Round flow
+// Match flow: one predefined map, three laps.
 const RESPAWN_TIME = 1;
-const LEVEL_TIME_LIMIT = 90;
-const INTERMISSION_TIME = 4;
-const RANK_POINTS = [4, 3, 2, 1];   // points given to 1st, 2nd, ... to finish
+const LAP_COUNT = 3;
+const LEVEL_TIME_LIMIT = 180;
+const RANK_POINTS = [4, 3, 2, 1]; // points for 1st, 2nd, ... on each lap
 
 const PHASE_RACING = 0;
-const PHASE_INTERMISSION = 1;
 const PHASE_DONE = 2;
 
 const ITEM_NONE = 0;
-const ITEM_BOOST = 1;
-const ITEM_SPRING = 2;
-const ITEM_SLOW = 3;
+const ITEM_BANANA = 1;
+const ITEM_GREEN_SHELL = 2;
+const ITEM_RED_SHELL = 3;
+const ITEM_BLUE_SHELL = 4;
+const ITEM_MUSHROOM = 5;
+const ITEM_STAR = 6;
 
 /* -------------------------------------------------------------------------- */
 /* Levels (predefined, never sent over the network)                           */
@@ -89,6 +94,15 @@ interface PlatformDef {
 	move?: MoveDef;
 }
 
+interface CheckpointDef {
+	x: number;
+	y: number;
+	w?: number;
+	h?: number;
+	/** A sub-checkpoint is only enabled after this main checkpoint has been passed. */
+	afterCheckpoint?: number;
+}
+
 interface LevelDef {
 	name: string;
 	spawnX: number;
@@ -97,41 +111,39 @@ interface LevelDef {
 	deathY: number;
 	platforms: PlatformDef[];
 	items: { x: number; y: number }[];
-	checkpoints: { x: number; y: number }[];
+	checkpoints: CheckpointDef[];
+	subCheckpoints: CheckpointDef[];
 }
 
-/** Example levels: replace them with the real ones. */
+/** The map is static and known to all peers; it is never sent in snapshots. */
 const LEVELS: LevelDef[] = [
 	{
 		name: "Warm-up",
 		spawnX: 0, spawnY: 380,
 		finishX: 3000, deathY: 900,
 		platforms: [
-			{ x: 700, y: 525, w: 1800, h: 150 },   // ground 1 (x: -200..1600)
-			{ x: 1000, y: 400, w: 40, h: 100 },    // low wall to jump over
+			{ x: 700, y: 525, w: 1800, h: 150 },
+			{ x: 1000, y: 400, w: 40, h: 100 },
 			{ x: 1750, y: 470, w: 150, h: 30, move: { ax: 0, ay: 60, period: 3, phase: 0 } },
-			{ x: 2400, y: 525, w: 1000, h: 150 },  // ground 2 (x: 1900..2900)
-			{ x: 2150, y: 0, w: 40, h: 500 },      // shaft left wall (open at the bottom)
-			{ x: 2450, y: 125, w: 40, h: 650 },    // shaft right wall
-			{ x: 2800, y: -150, w: 600, h: 40 },   // exit ledge
+			{ x: 2400, y: 525, w: 1000, h: 150 },
+			{ x: 2150, y: 0, w: 40, h: 500 },
+			{ x: 2450, y: 125, w: 40, h: 650 },
+			{ x: 2800, y: -150, w: 600, h: 40 },
 		],
 		items: [{ x: 1300, y: 380 }, { x: 2300, y: 380 }],
-		checkpoints: [{ x: 1950, y: 380 }],
-	},
-	{
-		name: "Moving bridges",
-		spawnX: 0, spawnY: 380,
-		finishX: 3200, deathY: 900,
-		platforms: [
-			{ x: 400, y: 525, w: 1200, h: 150 },
-			{ x: 1100, y: 470, w: 160, h: 30, move: { ax: 120, ay: 0, period: 4, phase: 0 } },
-			{ x: 1700, y: 470, w: 160, h: 30, move: { ax: 0, ay: 80, period: 3, phase: 0.5 } },
-			{ x: 2500, y: 525, w: 1500, h: 150 },
-		],
-		items: [{ x: 800, y: 380 }, { x: 2200, y: 380 }],
-		checkpoints: [{ x: 1800, y: 380 }],
+		checkpoints: [{ x: 1950, y: 380, w: 70, h: 500 }],
+		subCheckpoints: [{ x: 2600, y: 380, w: 70, h: 500, afterCheckpoint: 0 }],
 	},
 ];
+
+/** All game rectangles use center coordinates: (x, y) is the center. */
+function overlapsCenter(
+	a: { x: number; y: number; w: number; h: number },
+	b: { x: number; y: number; w: number; h: number }
+): boolean {
+	return Math.abs(a.x - b.x) * 2 < a.w + b.w &&
+		Math.abs(a.y - b.y) * 2 < a.h + b.h;
+}
 
 /** Position and velocity of a platform at time t (velocity = derivative). */
 function samplePlatform(def: PlatformDef, t: number) {
@@ -189,7 +201,7 @@ class RallyAnimator extends platformEngine.Animator {
 	};
 
 	constructor(texture: string) {
-		super(32, 32, texture, null, RallyAnimator.ANIMATION_LINES, 100);
+		super(32, 48, texture, null, RallyAnimator.ANIMATION_LINES, 100);
 	}
 
 	/** Picks the animation state from the block's physical state. */
@@ -263,8 +275,8 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 	}
 
 	processBeforeEngine(_id: number, dt: number, engine: RallyEngine) {
-		this.velocity.y += dt * GRAVITY;
-
+		const player = engine.game.players[this.index];
+		if (!player.finished && player.respawn <= 0) this.velocity.y += dt * GRAVITY;
 		engine.game.beforePlayerStep(this.index, this, dt);
 	}
 
@@ -313,26 +325,32 @@ class Player {
 	connected = true;
 	isRed = true;
 
-	// Mirror of the physical state (refreshed from the block every frame)
+	// Mirror of the authoritative physical state.
 	x = 0;
 	y = 0;
 	vx = 0;
 	vy = 0;
 
-	facing = 1;            // +1 = right, -1 = left. This is what the "dir" is derived from.
+	facing = 1;
 	jumpBuffer = 0;
 	wallBoost = 0;
 	boostTimer = 0;
-	slowTimer = 0;
+	slowTimer = 0; // kept for backward-compatible snapshots; no longer used by items
+	starTimer = 0;
 	item = ITEM_NONE;
-	itemQueued = false;    // set by runInput, consumed in the next frame
+	pendingItem = ITEM_NONE;
+	itemRollTimer = 0;
+	itemQueued = false;
 	respawn = 0;
 	checkpoint = -1;
+	subCheckpoint = -1;
+	hit = false;
+	lapsCompleted = 0;
 	finished = false;
 	finishRank = -1;
 	points = 0;
 
-	/** Resets everything for the beginning of a level (points are kept). */
+	/** Full match reset. Cumulative points are intentionally retained. */
 	resetForLevel(x: number, y: number) {
 		this.x = x;
 		this.y = y;
@@ -343,39 +361,64 @@ class Player {
 		this.wallBoost = 0;
 		this.boostTimer = 0;
 		this.slowTimer = 0;
+		this.starTimer = 0;
 		this.item = ITEM_NONE;
+		this.pendingItem = ITEM_NONE;
+		this.itemRollTimer = 0;
 		this.itemQueued = false;
 		this.respawn = 0;
 		this.checkpoint = -1;
+		this.subCheckpoint = -1;
+		this.hit = false;
+		this.lapsCompleted = 0;
 		this.finished = false;
 		this.finishRank = -1;
 	}
 
-	/** Counts all timers down (never below 0). */
+	/** Reset lap-local state while retaining cumulative score and lap count. */
+	resetAtSpawn(x: number, y: number) {
+		this.x = x;
+		this.y = y;
+		this.vx = 0;
+		this.vy = 0;
+		this.facing = 1;
+		this.jumpBuffer = 0;
+		this.wallBoost = 0;
+		this.boostTimer = 0;
+		this.slowTimer = 0;
+		this.starTimer = 0;
+		this.item = ITEM_NONE;
+		this.pendingItem = ITEM_NONE;
+		this.itemRollTimer = 0;
+		this.itemQueued = false;
+		this.respawn = RESPAWN_TIME;
+		this.checkpoint = -1;
+		this.subCheckpoint = -1;
+		this.hit = false;
+		this.finished = false;
+		this.finishRank = -1;
+	}
+
 	private tickTimers(dt: number) {
 		this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
 		this.wallBoost = Math.max(0, this.wallBoost - dt);
 		this.boostTimer = Math.max(0, this.boostTimer - dt);
 		this.slowTimer = Math.max(0, this.slowTimer - dt);
+		this.starTimer = Math.max(0, this.starTimer - dt);
 	}
 
-	/**
-	 * Called before the engine moves the block. Decides facing, jumps, wall behaviour
-	 * and finally the target horizontal speed. Only `direction.dir` is written for
-	 * horizontal movement, never `velocity.x`.
-	 */
+	/** All controls are ignored during a hit, including buffered inputs. */
 	control(block: PlayerBlock, dt: number) {
 		this.tickTimers(dt);
 		block.wallSliding = false;
 		block.wallJumping = this.wallBoost > 0;
-		block.stunned = this.slowTimer > 0;
+		block.stunned = this.hit;
 
-		if (this.respawn > 0) {
-			this.freeze(block);
-			return;
-		}
-		if (this.finished) {
+		if (this.respawn > 0 || this.hit || this.finished) {
 			block.direction.dir = 0;
+			this.jumpBuffer = 0;
+			this.itemQueued = false;
+			if (this.respawn > 0) this.freeze(block);
 			return;
 		}
 
@@ -385,7 +428,6 @@ class Player {
 			(this.facing < 0 && block.walker.onLeft());
 
 		if (pushingWall && onFloor) {
-			// Wall on the ground: just turn around.
 			this.facing = -this.facing;
 		} else if (pushingWall) {
 			this.slideOnWall(block, dt);
@@ -397,7 +439,6 @@ class Player {
 		this.applyDirection(block);
 	}
 
-	/** Holds the player in place while respawning. */
 	private freeze(block: PlayerBlock) {
 		block.velocity.x = 0;
 		block.velocity.y = 0;
@@ -406,21 +447,15 @@ class Player {
 		this.itemQueued = false;
 	}
 
-	/**
-	 * In the air against a wall: gravity is partly cancelled (WALL_GRAVITY_FACTOR),
-	 * and a jump turns the player around with a wall jump.
-	 */
 	private slideOnWall(block: PlayerBlock, dt: number) {
 		block.wallSliding = true;
-
 		if (block.velocity.y > 0) {
 			block.velocity.y -= GRAVITY * (1 - WALL_GRAVITY_FACTOR) * dt;
 			block.velocity.y = Math.min(block.velocity.y, WALL_SLIDE_MAX_SPEED);
 		}
-
 		if (this.jumpBuffer > 0) {
-			this.facing = -this.facing;             // leave the wall
-			this.wallBoost = WALLJUMP_BOOST_TIME;   // dir uses WALLJUMP_VELOCITY for a moment
+			this.facing = -this.facing;
+			this.wallBoost = WALLJUMP_BOOST_TIME;
 			block.velocity.y = -WALLJUMP_Y;
 			this.jumpBuffer = 0;
 			block.wallSliding = false;
@@ -428,50 +463,39 @@ class Player {
 		}
 	}
 
-	/** Computes the target horizontal speed from facing and active effects. */
 	private applyDirection(block: PlayerBlock) {
 		let speed = this.wallBoost > 0 ? WALLJUMP_VELOCITY : RUN_SPEED;
 		if (this.boostTimer > 0) speed *= BOOST_MULT;
-		if (this.slowTimer > 0) speed *= SLOW_MULT;
 		block.direction.dir = this.facing * speed;
 	}
 
 	save() {
 		return {
 			x: this.x, y: this.y, vx: this.vx, vy: this.vy,
-			connected: this.connected,
-			isRed: this.isRed,
-			facing: this.facing,
-			jumpBuffer: this.jumpBuffer,
-			wallBoost: this.wallBoost,
-			boostTimer: this.boostTimer,
-			slowTimer: this.slowTimer,
-			item: this.item,
-			itemQueued: this.itemQueued,
-			respawn: this.respawn,
-			checkpoint: this.checkpoint,
-			finished: this.finished,
-			finishRank: this.finishRank,
-			points: this.points,
+			connected: this.connected, isRed: this.isRed, facing: this.facing,
+			jumpBuffer: this.jumpBuffer, wallBoost: this.wallBoost,
+			boostTimer: this.boostTimer, slowTimer: this.slowTimer, starTimer: this.starTimer,
+			item: this.item, pendingItem: this.pendingItem, itemRollTimer: this.itemRollTimer,
+			itemQueued: this.itemQueued, respawn: this.respawn,
+			checkpoint: this.checkpoint, subCheckpoint: this.subCheckpoint, hit: this.hit,
+			lapsCompleted: this.lapsCompleted, finished: this.finished,
+			finishRank: this.finishRank, points: this.points,
 		};
 	}
 
 	load(obj: Fields) {
 		this.x = obj.x; this.y = obj.y; this.vx = obj.vx; this.vy = obj.vy;
-		this.connected = obj.connected;
-		this.isRed = obj.isRed;
+		this.connected = obj.connected; this.isRed = obj.isRed;
 		this.facing = obj.facing === 0 ? 1 : obj.facing;
-		this.jumpBuffer = obj.jumpBuffer;
-		this.wallBoost = obj.wallBoost;
-		this.boostTimer = obj.boostTimer;
-		this.slowTimer = obj.slowTimer;
-		this.item = obj.item;
-		this.itemQueued = obj.itemQueued;
-		this.respawn = obj.respawn;
-		this.checkpoint = obj.checkpoint;
-		this.finished = obj.finished;
-		this.finishRank = obj.finishRank;
-		this.points = obj.points;
+		this.jumpBuffer = obj.jumpBuffer ?? 0; this.wallBoost = obj.wallBoost ?? 0;
+		this.boostTimer = obj.boostTimer ?? 0; this.slowTimer = obj.slowTimer ?? 0;
+		this.starTimer = obj.starTimer ?? 0;
+		this.item = obj.item ?? ITEM_NONE; this.pendingItem = obj.pendingItem ?? ITEM_NONE;
+		this.itemRollTimer = obj.itemRollTimer ?? 0; this.itemQueued = obj.itemQueued ?? false;
+		this.respawn = obj.respawn ?? 0; this.checkpoint = obj.checkpoint ?? -1;
+		this.subCheckpoint = obj.subCheckpoint ?? -1; this.hit = obj.hit ?? false;
+		this.lapsCompleted = obj.lapsCompleted ?? 0; this.finished = obj.finished ?? false;
+		this.finishRank = obj.finishRank ?? -1; this.points = obj.points ?? 0;
 	}
 }
 
@@ -516,6 +540,8 @@ class ClientData {
 	readonly camera = new Camera();
 	private lastLevel = -1;
 	private lastRespawn = 0;
+	private lastX = Number.NaN;
+	private lastY = Number.NaN;
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -556,23 +582,29 @@ class ClientData {
 	/** Refreshes the HTML overlay and the camera for this frame. */
 	update(game: GMRally, playerIdx: number) {
 		const level = game.currentLevel();
-		this.levelName.innerText = `${game.levelIndex + 1}/${LEVELS.length} - ${level.name}`;
+		this.levelName.innerText = `${Math.min(game.players[playerIdx].lapsCompleted + 1, LAP_COUNT)}/${LAP_COUNT} - ${level.name}`;
 		this.time.innerText = ClientData.showTime(LEVEL_TIME_LIMIT - game.levelTime);
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
 
 		const player = game.players[playerIdx];
-		this.item.innerText = ["", "BOOST", "SPRING", "SLOW"][player.item] ?? "";
-		this.banner.innerText =
-			game.phase === PHASE_INTERMISSION ? "Level finished!" :
-			player.finished ? `Finished #${player.finishRank + 1}` : "";
+		const itemNames = ["", "BANANE", "CARAPACE VERTE", "CARAPACE ROUGE", "CARAPACE BLEUE", "CHAMPIGNON", "ÉTOILE"];
+		this.item.innerText = player.itemRollTimer > 0 ? "OBJET…" : (itemNames[player.item] ?? "");
+		this.banner.innerText = player.finished
+			? `Terminé · ${player.lapsCompleted}/${LAP_COUNT} tours (#${player.finishRank + 1})`
+			: game.phase === PHASE_DONE ? "Course terminée" : "";
 
-		// Snap on new level and on respawn
-		if (this.lastLevel !== game.levelIndex || (this.lastRespawn > 0 && player.respawn <= 0)) {
+		// Snap at match start and when a respawn finishes.
+		if (this.lastLevel !== game.levelIndex ||
+			(this.lastRespawn > 0 && player.respawn <= 0) ||
+			(Number.isFinite(this.lastX) && Math.abs(player.x - this.lastX) > 500) ||
+			(Number.isFinite(this.lastY) && Math.abs(player.y - this.lastY) > 500)) {
 			this.camera.teleport(player.x, player.y);
 		}
 		this.lastLevel = game.levelIndex;
 		this.lastRespawn = player.respawn;
+		this.lastX = player.x;
+		this.lastY = player.y;
 
 		this.camera.update(player.x, player.y, player.facing, 1 / 60);
 	}
@@ -625,36 +657,72 @@ function getSkinIconPath(id: string) {
 /* Game mode                                                                  */
 /* -------------------------------------------------------------------------- */
 
+interface BananaState {
+	id: number;
+	x: number;
+	y: number;
+	owner: number;
+	life: number;
+	arming: number;
+}
+
+interface ShellState {
+	id: number;
+	kind: number;
+	x: number;
+	y: number;
+	vx: number;
+	vy: number;
+	owner: number;
+	target: number;
+	life: number;
+}
+
+const ITEM_GLYPHS: Record<number, string> = {
+	[ITEM_BANANA]: "🍌",
+	[ITEM_GREEN_SHELL]: "🟢",
+	[ITEM_RED_SHELL]: "🔴",
+	[ITEM_BLUE_SHELL]: "🔵",
+	[ITEM_MUSHROOM]: "🍄",
+	[ITEM_STAR]: "⭐",
+};
+
 export class GMRally extends GameMode {
 	static readonly types = { Player };
-
 	static readonly DATA = { GRAVITY, WIDTH, HEIGHT, RUN_SPEED, JUMP_VELOCITY };
 
 	readonly players: Player[];
 
-	// ---- Shared state (saved) ----
+	// Shared, authoritative match state.
 	redScore = 0;
 	blueScore = 0;
-	levelIndex = 0;
-	levelTime = 0;          // the "t" of moving platforms
+	levelIndex = 0; // kept for snapshot compatibility; this game has one map
+	levelTime = 0;
 	phase = PHASE_RACING;
-	intermission = 0;
-	finishCount = 0;        // how many players already crossed the line this level
-	boxCooldowns: number[] = [];
-	itemRoll = 0.5;         // next random item value, produced by the server
-	rollDirty = true;       // true when itemRoll was consumed and must be redrawn
+	intermission = 0; // retained for compatibility with older Rally snapshots
+	finishCount = 0;
+	lapFinishCounts: number[] = Array.from({ length: LAP_COUNT }, () => 0);
+	boxCooldowns: number[] = LEVELS[0].items.map(() => 0);
+	bananas: BananaState[] = [];
+	shells: ShellState[] = [];
+	nextEntityId = 1;
 
-	// ---- Non shared (rebuilt) ----
+	// The world is local and deterministic. Only dynamic game state is replicated.
 	private engine: RallyEngine | null = null;
 	private readonly storage: RallyStorage = { skins: [] };
-	private isClient = false;
+	private readonly isClient: boolean;
+	private readonly isAuthoritative: boolean;
+	private worldBuilt = false;
 	private playerIds: number[] = [];
 	private worldIds: number[] = [];
+	private currentRng: GameRandomGenerator | null = null;
 
-	private constructor(total: number) {
+	private constructor(total: number, isClient: boolean, isAuthoritative: boolean) {
 		super();
+		this.isClient = isClient;
+		this.isAuthoritative = isAuthoritative;
 		this.players = Array.from({ length: total }, () => new Player());
-		
+
 		platformEngine.createPlatformerEngine<RallyEngineData>(
 			this.isClient,
 			this.storage,
@@ -662,7 +730,7 @@ export class GMRally extends GameMode {
 			{ x: 0, y: GRAVITY }
 		).then(engine => {
 			this.engine = engine;
-			this.rebuildWorld();
+			this.buildWorldOnce();
 		});
 	}
 
@@ -674,19 +742,17 @@ export class GMRally extends GameMode {
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	) {
 		const { StartData, StartDataClient } = protocols.get();
-		const game = new GMRally(total);
+		const game = new GMRally(total, false, true);
 
 		const decode = (i: number) =>
 			i < players.length
 				? decodeFullMessage(StartData.decode(players[i].data))
 				: generateClientDom([]);
 
-		// Decode every start message once and validate skin ownership
 		const infos = await Promise.all(
 			game.players.map(async (_p, i) => {
 				const d = decode(i);
-				const pseudo = i < players.length ? players[i].pseudo : null;
-				return {pref: (d.preferTeam ?? 0) as number};
+				return { pref: (d.preferTeam ?? 0) as number };
 			})
 		);
 
@@ -697,11 +763,11 @@ export class GMRally extends GameMode {
 			p.resetForLevel(level.spawnX, level.spawnY);
 		}
 		game.boxCooldowns = level.items.map(() => 0);
+		game.syncBlocksFromPlayers(); // handles the case where the engine finished loading first
 
 		const data = StartDataClient.encode({
-			players: game.players.map((p, i) => ({ isRed: p.isRed }))
+			players: game.players.map(p => ({ isRed: p.isRed }))
 		}).finish();
-
 		return { game, data };
 	}
 
@@ -710,42 +776,37 @@ export class GMRally extends GameMode {
 		total: number,
 		_playerIdx: number
 	) {
-		const game = new GMRally(total);
-		game.isClient = true;
+		// Solo/tutorial clients are authoritative locally; multiplayer clients are not.
+		const game = new GMRally(total, true, origin === 'client');
 		const { StartData, StartDataClient } = protocols.get();
 		const clientData = new ClientData();
 
 		if (origin === 'server') {
-			const { players } = decodeFullMessage(StartDataClient.decode(data));
-		} else { // origin === 'client' (tutorial / solo)
-			const {} = decodeFullMessage(StartData.decode(data));
+			const decoded = decodeFullMessage(StartDataClient.decode(data));
+			game.players.forEach((p, i) => { p.isRed = decoded.players?.[i]?.isRed ?? i % 2 === 0; });
+		} else {
+			decodeFullMessage(StartData.decode(data));
 			game.players.forEach((p, i) => { p.isRed = i % 2 === 0; });
 		}
 
 		const level = LEVELS[0];
 		game.players.forEach(p => p.resetForLevel(level.spawnX, level.spawnY));
 		game.boxCooldowns = level.items.map(() => 0);
-
+		game.syncBlocksFromPlayers();
 		return { game, data: clientData, html: clientData.html, skins: {} };
 	}
 
-	/**
-	 * Splits players into two balanced teams, honouring preferences when possible.
-	 * pref: 1 = red, -1 = blue, 0 = none. Returns true for red.
-	 */
+	/** Split players into balanced teams while honouring preferences when possible. */
 	private static assignTeams(prefs: number[]): boolean[] {
 		const total = prefs.length;
 		const maxPerTeam = Math.ceil(total / 2);
 		const isRed: (boolean | undefined)[] = new Array(total).fill(undefined);
 		let red = 0;
 		let blue = 0;
-
-		// Phase 1: valid explicit preferences
 		for (let i = 0; i < total; i++) {
 			if (prefs[i] === 1 && red < maxPerTeam) { isRed[i] = true; red++; }
 			else if (prefs[i] === -1 && blue < maxPerTeam) { isRed[i] = false; blue++; }
 		}
-		// Phase 2: fill by balancing
 		for (let i = 0; i < total; i++) {
 			if (isRed[i] !== undefined) continue;
 			const wantRed = red < blue || (red === blue && i % 2 === 0);
@@ -757,14 +818,10 @@ export class GMRally extends GameMode {
 
 	static readonly generateClientDom = generateClientDom;
 
-
 	static readonly TEXTURES = {
 		"player": "/assets/games/rally/player.png",
 		'platform': "/assets/games/rally/platform.png",
 		'item-box': "/assets/games/rally/item-box.png",
-		'item-boost': "/assets/games/rally/item-boost.png",
-		'item-spring': "/assets/games/rally/item-spring.png",
-		'item-slow': "/assets/games/rally/item-slow.png",
 		'finish': "/assets/games/rally/finish.png",
 		'team-marker': "/assets/games/rally/team-marker.png",
 		'background': "/assets/games/rally/background.png",
@@ -772,35 +829,26 @@ export class GMRally extends GameMode {
 
 	/* ---------------------------- Engine / world ---------------------------- */
 
-	/** Creates the Rapier engine (async) then builds the current level. */
-	override init(): void {
-		
-	}
+	override init(): void {}
 
 	override getBotIds(count: number): number[] {
 		return Array.from({ length: count }, () => 0);
 	}
 
-	currentLevel(): LevelDef {
-		return LEVELS[Math.min(this.levelIndex, LEVELS.length - 1)];
-	}
+	currentLevel(): LevelDef { return LEVELS[0]; }
 
-	/**
-	 * Removes every block and recreates them from shared state (levelIndex + Player).
-	 * Used at level start and after load().
-	 */
-	private rebuildWorld() {
+	/** Build the deterministic map and player bodies exactly once per game instance. */
+	private buildWorldOnce() {
 		const engine = this.engine;
-		if (!engine) return;
-
-		for (const id of [...this.worldIds, ...this.playerIds]) engine.removeBlock(id);
-		this.worldIds = [];
-		this.playerIds = [];
+		if (!engine || this.worldBuilt) return;
 
 		for (const def of this.currentLevel().platforms) {
-			this.worldIds.push(engine.addBlock(new PlatformBlock(def), 'platform'));
+			const block = new PlatformBlock(def);
+			const sampled = samplePlatform(def, this.levelTime);
+			block.x = sampled.x;
+			block.y = sampled.y;
+			this.worldIds.push(engine.addBlock(block, 'platform'));
 		}
-
 		for (const [i, p] of this.players.entries()) {
 			const block = new PlayerBlock(i);
 			block.x = p.x;
@@ -809,76 +857,161 @@ export class GMRally extends GameMode {
 			block.velocity.y = p.vy;
 			this.playerIds.push(engine.addBlock(block, 'player'));
 		}
+		this.worldBuilt = true;
+		this.syncBlocksFromPlayers();
 	}
 
-	/** Resets everything for level `index` and recreates the world. */
-	private startLevel(index: number) {
-		this.levelIndex = index;
-		this.levelTime = 0;
-		this.phase = PHASE_RACING;
-		this.finishCount = 0;
-		const level = this.currentLevel();
-		this.boxCooldowns = level.items.map(() => 0);
-		for (const p of this.players) p.resetForLevel(level.spawnX, level.spawnY);
-		this.rebuildWorld();
+	/** Restore a snapshot into existing bodies; never remove/recreate the map. */
+	private syncBlocksFromPlayers() {
+		if (!this.engine || !this.worldBuilt) return;
+		for (const [i, p] of this.players.entries()) {
+			const block = this.engine.getBlock(this.playerIds[i]) as PlayerBlock | null;
+			if (!block) continue;
+			block.x = p.x;
+			block.y = p.y;
+			block.velocity.x = p.vx;
+			block.velocity.y = p.vy;
+			block.direction.dir = (p.hit || p.respawn > 0 || p.finished) ? 0 : p.facing * RUN_SPEED;
+			block.stunned = p.hit;
+		}
 	}
 
-	/* ---------------------------- Player hooks (called by blocks) ---------------------------- */
+	private getPlayerBlock(index: number): PlayerBlock | null {
+		if (!this.engine || !this.worldBuilt) return null;
+		return this.engine.getBlock(this.playerIds[index]) as PlayerBlock | null;
+	}
 
-	/** Before the engine step: apply the queued item then the player's control logic. */
+	/* ---------------------------- Player hooks ---------------------------- */
+
 	beforePlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		const p = this.players[idx];
+		if (this.isAuthoritative && p.pendingItem !== ITEM_NONE) {
+			p.itemRollTimer = Math.max(0, p.itemRollTimer - dt);
+			if (p.itemRollTimer <= 0) {
+				p.item = p.pendingItem;
+				p.pendingItem = ITEM_NONE;
+			}
+		}
+
 		if (p.itemQueued) {
 			p.itemQueued = false;
-			if (p.respawn <= 0 && !p.finished) this.useItem(idx, block);
+			if (this.isAuthoritative && p.respawn <= 0 && !p.finished && !p.hit && p.itemRollTimer <= 0) {
+				this.useItem(idx, block);
+			}
 		}
 		p.control(block, dt);
 	}
 
-	/** After the engine step: mirror state, then resolve death, checkpoints, finish and item boxes. */
 	afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		const p = this.players[idx];
-		p.x = block.x; p.y = block.y;
-		p.vx = block.velocity.x; p.vy = block.velocity.y;
+		p.x = block.x;
+		p.y = block.y;
+		p.vx = block.velocity.x;
+		p.vy = block.velocity.y;
+
+		// A hit ends only on contact with the floor; landing discards all momentum.
+		if (p.hit && block.walker.onFloor() && block.velocity.y >= 0) {
+			p.hit = false;
+			block.velocity.x = 0;
+			block.velocity.y = 0;
+			block.direction.dir = 0;
+			p.vx = 0;
+			p.vy = 0;
+		}
 
 		if (p.respawn > 0) {
-			p.respawn -= dt;
+			if (this.isAuthoritative) p.respawn = Math.max(0, p.respawn - dt);
 			return;
 		}
-		if (p.finished) return;
+		if (!this.isAuthoritative || p.finished) return;
 
 		const level = this.currentLevel();
-
-		if (p.y > level.deathY) { this.killPlayer(p, block); return; }
+		if (p.y > level.deathY) { this.killPlayer(idx, p, block); return; }
 		this.updateCheckpoint(p, level);
-		if (p.x >= level.finishX) this.finishPlayer(p);
+		if (p.checkpoint === level.checkpoints.length - 1 && overlapsCenter(
+			{ x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H },
+			{ x: level.finishX, y: -150, w: 80, h: 450 }
+		)) {
+			this.completeLap(idx, p, block);
+			return;
+		}
 		this.collectItemBoxes(p, level);
 	}
 
-	/** Sends the player back to its last checkpoint (or the spawn) and freezes it shortly. */
-	private killPlayer(p: Player, block: PlayerBlock) {
+	private killPlayer(_idx: number, p: Player, block: PlayerBlock) {
 		const level = this.currentLevel();
-		const cp = p.checkpoint >= 0 ? level.checkpoints[p.checkpoint] : { x: level.spawnX, y: level.spawnY };
-		block.x = cp.x; block.y = cp.y;
-		block.velocity.x = 0; block.velocity.y = 0;
-		p.x = cp.x; p.y = cp.y; p.vx = 0; p.vy = 0;
+		const point = p.subCheckpoint >= 0
+			? level.subCheckpoints[p.subCheckpoint]
+			: p.checkpoint >= 0 ? level.checkpoints[p.checkpoint] : { x: level.spawnX, y: level.spawnY };
+		block.x = point.x;
+		block.y = point.y;
+		block.velocity.x = 0;
+		block.velocity.y = 0;
+		block.direction.dir = 0;
+		p.x = point.x;
+		p.y = point.y;
+		p.vx = 0;
+		p.vy = 0;
 		p.facing = 1;
 		p.wallBoost = 0;
+		p.hit = false;
+		p.jumpBuffer = 0;
 		p.respawn = RESPAWN_TIME;
+		p.itemQueued = false;
+		p.boostTimer = 0;
+		p.starTimer = 0;
 	}
 
+	/** Only the next major checkpoint can be validated, so later ones cannot be skipped. */
 	private updateCheckpoint(p: Player, level: LevelDef) {
-		for (let i = level.checkpoints.length - 1; i > p.checkpoint; i--) {
-			if (p.x >= level.checkpoints[i].x) { p.checkpoint = i; break; }
+		const playerRect = { x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H };
+		const nextCheckpoint = p.checkpoint + 1;
+		if (nextCheckpoint < level.checkpoints.length) {
+			const cp = level.checkpoints[nextCheckpoint];
+			if (overlapsCenter(playerRect, {
+				x: cp.x, y: cp.y, w: cp.w ?? 48, h: cp.h ?? 220,
+			})) p.checkpoint = nextCheckpoint;
+		}
+
+		const nextSubCheckpoint = p.subCheckpoint + 1;
+		if (nextSubCheckpoint < level.subCheckpoints.length) {
+			const cp = level.subCheckpoints[nextSubCheckpoint];
+			const prerequisite = cp.afterCheckpoint ?? -1;
+			if (p.checkpoint >= prerequisite && overlapsCenter(playerRect, {
+				x: cp.x, y: cp.y, w: cp.w ?? 48, h: cp.h ?? 220,
+			})) p.subCheckpoint = nextSubCheckpoint;
 		}
 	}
 
-	/** Gives rank points to the player and refreshes team scores. */
-	private finishPlayer(p: Player) {
-		p.finished = true;
-		p.finishRank = this.finishCount++;
-		p.points += RANK_POINTS[p.finishRank] ?? 0;
+	/** Score each lap's finish order, then respawn at the start for the next lap. */
+	private completeLap(idx: number, p: Player, block: PlayerBlock) {
+		const lapIndex = Math.min(p.lapsCompleted, LAP_COUNT - 1);
+		const rank = this.lapFinishCounts[lapIndex] ?? 0;
+		this.lapFinishCounts[lapIndex] = rank + 1;
+		p.lapsCompleted++;
+		p.finishRank = rank;
+		p.points += RANK_POINTS[rank] ?? 0;
+		this.finishCount++;
 		this.recomputeScores();
+
+		const level = this.currentLevel();
+		p.resetAtSpawn(level.spawnX, level.spawnY);
+		block.x = level.spawnX;
+		block.y = level.spawnY;
+		block.velocity.x = 0;
+		block.velocity.y = 0;
+		block.direction.dir = 0;
+		block.stunned = false;
+		if (p.lapsCompleted >= LAP_COUNT) {
+			p.finished = true;
+			p.respawn = 0;
+			p.finishRank = rank;
+		}
+		// A completed lap always returns to the start, including the final one.
+		p.x = block.x;
+		p.y = block.y;
+		p.vx = 0;
+		p.vy = 0;
 	}
 
 	private recomputeScores() {
@@ -890,104 +1023,187 @@ export class GMRally extends GameMode {
 		}
 	}
 
-	/** Picks up an item box if the player's hands are empty. */
+	/** Box objects are part of the static map; only their cooldowns are replicated. */
 	private collectItemBoxes(p: Player, level: LevelDef) {
-		if (p.item !== ITEM_NONE) return;
-		const me = { x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H };
+		if (p.item !== ITEM_NONE || p.pendingItem !== ITEM_NONE || p.itemRollTimer > 0) return;
+		const playerRect = { x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H };
 		for (const [i, box] of level.items.entries()) {
 			if (this.boxCooldowns[i] > 0) continue;
-			if (!collisions.RectRect(me, { x: box.x, y: box.y, w: BOX_SIZE, h: BOX_SIZE })) continue;
-			p.item = this.rollItem();
+			if (!overlapsCenter(playerRect, { x: box.x, y: box.y, w: BOX_SIZE, h: BOX_SIZE })) continue;
+			p.pendingItem = this.rollItem();
+			p.itemRollTimer = ITEM_ROLL_TIME;
 			this.boxCooldowns[i] = BOX_RESPAWN;
-			this.rollDirty = true; // the server will draw a new value
 			return;
 		}
 	}
 
-	/** Maps the shared random value to an item. */
+	/** RNG is consumed only by the authority; the selected item is immediately shared. */
 	private rollItem() {
-		if (this.itemRoll < 0.4) return ITEM_BOOST;
-		if (this.itemRoll < 0.7) return ITEM_SPRING;
-		return ITEM_SLOW;
+		const r = this.currentRng ? this.currentRng() : Math.random();
+		if (r < 0.18) return ITEM_BANANA;
+		if (r < 0.40) return ITEM_GREEN_SHELL;
+		if (r < 0.60) return ITEM_RED_SHELL;
+		if (r < 0.68) return ITEM_BLUE_SHELL;
+		if (r < 0.88) return ITEM_MUSHROOM;
+		return ITEM_STAR;
 	}
 
-	/** Consumes the held item. */
-	private useItem(idx: number, block: PlayerBlock) {
+	private useItem(idx: number, _block: PlayerBlock) {
 		const p = this.players[idx];
-		switch (p.item) {
-			case ITEM_BOOST: p.boostTimer = BOOST_TIME; break;
-			case ITEM_SPRING: block.velocity.y = -SPRING_VELOCITY; break;
-			case ITEM_SLOW: this.slowNearestOpponentAhead(p); break;
+		const held = p.item;
+		if (held === ITEM_NONE) return;
+
+		switch (held) {
+			case ITEM_BANANA:
+				this.bananas.push({
+					id: this.nextEntityId++,
+					x: p.x - p.facing * (PLAYER_W * 0.8),
+					y: p.y + PLAYER_H * 0.35,
+					owner: idx, life: BANANA_LIFETIME, arming: 0.45,
+				});
+				break;
+			case ITEM_GREEN_SHELL:
+			case ITEM_RED_SHELL:
+			case ITEM_BLUE_SHELL:
+				this.spawnShell(idx, held, p);
+				break;
+			case ITEM_MUSHROOM:
+				p.boostTimer = BOOST_TIME;
+				break;
+			case ITEM_STAR:
+				p.starTimer = STAR_TIME;
+				p.boostTimer = BOOST_TIME;
+				break;
 		}
 		p.item = ITEM_NONE;
+		p.pendingItem = ITEM_NONE;
+		p.itemRollTimer = 0;
 	}
 
-	/** SLOW: slows the closest opponent that is ahead (greater x), within range. */
-	private slowNearestOpponentAhead(user: Player) {
-		let best: Player | null = null;
-		let bestDist = SLOW_RANGE;
-		for (const o of this.players) {
-			if (o.isRed === user.isRed || o.finished) continue;
-			const d = o.x - user.x;
-			if (d > 0 && d < bestDist) { best = o; bestDist = d; }
+	private spawnShell(owner: number, kind: number, player: Player) {
+		let target = -1;
+		if (kind === ITEM_RED_SHELL) {
+			let bestDistance = Number.POSITIVE_INFINITY;
+			for (let i = 0; i < this.players.length; i++) {
+				const other = this.players[i];
+				if (i === owner || other.finished) continue;
+				const distance = other.x - player.x;
+				if (distance * player.facing > 0 && Math.abs(distance) < bestDistance) {
+					target = i;
+					bestDistance = Math.abs(distance);
+				}
+			}
+		} else if (kind === ITEM_BLUE_SHELL) {
+			let bestLap = -1;
+			let bestX = -Infinity;
+			for (let i = 0; i < this.players.length; i++) {
+				const other = this.players[i];
+				if (i === owner || other.finished) continue;
+				if (other.lapsCompleted > bestLap || (other.lapsCompleted === bestLap && other.x > bestX)) {
+					target = i;
+					bestLap = other.lapsCompleted;
+					bestX = other.x;
+				}
+			}
 		}
-		if (best) best.slowTimer = SLOW_TIME;
+		this.shells.push({
+			id: this.nextEntityId++, kind,
+			x: player.x + player.facing * (PLAYER_W * 0.7), y: player.y,
+			vx: player.facing * SHELL_SPEED, vy: 0,
+			owner, target, life: SHELL_LIFETIME,
+		});
+	}
+
+	private hitPlayer(targetIndex: number) {
+		const target = this.players[targetIndex];
+		if (!target || target.finished || target.hit || target.starTimer > 0) return;
+		const block = this.getPlayerBlock(targetIndex);
+		if (!block) return;
+		target.hit = true;
+		target.jumpBuffer = 0;
+		target.itemQueued = false;
+		// The impulse is opposite the player's running direction.
+		block.velocity.x = -target.facing * HIT_KNOCKBACK;
+		block.velocity.y = -HIT_JUMP;
+		block.direction.dir = 0;
+		block.stunned = true;
+		target.vx = block.velocity.x;
+		target.vy = block.velocity.y;
+	}
+
+	/** Update authoritative hazards and resolve collisions using center-based AABBs. */
+	private updateHazards(dt: number) {
+		const playerRect = (p: Player) => ({ x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H });
+		this.bananas = this.bananas.filter(banana => {
+			banana.life -= dt;
+			banana.arming = Math.max(0, banana.arming - dt);
+			if (banana.life <= 0) return false;
+			if (banana.arming <= 0) {
+				for (let i = 0; i < this.players.length; i++) {
+					if (i === banana.owner || this.players[i].finished || this.players[i].respawn > 0) continue;
+					if (overlapsCenter(playerRect(this.players[i]), { x: banana.x, y: banana.y, w: 30, h: 30 })) {
+						this.hitPlayer(i);
+						return false;
+					}
+				}
+			}
+			return true;
+		});
+
+		this.shells = this.shells.filter(shell => {
+			shell.life -= dt;
+			if (shell.life <= 0 || Math.abs(shell.x) > 6000) return false;
+			if ((shell.kind === ITEM_RED_SHELL || shell.kind === ITEM_BLUE_SHELL) && shell.target >= 0) {
+				const target = this.players[shell.target];
+				if (target && !target.finished) {
+					shell.vx = (target.x >= shell.x ? 1 : -1) * SHELL_SPEED;
+					shell.vy = Math.max(-520, Math.min(520, (target.y - shell.y) * 2.2));
+				} else if (shell.kind === ITEM_BLUE_SHELL) {
+					let leader = -1;
+					for (let i = 0; i < this.players.length; i++) {
+						const candidate = this.players[i];
+						if (i !== shell.owner && !candidate.finished && (leader < 0 ||
+							candidate.lapsCompleted > this.players[leader].lapsCompleted ||
+							(candidate.lapsCompleted === this.players[leader].lapsCompleted && candidate.x > this.players[leader].x))) leader = i;
+					}
+					shell.target = leader;
+				}
+			}
+			shell.x += shell.vx * dt;
+			shell.y += shell.vy * dt;
+			for (let i = 0; i < this.players.length; i++) {
+				if (i === shell.owner || this.players[i].finished || this.players[i].respawn > 0) continue;
+				if (overlapsCenter(playerRect(this.players[i]), { x: shell.x, y: shell.y, w: 30, h: 30 })) {
+					this.hitPlayer(i);
+					return false;
+				}
+			}
+			return true;
+		});
 	}
 
 	/* ---------------------------- Main loop ---------------------------- */
 
-	override run(
-		dt: number,
-		produceFinish: boolean,
-		rng: GameRandomGenerator | null
-	): FinishGame | null {
-		if (!this.engine) return null; // engine is still loading
-
+	override run(dt: number, produceFinish: boolean, rng: GameRandomGenerator | null): FinishGame | null {
+		if (!this.engine) return null;
 		const step = Math.min(dt, platformEngine.MAX_FRAME_DT);
+		this.currentRng = rng;
+		if (this.phase === PHASE_RACING) this.runRacing(step);
+		this.currentRng = null;
 
-		if (this.phase === PHASE_RACING) {
-			this.runRacing(step);
-		} else if (this.phase === PHASE_INTERMISSION) {
-			this.runIntermission(step);
-		}
-
-		// Server only: refresh the random value once it has been consumed.
-		// It is part of the State so clients get the same value.
-		if (rng && this.rollDirty) {
-			this.itemRoll = rng();
-			this.rollDirty = false;
-		}
-
-		if (produceFinish && this.phase === PHASE_DONE) {
-			return this.produceFinish();
-		}
+		if (produceFinish && this.phase === PHASE_DONE) return this.produceFinish();
 		return null;
 	}
 
-	/** One racing step: timers, physics, then end-of-level check. */
 	private runRacing(step: number) {
 		this.levelTime += step;
 		this.boxCooldowns = this.boxCooldowns.map(c => Math.max(0, c - step));
 		this.engine!.update(step);
+		if (this.isAuthoritative) this.updateHazards(step);
 
-		if (this.isLevelOver()) {
-			this.phase = PHASE_INTERMISSION;
-			this.intermission = INTERMISSION_TIME;
+		if (this.levelTime >= LEVEL_TIME_LIMIT || this.players.every(p => p.finished || !p.connected)) {
+			this.phase = PHASE_DONE;
 		}
-	}
-
-	private runIntermission(step: number) {
-		this.intermission -= step;
-		if (this.intermission > 0) return;
-
-		if (this.levelIndex + 1 >= LEVELS.length) this.phase = PHASE_DONE;
-		else this.startLevel(this.levelIndex + 1);
-	}
-
-	/** Level ends when everyone present has finished, or on timeout. */
-	private isLevelOver() {
-		if (this.levelTime >= LEVEL_TIME_LIMIT) return true;
-		return this.players.every(p => p.finished || !p.connected);
 	}
 
 	/* ---------------------------- Inputs ---------------------------- */
@@ -1067,7 +1283,21 @@ export class GMRally extends GameMode {
 
 		// Finish line
 		const finish = imageLoader.get('finish');
-		ctx.drawImage(finish, level.finishX - 32, level.spawnY - 400, 64, 800);
+		ctx.drawImage(finish, level.finishX - 32, -300, 64, 1200);
+
+		// Main checkpoints and sub-checkpoints are visible route markers.
+		for (const cp of level.checkpoints) {
+			const h = cp.h ?? 220;
+			ctx.fillStyle = "#ffd34d";
+			ctx.fillRect(cp.x - 3, cp.y - h / 2, 6, h);
+			ctx.fillRect(cp.x, cp.y - h / 2, 34, 18);
+		}
+		for (const cp of level.subCheckpoints) {
+			const h = cp.h ?? 220;
+			ctx.fillStyle = "#cf87ff";
+			ctx.fillRect(cp.x - 2, cp.y - h / 2, 4, h);
+			ctx.fillRect(cp.x, cp.y - h / 2, 25, 13);
+		}
 
 		// Platforms: drawn from the live blocks so moving ones are at the right place
 		if (engine) {
@@ -1086,28 +1316,48 @@ export class GMRally extends GameMode {
 			if (this.boxCooldowns[i] > 0) continue;
 			ctx.drawImage(box, b.x - BOX_SIZE / 2, b.y - BOX_SIZE / 2, BOX_SIZE, BOX_SIZE);
 		}
+
+		// Hazards are lightweight shared entities, not physics-engine blocks.
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.font = "30px sans-serif";
+		for (const banana of this.bananas) ctx.fillText("🍌", banana.x, banana.y);
+		for (const shell of this.shells) ctx.fillText(ITEM_GLYPHS[shell.kind] ?? "●", shell.x, shell.y);
 	}
 
-	/** Player sprites, team markers and held-item icons. */
+	/** Player sprites, team markers, held-item icons and the item roulette. */
 	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: platformEngine.ImageLoaderFolder) {
 		const engine = this.engine;
 		if (!engine) return;
-
-		const icons = [null, 'item-boost', 'item-spring', 'item-slow'];
+		const rouletteItems = [ITEM_BANANA, ITEM_GREEN_SHELL, ITEM_RED_SHELL, ITEM_BLUE_SHELL, ITEM_MUSHROOM, ITEM_STAR];
 		for (const [i, p] of this.players.entries()) {
 			const id = this.playerIds[i];
 			const block = engine.getBlock(id);
 			if (!block) continue;
-
-			if (p.respawn > 0 && Math.floor(p.respawn * 10) % 2 === 0) continue; // blink
+			if (p.respawn > 0 && Math.floor(p.respawn * 10) % 2 === 0) continue;
 
 			engine.getAnimator(id)?.draw(block, ctx, imageLoader);
-
 			const top = block.y - PLAYER_H / 2;
 			ctx.drawImage(imageLoader.get('team-marker', p.isRed ? 0 : 1), block.x - 12, top - 36, 24, 24);
 
-			const icon = icons[p.item];
-			if (icon) ctx.drawImage(imageLoader.get(icon), block.x - 16, top - 72, 32, 32);
+			const itemToDraw = p.itemRollTimer > 0
+				? rouletteItems[Math.floor(this.levelTime * 14) % rouletteItems.length]
+				: p.item;
+			if (itemToDraw !== ITEM_NONE) {
+				ctx.save();
+				ctx.font = "30px sans-serif";
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				ctx.fillText(ITEM_GLYPHS[itemToDraw] ?? "?", block.x, top - 58);
+				ctx.restore();
+			}
+			if (p.starTimer > 0) {
+				ctx.save();
+				ctx.strokeStyle = "#ffe34d";
+				ctx.lineWidth = 4;
+				ctx.strokeRect(block.x - PLAYER_W / 2 - 5, block.y - PLAYER_H / 2 - 5, PLAYER_W + 10, PLAYER_H + 10);
+				ctx.restore();
+			}
 		}
 	}
 
@@ -1144,7 +1394,7 @@ export class GMRally extends GameMode {
 
 	/** Copies the live block state into Player so the snapshot is complete. */
 	private syncPlayersFromBlocks() {
-		if (!this.engine) return;
+		if (!this.engine || !this.worldBuilt) return;
 		for (const [i, p] of this.players.entries()) {
 			const block = this.engine.getBlock(this.playerIds[i]) as PlayerBlock | null;
 			if (!block) continue;
@@ -1165,9 +1415,11 @@ export class GMRally extends GameMode {
 			redScore: this.redScore,
 			blueScore: this.blueScore,
 			finishCount: this.finishCount,
+			lapFinishCounts: this.lapFinishCounts,
 			boxCooldowns: this.boxCooldowns,
-			itemRoll: this.itemRoll,
-			rollDirty: this.rollDirty,
+			bananas: this.bananas,
+			shells: this.shells,
+			nextEntityId: this.nextEntityId,
 		};
 		return State.encode(object).finish();
 	}
@@ -1179,19 +1431,21 @@ export class GMRally extends GameMode {
 		for (let i = 0; i < obj.players.length; i++) {
 			this.players[i].load(obj.players[i]);
 		}
-		this.levelIndex = obj.levelIndex;
-		this.levelTime = obj.levelTime;
-		this.phase = obj.phase;
-		this.intermission = obj.intermission;
-		this.redScore = obj.redScore;
-		this.blueScore = obj.blueScore;
-		this.finishCount = obj.finishCount;
-		this.boxCooldowns = [...obj.boxCooldowns];
-		this.itemRoll = obj.itemRoll;
-		this.rollDirty = obj.rollDirty;
+		this.levelIndex = 0;
+		this.levelTime = obj.levelTime ?? 0;
+		this.phase = obj.phase ?? PHASE_RACING;
+		this.intermission = 0;
+		this.redScore = obj.redScore ?? 0;
+		this.blueScore = obj.blueScore ?? 0;
+		this.finishCount = obj.finishCount ?? 0;
+		this.lapFinishCounts = [...(obj.lapFinishCounts ?? Array.from({ length: LAP_COUNT }, () => 0))];
+		this.boxCooldowns = [...(obj.boxCooldowns ?? LEVELS[0].items.map(() => 0))];
+		this.bananas = [...(obj.bananas ?? [])];
+		this.shells = [...(obj.shells ?? [])];
+		this.nextEntityId = obj.nextEntityId ?? 1;
 
-		// Blocks are not saved: recreate them from the loaded state.
-		this.rebuildWorld();
+		// Keep local block IDs and static platforms intact; only restore body state.
+		this.syncBlocksFromPlayers();
 	}
 
 	/* ---------------------------- Results ---------------------------- */
