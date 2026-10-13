@@ -242,7 +242,6 @@ const TEXTURE_PLACEHOLDER_COLOR = '#ff00ff';       // colour painted in the PNG 
 const TEAM_COLORS = ['#ff0044', '#0044ff'];        // index 0 = red, 1 = blue
 const COLOR_ID_RED = 0;
 const COLOR_ID_BLUE = 1;
-const ANIMATION_LINES_PER_STATE = 1;               // sprite-sheet lines used by each animator state
 
 // ---- Colours used when a texture is missing / for the UI -------------------
 const COLOR_VOID = '#101820';
@@ -643,10 +642,10 @@ namespace botsApi {
 	const wallKey = (side: number, col: number, bucket: number) =>
 		(bucket * LEVEL_COLS + col) * 2 + (side > 0 ? 1 : 0);
 
-	function classify(el: PlacedElement | null): number {
+	function classify(el: ElementView | null): number {
 		if (!el) return FREE;
-		if (el instanceof SpikeElement) return AVOID_SPIKES ? DEADLY : SOLID_NO_STAND;
-		if (el instanceof TrampolineElement || el instanceof RampElement) return SOLID_NO_STAND;
+		if (el.getTypeIdx() === TYPE_SPIKE) return AVOID_SPIKES ? DEADLY : SOLID_NO_STAND;
+		if (el.getTypeIdx() === TYPE_TRAMPOLINE || el.getTypeIdx() === TYPE_RAMP) return SOLID_NO_STAND;
 		return SOLID;
 	}
 
@@ -1037,42 +1036,6 @@ namespace botsApi {
 	/* ---------------------------------------------------------------------- */
 
 	type BotEdgeState = Pick<Edge, 'kind' | 'takeoffX' | 'dirUp' | 'dirDown'>;
-	const NAV_EDGE_PREFIX = 'nav1:';
-	const EDGE_KINDS: readonly EdgeKind[] = ['walk', 'drop', 'jump', 'slide', 'letgo', 'wallJump'];
-
-	function encodeEdge(edge: BotEdgeState | null): string {
-		if (!edge) return '';
-		// BotState.lastKey is an existing protobuf string field. Store the active
-		// steering intent there so a save/load in mid-air cannot discard the route.
-		return NAV_EDGE_PREFIX + JSON.stringify({
-			kind: edge.kind,
-			takeoffX: edge.takeoffX,
-			dirUp: edge.dirUp,
-			dirDown: edge.dirDown,
-		});
-	}
-
-	function decodeEdge(value: unknown): BotEdgeState | null {
-		if (typeof value !== 'string' || !value.startsWith(NAV_EDGE_PREFIX)) return null;
-		try {
-			const parsed = JSON.parse(value.slice(NAV_EDGE_PREFIX.length)) as Partial<BotEdgeState>;
-			if (
-				typeof parsed.kind !== 'string' || !EDGE_KINDS.includes(parsed.kind as EdgeKind) ||
-				typeof parsed.takeoffX !== 'number' || !Number.isFinite(parsed.takeoffX) ||
-				(parsed.dirUp !== -1 && parsed.dirUp !== 0 && parsed.dirUp !== 1) ||
-				(parsed.dirDown !== -1 && parsed.dirDown !== 0 && parsed.dirDown !== 1)
-			) return null;
-			return {
-				kind: parsed.kind as EdgeKind,
-				takeoffX: parsed.takeoffX,
-				dirUp: parsed.dirUp,
-				dirDown: parsed.dirDown,
-			};
-		} catch {
-			return null;
-		}
-	}
-
 	export class Data {
 		/** Active navigation edge; essential while a bot is airborne. */
 		edge: BotEdgeState | null = null;
@@ -1081,20 +1044,6 @@ namespace botsApi {
 		/** Debug-only decision key; deliberately not part of authoritative state. */
 		debugKey = '';
 
-		save(): Fields {
-			return {
-				jumpCooldown: this.jumpCooldown,
-				logTimer: this.logTimer,
-				lastKey: encodeEdge(this.edge),
-			};
-		}
-
-		load(obj: Fields) {
-			this.jumpCooldown = Number.isFinite(obj.jumpCooldown) ? obj.jumpCooldown : 0;
-			this.logTimer = Number.isFinite(obj.logTimer) ? obj.logTimer : 0;
-			this.edge = decodeEdge(obj.lastKey);
-			this.debugKey = '';
-		}
 	}
 
 	export interface BotInput {
@@ -1284,11 +1233,7 @@ function isGhostPair(a: GameBlock, b: GameBlock): boolean {
 	return false;
 }
 
-/**
- * Base class of everything living in the engine.
- * `uid` is a STABLE network id: engine ids are not stable across load(), so the
- * "blockId" exchanged in inputs / saves is this uid.
- */
+/** Base class of entities simulated exclusively by the authoritative server. */
 abstract class GameBlock extends platformEngine.Block<NoData, CDEngineData> {
 	uid = -1;
 	engineId = -1;
@@ -1345,7 +1290,7 @@ function initElement<T extends PlacedElement>(el: T, init: ElementInit): T {
  * Common behaviour of all grid elements:
  * - owner (player index, NO_OWNER for the neutral floor),
  * - hp = remaining lifetime in seconds (hp -= dt every frame),
- * - save() / load(), drawing with the damage overlay.
+ * - compact save() data for the server-to-client visual snapshot and damage rendering.
  */
 abstract class PlacedElement extends GameBlock {
 	col = 0;
@@ -1376,15 +1321,6 @@ abstract class PlacedElement extends GameBlock {
 
 	save(): Fields {
 		return { hp: this.hp, owner: this.owner, col: this.col, row: this.row, variant: this.variant };
-	}
-
-	load(obj: Fields) {
-		this.hp = obj.hp;
-		this.owner = obj.owner;
-		this.col = obj.col;
-		this.row = obj.row;
-		this.variant = obj.variant;
-		this.snapToCell();
 	}
 
 	override processBeforeEngine(_id: BlockId, dt: number, engine: Engine): void {
@@ -1434,19 +1370,20 @@ enum BotAnimatorState {
 	WALL_JUMP,
 	WALL_HANG,
 	HURT,
-};
+}
 
+/** Shared animation definition used by the authoritative server and client renderer. */
 class BotAnimator extends platformEngine.Animator {
 	static readonly ANIMATION_LINES = {
-		[BotAnimatorState.IDLE] : {delay: 0.2, count: 8},
-		[BotAnimatorState.WALKING] : {delay: 0.2, count: 8},
-		[BotAnimatorState.RUNNING] : {delay: 0.2, count: 8},
-		[BotAnimatorState.JUMPING] : {delay: 0.2, count: 4},
-		[BotAnimatorState.FALLING] : {delay: 0.2, count: 4},
-		[BotAnimatorState.WALL_SLIDE] : {delay: 0.2, count: 4},
-		[BotAnimatorState.WALL_JUMP] : {delay: 0.2, count: 5},
-		[BotAnimatorState.WALL_HANG] : {delay: 0.2, count: 5},
-		[BotAnimatorState.HURT] : {delay: 0.2, count: 1},
+		[BotAnimatorState.IDLE]: { delay: 0.2, count: 8 },
+		[BotAnimatorState.WALKING]: { delay: 0.2, count: 8 },
+		[BotAnimatorState.RUNNING]: { delay: 0.2, count: 8 },
+		[BotAnimatorState.JUMPING]: { delay: 0.2, count: 4 },
+		[BotAnimatorState.FALLING]: { delay: 0.2, count: 4 },
+		[BotAnimatorState.WALL_SLIDE]: { delay: 0.2, count: 4 },
+		[BotAnimatorState.WALL_JUMP]: { delay: 0.2, count: 5 },
+		[BotAnimatorState.WALL_HANG]: { delay: 0.2, count: 5 },
+		[BotAnimatorState.HURT]: { delay: 0.2, count: 1 },
 	};
 
 	constructor() {
@@ -1456,7 +1393,7 @@ class BotAnimator extends platformEngine.Animator {
 			TEX_BOT,
 			null,
 			BotAnimator.ANIMATION_LINES,
-			BOT_RUNNING_SPEED
+			BOT_RUNNING_SPEED,
 		);
 	}
 
@@ -1464,81 +1401,68 @@ class BotAnimator extends platformEngine.Animator {
 		block: platformEngine.Block<any, any>,
 		walker: platformEngine.Walker,
 		direction: platformEngine.Direction,
-		current: number
+		current: number,
 	): platformEngine.StateReturn {
 		const bot = block as Bot;
-		const S = BotAnimatorState;
-
-		if (
+		const state = BotAnimatorState;
+		const onWall =
 			(walker.onLeft() && direction.dir < 0) ||
-			(walker.onRight() && direction.dir > 0)
-		) {
-			// On a wall
-			if (current === S.WALL_HANG) {
-				return {type: 'next', state: S.WALL_SLIDE};
-			}
+			(walker.onRight() && direction.dir > 0);
 
-			if (current === S.WALL_SLIDE) {
-				return {type: 'loop'};
-			}
-
-			return {type: 'switch', state: S.WALL_HANG};
+		if (onWall) {
+			if (current === state.WALL_HANG) return { type: 'next', state: state.WALL_SLIDE };
+			if (current === state.WALL_SLIDE) return { type: 'loop' };
+			return { type: 'switch', state: state.WALL_HANG };
 		}
 
-		if (current === S.WALL_SLIDE && bot.velocity.y < 0) {
-			return {type: 'switch', state: S.WALL_JUMP};
+		if (current === state.WALL_SLIDE && bot.velocity.y < 0) {
+			return { type: 'switch', state: state.WALL_JUMP };
 		}
-
-		if (current === S.WALL_JUMP && bot.velocity.y < 0) {
-			return {type: 'loop'};
-		}
+		if (current === state.WALL_JUMP && bot.velocity.y < 0) return { type: 'loop' };
 
 		if (!walker.onFloor()) {
 			if (bot.velocity.y < 0) {
-				if (current === S.JUMPING) {
-					return {type: 'loop'};
-				} else {
-					return {type: 'switch', state: S.FALLING};
-				}
-			} else {
-				if (current === S.FALLING) {
-					return {type: 'loop'};
-				} else {
-					return {type: 'switch', state: S.FALLING};
-				}
+				return current === state.JUMPING
+					? { type: 'loop' }
+					: { type: 'switch', state: state.JUMPING };
 			}
+			return current === state.FALLING
+				? { type: 'loop' }
+				: { type: 'switch', state: state.FALLING };
 		}
 
-		const running = (Math.abs(bot.velocity.x) > 40);
-		const idle = bot.velocity.x === 0;
-
-		if (idle) {
-			return (
-				current === S.IDLE ?
-				{type: 'loop'} :
-				{type: 'switch', state: S.IDLE}
-			);
+		if (bot.velocity.x === 0) {
+			return current === state.IDLE
+				? { type: 'loop' }
+				: { type: 'switch', state: state.IDLE };
 		}
 
-		if (running) {
-			return (
-				current === S.RUNNING ?
-				{type: 'loop'} :
-				{type: 'switch', state: S.RUNNING}
-			);
+		if (Math.abs(bot.velocity.x) > 40) {
+			return current === state.RUNNING
+				? { type: 'loop' }
+				: { type: 'switch', state: state.RUNNING };
 		}
 
-		return (
-			current === S.WALKING ?
-			{type: 'loop'} :
-			{type: 'switch', state: S.WALKING}
-		);
+		return current === state.WALKING
+			? { type: 'loop' }
+			: { type: 'switch', state: state.WALKING };
 	}
 
 	getVisualZoom(): number {
 		return 1.3;
 	}
+}
 
+/** Animator instances are cached independently of physics state for serialization. */
+const botAnimators = new WeakMap<object, BotAnimator>();
+
+function getBotAnimator(bot: object): BotAnimator {
+	let animator = botAnimators.get(bot);
+	if (!animator) {
+		animator = new BotAnimator();
+		botAnimators.set(bot, animator);
+	}
+	return animator;
 }
 
 /** An enemy walking toward the castle. Dies on the first hit. */
@@ -1595,7 +1519,7 @@ class Bot extends GameBlock {
 	}
 
 	override createAnimator() {
-		return new BotAnimator();
+		return getBotAnimator(this);
 	}
 
 	markTouched(player: number) {
@@ -1662,35 +1586,10 @@ class Bot extends GameBlock {
 			this.velocity.y = -TRAMPOLINE_BOUNCE_SPEED;
 		}
 
+		// The server is authoritative for both the animation state and its frame index.
+		getBotAnimator(this).frame(this, this.walker, this.direction, dt);
 	}
 
-	save(): Fields {
-		return {
-			x: this.x,
-			y: this.y,
-			vx: this.velocity.x,
-			vy: this.velocity.y,
-			lastToucher: this.lastToucher,
-			lastTouchAge: this.lastTouchAge,
-			...this.botData.save()
-		};
-	}
-
-	load(obj: Fields) {
-		this.x = obj.x;
-		this.y = obj.y;
-		this.velocity.x = obj.vx;
-		this.velocity.y = obj.vy;
-		this.lastToucher = obj.lastToucher;
-		this.lastTouchAge = obj.lastTouchAge;
-		// The presence of this bot in an authoritative snapshot means it is alive.
-		// Contacts are recomputed by the next physics step, not serialized.
-		this.dead = false;
-		this.isOnTrampoline = false;
-		this.walker.clear();
-		this.direction.dir = 0;
-		this.botData.load(obj);
-	}
 }
 
 /* -------------------------------- block ---------------------------------- */
@@ -1746,13 +1645,6 @@ class FloorBlockElement extends PlacedElement {
 
 	override save(): Fields {
 		return {};
-	}
-
-	override load(_obj: Fields) {
-		this.owner = NO_OWNER;
-		this.variant = 0;
-		this.hp = Infinity;
-		this.snapToCell();
 	}
 
 	protected override drawBody(
@@ -1849,7 +1741,6 @@ class ArcherTowerElement extends PlacedElement {
 	getTypeIdx() { return TYPE_ARCHER; }
 
 	override save(): Fields { return { ...super.save(), cooldown: this.cooldown }; }
-	override load(obj: Fields) { super.load(obj); this.cooldown = obj.cooldown; }
 
 	/** Shoots a straight arrow at the closest bot in range. */
 	protected override tick(dt: number, engine: Engine): void {
@@ -1887,7 +1778,6 @@ class FireBarElement extends PlacedElement {
 	getTypeIdx() { return TYPE_FIREBAR; }
 
 	override save(): Fields { return { ...super.save(), angle: this.angle }; }
-	override load(obj: Fields) { super.load(obj); this.angle = obj.angle; }
 
 	/** World positions of the fireballs (as circles) for the current angle. */
 	getBalls(): Circle[] {
@@ -1956,13 +1846,6 @@ class ThwompElement extends PlacedElement {
 
 	override save(): Fields {
 		return { ...super.save(), phase: this.phase, timer: this.timer, offsetY: this.y - this.homeY() };
-	}
-
-	override load(obj: Fields) {
-		super.load(obj);
-		this.phase = obj.phase;
-		this.timer = obj.timer;
-		this.y = this.homeY() + obj.offsetY;
 	}
 
 	/** State machine: idle -> slam -> rest -> rise -> idle. */
@@ -2087,13 +1970,194 @@ const ELEMENT_CLASSES: ElementClass[] = [
 	FireBarElement, ThwompElement, RampElement, FloorBlockElement,
 ];
 
+
+/** Minimal element contract shared by server entities and client-only render views. */
+interface ElementView {
+	readonly uid?: number;
+	col: number;
+	row: number;
+	owner: number;
+	hp: number;
+	variant: number;
+	getSpec(): ElementSpec;
+	getTypeIdx(): number;
+	getMaxHp(): number;
+	draw(ctx: CanvasRenderingContext2D, folder: Folder, colorId: number | undefined, alpha: number): void;
+}
+
+/**
+ * Plain render data for one placed element. It deliberately does not extend a
+ * platformEngine block and therefore never allocates physics state on a client.
+ */
+class FakePlacedElement implements ElementView {
+	col: number;
+	row: number;
+	owner: number;
+	hp: number;
+	variant: number;
+	angle: number;
+	phase: number;
+	timer: number;
+	offsetY: number;
+
+	constructor(private readonly typeIdx: number, fields: Fields) {
+		this.col = typeIdx === TYPE_FLOOR ? 0 : (fields.col ?? 0);
+		this.row = typeIdx === TYPE_FLOOR ? FLOOR_ROW : (fields.row ?? 0);
+		this.owner = typeIdx === TYPE_FLOOR ? NO_OWNER : (fields.owner ?? NO_OWNER);
+		this.hp = typeIdx === TYPE_FLOOR ? Infinity : (fields.hp ?? 0);
+		this.variant = fields.variant ?? 0;
+		this.angle = fields.angle ?? 0;
+		this.phase = fields.phase ?? THWOMP_PHASE_IDLE;
+		this.timer = fields.timer ?? 0;
+		this.offsetY = fields.offsetY ?? 0;
+	}
+
+	getTypeIdx() { return this.typeIdx; }
+	getSpec() { return ELEMENT_CLASSES[this.typeIdx].SPEC; }
+	getMaxHp() { return this.getSpec().maxHp; }
+	getSize() {
+		const spec = this.getSpec();
+		return { width: spec.cols * CELL, height: spec.rows * CELL };
+	}
+	get x() {
+		return this.typeIdx === TYPE_FLOOR
+			? FLOOR_WIDTH / 2
+			: (this.col + this.getSpec().cols / 2) * CELL;
+	}
+	get y() {
+		if (this.typeIdx === TYPE_FLOOR) return FLOOR_TOP_Y + FLOOR_HEIGHT / 2;
+		const homeY = (this.row + this.getSpec().rows / 2) * CELL;
+		return homeY + (this.typeIdx === TYPE_THWOMP ? this.offsetY : 0);
+	}
+
+	draw(ctx: CanvasRenderingContext2D, folder: Folder, colorId: number | undefined, alpha: number) {
+		const spec = this.getSpec();
+		const size = this.getSize();
+		ctx.save();
+		ctx.globalAlpha = alpha;
+
+		if (this.typeIdx === TYPE_FLOOR) {
+			const left = this.x - size.width / 2;
+			const top = this.y - size.height / 2;
+			for (let y = top + CELL / 2; y < top + size.height; y += CELL) {
+				for (let x = left + CELL / 2; x < left + size.width; x += CELL) {
+					drawTexture(ctx, folder, TEX_BLOCK, undefined, x, y, CELL, CELL, BlockElement.SPEC.fallbackColor);
+				}
+			}
+		} else if (this.typeIdx === TYPE_RAMP && this.variant === 1) {
+			ctx.save();
+			ctx.translate(this.x, 0);
+			ctx.scale(-1, 1);
+			ctx.translate(-this.x, 0);
+			drawTexture(ctx, folder, spec.texture, colorId, this.x, this.y, size.width, size.height, spec.fallbackColor);
+			ctx.restore();
+		} else {
+			drawTexture(ctx, folder, spec.texture, colorId, this.x, this.y, size.width, size.height, spec.fallbackColor);
+		}
+
+		if (this.typeIdx === TYPE_FIREBAR) {
+			for (let i = 1; i <= FIREBAR_BALLS; i++) {
+				const x = this.x + Math.cos(this.angle) * i * FIREBAR_BALL_SPACING;
+				const y = this.y + Math.sin(this.angle) * i * FIREBAR_BALL_SPACING;
+				drawTexture(ctx, folder, TEX_FIREBALL, undefined, x, y,
+					FIREBAR_BALL_RADIUS * 2, FIREBAR_BALL_RADIUS * 2, COLOR_FIREBALL);
+			}
+		}
+
+		if (Number.isFinite(spec.maxHp)) {
+			drawDamageOverlay(ctx, this.x, this.y, size.width, size.height, this.hp / spec.maxHp,
+				this.col * LEVEL_ROWS + this.row);
+		}
+		ctx.restore();
+	}
+}
+
+interface FakeBot {
+	x: number;
+	y: number;
+	animationState: number;
+	animationFrame: number;
+	facingLeft: boolean;
+}
+
+interface FakeArrow {
+	x: number;
+	y: number;
+	angle: number;
+	owner: number;
+}
+
+interface FakeMonster {
+	x: number;
+	y: number;
+	owner: number;
+}
+
+/**
+ * Snapshot-only client representation. It stores only values needed to draw
+ * the scene and preview player actions; it owns no engine blocks or physics.
+ */
+class FakeClientData {
+	blocks: FakePlacedElement[] = [];
+	bots: FakeBot[] = [];
+	arrows: FakeArrow[] = [];
+	monsters: FakeMonster[] = [];
+
+	/** One renderer-only Animator can be reused for every bot in the snapshot. */
+	readonly botAnimator = new BotAnimator();
+	private readonly botRenderBlock = {
+		x: 0,
+		y: 0,
+		getSize: () => ({ width: BOT_SIZE, height: BOT_SIZE }),
+		getVelocity: () => null,
+	} as unknown as platformEngine.Block<any, any>;
+
+	updateState(obj: any, messages: any) {
+		this.blocks = (obj.blocks ?? []).flatMap((block: any) => {
+			const def = ELEMENT_CLASSES[block.typeIdx];
+			if (!def) return [];
+			const fields = decodeFullMessage(messages[def.DATA_MESSAGE].decode(block.data)) as Fields;
+			return [new FakePlacedElement(block.typeIdx, fields)];
+		});
+		this.bots = (obj.bots ?? []).map((bot: any) => ({
+			x: bot.x ?? 0,
+			y: bot.y ?? 0,
+			animationState: bot.animationState ?? BotAnimatorState.IDLE,
+			animationFrame: bot.animationFrame ?? 0,
+			facingLeft: bot.facingLeft ?? false,
+		}));
+		this.arrows = (obj.arrows ?? []).map((arrow: any) => ({
+			x: arrow.x ?? 0,
+			y: arrow.y ?? 0,
+			angle: arrow.angle ?? 0,
+			owner: arrow.owner ?? NO_OWNER,
+		}));
+		this.monsters = (obj.monsters ?? []).map((monster: any) => ({
+			x: monster.x ?? 0,
+			y: monster.y ?? 0,
+			owner: monster.owner ?? NO_OWNER,
+		}));
+	}
+
+	drawBot(bot: FakeBot, ctx: CanvasRenderingContext2D, folder: Folder) {
+		this.botRenderBlock.x = bot.x;
+		this.botRenderBlock.y = bot.y;
+		this.botAnimator.setFrameState(bot.animationState, bot.animationFrame, bot.facingLeft);
+		this.botAnimator.draw(this.botRenderBlock, ctx, folder);
+	}
+
+	elementAtCell(col: number, row: number): FakePlacedElement | null {
+		return this.blocks.find(block => {
+			const size = block.getSpec();
+			return col >= block.col && col < block.col + size.cols &&
+				row >= block.row && row < block.row + size.rows;
+		}) ?? null;
+	}
+}
+
 /* ========================================================================== */
 /* MOBILE BLOCKS: BOT, MONSTER, ARROW                                         */
 /* ========================================================================== */
-
-/** All animator states use the same number of sprite-sheet lines. */
-
-
 
 /** A friendly creature released by a spawner: walks toward the bots, kills them on contact, expires. */
 class Monster extends GameBlock {
@@ -2153,23 +2217,6 @@ class Monster extends GameBlock {
 
 	}
 
-	save(): Fields {
-		return {
-			x: this.x, y: this.y, vx: this.velocity.x, vy: this.velocity.y,
-			lifetime: this.lifetime, owner: this.owner,
-		};
-	}
-
-	load(obj: Fields) {
-		this.x = obj.x;
-		this.y = obj.y;
-		this.velocity.x = obj.vx;
-		this.velocity.y = obj.vy;
-		this.lifetime = obj.lifetime;
-		this.owner = obj.owner;
-		this.walker.clear();
-		this.direction.dir = 0;
-	}
 }
 
 /** Arrow shot by an archer tower: flies straight (forced velocity), ghost to everything. */
@@ -2193,6 +2240,7 @@ class Arrow extends GameBlock {
 
 	override getSize(): Size { return { width: ARROW_LENGTH, height: ARROW_THICKNESS }; }
 	override getForcedVelocity(): Velocity | null { return this.forced; }
+	getAngle(): number { return Math.atan2(this.forced.y, this.forced.x); }
 
 	override processBeforeEngine(_id: BlockId, dt: number, engine: Engine): void {
 		this.life -= dt;
@@ -2212,24 +2260,6 @@ class Arrow extends GameBlock {
 		} else if (other.block instanceof PlacedElement && !(other.block instanceof ArcherTowerElement)) {
 			this.consumed = true;
 		}
-	}
-
-	save(): Fields {
-		return {
-			x: this.x, y: this.y, vx: this.forced.x, vy: this.forced.y,
-			life: this.life, owner: this.owner,
-		};
-	}
-
-	load(obj: Fields) {
-		this.x = obj.x;
-		this.y = obj.y;
-		this.forced.x = obj.vx;
-		this.forced.y = obj.vy;
-		this.life = obj.life;
-		this.owner = obj.owner;
-		// An arrow present in a snapshot has not yet been consumed authoritatively.
-		this.consumed = false;
 	}
 
 	draw(ctx: CanvasRenderingContext2D, folder: Folder, colorId: number | undefined) {
@@ -2788,9 +2818,8 @@ class ClientData {
 		const { col, row } = this.getDragCell(d.tool, d.x, d.y);
 
 		if (d.tool === TOOL_REMOVE) {
-			const target = game.elementAtCell(col, row);
-			if (target && game.checkRemoval(this.localPlayer, target.uid).status === 'ok') {
-				return { action: 'remove', remove: { blockId: target.uid } };
+			if (game.checkRemovalAtCell(this.localPlayer, col, row).status === 'ok') {
+				return { action: 'remove', remove: { col, row } };
 			}
 			return null;
 		}
@@ -2838,8 +2867,8 @@ type PlacementStatus = 'ok' | 'invalid' | 'outOfZone' | 'occupied' | 'noElixir';
 interface PlacementCheck {
 	status: PlacementStatus;
 	cost: number;
-	/** uid of the same-type element that this placement refreshes / replaces. */
-	replaceUid: number | null;
+	/** Grid position of a same-type element that this placement replaces. */
+	replace: { col: number; row: number } | null;
 }
 
 type RemovalStatus = 'ok' | 'invalid' | 'neutral' | 'noElixir';
@@ -2880,11 +2909,12 @@ export class GMCastle extends GameMode {
 		monsters: new Map(),
 	};
 
-	/** Resolves when the engine is created and the level is built. */
+	/** Null on the server; clients keep only simplified, renderable snapshots. */
+	readonly fakeClientData: FakeClientData | null;
+
+	/** Resolves once the authoritative server physics engine and initial level are ready. */
 	readonly engineReady: Promise<void>;
 	private engine: Engine | null = null;
-	/** State received through load() before the engine was ready. */
-	private pendingState: Uint8Array | null = null;
 
 	/** uid -> entity (stable ids). */
 	private readonly entities = new Map<number, GameBlock>();
@@ -2902,23 +2932,18 @@ export class GMCastle extends GameMode {
 		super();
 
 		this.players = Array.from({ length: total }, () => new Player());
-		this.engineReady = this.initEngine(isClient);
+		this.fakeClientData = isClient ? new FakeClientData() : null;
+		// A client never creates a platformer engine: Rapier and entity hooks are server-only.
+		this.engineReady = isClient ? Promise.resolve() : this.initServerEngine();
 	}
 
 	/* ------------------------------ engine setup ----------------------------- */
 
-	private async initEngine(isClient: boolean) {
+	private async initServerEngine() {
 		this.engine = await platformEngine.createPlatformerEngine<CDEngineData>(
-			isClient, this.storage, this, { x: 0, y: GRAVITY }
+			false, this.storage, this, { x: 0, y: GRAVITY }
 		);
-
-		if (this.pendingState?.byteLength) {
-			this.applyState(this.pendingState);
-			this.pendingState = null;
-		} else {
-			this.pendingState = null;
-			this.buildInitialLevel();
-		}
+		this.buildInitialLevel();
 	}
 
 	/** Creates the fixed, unbreakable floor as one large physics element. */
@@ -3033,14 +3058,16 @@ export class GMCastle extends GameMode {
 		return this.navigationRevision;
 	}
 
-	elementAtCell(col: number, row: number): PlacedElement | null {
+	elementAtCell(col: number, row: number): ElementView | null {
+		if (this.fakeClientData) return this.fakeClientData.elementAtCell(col, row);
+
 		const uid = this.cellOwner.get(cellKey(col, row));
 		const entity = uid === undefined ? undefined : this.entities.get(uid);
 		return entity instanceof PlacedElement ? entity : null;
 	}
 
 	/** Cost to delete an opponent's element: (1 + hp / maxHp) * price. */
-	private removalCost(el: PlacedElement): number {
+	private removalCost(el: ElementView): number {
 		return (REMOVAL_BASE_FACTOR + el.hp / el.getMaxHp()) * el.getSpec().price;
 	}
 
@@ -3054,51 +3081,59 @@ export class GMCastle extends GameMode {
 			? ELEMENT_CLASSES[typeIdx]
 			: undefined;
 		const player = this.players[playerIdx];
-		if (!def || !player) return { status: 'invalid', cost: 0, replaceUid: null };
+		if (!def || !player) return { status: 'invalid', cost: 0, replace: null };
 
 		const { cols, rows, price } = def.SPEC;
 		if (col < BUILD_MIN_COL || col + cols > BUILD_MAX_COL || row < 0 || row + rows > LEVEL_ROWS) {
-			return { status: 'outOfZone', cost: price, replaceUid: null };
+			return { status: 'outOfZone', cost: price, replace: null };
 		}
 
-		const occupants = new Set<number>();
+		const occupants = new Map<string, ElementView>();
 		for (let r = 0; r < rows; r++) {
 			for (let c = 0; c < cols; c++) {
-				const uid = this.cellOwner.get(cellKey(col + c, row + r));
-				if (uid !== undefined) occupants.add(uid);
+				const element = this.elementAtCell(col + c, row + r);
+				if (element) occupants.set(`${element.col},${element.row}`, element);
 			}
 		}
 
 		let cost = price;
-		let replaceUid: number | null = null;
+		let replace: { col: number; row: number } | null = null;
 
 		if (occupants.size > 0) {
-			const uid = occupants.values().next().value as number;
-			const other = this.entities.get(uid) as PlacedElement;
+			const other = occupants.values().next().value as ElementView;
 			const replaceable =
 				occupants.size === 1 &&
 				other.getTypeIdx() === typeIdx &&
 				other.col === col && other.row === row &&
 				other.owner !== NO_OWNER;
-			if (!replaceable) return { status: 'occupied', cost, replaceUid: null };
+			if (!replaceable) return { status: 'occupied', cost, replace: null };
 
-			replaceUid = uid;
+			replace = { col: other.col, row: other.row };
 			if (this.players[other.owner]?.team !== player.team) cost += this.removalCost(other);
 		}
 
-		if (player.elixir < cost) return { status: 'noElixir', cost, replaceUid };
-		return { status: 'ok', cost, replaceUid };
+		if (player.elixir < cost) return { status: 'noElixir', cost, replace };
+		return { status: 'ok', cost, replace };
 	}
 
-	/** Validates the removal of an element (own elements are free, neutral ones are untouchable). */
-	checkRemoval(playerIdx: number, uid: number): RemovalCheck {
-		const player = this.players[playerIdx];
-		const el = this.entities.get(uid);
-		if (!player || !(el instanceof PlacedElement)) return { status: 'invalid', cost: 0 };
-		if (el.owner === NO_OWNER) return { status: 'neutral', cost: 0 };
+	/** Validates removal by a grid cell; no entity ID crosses the network. */
+	checkRemovalAtCell(playerIdx: number, col: number, row: number): RemovalCheck {
+		return this.checkRemovalOf(playerIdx, this.elementAtCell(col, row));
+	}
 
-		const own = this.players[el.owner]?.team === player.team;
-		const cost = own ? 0 : this.removalCost(el);
+	/** Server-side helper retained for internal engine bookkeeping. */
+	private checkRemoval(playerIdx: number, uid: number): RemovalCheck {
+		const element = this.entities.get(uid);
+		return this.checkRemovalOf(playerIdx, element instanceof PlacedElement ? element : null);
+	}
+
+	private checkRemovalOf(playerIdx: number, element: ElementView | null): RemovalCheck {
+		const player = this.players[playerIdx];
+		if (!player || !element) return { status: 'invalid', cost: 0 };
+		if (element.owner === NO_OWNER) return { status: 'neutral', cost: 0 };
+
+		const own = this.players[element.owner]?.team === player.team;
+		const cost = own ? 0 : (1 + element.hp / element.getMaxHp()) * element.getSpec().price;
 		if (player.elixir < cost) return { status: 'noElixir', cost };
 		return { status: 'ok', cost };
 	}
@@ -3108,17 +3143,22 @@ export class GMCastle extends GameMode {
 		if (check.status !== 'ok') return;
 
 		this.players[playerIdx].elixir -= check.cost;
-		if (check.replaceUid !== null) this.removeEntity(check.replaceUid);
+		if (check.replace) {
+			const replaced = this.elementAtCell(check.replace.col, check.replace.row);
+			if (replaced?.uid !== undefined) this.removeEntity(replaced.uid);
+		}
 		this.registerElement(ELEMENT_CLASSES[typeIdx].create({ col, row, owner: playerIdx, variant }));
 		this.mapModificationCount++;
 	}
 
-	private tryRemove(playerIdx: number, uid: number) {
-		const check = this.checkRemoval(playerIdx, uid);
+	private tryRemove(playerIdx: number, col: number, row: number) {
+		const element = this.elementAtCell(col, row);
+		if (element?.uid === undefined) return;
+		const check = this.checkRemoval(playerIdx, element.uid);
 		if (check.status !== 'ok') return;
 
 		this.players[playerIdx].elixir -= check.cost;
-		this.removeEntity(uid);
+		this.removeEntity(element.uid);
 		this.mapModificationCount++;
 	}
 
@@ -3325,7 +3365,7 @@ export class GMCastle extends GameMode {
 				break;
 			}
 			case 'remove':
-				this.tryRemove(playerIdx, input.remove.blockId);
+				this.tryRemove(playerIdx, input.remove.col, input.remove.row);
 				break;
 		}
 	}
@@ -3395,13 +3435,8 @@ export class GMCastle extends GameMode {
 		ctx.fillStyle = sky;
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-		if (!this.engine) {
-			ctx.fillStyle = COLOR_LOADING;
-			ctx.font = FONT_LOADING;
-			ctx.textAlign = 'center';
-			ctx.fillText('Loading...', WIDTH / 2, HEIGHT / 2);
-			return;
-		}
+		const fake = this.fakeClientData;
+		if (!fake) return; // Rendering is client-only; the server never owns a render snapshot.
 
 		const cam = data.camera;
 		ctx.save();
@@ -3411,21 +3446,26 @@ export class GMCastle extends GameMode {
 
 		this.drawLevel(ctx, folder, data);
 
-		for (const el of this.storage.elements.values()) {
-			el.draw(ctx, folder, this.colorIdOf(el.owner), 1);
+		for (const block of fake.blocks) {
+			block.draw(ctx, folder, this.colorIdOf(block.owner), 1);
 		}
 
-		for (const monster of this.storage.monsters.values()) {
-			monster.draw(ctx, folder);
+		for (const monster of fake.monsters) {
+			drawTexture(ctx, folder, TEX_MONSTER, this.colorIdOf(monster.owner),
+				monster.x, monster.y, MONSTER_SIZE, MONSTER_SIZE, COLOR_ARROW);
 		}
 
-		for (const [key, bot] of this.storage.bots) {
-			const a = this.engine.getAnimator(key);
-			a?.draw(bot, ctx, folder);
+		for (const bot of fake.bots) {
+			fake.drawBot(bot, ctx, folder);
 		}
 
-		for (const arrow of this.storage.arrows.values()) {
-			arrow.draw(ctx, folder, this.colorIdOf(arrow.owner));
+		for (const arrow of fake.arrows) {
+			ctx.save();
+			ctx.translate(arrow.x, arrow.y);
+			ctx.rotate(arrow.angle);
+			drawTexture(ctx, folder, TEX_ARROW, this.colorIdOf(arrow.owner),
+				0, 0, ARROW_LENGTH, ARROW_THICKNESS, COLOR_ARROW);
+			ctx.restore();
 		}
 
 		this.drawDragPreview(ctx, folder, data, playerIdx);
@@ -3564,7 +3604,7 @@ export class GMCastle extends GameMode {
 		if (drag.tool === TOOL_REMOVE) {
 			const target = this.elementAtCell(col, row);
 			if (target) {
-				const check = this.checkRemoval(playerIdx, target.uid);
+				const check = this.checkRemovalAtCell(playerIdx, col, row);
 				ok = check.status === 'ok';
 				cost = check.cost;
 
@@ -3598,8 +3638,11 @@ export class GMCastle extends GameMode {
 		ok = check.status === 'ok';
 		const spec = ELEMENT_CLASSES[drag.tool].SPEC;
 
-		// Ghost element (a temporary, never registered instance)
-		const ghost = ELEMENT_CLASSES[drag.tool].create({ col, row, owner: playerIdx, variant: data.variant });
+		// Ghost element: a plain render view, with no physics block allocation.
+		const ghost = new FakePlacedElement(drag.tool, {
+			col, row, owner: playerIdx, variant: data.variant,
+			hp: ELEMENT_CLASSES[drag.tool].SPEC.maxHp,
+		});
 		ghost.draw(ctx, folder, this.colorIdOf(playerIdx), PREVIEW_ALPHA);
 
 		ctx.strokeStyle = ok ? COLOR_PREVIEW_OK : COLOR_PREVIEW_KO;
@@ -3724,22 +3767,22 @@ export class GMCastle extends GameMode {
 
 	/* ------------------------------- save / load ------------------------------- */
 
-	/** Encodes one element with the protobuf message of its type. */
+	/** Encodes one server-owned element with the protobuf message of its type. */
 	private encodeElement(el: PlacedElement): Uint8Array {
 		const messages = protocols.get();
 		const def = ELEMENT_CLASSES[el.getTypeIdx()];
-
 		return messages[def.DATA_MESSAGE].encode(el.save()).finish();
 	}
 
 	override save(): Uint8Array {
+		if (this.fakeClientData) {
+			throw new Error('GMCastle.save() is server-only.');
+		}
+		if (!this.engine) return new Uint8Array();
+
 		const { State } = protocols.get();
-
-		// Engine not ready yet: hand back what we were given (nothing else exists)
-		if (!this.engine) return this.pendingState ?? new Uint8Array();
-
 		const object: Fields = {
-			players: this.players.map(p => p.save()),
+			players: this.players.map(player => player.save()),
 			time: this.time,
 			redScore: this.redScore,
 			blueScore: this.blueScore,
@@ -3748,55 +3791,41 @@ export class GMCastle extends GameMode {
 			waveIndex: this.waveIndex,
 			spawnQueue: this.spawnQueue,
 			spawnTimer: this.spawnTimer,
-			nextUid: this.nextUid,
-			// (blockId, typeIdx, bytes data)
-			blocks: [...this.storage.elements.values()].map(el => ({
-				blockId: el.uid,
-				typeIdx: el.getTypeIdx(),
-				data: this.encodeElement(el),
+			blocks: [...this.storage.elements.values()].map(element => ({
+				typeIdx: element.getTypeIdx(),
+				data: this.encodeElement(element),
 			})),
-			bots: [...this.storage.bots.values()].map(b => ({ blockId: b.uid, ...b.save() })),
-			arrows: [...this.storage.arrows.values()].map(a => ({ blockId: a.uid, ...a.save() })),
-			monsters: [...this.storage.monsters.values()].map(m => ({ blockId: m.uid, ...m.save() })),
+			bots: [...this.storage.bots.values()].map(bot => {
+				const animation = getBotAnimator(bot).getFrameState();
+				return {
+					x: bot.x,
+					y: bot.y,
+					animationState: animation.state,
+					animationFrame: animation.index,
+					facingLeft: animation.facingLeft,
+				};
+			}),
+			arrows: [...this.storage.arrows.values()].map(arrow => ({
+				x: arrow.x,
+				y: arrow.y,
+				angle: arrow.getAngle(),
+				owner: arrow.owner,
+			})),
+			monsters: [...this.storage.monsters.values()].map(monster => ({
+				x: monster.x,
+				y: monster.y,
+				owner: monster.owner,
+			})),
 		};
-
 		return State.encode(object).finish();
 	}
 
 	override load(data: Uint8Array) {
-		if (!this.engine) {
-			this.pendingState = data;
-			return;
-		}
-		this.applyState(data);
-	}
+		const fake = this.fakeClientData;
+		if (!fake) throw new Error('GMCastle.load() is client-only.');
 
-	/** Applies an authoritative snapshot without recreating unchanged live blocks. */
-	private applyState(data: Uint8Array) {
 		const { State } = protocols.get();
-		const messages = protocols.get();
 		const obj = decodeFullMessage(State.decode(data));
-
-		// Deferred work belongs to the old simulation timeline. A full snapshot is
-		// authoritative, so stale removals/projectile/spawn requests must not leak
-		// into the restored timeline.
-		this.removalQueue.length = 0;
-		this.arrowQueue.length = 0;
-		this.monsterQueue.length = 0;
-
-		const incomingUids = new Set<number>();
-		for (const b of obj.blocks) incomingUids.add(b.blockId);
-		for (const b of obj.bots) incomingUids.add(b.blockId);
-		for (const a of obj.arrows) incomingUids.add(a.blockId);
-		for (const m of obj.monsters) incomingUids.add(m.blockId);
-
-		// Remove only entities that disappeared from the snapshot. Preserving the
-		// other objects also preserves their engine IDs and client-only Animator
-		// instances between online state updates.
-		for (const uid of [...this.entities.keys()]) {
-			if (!incomingUids.has(uid)) this.removeEntity(uid);
-		}
-
 		for (let i = 0; i < Math.min(this.players.length, obj.players.length); i++) {
 			this.players[i].load(obj.players[i]);
 		}
@@ -3808,70 +3837,7 @@ export class GMCastle extends GameMode {
 		this.waveIndex = obj.waveIndex;
 		this.spawnQueue = obj.spawnQueue;
 		this.spawnTimer = obj.spawnTimer;
-		let maxIncomingUid = -1;
-		for (const uid of incomingUids) maxIncomingUid = Math.max(maxIncomingUid, uid);
-		this.nextUid = Math.max(obj.nextUid ?? 0, maxIncomingUid + 1);
-
-		// The cell index is derived from element state; rebuild it without forcing
-		// a navigation-graph rebuild when the map geometry did not change.
-		this.cellOwner.clear();
-		for (const b of obj.blocks) {
-			const def = ELEMENT_CLASSES[b.typeIdx];
-			if (!def) throw new Error(`Invalid castle element typeIdx: ${b.typeIdx}`);
-			const fields = decodeFullMessage(messages[def.DATA_MESSAGE].decode(b.data));
-			const current = this.entities.get(b.blockId);
-
-			if (current instanceof PlacedElement && current.getTypeIdx() === b.typeIdx) {
-				const oldCol = current.col;
-				const oldRow = current.row;
-				const oldVariant = current.variant;
-				current.load(fields);
-				if (b.typeIdx !== TYPE_FLOOR &&
-					(oldCol !== current.col || oldRow !== current.row || oldVariant !== current.variant)) {
-					this.navigationRevision++;
-				}
-				this.indexElement(current);
-			} else {
-				if (current) this.removeEntity(b.blockId);
-				const el = def.create({ col: 0, row: 0, owner: NO_OWNER, variant: 0 });
-				el.load(fields);
-				this.registerElement(el, b.blockId);
-			}
-		}
-
-		for (const o of obj.bots) {
-			const current = this.entities.get(o.blockId);
-			if (current instanceof Bot) {
-				current.load(o);
-			} else {
-				if (current) this.removeEntity(o.blockId);
-				const bot = new Bot();
-				bot.load(o);
-				this.register(bot, 'bot', this.storage.bots, o.blockId);
-			}
-		}
-		for (const o of obj.arrows) {
-			const current = this.entities.get(o.blockId);
-			if (current instanceof Arrow) {
-				current.load(o);
-			} else {
-				if (current) this.removeEntity(o.blockId);
-				const arrow = new Arrow(o.owner);
-				arrow.load(o);
-				this.register(arrow, 'arrow', this.storage.arrows, o.blockId);
-			}
-		}
-		for (const o of obj.monsters) {
-			const current = this.entities.get(o.blockId);
-			if (current instanceof Monster) {
-				current.load(o);
-			} else {
-				if (current) this.removeEntity(o.blockId);
-				const monster = new Monster(o.owner, this.colorIdOf(o.owner) ?? COLOR_ID_RED);
-				monster.load(o);
-				this.register(monster, 'monster', this.storage.monsters, o.blockId);
-			}
-		}
+		fake.updateState(obj, protocols.get());
 	}
 
 	override getSize() {

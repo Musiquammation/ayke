@@ -1180,6 +1180,36 @@ export namespace platformEngine {
 			this.tick = linesDescriptors[0].delay;
 		}
 
+		/** Read-only animation state used by authoritative snapshots. */
+		getFrameState() {
+			return {
+				state: this.state,
+				index: this.index,
+				facingLeft: this.facingLeft,
+			};
+		}
+
+		/** Restore an authoritative animation frame without advancing the animation. */
+		setFrameState(state: number, index: number, facingLeft: boolean) {
+			const targetState = this.linesDescriptors[state] ? state : 0;
+			const descriptor = this.linesDescriptors[targetState];
+			const requestedIndex = Number.isFinite(index) ? Math.trunc(index) : 0;
+
+			this.state = targetState;
+			this.index = Math.max(0, Math.min(Math.max(0, descriptor.count - 1), requestedIndex));
+			this.tick = descriptor.delay;
+			this.facingLeft = facingLeft;
+		}
+
+		/** Update facing during simulation too, even when the server never renders. */
+		private updateFacing(block: Block<any, any>) {
+			const velocity = block.getVelocity();
+			if (!velocity) return;
+
+			if (velocity.x < 0) this.facingLeft = true;
+			else if (velocity.x > 0) this.facingLeft = false;
+		}
+
 		abstract update(
 			block: Block<any, any>,
 			walker: Walker,
@@ -1197,6 +1227,8 @@ export namespace platformEngine {
 			direction: Direction,
 			dt: number
 		) {
+			this.updateFacing(block);
+
 			const u = this.update(
 				block,
 				walker,
@@ -1220,7 +1252,6 @@ export namespace platformEngine {
 				this.index = 0;
 				return;
 			}
-
 
 			if (u.type === 'switch') {
 				this.state = u.state;
@@ -1260,14 +1291,7 @@ export namespace platformEngine {
 
 			ctx.translate(block.x, block.y);
 
-			const velocity = block.getVelocity();
-			if (velocity) {
-				if (velocity.x < 0) {
-					this.facingLeft = true;
-				} else if (velocity.x > 0) {
-					this.facingLeft = false;
-				}
-			}
+			this.updateFacing(block);
 
 			if (this.facingLeft) {
 				ctx.scale(-1, 1);
