@@ -51,10 +51,8 @@ const ITEM_ROLL_TIME = 1.8;
 const BOOST_TIME = 2;
 const BOOST_MULT = 1.6;
 const STAR_TIME = 5;
-const BANANA_LIFETIME = 14;
 const BANANA_SPEED = 360;
 const BANANA_JUMP = -360;
-const SHELL_LIFETIME = 6;
 const SHELL_SPEED = 820;
 // Red shells always travel in their launch direction. Target distance only
 // changes their speed; these bounds guarantee they never stop or reverse.
@@ -252,7 +250,7 @@ type EntityKind = 'item-box' | 'banana' | 'shell';
 /**
  * Non-solid game entity. The engine still runs detectCollision for these blocks,
  * even though applyCollision disables physical response. Authoritative contacts
- * are handled by GMRally, while positions/lifetimes remain snapshot-friendly.
+ * are handled by GMRally; hazard subclasses own their replicated state.
  */
 class Entity extends platformEngine.Block<ClientData, RallyEngineData> {
 	active = true;
@@ -417,6 +415,7 @@ class Player {
 	finished = false;
 	finishRank = -1;
 	points = 0;
+	lapFinishCounts: number[] = Array.from({ length: LAP_COUNT }, () => -1);
 
 	/** Full match reset. Cumulative points are intentionally retained. */
 	resetForLevel(x: number, y: number) {
@@ -441,6 +440,7 @@ class Player {
 		this.lapsCompleted = 0;
 		this.finished = false;
 		this.finishRank = -1;
+		this.lapFinishCounts = Array.from({ length: LAP_COUNT }, () => -1);
 	}
 
 	/** Reset lap-local state while retaining cumulative score and lap count. */
@@ -548,6 +548,7 @@ class Player {
 			checkpoint: this.checkpoint, subCheckpoint: this.subCheckpoint, hit: this.hit,
 			lapsCompleted: this.lapsCompleted, finished: this.finished,
 			finishRank: this.finishRank, points: this.points,
+			lapFinishCounts: this.lapFinishCounts,
 		};
 	}
 
@@ -564,6 +565,7 @@ class Player {
 		this.subCheckpoint = obj.subCheckpoint ?? -1; this.hit = obj.hit ?? false;
 		this.lapsCompleted = obj.lapsCompleted ?? 0; this.finished = obj.finished ?? false;
 		this.finishRank = obj.finishRank ?? -1; this.points = obj.points ?? 0;
+		this.lapFinishCounts = [...(obj.lapFinishCounts ?? Array.from({ length: LAP_COUNT }, () => -1))];
 	}
 }
 
@@ -958,30 +960,71 @@ function getSkinIconPath(id: string) {
 /* Game mode                                                                  */
 /* -------------------------------------------------------------------------- */
 
-interface BananaState {
-	id: number;
-	x: number;
-	y: number;
-	vx: number;
-	vy: number;
-	owner: number;
-	life: number;
-	arming: number;
-	grounded?: boolean;
+class Banana extends Entity {
+	vx = 0;
+	vy = 0;
+	owner = -1;
+	arming = 0;
+	grounded = false;
+
+	constructor(entityId: number) {
+		super('banana', entityId, -1, HAZARD_SIZE);
+	}
+
+	load(data: any): void {
+		this.x = data.x ?? 0;
+		this.y = data.y ?? 0;
+		const thrown = data.thrown ?? null;
+		this.vx = thrown?.vx ?? 0;
+		this.vy = thrown?.vy ?? 0;
+		this.owner = thrown?.owner ?? -1;
+		this.grounded = !thrown;
+		this.arming = 0;
+		this.active = true;
+	}
+
+	save() {
+		return {
+			id: this.entityId, x: this.x, y: this.y,
+			...(!this.grounded ? { thrown: { owner: this.owner, vx: this.vx, vy: this.vy } } : {}),
+		};
+	}
 }
 
-interface ShellState {
-	id: number;
-	kind: number;
-	x: number;
-	y: number;
-	vx: number;
-	vy: number;
-	owner: number;
-	target: number;
-	life: number;
+abstract class Shell extends Entity {
+	vx = 0;
+	vy = 0;
+	owner = -1;
+	abstract readonly itemKind: number;
+
+	constructor(entityId: number) {
+		super('shell', entityId, -1, HAZARD_SIZE);
+	}
+
+	load(data: any): void {
+		this.x = data.x ?? 0;
+		this.y = data.y ?? 0;
+		const state = data.red ?? data.blue ?? data.green ?? {};
+		this.vx = state.vx ?? 0;
+		this.vy = state.vy ?? 0;
+		this.owner = state.owner ?? -1;
+		this.active = true;
+	}
+
+	save() {
+		const state = { vx: this.vx, vy: this.vy, owner: this.owner };
+		return {
+			id: this.entityId, x: this.x, y: this.y,
+			...(this.itemKind === ITEM_RED_SHELL ? { red: state }
+				: this.itemKind === ITEM_BLUE_SHELL ? { blue: state }
+				: { green: state }),
+		};
+	}
 }
 
+class RedShell extends Shell { readonly itemKind = ITEM_RED_SHELL; }
+class GreenShell extends Shell { readonly itemKind = ITEM_GREEN_SHELL; }
+class BlueShell extends Shell { readonly itemKind = ITEM_BLUE_SHELL; }
 /** Draw an item sprite from the Rally texture atlas/assets. */
 const ITEM_TEXTURE_KEYS: Record<number, string> = {
 	[ITEM_BANANA]: 'banana',
@@ -1031,10 +1074,7 @@ export class GMRally extends GameMode {
 	phase = PHASE_RACING;
 	intermission = 0; // retained for compatibility with older Rally snapshots
 	finishCount = 0;
-	lapFinishCounts: number[] = Array.from({ length: LAP_COUNT }, () => 0);
 	boxCooldowns: number[] = LEVELS[0].items.map(() => 0);
-	bananas: BananaState[] = [];
-	shells: ShellState[] = [];
 	nextEntityId = 1;
 
 	// The world is local and deterministic. Only dynamic game state is replicated.
@@ -1046,7 +1086,6 @@ export class GMRally extends GameMode {
 	private playerIds: number[] = [];
 	private worldIds: number[] = [];
 	private itemBoxEntityIds: platformEngine.BlockId[] = [];
-	private readonly dynamicEntityIds = new Map<string, platformEngine.BlockId>();
 	private currentRng: GameRandomGenerator | null = null;
 
 	private constructor(total: number, isClient: boolean, isAuthoritative: boolean) {
@@ -1219,6 +1258,40 @@ export class GMRally extends GameMode {
 		return this.engine.getBlock(this.playerIds[index]) as PlayerBlock | null;
 	}
 
+	private getBananas(): Banana[] {
+		if (!this.engine) return [];
+		return [...this.engine.getBlocks()].map(entry => entry.block).filter((block): block is Banana => block instanceof Banana);
+	}
+
+	private getShells(): Shell[] {
+		if (!this.engine) return [];
+		return [...this.engine.getBlocks()].map(entry => entry.block).filter((block): block is Shell => block instanceof Shell);
+	}
+
+	private getHazard(entityId: number): Banana | Shell | null {
+		if (!this.engine) return null;
+		for (const entry of this.engine.getBlocks()) {
+			const block = entry.block;
+			if ((block instanceof Banana || block instanceof Shell) && block.entityId === entityId) return block;
+		}
+		return null;
+	}
+
+	private addHazard(hazard: Banana | Shell): void {
+		if (this.engine) this.engine.addBlock(hazard, 'entity');
+	}
+
+	private removeHazard(entityId: number): void {
+		if (!this.engine) return;
+		for (const entry of this.engine.getBlocks()) {
+			const block = entry.block;
+			if ((block instanceof Banana || block instanceof Shell) && block.entityId === entityId) {
+				this.engine.removeBlock(entry.id);
+				return;
+			}
+		}
+	}
+
 	/* ---------------------------- Player hooks ---------------------------- */
 
 	beforePlayerStep(idx: number, block: PlayerBlock, dt: number) {
@@ -1323,8 +1396,11 @@ export class GMRally extends GameMode {
 	/** Score each lap's finish order, then respawn at the start for the next lap. */
 	private completeLap(idx: number, p: Player, block: PlayerBlock) {
 		const lapIndex = Math.min(p.lapsCompleted, LAP_COUNT - 1);
-		const rank = this.lapFinishCounts[lapIndex] ?? 0;
-		this.lapFinishCounts[lapIndex] = rank + 1;
+		const rank = this.players.reduce(
+			(count, player) => count + (player.lapFinishCounts[lapIndex] >= 0 ? 1 : 0),
+			0
+		);
+		p.lapFinishCounts[lapIndex] = rank;
 		p.lapsCompleted++;
 		p.finishRank = rank;
 		p.points += RANK_POINTS[rank] ?? 0;
@@ -1380,21 +1456,17 @@ export class GMRally extends GameMode {
 		}
 
 		if (entity.kind === 'banana') {
-			const banana = this.bananas.find(candidate => candidate.id === entity.entityId);
-			if (!banana || (banana.grounded !== true && playerIndex === banana.owner)) return;
+			const banana = this.getHazard(entity.entityId);
+			if (!(banana instanceof Banana) || (!banana.grounded && playerIndex === banana.owner)) return;
 			this.hitPlayer(playerIndex);
-			this.bananas = this.bananas.filter(candidate => candidate.id !== banana.id);
-			entity.active = false;
+			this.removeHazard(banana.entityId);
 			return;
 		}
 
-		const shell = this.shells.find(candidate => candidate.id === entity.entityId);
-		if (!shell || (playerIndex === shell.owner && shell.kind !== ITEM_BLUE_SHELL)) return;
+		const shell = this.getHazard(entity.entityId);
+		if (!(shell instanceof Shell) || (playerIndex === shell.owner && shell.itemKind !== ITEM_BLUE_SHELL)) return;
 		this.hitPlayer(playerIndex);
-		if (shell.kind !== ITEM_BLUE_SHELL) {
-			this.shells = this.shells.filter(candidate => candidate.id !== shell.id);
-			entity.active = false;
-		}
+		if (shell.itemKind !== ITEM_BLUE_SHELL) this.removeHazard(shell.entityId);
 	}
 
 	/** Keep query-only Entity blocks aligned with snapshot-backed state. */
@@ -1416,29 +1488,8 @@ export class GMRally extends GameMode {
 			box.active = (this.boxCooldowns[i] ?? 0) <= 0;
 		}
 
-		const activeKeys = new Set<string>();
-		const syncDynamicEntity = (key: string, kind: 'banana' | 'shell', id: number, x: number, y: number) => {
-			let blockId = this.dynamicEntityIds.get(key);
-			let block = blockId === undefined ? null : engine.getBlock(blockId) as Entity | null;
-			if (!(block instanceof Entity)) {
-				block = new Entity(kind, id, -1, HAZARD_SIZE);
-				blockId = engine.addBlock(block, 'entity');
-				this.dynamicEntityIds.set(key, blockId);
-			}
-			block.x = x;
-			block.y = y;
-			block.active = true;
-			activeKeys.add(key);
-		};
-
-		for (const banana of this.bananas) syncDynamicEntity(`banana:${banana.id}`, 'banana', banana.id, banana.x, banana.y);
-		for (const shell of this.shells) syncDynamicEntity(`shell:${shell.id}`, 'shell', shell.id, shell.x, shell.y);
-
-		for (const [key, id] of this.dynamicEntityIds) {
-			if (activeKeys.has(key)) continue;
-			const block = engine.getBlock(id) as Entity | null;
-			if (block instanceof Entity) block.active = false;
-		}
+		// Hazard blocks are the source of truth; update existing blocks in place.
+		for (const hazard of [...this.getBananas(), ...this.getShells()]) hazard.active = true;
 	}
 
 	/** RNG is consumed only by the authority; the selected item is immediately shared. */
@@ -1463,14 +1514,13 @@ export class GMRally extends GameMode {
 
 		switch (held) {
 			case ITEM_BANANA:
-				this.bananas.push({
-					id: this.nextEntityId++,
-					x: p.x + p.facing * (PLAYER_W * 0.8),
-					y: p.y,
-					vx: p.vx + p.facing * BANANA_SPEED,
-					vy: p.vy + BANANA_JUMP,
-					owner: idx, life: BANANA_LIFETIME, arming: 0, grounded: false,
-				});
+				const banana = new Banana(this.nextEntityId++);
+				banana.x = p.x + p.facing * (PLAYER_W * 0.8);
+				banana.y = p.y;
+				banana.vx = p.vx + p.facing * BANANA_SPEED;
+				banana.vy = p.vy + BANANA_JUMP;
+				banana.owner = idx;
+				this.addHazard(banana);
 				break;
 			case ITEM_GREEN_SHELL:
 			case ITEM_RED_SHELL:
@@ -1491,34 +1541,17 @@ export class GMRally extends GameMode {
 	}
 
 	private spawnShell(owner: number, kind: number, player: Player) {
-		let target = -1;
-		if (kind === ITEM_RED_SHELL) {
-			// The red shell locks onto an opponent in the launch direction only.
-			// Its horizontal direction is fixed when it leaves the player.
-			let bestForwardDistance = Number.POSITIVE_INFINITY;
-			for (let i = 0; i < this.players.length; i++) {
-				const other = this.players[i];
-				if (i === owner || other.finished || other.respawn > 0) continue;
-				const forwardDistance = (other.x - player.x) * player.facing;
-				if (forwardDistance > 0 && forwardDistance < bestForwardDistance) {
-					target = i;
-					bestForwardDistance = forwardDistance;
-				}
-			}
-		} else if (kind === ITEM_BLUE_SHELL) {
-			target = this.findRaceLeader();
-		}
-
 		const blue = kind === ITEM_BLUE_SHELL;
 		const launchDirection = blue ? 1 : (player.facing < 0 ? -1 : 1);
-		this.shells.push({
-			id: this.nextEntityId++, kind,
-			x: player.x + launchDirection * (PLAYER_W * 0.9),
-			y: player.y,
-			vx: blue ? BLUE_SHELL_SPEED : launchDirection * SHELL_SPEED,
-			vy: 0,
-			owner, target, life: SHELL_LIFETIME,
-		});
+		const shell: Shell = kind === ITEM_RED_SHELL ? new RedShell(this.nextEntityId++)
+			: kind === ITEM_BLUE_SHELL ? new BlueShell(this.nextEntityId++)
+			: new GreenShell(this.nextEntityId++);
+		shell.x = player.x + launchDirection * (PLAYER_W * 0.9);
+		shell.y = player.y;
+		shell.vx = blue ? BLUE_SHELL_SPEED : launchDirection * SHELL_SPEED;
+		shell.vy = 0;
+		shell.owner = owner;
+		this.addHazard(shell);
 	}
 
 	getRaceRanking(): number[] {
@@ -1573,8 +1606,8 @@ export class GMRally extends GameMode {
 
 	/** Called by Entity.detectCollision when a banana touches a platform. */
 	landBanana(id: number) {
-		const banana = this.bananas.find(candidate => candidate.id === id);
-		if (!banana || banana.grounded) return;
+		const banana = this.getHazard(id);
+		if (!(banana instanceof Banana) || banana.grounded) return;
 		banana.grounded = true;
 		banana.owner = -1;
 		banana.vx = 0;
@@ -1675,77 +1708,72 @@ export class GMRally extends GameMode {
 		const level = this.currentLevel();
 		const platforms = this.getPlatformRects();
 
-		// Bananas have their own vertical velocity, fall onto platforms, and then
-		// stay on the ground. Their full state is replicated in BananaState.
-		const liveBananas: BananaState[] = [];
-		for (const banana of this.bananas) {
-			banana.life -= dt;
+		for (const banana of this.getBananas()) {
 			banana.arming = Math.max(0, banana.arming - dt);
-			if (banana.life <= 0) continue;
 			if (!banana.grounded) {
 				this.moveGroundHazard(banana, dt, platforms, false, false);
-				if (this.hazardIsSupported(banana, HAZARD_SIZE, platforms)) this.landBanana(banana.id);
+				if (this.hazardIsSupported(banana, HAZARD_SIZE, platforms)) this.landBanana(banana.entityId);
 				if (banana.x > level.finishX) banana.x = level.spawnX;
 			} else {
 				banana.vx = 0;
 				banana.vy = 0;
 			}
-			liveBananas.push(banana);
 		}
-		this.bananas = liveBananas;
 
-		// Move shells before collision checks so two shells touching in this frame
-		// are always destroyed together, independent of array order.
-		const liveShells: ShellState[] = [];
-		for (const shell of this.shells) {
-			shell.life -= dt;
-			if (shell.life <= 0 || Math.abs(shell.x) > 6000 || Math.abs(shell.y) > 3000) continue;
-
-			if (shell.kind === ITEM_BLUE_SHELL) {
-				// The blue shell flies only forwards and loops around at the finish
-				// line instead of reversing when the leader is behind it.
-				shell.target = this.findRaceLeader();
-				if (shell.target >= 0) {
-					const target = this.players[shell.target];
+		const liveShells: Shell[] = [];
+		for (const shell of this.getShells()) {			
+			if (shell.itemKind === ITEM_BLUE_SHELL) {
+				const target = this.players[this.findRaceLeader()];
 					shell.vy = Math.max(-520, Math.min(520, (target.y - shell.y) * 2.2));
-				} else {
-					shell.vy = 0;
-				}
+				
 				shell.vx = BLUE_SHELL_SPEED;
 				shell.x += shell.vx * dt;
 				shell.y += shell.vy * dt;
-				if (shell.x > level.finishX) shell.x = level.spawnX;
+				if (shell.x > level.finishX) {
+					shell.x = level.spawnX;
+				}
+
 			} else {
-				if (shell.kind === ITEM_RED_SHELL && shell.target >= 0) {
-					const target = this.players[shell.target];
-					if (target && !target.finished) {
-						const direction = shell.vx < 0 ? -1 : 1;
+				if (shell.itemKind === ITEM_RED_SHELL) {
+					const direction = shell.vx < 0 ? -1 : 1;
+					const target = (
+						this.players
+						.filter(player => !player.finished)
+						.filter(player => direction > 0 ? player.x > shell.x : player.x < shell.x)
+						.sort((a, b) => direction > 0 ? a.x - b.x : b.x - a.x)[0]
+						?? (
+							direction > 0
+							? this.players.filter(player => !player.finished).sort((a, b) => a.x - b.x)[0]
+							: undefined
+						)
+					);
+
+					if (target) {
 						const forwardDx = (target.x - shell.x) * direction;
 						const desiredSpeed = Math.max(VX_MIN, Math.min(VX_MAX, VX_MIN + Math.max(0, forwardDx - 90) * 0.32));
 						const speed = Math.abs(shell.vx);
 						const nextSpeed = speed < desiredSpeed
 							? Math.min(desiredSpeed, speed + RED_SHELL_ACCEL * dt)
 							: Math.max(desiredSpeed, speed - RED_SHELL_ACCEL * dt);
-						// Clamp magnitude and retain its launch-direction sign forever.
 						shell.vx = direction * Math.max(VX_MIN, Math.min(VX_MAX, nextSpeed));
-						if (target.y < shell.y - 24 && this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) {
-							shell.vy = -SHELL_JUMP_VELOCITY;
-						}
+						if (target.y < shell.y - 24 && this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) shell.vy = -SHELL_JUMP_VELOCITY;
 					}
 				}
-				this.moveGroundHazard(shell, dt, platforms, shell.kind === ITEM_GREEN_SHELL, shell.kind === ITEM_RED_SHELL);
-				// Red-shell wall logic may change vy but must never change vx sign.
-				if (shell.kind === ITEM_RED_SHELL) {
+
+				this.moveGroundHazard(shell, dt, platforms, shell.itemKind === ITEM_GREEN_SHELL, shell.itemKind === ITEM_RED_SHELL);
+				if (shell.itemKind === ITEM_RED_SHELL) {
 					const sign = shell.vx < 0 ? -1 : 1;
 					shell.vx = sign * Math.max(VX_MIN, Math.min(VX_MAX, Math.abs(shell.vx)));
 				}
 			}
-			// Every shell wraps at the finish line without changing its vertical position.
-			if (shell.x > level.finishX) shell.x = level.spawnX;
+
+			if (shell.x > level.finishX) {
+				shell.x = level.spawnX;
+			}
+			
 			liveShells.push(shell);
 		}
 
-		// Shell-to-shell contacts destroy ordinary shells; blue shells are indestructible.
 		const brokenShells = new Set<number>();
 		for (let i = 0; i < liveShells.length; i++) {
 			for (let j = i + 1; j < liveShells.length; j++) {
@@ -1753,13 +1781,12 @@ export class GMRally extends GameMode {
 					{ x: liveShells[i].x, y: liveShells[i].y, w: HAZARD_SIZE, h: HAZARD_SIZE },
 					{ x: liveShells[j].x, y: liveShells[j].y, w: HAZARD_SIZE, h: HAZARD_SIZE }
 				)) {
-					if (liveShells[i].kind !== ITEM_BLUE_SHELL) brokenShells.add(liveShells[i].id);
-					if (liveShells[j].kind !== ITEM_BLUE_SHELL) brokenShells.add(liveShells[j].id);
+					if (liveShells[i].itemKind !== ITEM_BLUE_SHELL) brokenShells.add(liveShells[i].entityId);
+					if (liveShells[j].itemKind !== ITEM_BLUE_SHELL) brokenShells.add(liveShells[j].entityId);
 				}
 			}
 		}
-
-		this.shells = liveShells.filter(shell => !brokenShells.has(shell.id));
+		for (const id of brokenShells) this.removeHazard(id);
 	}
 
 	/* ---------------------------- Main loop ---------------------------- */
@@ -1888,12 +1915,12 @@ export class GMRally extends GameMode {
 		}
 
 		// Hazards use dedicated image textures.
-		for (const banana of this.bananas) {
+		for (const banana of this.getBananas()) {
 			const tilt = Math.max(-0.45, Math.min(0.45, banana.vy * 0.00045));
 			drawItemTexture(ctx, imageLoader, ITEM_BANANA, banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
 		}
-		for (const shell of this.shells) {
-			drawItemTexture(ctx, imageLoader, shell.kind, shell.x, shell.y, 40, 0, this.levelTime * 2.5 + shell.id * 0.13);
+		for (const shell of this.getShells()) {
+			drawItemTexture(ctx, imageLoader, shell.itemKind, shell.x, shell.y, 40, 0, this.levelTime * 2.5 + shell.entityId * 0.13);
 		}
 	}
 
@@ -1973,10 +2000,9 @@ export class GMRally extends GameMode {
 			redScore: this.redScore,
 			blueScore: this.blueScore,
 			finishCount: this.finishCount,
-			lapFinishCounts: this.lapFinishCounts,
 			boxCooldowns: this.boxCooldowns,
-			bananas: this.bananas,
-			shells: this.shells,
+			bananas: this.getBananas().map(banana => banana.save()),
+			shells: this.getShells().map(shell => shell.save()),
 			nextEntityId: this.nextEntityId,
 		};
 		return State.encode(object).finish();
@@ -1996,18 +2022,48 @@ export class GMRally extends GameMode {
 		this.redScore = obj.redScore ?? 0;
 		this.blueScore = obj.blueScore ?? 0;
 		this.finishCount = obj.finishCount ?? 0;
-		this.lapFinishCounts = [...(obj.lapFinishCounts ?? Array.from({ length: LAP_COUNT }, () => 0))];
 		this.boxCooldowns = [...(obj.boxCooldowns ?? LEVELS[0].items.map(() => 0))];
-		this.bananas = (obj.bananas ?? []).map((banana: any) => ({
-			...banana,
-			vx: banana.vx ?? 0,
-			vy: banana.vy ?? 0,
-		}));
-		this.shells = [...(obj.shells ?? [])];
+
+		// Reconcile entities by stable entity ID, mutating matching blocks in place.
+		const existing = new Map<number, Banana | Shell>();
+		if (this.engine) {
+			for (const entry of this.engine.getBlocks()) {
+				const block = entry.block;
+				if (block instanceof Banana || block instanceof Shell) existing.set(block.entityId, block);
+			}
+		}
+		const incoming = new Map<number, any>();
+		for (const state of obj.bananas ?? []) incoming.set(state.id, { type: 'banana', state });
+		for (const state of obj.shells ?? []) incoming.set(state.id, { type: 'shell', state });
+
+		for (const [id] of existing) {
+			if (!incoming.has(id)) this.removeHazard(id);
+		}
+		for (const [id, value] of incoming) {
+			let block = existing.get(id);
+			if (value.type === 'banana') {
+				if (!(block instanceof Banana)) {
+					if (block) this.removeHazard(id);
+					block = new Banana(id);
+					this.addHazard(block);
+				}
+			} else {
+				const state = value.state;
+				const desired = state.red ? ITEM_RED_SHELL : state.blue ? ITEM_BLUE_SHELL : ITEM_GREEN_SHELL;
+				if (!(block instanceof Shell) || block.itemKind !== desired) {
+					if (block) this.removeHazard(id);
+					block = desired === ITEM_RED_SHELL ? new RedShell(id)
+						: desired === ITEM_BLUE_SHELL ? new BlueShell(id) : new GreenShell(id);
+					this.addHazard(block);
+				}
+			}
+			block.load(value.state);
+		}
 		this.nextEntityId = obj.nextEntityId ?? 1;
 
-		// Keep local block IDs and static platforms intact; only restore body state.
+		// Keep local block IDs and static platforms intact; restore bodies and boxes.
 		this.syncBlocksFromPlayers();
+		this.syncEntityBlocks();
 	}
 
 	/* ---------------------------- Results ---------------------------- */
