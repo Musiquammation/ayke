@@ -67,17 +67,13 @@ const HIT_KNOCKBACK = 560;
 const HIT_JUMP = 640;
 
 const SHELL_FRAME_SIZE = 16;
-const RED_SHELL_FRAME_COUNT = 8;
-const BLUE_SHELL_FRAME_COUNT = 6;
-const GREEN_SHELL_FRAME_COUNT = 8;
+const SHELL_FRAME_COUNT = 5; // red & green shells; the blue shell has no animation
 const SHELL_FRAME_DELAY = 0.09;
 
-// Bomb/explosion kinds are encoded in the existing green-shell target field so
-// snapshots remain compatible with the current multiplayer protocol.
-const BOMB_ENTITY_MARKER = -1001;
-const EXPLOSION_ENTITY_MARKER = -1002;
+// Shells and bombs spawn this far in front of the player so they never touch the thrower.
+const SPAWN_FRONT_OFFSET = (PLAYER_W + HAZARD_SIZE) / 2 + 8;
 const EXPLOSION_DURATION = 0.42;
-const EXPLOSION_RADIUS = 100;
+const EXPLOSION_RADIUS = 220; // everyone inside this radius is hit
 const BOMB_SPEED = 320;
 
 // Match flow: one predefined map, three laps, a 30-second grace period, and a ten-minute hard limit.
@@ -344,7 +340,13 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 		super();
 	}
 
-	getSize() { return { width: PLAYER_W, height: PLAYER_H }; }
+	/** An inactive player (waiting to respawn) is off the map: zero size, no contacts. */
+	active = true;
+
+	getSize() {
+		const on = this.active;
+		return { width: on ? PLAYER_W : 0, height: on ? PLAYER_H : 0 };
+	}
 	getWalker() { return this.walker; }
 	getDirection() { return this.direction; }
 	getVelocity() { return this.velocity; }
@@ -511,6 +513,8 @@ class Player {
 		this.tickTimers(dt);
 		block.wallSliding = false;
 		block.wallJumping = this.wallBoost > 0;
+		// Off the map while waiting to respawn.
+		block.active = this.respawn <= 0;
 		block.stunned = this.hit;
 
 		if (this.respawn > 0 || this.hit || this.finished) {
@@ -1071,11 +1075,10 @@ class Banana extends Entity {
 abstract class Shell extends Entity {
 	vx = 0;
 	vy = 0;
-	owner = -1;
 	abstract readonly itemKind: number;
 
-	constructor(entityId: number, entityKind: EntityKind = 'shell') {
-		super(entityKind, entityId, -1, HAZARD_SIZE);
+	constructor(entityId: number) {
+		super('shell', entityId, -1, HAZARD_SIZE);
 	}
 
 	load(data: any): void {
@@ -1084,15 +1087,11 @@ abstract class Shell extends Entity {
 		const state = data.red ?? data.blue ?? data.green ?? {};
 		this.vx = state.vx ?? 0;
 		this.vy = state.vy ?? 0;
-		this.owner = state.owner ?? -1;
 		this.active = true;
 	}
 
 	save() {
-		const state = { vx: this.vx, vy: this.vy, owner: this.owner };
-		if (this instanceof Bomb) {
-			return { id: this.entityId, x: this.x, y: this.y, green: { ...state, target: BOMB_ENTITY_MARKER } };
-		}
+		const state = { vx: this.vx, vy: this.vy };
 		return {
 			id: this.entityId, x: this.x, y: this.y,
 			...(this.itemKind === ITEM_RED_SHELL ? { red: state }
@@ -1104,41 +1103,63 @@ abstract class Shell extends Entity {
 
 class RedShell extends Shell { readonly itemKind = ITEM_RED_SHELL; }
 class GreenShell extends Shell { readonly itemKind = ITEM_GREEN_SHELL; }
+/** No collision with the terrain: it flies through everything and only reacts to its target. */
 class BlueShell extends Shell { readonly itemKind = ITEM_BLUE_SHELL; }
 
-/** A thrown bomb shares the existing shell snapshot envelope for wire compatibility. */
-class Bomb extends Shell {
-	readonly itemKind = ITEM_BOMB;
-	constructor(entityId: number) { super(entityId, 'bomb'); }
-}
-
-/** Short-lived, replicated explosion effect. Its remaining life uses the green-shell vy field. */
-class Explosion extends Entity {
-	remaining = EXPLOSION_DURATION;
-	owner = -1;
+/** Thrown bomb. Not a shell: it has its own snapshot message. Explodes on landing or on any player. */
+class Bomb extends Entity {
+	vx = 0;
+	vy = 0;
 
 	constructor(entityId: number) {
-		super('explosion', entityId, -1, HAZARD_SIZE * 2);
+		super('bomb', entityId, -1, HAZARD_SIZE);
 	}
 
 	load(data: any): void {
 		this.x = data.x ?? 0;
 		this.y = data.y ?? 0;
-		const state = data.green ?? {};
-		this.remaining = Math.max(0, state.vy ?? EXPLOSION_DURATION);
-		this.owner = state.owner ?? -1;
+		this.vx = data.vx ?? 0;
+		this.vy = data.vy ?? 0;
+		this.active = true;
+	}
+
+	save() {
+		return { id: this.entityId, x: this.x, y: this.y, vx: this.vx, vy: this.vy };
+	}
+}
+
+/** Short-lived replicated blast. Damage (everyone in `radius`) is applied once when it is created. */
+class Explosion extends Entity {
+	remaining = EXPLOSION_DURATION;
+	readonly radius = EXPLOSION_RADIUS;
+
+	constructor(entityId: number) {
+		super('explosion', entityId, -1, EXPLOSION_RADIUS * 2);
+	}
+
+	load(data: any): void {
+		this.x = data.x ?? 0;
+		this.y = data.y ?? 0;
+		this.remaining = Math.max(0, data.remaining ?? EXPLOSION_DURATION);
 		this.active = this.remaining > 0;
 	}
 
 	save() {
-		return {
-			id: this.entityId, x: this.x, y: this.y,
-			green: { vx: 0, vy: this.remaining, owner: this.owner, target: EXPLOSION_ENTITY_MARKER },
-		};
+		return { id: this.entityId, x: this.x, y: this.y, remaining: this.remaining };
 	}
 }
-/** Draw an item sprite from the Rally texture atlas/assets. */
-const ITEM_TEXTURE_KEYS: Record<number, string> = {
+
+type Hazard = Banana | Shell | Bomb | Explosion;
+
+function isHazard(block: unknown): block is Hazard {
+	return block instanceof Banana || block instanceof Shell || block instanceof Bomb || block instanceof Explosion;
+}
+
+/**
+ * Names of items. The HUD icon is `item-<name>` (items/ folder, no animation);
+ * the world sprite is `<name>` (entities/ folder).
+ */
+const ITEM_NAMES: Record<number, string> = {
 	[ITEM_BANANA]: 'banana',
 	[ITEM_GREEN_SHELL]: 'green-shell',
 	[ITEM_RED_SHELL]: 'red-shell',
@@ -1148,11 +1169,9 @@ const ITEM_TEXTURE_KEYS: Record<number, string> = {
 	[ITEM_BOMB]: 'bomb',
 };
 
-/** Return the configured horizontal frame count for a shell texture. */
+/** Red and green shells have 5 frames; the blue shell is a single image. */
 function getShellFrameCount(itemKind: number): number {
-	if (itemKind === ITEM_RED_SHELL) return RED_SHELL_FRAME_COUNT;
-	if (itemKind === ITEM_BLUE_SHELL) return BLUE_SHELL_FRAME_COUNT;
-	return GREEN_SHELL_FRAME_COUNT;
+	return itemKind === ITEM_BLUE_SHELL ? 1 : SHELL_FRAME_COUNT;
 }
 
 function drawAnimatedShellTexture(
@@ -1164,39 +1183,42 @@ function drawAnimatedShellTexture(
 	size: number,
 	frame: number,
 ) {
-	const key = ITEM_TEXTURE_KEYS[itemKind];
-	const texture = imageLoader.get(key);
+	const texture = imageLoader.get(ITEM_NAMES[itemKind]);
 	if (!texture || size <= 0) return;
+	const dx = cx - size / 2;
+	const dy = cy - size / 2;
+	if (itemKind === ITEM_BLUE_SHELL) {
+		ctx.drawImage(texture, dx, dy, size, size);
+		return;
+	}
 	const image = texture as HTMLImageElement;
 	const width = image.naturalWidth || (texture as HTMLCanvasElement).width || SHELL_FRAME_SIZE;
-	const availableFrames = Math.max(1, Math.floor(width / SHELL_FRAME_SIZE));
-	const frameCount = Math.max(1, Math.min(getShellFrameCount(itemKind), availableFrames));
-	const sourceFrame = ((frame % frameCount) + frameCount) % frameCount;
-	ctx.save();
+	const available = Math.max(1, Math.floor(width / SHELL_FRAME_SIZE));
+	const count = Math.min(SHELL_FRAME_COUNT, available);
+	const sourceFrame = ((frame % count) + count) % count;
 	ctx.drawImage(
 		texture,
 		sourceFrame * SHELL_FRAME_SIZE, 0, SHELL_FRAME_SIZE, SHELL_FRAME_SIZE,
-		cx - size / 2, cy - size / 2, size, size,
+		dx, dy, size, size,
 	);
-	ctx.restore();
 }
 
-function drawItemTexture(
+/** Draws a single, non-animated image; optionally a procedural bomb if the texture is missing. */
+function drawSprite(
 	ctx: CanvasRenderingContext2D,
 	imageLoader: ImageLoaderFolder,
-	item: number,
+	key: string,
 	cx: number,
 	cy: number,
 	size: number,
-	rotation = 0,
-	phase = 0
+	rotation: number,
+	phase: number,
+	bombFallback: boolean
 ) {
-	const key = ITEM_TEXTURE_KEYS[item];
-	if (!key || size <= 0) return;
+	if (size <= 0) return;
 	const texture = imageLoader.get(key);
 	if (!texture) {
-		// Draw a simple fallback bomb if no dedicated bomb image is shipped with the game.
-		if (item !== ITEM_BOMB) return;
+		if (!bombFallback) return;
 		ctx.save();
 		ctx.translate(cx, cy + Math.sin(phase) * size * 0.018);
 		ctx.rotate(rotation);
@@ -1229,6 +1251,36 @@ function drawItemTexture(
 	ctx.shadowOffsetY = 4;
 	ctx.drawImage(texture, -size / 2, -size / 2, size, size);
 	ctx.restore();
+}
+
+/** HUD icon of an item (items/ folder, prefix `item-`, no animation). */
+function drawItemTexture(
+	ctx: CanvasRenderingContext2D,
+	imageLoader: ImageLoaderFolder,
+	item: number,
+	cx: number,
+	cy: number,
+	size: number,
+	rotation = 0,
+	phase = 0
+) {
+	const name = ITEM_NAMES[item];
+	if (!name) return;
+	drawSprite(ctx, imageLoader, `item-${name}`, cx, cy, size, rotation, phase, item === ITEM_BOMB);
+}
+
+/** World sprite of a non-animated entity (entities/ folder, no prefix). */
+function drawEntitySprite(
+	ctx: CanvasRenderingContext2D,
+	imageLoader: ImageLoaderFolder,
+	name: string,
+	cx: number,
+	cy: number,
+	size: number,
+	rotation = 0,
+	phase = 0
+) {
+	drawSprite(ctx, imageLoader, name, cx, cy, size, rotation, phase, name === 'bomb');
 }
 
 export class GMRally extends GameMode {
@@ -1360,19 +1412,28 @@ export class GMRally extends GameMode {
 
 	static readonly generateClientDom = generateClientDom;
 
-	static readonly TEXTURES = {
+static readonly TEXTURES = {
 		"player": "/assets/games/rally/player.png",
 		'platform': "/assets/games/rally/platform.png",
-		'item-box': "/assets/games/rally/item-box.png",
 		'finish': "/assets/games/rally/finish.png",
 		'background': "/assets/games/rally/background.png",
-		'banana': "/assets/games/rally/items/banana.png",
-		'green-shell': "/assets/games/rally/items/green-shell.png",
-		'red-shell': "/assets/games/rally/items/red-shell.png",
-		'blue-shell': "/assets/games/rally/items/blue-shell.png",
-		'mushroom': "/assets/games/rally/items/mushroom.png",
-		'star': "/assets/games/rally/items/star.png",
-		'bomb': "/assets/games/rally/items/bomb.png",
+
+		// entities/: world sprites, no prefix. red & green shells: 16x16, 5 frames; blue shell: no animation.
+		'item-box': "/assets/games/rally/entities/item-box.png",
+		'banana': "/assets/games/rally/entities/banana.png",
+		'green-shell': "/assets/games/rally/entities/green-shell.png",
+		'red-shell': "/assets/games/rally/entities/red-shell.png",
+		'blue-shell': "/assets/games/rally/entities/blue-shell.png",
+		'bomb': "/assets/games/rally/entities/bomb.png",
+
+		// items/: HUD icons, prefixed with "item-", no animation.
+		'item-banana': "/assets/games/rally/items/banana.png",
+		'item-green-shell': "/assets/games/rally/items/green-shell.png",
+		'item-red-shell': "/assets/games/rally/items/red-shell.png",
+		'item-blue-shell': "/assets/games/rally/items/blue-shell.png",
+		'item-mushroom': "/assets/games/rally/items/mushroom.png",
+		'item-star': "/assets/games/rally/items/star.png",
+		'item-bomb': "/assets/games/rally/items/bomb.png",
 	};
 
 	/* ---------------------------- Engine / world ---------------------------- */
@@ -1422,6 +1483,7 @@ export class GMRally extends GameMode {
 			block.velocity.y = p.vy;
 			block.direction.dir = (p.hit || p.respawn > 0 || p.finished) ? 0 : p.facing * RUN_SPEED;
 			block.stunned = p.hit;
+			block.active = p.respawn <= 0;
 		}
 	}
 
@@ -1430,44 +1492,37 @@ export class GMRally extends GameMode {
 		return this.engine.getBlock(this.playerIds[index]) as PlayerBlock | null;
 	}
 
-	private getBananas(): Banana[] {
+private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T): T[] {
 		if (!this.engine) return [];
-		return [...this.engine.getBlocks()].map(entry => entry.block).filter((block): block is Banana => block instanceof Banana);
+		return [...this.engine.getBlocks()].map(entry => entry.block).filter((block): block is T => block instanceof type);
 	}
 
-	private getShells(): Shell[] {
-		if (!this.engine) return [];
-		return [...this.engine.getBlocks()].map(entry => entry.block).filter((block): block is Shell => block instanceof Shell);
-	}
+	private getBananas(): Banana[] { return this.getEntitiesOf(Banana); }
+	private getShells(): Shell[] { return this.getEntitiesOf(Shell); }
+	private getBombs(): Bomb[] { return this.getEntitiesOf(Bomb); }
+	private getExplosions(): Explosion[] { return this.getEntitiesOf(Explosion); }
 
 	/** Exposes live shell IDs to the client-side animation tracker. */
 	getShellsForAnimation(): Shell[] {
 		return this.getShells();
 	}
 
-	private getExplosions(): Explosion[] {
-		if (!this.engine) return [];
-		return [...this.engine.getBlocks()].map(entry => entry.block).filter((block): block is Explosion => block instanceof Explosion);
-	}
-
-	private getHazard(entityId: number): Banana | Shell | Explosion | null {
+	private getHazard(entityId: number): Hazard | null {
 		if (!this.engine) return null;
 		for (const entry of this.engine.getBlocks()) {
-			const block = entry.block;
-			if ((block instanceof Banana || block instanceof Shell || block instanceof Explosion) && block.entityId === entityId) return block;
+			if (isHazard(entry.block) && entry.block.entityId === entityId) return entry.block;
 		}
 		return null;
 	}
 
-	private addHazard(hazard: Banana | Shell | Explosion): void {
+	private addHazard(hazard: Hazard): void {
 		if (this.engine) this.engine.addBlock(hazard, 'entity');
 	}
 
 	private removeHazard(entityId: number): void {
 		if (!this.engine) return;
 		for (const entry of this.engine.getBlocks()) {
-			const block = entry.block;
-			if ((block instanceof Banana || block instanceof Shell || block instanceof Explosion) && block.entityId === entityId) {
+			if (isHazard(entry.block) && entry.block.entityId === entityId) {
 				this.engine.removeBlock(entry.id);
 				return;
 			}
@@ -1495,8 +1550,22 @@ export class GMRally extends GameMode {
 		p.control(block, dt);
 	}
 
-	afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
+afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		const p = this.players[idx];
+
+		// Waiting to respawn: the player is off the map (inactive block), parked on the
+		// respawn point. When the timer ends, the next frame simply puts it back on the map.
+		if (p.respawn > 0) {
+			block.x = p.x;
+			block.y = p.y;
+			block.velocity.x = 0;
+			block.velocity.y = 0;
+			p.vx = 0;
+			p.vy = 0;
+			if (this.isAuthoritative) p.respawn = Math.max(0, p.respawn - dt);
+			return;
+		}
+
 		p.x = block.x;
 		p.y = block.y;
 		p.vx = block.velocity.x;
@@ -1512,10 +1581,6 @@ export class GMRally extends GameMode {
 			p.vy = 0;
 		}
 
-		if (p.respawn > 0) {
-			if (this.isAuthoritative) p.respawn = Math.max(0, p.respawn - dt);
-			return;
-		}
 		if (!this.isAuthoritative || p.finished) return;
 
 		const level = this.currentLevel();
@@ -1530,6 +1595,10 @@ export class GMRally extends GameMode {
 		}
 	}
 
+	/**
+	 * Falling in the void: the player is taken off the map (inactive) and parked on the
+	 * respawn point; after RESPAWN_TIME seconds it is put back on the map right there.
+	 */
 	private killPlayer(_idx: number, p: Player, block: PlayerBlock) {
 		const level = this.currentLevel();
 		const point = p.subCheckpoint >= 0
@@ -1540,6 +1609,7 @@ export class GMRally extends GameMode {
 		block.velocity.x = 0;
 		block.velocity.y = 0;
 		block.direction.dir = 0;
+		block.active = false;
 		p.x = point.x;
 		p.y = point.y;
 		p.vx = 0;
@@ -1621,7 +1691,7 @@ export class GMRally extends GameMode {
 	}
 
 	/** Item-box collection is triggered by Entity.detectCollision inside the engine. */
-	handleEntityContact(entity: Entity, playerIndex: number): void {
+handleEntityContact(entity: Entity, playerIndex: number): void {
 		if (!this.isAuthoritative || !entity.active) return;
 		const player = this.players[playerIndex];
 		if (!player || player.finished || player.respawn > 0) return;
@@ -1636,40 +1706,26 @@ export class GMRally extends GameMode {
 			entity.active = false;
 			return;
 		}
-
-		if (entity.kind === 'bomb') {
-			const bomb = this.getHazard(entity.entityId);
-			// The throwing player cannot trigger their own bomb by touching it.
-			if (bomb instanceof Bomb && playerIndex !== bomb.owner) this.explodeBomb(bomb.entityId);
-			return;
-		}
 		if (entity.kind === 'explosion') return;
 
-		if (entity.kind === 'banana') {
-			const banana = this.getHazard(entity.entityId);
-			if (!(banana instanceof Banana) || (!banana.grounded && playerIndex === banana.owner)) return;
+		const hazard = this.getHazard(entity.entityId);
+		if (hazard instanceof Banana) {
+			// A thrown banana cannot hit its thrower while still flying.
+			if (!hazard.grounded && playerIndex === hazard.owner) return;
 			this.hitPlayer(playerIndex);
-			this.removeHazard(banana.entityId);
-			return;
-		}
-
-		const shell = this.getHazard(entity.entityId);
-		if (!(shell instanceof Shell)) return;
-		if (shell instanceof Bomb) {
-			if (playerIndex !== shell.owner) this.explodeBomb(shell.entityId);
-			return;
-		}
-		if (shell.itemKind === ITEM_BLUE_SHELL) {
-			// A blue shell only detonates on the current race leader.
+			this.removeHazard(hazard.entityId);
+		} else if (hazard instanceof Bomb) {
+			this.explodeBomb(hazard);
+		} else if (hazard instanceof BlueShell) {
+			// The blue shell only reacts to its target (the race leader) and explodes at once.
 			if (playerIndex !== this.findRaceLeader()) return;
+			this.explodeAt(hazard.x, hazard.y);
+			this.removeHazard(hazard.entityId);
+		} else if (hazard instanceof Shell) {
+			// Shells have no owner: they hit whoever they touch.
 			this.hitPlayer(playerIndex);
-			this.explodeAt(shell.x, shell.y, shell.owner);
-			this.removeHazard(shell.entityId);
-			return;
+			this.removeHazard(hazard.entityId);
 		}
-		if (playerIndex === shell.owner) return;
-		this.hitPlayer(playerIndex);
-		this.removeHazard(shell.entityId);
 	}
 
 	/** Keep query-only Entity blocks aligned with snapshot-backed state. */
@@ -1692,13 +1748,13 @@ export class GMRally extends GameMode {
 		}
 
 		// Hazard blocks are the source of truth; update existing blocks in place.
-		for (const hazard of [...this.getBananas(), ...this.getShells(), ...this.getExplosions()]) hazard.active = true;
+		for (const hazard of [...this.getBananas(), ...this.getShells(), ...this.getBombs(), ...this.getExplosions()]) hazard.active = true;
 	}
 
 	/** RNG is consumed only by the authority; the selected item is immediately shared. */
 	private rollItem(playerIndex: number) {
 		const r = this.currentRng ? this.currentRng() : Math.random();
-		return ITEM_GREEN_SHELL;
+		return ITEM_MUSHROOM;
 		const rank = this.getRaceRanking().findIndex(i => i === playerIndex);
 		// Trailing racers get stronger comeback items; leaders get mostly hazards.
 		const weights = rank <= 0
@@ -1729,10 +1785,10 @@ export class GMRally extends GameMode {
 			case ITEM_GREEN_SHELL:
 			case ITEM_RED_SHELL:
 			case ITEM_BLUE_SHELL:
-				this.spawnShell(idx, held, p);
+				this.spawnShell(held, p);
 				break;
 			case ITEM_BOMB:
-				this.spawnBomb(idx, p);
+				this.spawnBomb(p);
 				break;
 			case ITEM_MUSHROOM:
 				p.boostTimer = BOOST_TIME;
@@ -1747,28 +1803,26 @@ export class GMRally extends GameMode {
 		p.itemRollTimer = 0;
 	}
 
-	/** Throw a bomb forward; it detonates on landing or on a non-owner player. */
-	private spawnBomb(owner: number, player: Player) {
+/** Throw a bomb from in front of the player; it detonates on landing or on any player. */
+	private spawnBomb(player: Player) {
 		const bomb = new Bomb(this.nextEntityId++);
-		bomb.x = player.x + player.facing * (PLAYER_W * 0.8);
+		bomb.x = player.x + player.facing * SPAWN_FRONT_OFFSET;
 		bomb.y = player.y;
 		bomb.vx = player.vx + player.facing * BOMB_SPEED;
 		bomb.vy = player.vy + BANANA_JUMP;
-		bomb.owner = owner;
 		this.addHazard(bomb);
 	}
 
-	private spawnShell(owner: number, kind: number, player: Player) {
-		const blue = kind === ITEM_BLUE_SHELL;
-		const launchDirection = blue ? 1 : (player.facing < 0 ? -1 : 1);
+	/** Shells spawn in front of the player so they do not touch the thrower. */
+	private spawnShell(kind: number, player: Player) {
+		const direction = player.facing < 0 ? -1 : 1;
 		const shell: Shell = kind === ITEM_RED_SHELL ? new RedShell(this.nextEntityId++)
 			: kind === ITEM_BLUE_SHELL ? new BlueShell(this.nextEntityId++)
 			: new GreenShell(this.nextEntityId++);
-		shell.x = player.x + launchDirection * (PLAYER_W * 0.9);
+		shell.x = player.x + direction * SPAWN_FRONT_OFFSET;
 		shell.y = player.y;
-		shell.vx = blue ? BLUE_SHELL_SPEED : launchDirection * SHELL_SPEED;
+		shell.vx = (kind === ITEM_BLUE_SHELL ? BLUE_SHELL_SPEED : SHELL_SPEED) * direction;
 		shell.vy = 0;
-		shell.owner = owner;
 		this.addHazard(shell);
 	}
 
@@ -1824,24 +1878,23 @@ export class GMRally extends GameMode {
 		banana.arming = 0;
 	}
 
-	/** Detonate a bomb and replace it with a short-lived replicated explosion. */
-	private explodeBomb(id: number) {
-		const bomb = this.getHazard(id);
-		if (!(bomb instanceof Bomb)) return;
-		this.explodeAt(bomb.x, bomb.y, bomb.owner);
+/** Detonate a bomb: it is replaced by an Explosion. */
+	private explodeBomb(bomb: Bomb) {
+		this.explodeAt(bomb.x, bomb.y);
 		this.removeHazard(bomb.entityId);
 	}
 
-	/** Spawn an explosion and immediately apply its blast to nearby non-owner players. */
-	private explodeAt(x: number, y: number, owner: number) {
+	/** Spawn an Explosion; it damages every player (thrower included) whose body is within its radius. */
+	private explodeAt(x: number, y: number) {
 		const explosion = new Explosion(this.nextEntityId++);
 		explosion.x = x;
 		explosion.y = y;
-		explosion.owner = owner;
 		this.addHazard(explosion);
 		for (const [i, player] of this.players.entries()) {
-			if (i === owner || player.finished || player.respawn > 0) continue;
-			if (Math.hypot(player.x - x, player.y - y) <= EXPLOSION_RADIUS) this.hitPlayer(i);
+			if (player.finished || player.respawn > 0) continue;
+			const dx = Math.max(0, Math.abs(player.x - x) - PLAYER_W / 2);
+			const dy = Math.max(0, Math.abs(player.y - y) - PLAYER_H / 2);
+			if (Math.hypot(dx, dy) <= explosion.radius) this.hitPlayer(i);
 		}
 	}
 
@@ -1957,19 +2010,15 @@ export class GMRally extends GameMode {
 			if (explosion.remaining <= 0) this.removeHazard(explosion.entityId);
 		}
 
+// Bombs explode only after landing; side-wall contacts merely stop them.
+		for (const bomb of this.getBombs()) {
+			this.moveGroundHazard(bomb, dt, platforms, false, false);
+			if (this.hazardIsSupported(bomb, HAZARD_SIZE, platforms)) this.explodeBomb(bomb);
+		}
+
 		const liveShells: Shell[] = [];
 		for (const shell of this.getShells()) {
-			if (shell instanceof Bomb) {
-				this.moveGroundHazard(shell, dt, platforms, false, false);
-				// A bomb explodes only after landing; side-wall contacts merely stop it.
-				if (this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) {
-					this.explodeBomb(shell.entityId);
-					continue;
-				}
-				liveShells.push(shell);
-				continue;
-			}
-
+			// Blue shell: no terrain collision at all (no moveGroundHazard).
 			if (shell.itemKind === ITEM_BLUE_SHELL) {
 				const leaderIndex = this.findRaceLeader();
 				const target = leaderIndex >= 0 ? this.players[leaderIndex] : undefined;
@@ -2024,7 +2073,6 @@ export class GMRally extends GameMode {
 		const brokenShells = new Set<number>();
 		for (let i = 0; i < liveShells.length; i++) {
 			for (let j = i + 1; j < liveShells.length; j++) {
-				if (liveShells[i] instanceof Bomb || liveShells[j] instanceof Bomb) continue;
 				if (overlapsCenter(
 					{ x: liveShells[i].x, y: liveShells[i].y, w: HAZARD_SIZE, h: HAZARD_SIZE },
 					{ x: liveShells[j].x, y: liveShells[j].y, w: HAZARD_SIZE, h: HAZARD_SIZE }
@@ -2168,23 +2216,22 @@ export class GMRally extends GameMode {
 			ctx.drawImage(box, b.x - BOX_SIZE / 2, b.y - BOX_SIZE / 2, BOX_SIZE, BOX_SIZE);
 		}
 
-		// Hazards use dedicated image textures.
+// Hazards: world sprites come from the entities folder.
 		for (const banana of this.getBananas()) {
 			const tilt = Math.max(-0.45, Math.min(0.45, banana.vy * 0.00045));
-			drawItemTexture(ctx, imageLoader, ITEM_BANANA, banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
+			drawEntitySprite(ctx, imageLoader, 'banana', banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
+		}
+		for (const bomb of this.getBombs()) {
+			drawEntitySprite(ctx, imageLoader, 'bomb', bomb.x, bomb.y, 42, 0, this.levelTime * 2.5);
 		}
 		for (const shell of this.getShells()) {
-			if (shell instanceof Bomb) {
-				drawItemTexture(ctx, imageLoader, ITEM_BOMB, shell.x, shell.y, 42, 0, this.levelTime * 2.5);
-			} else {
-				drawAnimatedShellTexture(ctx, imageLoader, shell.itemKind, shell.x, shell.y, 40, data.getShellFrame(shell.entityId));
-			}
+			drawAnimatedShellTexture(ctx, imageLoader, shell.itemKind, shell.x, shell.y, 40, data.getShellFrame(shell.entityId));
 		}
 
-		// Explosions are drawn procedurally so they do not require another asset.
+// Explosions are drawn procedurally; the visual grows up to the real damage radius.
 		for (const explosion of this.getExplosions()) {
 			const progress = 1 - Math.max(0, explosion.remaining) / EXPLOSION_DURATION;
-			const radius = 14 + progress * 54;
+			const radius = explosion.radius * (0.3 + 0.7 * progress);
 			ctx.save();
 			ctx.globalAlpha = Math.max(0, 1 - progress);
 			const glow = ctx.createRadialGradient(explosion.x, explosion.y, radius * 0.15, explosion.x, explosion.y, radius);
@@ -2205,6 +2252,7 @@ export class GMRally extends GameMode {
 		if (!engine) return;
 		for (const [i, p] of this.players.entries()) {
 			const id = this.playerIds[i];
+			if (p.respawn > 0) continue; // off the map while waiting to respawn
 			const block = engine.getBlock(id);
 			if (!block) continue;
 
@@ -2273,9 +2321,10 @@ export class GMRally extends GameMode {
 			blueScore: this.blueScore,
 			finishCount: this.finishCount,
 			boxCooldowns: this.boxCooldowns,
-			bananas: this.getBananas().map(banana => banana.save()),
-			// Bombs and explosions are encoded via negative green-shell target markers.
-			shells: [...this.getShells().map(shell => shell.save()), ...this.getExplosions().map(explosion => explosion.save())],
+bananas: this.getBananas().map(banana => banana.save()),
+			shells: this.getShells().map(shell => shell.save()),
+			bombs: this.getBombs().map(bomb => bomb.save()),
+			explosions: this.getExplosions().map(explosion => explosion.save()),
 			nextEntityId: this.nextEntityId,
 		};
 		return State.encode(object).finish();
@@ -2297,57 +2346,44 @@ export class GMRally extends GameMode {
 		this.finishCount = obj.finishCount ?? 0;
 		this.boxCooldowns = [...(obj.boxCooldowns ?? LEVELS[0].items.map(() => 0))];
 
-		// Reconcile entities by stable ID and decode bomb/explosion markers from shell states.
-		const existing = new Map<number, Banana | Shell | Explosion>();
+		// Reconcile entities by stable ID: reuse a block when its class matches, otherwise recreate it.
+		const existing = new Map<number, Hazard>();
 		if (this.engine) {
 			for (const entry of this.engine.getBlocks()) {
-				const block = entry.block;
-				if (block instanceof Banana || block instanceof Shell || block instanceof Explosion) existing.set(block.entityId, block);
+				if (isHazard(entry.block)) existing.set(entry.block.entityId, entry.block);
 			}
 		}
-		const incoming = new Map<number, { type: 'banana' | 'shell' | 'bomb' | 'explosion'; state: any }>();
-		for (const state of obj.bananas ?? []) incoming.set(state.id, { type: 'banana', state });
+		const incoming = new Map<number, { create: () => Hazard; matches: (b: Hazard) => boolean; state: any }>();
+		for (const state of obj.bananas ?? []) {
+			incoming.set(state.id, { create: () => new Banana(state.id), matches: b => b instanceof Banana, state });
+		}
 		for (const state of obj.shells ?? []) {
-			const marker = state.green?.target;
-			const type = marker === BOMB_ENTITY_MARKER ? 'bomb'
-				: marker === EXPLOSION_ENTITY_MARKER ? 'explosion' : 'shell';
-			incoming.set(state.id, { type, state });
+			const kind = state.red ? ITEM_RED_SHELL : state.blue ? ITEM_BLUE_SHELL : ITEM_GREEN_SHELL;
+			incoming.set(state.id, {
+				create: () => kind === ITEM_RED_SHELL ? new RedShell(state.id)
+					: kind === ITEM_BLUE_SHELL ? new BlueShell(state.id) : new GreenShell(state.id),
+				matches: b => b instanceof Shell && b.itemKind === kind,
+				state,
+			});
+		}
+		for (const state of obj.bombs ?? []) {
+			incoming.set(state.id, { create: () => new Bomb(state.id), matches: b => b instanceof Bomb, state });
+		}
+		for (const state of obj.explosions ?? []) {
+			incoming.set(state.id, { create: () => new Explosion(state.id), matches: b => b instanceof Explosion, state });
 		}
 
-		for (const [id] of existing) {
+		for (const id of existing.keys()) {
 			if (!incoming.has(id)) this.removeHazard(id);
 		}
-		for (const [id, value] of incoming) {
+		for (const [id, entry] of incoming) {
 			let block = existing.get(id);
-			if (value.type === 'banana') {
-				if (!(block instanceof Banana)) {
-					if (block) this.removeHazard(id);
-					block = new Banana(id);
-					this.addHazard(block);
-				}
-			} else if (value.type === 'bomb') {
-				if (!(block instanceof Bomb)) {
-					if (block) this.removeHazard(id);
-					block = new Bomb(id);
-					this.addHazard(block);
-				}
-			} else if (value.type === 'explosion') {
-				if (!(block instanceof Explosion)) {
-					if (block) this.removeHazard(id);
-					block = new Explosion(id);
-					this.addHazard(block);
-				}
-			} else {
-				const state = value.state;
-				const desired = state.red ? ITEM_RED_SHELL : state.blue ? ITEM_BLUE_SHELL : ITEM_GREEN_SHELL;
-				if (!(block instanceof Shell) || block instanceof Bomb || block.itemKind !== desired) {
-					if (block) this.removeHazard(id);
-					block = desired === ITEM_RED_SHELL ? new RedShell(id)
-						: desired === ITEM_BLUE_SHELL ? new BlueShell(id) : new GreenShell(id);
-					this.addHazard(block);
-				}
+			if (!block || !entry.matches(block)) {
+				if (block) this.removeHazard(id);
+				block = entry.create();
+				this.addHazard(block);
 			}
-			block.load(value.state);
+			block.load(entry.state);
 		}
 
 		this.nextEntityId = obj.nextEntityId ?? 1;
