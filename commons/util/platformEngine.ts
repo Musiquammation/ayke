@@ -1147,6 +1147,7 @@ export namespace platformEngine {
 		private readonly hooks: RAPIER.PhysicsHooks;
 		private disposed = false;
 		readonly world: RAPIER.World;
+		private readonly eventQueue = new RAPIER.EventQueue(true);
 
 		constructor(
 			public readonly isClient: boolean,
@@ -1260,6 +1261,7 @@ export namespace platformEngine {
 			this.bodyToId.clear();
 			this.animators.clear();
 			this.world.free();
+			this.eventQueue.free();
 		}
 
 		update(dt: number): void {
@@ -1281,7 +1283,7 @@ export namespace platformEngine {
 			// 2. Rapier does all the collision detection and resolution.
 			this.passthrough.clear();
 			this.world.timestep = dt;
-			this.world.step(undefined, this.hooks);
+			this.world.step(this.eventQueue, this.hooks);
 
 			// 3. Read the result back and react to the contacts.
 			for (const state of states) this.pullFromRapier(state);
@@ -1341,9 +1343,20 @@ export namespace platformEngine {
 			const colliders = (
 				hitboxToColliders(block.getPolygon() ?? Hitbox.full(), size)
 				.map(desc => {
+					desc.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
+					desc.setActiveCollisionTypes(RAPIER.ActiveCollisionTypes.ALL);
 					return this.world.createCollider(desc, body);
 				})
 			);
+
+			for (const collider of colliders) {
+				console.log({
+					collider: collider.handle,
+					hooks: collider.activeHooks(),
+					bodyType: body.bodyType(),
+					sensor: collider.isSensor(),
+				});
+			}
 
 			return {
 				id,
