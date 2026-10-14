@@ -200,20 +200,22 @@ type RallyEngine = platformEngine.IBlockEngine<RallyEngineData>;
 /* Animator                                                                   */
 /* -------------------------------------------------------------------------- */
 
-enum RallyAnimatorState {
-	IDLE = 0,
-	RUN = 1,
-	JUMPING = 2,
-	FALLING = 3,
-	WALL_SLIDE = 4,
-	WALL_JUMP = 5,
-	STUNNED = 6,
-}
 
+enum RallyAnimatorState {
+	IDLE,
+	WALKING,
+	RUNNING,
+	JUMPING,
+	FALLING,
+	WALL_SLIDE,
+	WALL_JUMP,
+	WALL_HANG,
+	STUNNED,
+}
 class RallyAnimator extends platformEngine.Animator {
 	static readonly ANIMATION_LINES = {
 		[RallyAnimatorState.IDLE]: { delay: 0.2, count: 6 },
-		[RallyAnimatorState.RUN]: { delay: 0.1, count: 8 },
+		[RallyAnimatorState.RUNNING]: { delay: 0.1, count: 8 },
 		[RallyAnimatorState.JUMPING]: { delay: 0.2, count: 4 },
 		[RallyAnimatorState.FALLING]: { delay: 0.2, count: 4 },
 		[RallyAnimatorState.WALL_SLIDE]: { delay: 0.2, count: 4 },
@@ -245,7 +247,7 @@ class RallyAnimator extends platformEngine.Animator {
 			(walker.onRight() && direction.dir > 0);
 
 		// Follow the same wall-state transitions as the shared Bot animator.
-		if (onWall) {
+		if (onWall && !grounded) {
 			if (current === S.WALL_SLIDE) return { type: 'loop' };
 			return to(S.WALL_SLIDE);
 		}
@@ -255,7 +257,7 @@ class RallyAnimator extends platformEngine.Animator {
 			if (b.velocity.y < -35) return to(S.JUMPING);
 			return to(S.FALLING);
 		}
-		return Math.abs(b.velocity.x) > 20 ? to(S.RUN) : to(S.IDLE);
+		return Math.abs(b.velocity.x) > 20 ? to(S.RUNNING) : to(S.IDLE);
 	}
 
 	getVisualZoom(): number {
@@ -648,6 +650,7 @@ class ClientData {
 	private readonly shellAnimations: Record<number, { step: number; delay: number }> = {};
 	private readonly lastBoostTimers: number[] = [];
 	private readonly lastStarTimers: number[] = [];
+	private readonly boostParticleTimers: number[] = [];
 	private particles: Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; color: string }> = [];
 
 	constructor() {
@@ -927,13 +930,21 @@ class ClientData {
 			if (!liveShellIds.has(Number(id))) delete this.shellAnimations[Number(id)];
 		}
 
-		// A newly activated boost is the shared signal that a mushroom was used.
+		// Emit a continuous, timed trail while a mushroom boost is active.
 		game.players.forEach((current, i) => {
 			const previousBoost = this.lastBoostTimers[i] ?? 0;
 			const previousStar = this.lastStarTimers[i] ?? 0;
 			const starWasActivated = current.starTimer > previousStar + 0.05;
-			if (current.boostTimer > previousBoost + 0.05 && !starWasActivated) {
-				this.spawnBoostParticles(current.x, current.y);
+			const boostStarted = current.boostTimer > previousBoost + 0.05 && !starWasActivated;
+			if (boostStarted) this.boostParticleTimers[i] = 0;
+			if (current.boostTimer > 0 && current.starTimer <= 0) {
+				this.boostParticleTimers[i] = (this.boostParticleTimers[i] ?? 0) - this.frameDelta;
+				while (this.boostParticleTimers[i] <= 0) {
+					this.spawnBoostTrailParticles(current.x, current.y, current.facing);
+					this.boostParticleTimers[i] += 0.045;
+				}
+			} else {
+				this.boostParticleTimers[i] = 0;
 			}
 			this.lastBoostTimers[i] = current.boostTimer;
 			this.lastStarTimers[i] = current.starTimer;
@@ -966,32 +977,31 @@ class ClientData {
 		return this.shellAnimations[entityId]?.step ?? 0;
 	}
 
-	/** Emit colored particles around a player when a boost begins. */
-	private spawnBoostParticles(x: number, y: number) {
-		const colors = ["#ff5252", "#ffca28", "#66bb6a", "#29b6f6", "#ab47bc"];
-		for (let i = 0; i < 18; i++) {
-			const angle = (Math.PI * 2 * i) / 18 + Math.random() * 0.25;
-			const speed = 90 + Math.random() * 240;
-			const life = 0.35 + Math.random() * 0.35;
+	/** Emit bright streaks behind the player at regular intervals during a mushroom boost. */
+	private spawnBoostTrailParticles(x: number, y: number, facing: number) {
+		const colors = ["#fff176", "#ffb300", "#ff6d00", "#ffffff", "#ff3d00"];
+		for (let i = 0; i < 5; i++) {
+			const life = 0.22 + Math.random() * 0.2;
 			this.particles.push({
-				x: x + (Math.random() - 0.5) * PLAYER_W,
-				y: y + (Math.random() - 0.5) * PLAYER_H,
-				vx: Math.cos(angle) * speed,
-				vy: Math.sin(angle) * speed - 80,
-				life, maxLife: life, size: 3 + Math.random() * 5,
-				color: colors[i % colors.length],
+				x: x - facing * (PLAYER_W * 0.35 + Math.random() * 14),
+				y: y + (Math.random() - 0.5) * PLAYER_H * 0.8,
+				vx: -facing * (180 + Math.random() * 260) + (Math.random() - 0.5) * 90,
+				vy: (Math.random() - 0.5) * 150,
+				life, maxLife: life, size: 4 + Math.random() * 6,
+				color: colors[Math.floor(Math.random() * colors.length)],
 			});
 		}
 	}
-
 	/** Draw boost particles in world space, before the camera transform is restored. */
 	drawParticles(ctx: CanvasRenderingContext2D) {
 		ctx.save();
 		for (const particle of this.particles) {
 			ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife);
 			ctx.fillStyle = particle.color;
+			ctx.shadowColor = particle.color;
+			ctx.shadowBlur = particle.size * 2.5;
 			ctx.beginPath();
-			ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+			ctx.ellipse(particle.x, particle.y, particle.size * 1.8, particle.size * 0.65, Math.atan2(particle.vy, particle.vx), 0, Math.PI * 2);
 			ctx.fill();
 		}
 		ctx.restore();
@@ -1132,20 +1142,23 @@ class Bomb extends Entity {
 class Explosion extends Entity {
 	remaining = EXPLOSION_DURATION;
 	readonly radius = EXPLOSION_RADIUS;
+	itemKind = ITEM_BOMB;
 
-	constructor(entityId: number) {
+	constructor(entityId: number, itemKind = ITEM_BOMB) {
 		super('explosion', entityId, -1, EXPLOSION_RADIUS * 2);
+		this.itemKind = itemKind;
 	}
 
 	load(data: any): void {
 		this.x = data.x ?? 0;
 		this.y = data.y ?? 0;
 		this.remaining = Math.max(0, data.remaining ?? EXPLOSION_DURATION);
+		this.itemKind = data.itemKind === ITEM_BLUE_SHELL ? ITEM_BLUE_SHELL : ITEM_BOMB;
 		this.active = this.remaining > 0;
 	}
 
 	save() {
-		return { id: this.entityId, x: this.x, y: this.y, remaining: this.remaining };
+		return { id: this.entityId, x: this.x, y: this.y, remaining: this.remaining, itemKind: this.itemKind };
 	}
 }
 
@@ -1201,6 +1214,44 @@ function drawAnimatedShellTexture(
 		sourceFrame * SHELL_FRAME_SIZE, 0, SHELL_FRAME_SIZE, SHELL_FRAME_SIZE,
 		dx, dy, size, size,
 	);
+}
+
+/** Draw the item-box sprite sheet one frame at a time, matching the shell animation cadence. */
+function drawAnimatedItemBoxTexture(
+	ctx: CanvasRenderingContext2D,
+	imageLoader: ImageLoaderFolder,
+	cx: number,
+	cy: number,
+	size: number,
+	frame: number,
+	rotation = 0,
+) {
+	const texture = imageLoader.get('item-box');
+	if (!texture || size <= 0) return;
+	const image = texture as HTMLImageElement;
+	const width = image.naturalWidth || (texture as HTMLCanvasElement).width || 0;
+	const height = image.naturalHeight || (texture as HTMLCanvasElement).height || 0;
+	if (width <= 0 || height <= 0) return;
+
+	// Item-box frames are assumed to be square and laid out horizontally, like shell frames.
+	const frameSize = height;
+	const frameCount = Math.max(1, Math.floor(width / frameSize));
+	const sourceFrame = frame % frameCount;
+	const pulse = 0.9 + (Math.sin(frame * 0.35) + 1) * 0.05;
+	const drawSize = size * pulse;
+
+	ctx.save();
+	ctx.translate(cx, cy);
+	ctx.rotate(rotation);
+	ctx.globalAlpha *= 0.92;
+	ctx.shadowColor = '#8ffcff';
+	ctx.shadowBlur = 8 + (Math.sin(frame * 0.35) + 1) * 3;
+	ctx.drawImage(
+		texture,
+		sourceFrame * frameSize, 0, frameSize, height,
+		-drawSize / 2, -drawSize / 2, drawSize, drawSize,
+	);
+	ctx.restore();
 }
 
 /** Draws a single, non-animated image; optionally a procedural bomb if the texture is missing. */
@@ -1645,7 +1696,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		}
 	}
 
-	/** Score each lap's finish order, then respawn at the start for the next lap. */
+	/** Count the completed lap and teleport only the player's horizontal position. */
 	private completeLap(idx: number, p: Player, block: PlayerBlock) {
 		const lapIndex = Math.min(p.lapsCompleted, LAP_COUNT - 1);
 		const rank = this.players.reduce(
@@ -1659,26 +1710,17 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		this.finishCount++;
 		this.recomputeScores();
 
+		// Reset lap progression, but preserve movement, items, mushroom boost, and star power.
 		const level = this.currentLevel();
-		// Wrap to the start without changing height or briefly hiding the player.
-		const finishY = p.y;
-		p.resetAtSpawn(level.spawnX, finishY);
+		p.x = level.spawnX;
 		block.x = level.spawnX;
-		block.y = finishY;
-		block.velocity.x = 0;
-		block.velocity.y = 0;
-		block.direction.dir = 0;
-		block.stunned = false;
+		p.checkpoint = -1;
+		p.subCheckpoint = -1;
 		if (p.lapsCompleted >= LAP_COUNT) {
 			p.finished = true;
 			p.respawn = 0;
 			p.finishRank = rank;
 		}
-		// A completed lap always returns to the start, including the final one.
-		p.x = block.x;
-		p.y = block.y;
-		p.vx = 0;
-		p.vy = 0;
 	}
 
 	private recomputeScores() {
@@ -1719,7 +1761,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		} else if (hazard instanceof BlueShell) {
 			// The blue shell only reacts to its target (the race leader) and explodes at once.
 			if (playerIndex !== this.findRaceLeader()) return;
-			this.explodeAt(hazard.x, hazard.y);
+			this.explodeAt(hazard.x, hazard.y, ITEM_BLUE_SHELL);
 			this.removeHazard(hazard.entityId);
 		} else if (hazard instanceof Shell) {
 			// Shells have no owner: they hit whoever they touch.
@@ -1885,8 +1927,8 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 	}
 
 	/** Spawn an Explosion; it damages every player (thrower included) whose body is within its radius. */
-	private explodeAt(x: number, y: number) {
-		const explosion = new Explosion(this.nextEntityId++);
+	private explodeAt(x: number, y: number, itemKind = ITEM_BOMB) {
+		const explosion = new Explosion(this.nextEntityId++, itemKind);
 		explosion.x = x;
 		explosion.y = y;
 		this.addHazard(explosion);
@@ -2209,11 +2251,14 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			}
 		}
 
-		// Item boxes
-		const box = imageLoader.get('item-box');
+		// Cycle through the item-box sprite-sheet frames, using the same timing approach as red shells.
 		for (const [i, b] of level.items.entries()) {
 			if (this.boxCooldowns[i] > 0) continue;
-			ctx.drawImage(box, b.x - BOX_SIZE / 2, b.y - BOX_SIZE / 2, BOX_SIZE, BOX_SIZE);
+			const phase = this.levelTime * 2.8 + i * 1.17;
+			const bob = Math.sin(phase) * 2.5;
+			const rotation = Math.sin(phase * 0.72) * 0.06;
+			const frame = Math.floor((this.levelTime + i * 0.07) / SHELL_FRAME_DELAY);
+			drawAnimatedItemBoxTexture(ctx, imageLoader, b.x, b.y + bob, BOX_SIZE, frame, rotation);
 		}
 
 // Hazards: world sprites come from the entities folder.
@@ -2228,20 +2273,59 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			drawAnimatedShellTexture(ctx, imageLoader, shell.itemKind, shell.x, shell.y, 40, data.getShellFrame(shell.entityId));
 		}
 
-// Explosions are drawn procedurally; the visual grows up to the real damage radius.
+		// Render item-specific blasts with a hot core, an expanding shockwave, and jagged flame.
 		for (const explosion of this.getExplosions()) {
-			const progress = 1 - Math.max(0, explosion.remaining) / EXPLOSION_DURATION;
-			const radius = explosion.radius * (0.3 + 0.7 * progress);
+			const progress = Math.max(0, Math.min(1, 1 - explosion.remaining / EXPLOSION_DURATION));
+			const easeOut = 1 - Math.pow(1 - progress, 2.2);
+			const radius = explosion.radius * (0.2 + 0.8 * easeOut);
+			const blue = explosion.itemKind === ITEM_BLUE_SHELL;
+			const outer = blue ? "#168bff" : "#ff351f";
+			const middle = blue ? "#58f4ff" : "#ff9a18";
+			const core = blue ? "#f2ffff" : "#fff6b0";
+			const alpha = Math.max(0, 1 - progress);
 			ctx.save();
-			ctx.globalAlpha = Math.max(0, 1 - progress);
-			const glow = ctx.createRadialGradient(explosion.x, explosion.y, radius * 0.15, explosion.x, explosion.y, radius);
-			glow.addColorStop(0, "#fff7b2");
-			glow.addColorStop(0.45, "#ff9d2e");
-			glow.addColorStop(1, "#ed3828");
+			ctx.globalAlpha = alpha;
+			ctx.globalCompositeOperation = "lighter";
+
+			// Soft bloom keeps the blast visible without hiding the level.
+			const glow = ctx.createRadialGradient(explosion.x, explosion.y, radius * 0.04, explosion.x, explosion.y, radius);
+			glow.addColorStop(0, core);
+			glow.addColorStop(0.22, middle);
+			glow.addColorStop(0.62, outer);
+			glow.addColorStop(1, `${outer}00`);
 			ctx.fillStyle = glow;
 			ctx.beginPath();
 			ctx.arc(explosion.x, explosion.y, radius, 0, Math.PI * 2);
 			ctx.fill();
+
+			// Draw an irregular flame silhouette for a more explosive shape.
+			const spikes = 28;
+			ctx.beginPath();
+			for (let i = 0; i < spikes * 2; i++) {
+				const angle = (i / (spikes * 2)) * Math.PI * 2 + progress * 0.7;
+				const r = radius * (i % 2 === 0 ? 0.88 : 0.58) * (0.92 + 0.08 * Math.sin(i * 2.7));
+				const px = explosion.x + Math.cos(angle) * r;
+				const py = explosion.y + Math.sin(angle) * r;
+				if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+			}
+			ctx.closePath();
+			ctx.fillStyle = middle;
+			ctx.fill();
+
+			// The bright inner core contracts as the shockwave expands.
+			ctx.globalAlpha = alpha * 0.95;
+			ctx.fillStyle = core;
+			ctx.beginPath();
+			ctx.arc(explosion.x, explosion.y, radius * (0.12 + 0.12 * (1 - progress)), 0, Math.PI * 2);
+			ctx.fill();
+
+			// A crisp ring makes the expanding impact readable at a glance.
+			ctx.globalAlpha = alpha * 0.8;
+			ctx.strokeStyle = blue ? "#b9fbff" : "#fff0a0";
+			ctx.lineWidth = Math.max(3, radius * 0.035);
+			ctx.beginPath();
+			ctx.arc(explosion.x, explosion.y, radius * (0.72 + progress * 0.2), 0, Math.PI * 2);
+			ctx.stroke();
 			ctx.restore();
 		}
 	}
@@ -2346,7 +2430,7 @@ bananas: this.getBananas().map(banana => banana.save()),
 		this.finishCount = obj.finishCount ?? 0;
 		this.boxCooldowns = [...(obj.boxCooldowns ?? LEVELS[0].items.map(() => 0))];
 
-		// Reconcile entities by stable ID: reuse a block when its class matches, otherwise recreate it.
+// Reconcile entities by stable ID: reuse a block when its class matches, otherwise recreate it.
 		const existing = new Map<number, Hazard>();
 		if (this.engine) {
 			for (const entry of this.engine.getBlocks()) {
@@ -2370,7 +2454,7 @@ bananas: this.getBananas().map(banana => banana.save()),
 			incoming.set(state.id, { create: () => new Bomb(state.id), matches: b => b instanceof Bomb, state });
 		}
 		for (const state of obj.explosions ?? []) {
-			incoming.set(state.id, { create: () => new Explosion(state.id), matches: b => b instanceof Explosion, state });
+			incoming.set(state.id, { create: () => new Explosion(state.id, state.itemKind), matches: b => b instanceof Explosion, state });
 		}
 
 		for (const id of existing.keys()) {
