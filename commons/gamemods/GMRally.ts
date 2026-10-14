@@ -237,6 +237,10 @@ class RallyAnimator extends platformEngine.Animator {
 	}
 }
 
+class Walker extends platformEngine.Walker {
+	
+}
+
 /* -------------------------------------------------------------------------- */
 /* Blocks                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -248,7 +252,7 @@ class RallyAnimator extends platformEngine.Animator {
 class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 	readonly velocity = { x: 0, y: 0 };
 	readonly direction = { dir: 0, acc: RUN_ACC, softDec: RUN_SOFT_DEC, hardDec: RUN_HARD_DEC };
-	readonly walker = new platformEngine.Walker();
+	readonly walker = new Walker();
 	readonly effects = new platformEngine.VelocityEffectHandler();
 
 	// Display-only flags (read by the animator)
@@ -1586,20 +1590,19 @@ export class GMRally extends GameMode {
 
 	override run(dt: number, produceFinish: boolean, rng: GameRandomGenerator | null): FinishGame | null {
 		if (!this.engine) return null;
-		const step = Math.min(dt, platformEngine.MAX_FRAME_DT);
 		this.currentRng = rng;
-		if (this.phase === PHASE_RACING) this.runRacing(step);
+		if (this.phase === PHASE_RACING) this.runRacing(dt);
 		this.currentRng = null;
 
 		if (produceFinish && this.phase === PHASE_DONE) return this.produceFinish();
 		return null;
 	}
 
-	private runRacing(step: number) {
-		this.levelTime += step;
-		this.boxCooldowns = this.boxCooldowns.map(c => Math.max(0, c - step));
-		this.engine!.update(step);
-		if (this.isAuthoritative) this.updateHazards(step);
+	private runRacing(dt: number) {
+		this.levelTime += dt;
+		this.boxCooldowns = this.boxCooldowns.map(c => Math.max(0, c - dt));
+		this.engine!.update(dt);
+		if (this.isAuthoritative) this.updateHazards(dt);
 
 		if (this.levelTime >= LEVEL_TIME_LIMIT || this.players.every(p => p.finished || !p.connected)) {
 			this.phase = PHASE_DONE;
@@ -1725,8 +1728,8 @@ export class GMRally extends GameMode {
 			if (p.respawn > 0 && Math.floor(p.respawn * 10) % 2 === 0) continue;
 
 			engine.getAnimator(id)?.draw(block, ctx, imageLoader);
-			const top = block.y - PLAYER_H / 2;
-			ctx.drawImage(imageLoader.get('team-marker', p.isRed ? 0 : 1), block.x - 12, top - 36, 24, 24);
+
+			/// TODO: improve this drawing
 			if (p.starTimer > 0) {
 				ctx.save();
 				ctx.strokeStyle = "#ffe34d";
