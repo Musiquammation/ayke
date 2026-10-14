@@ -52,6 +52,8 @@ const BOOST_TIME = 2;
 const BOOST_MULT = 1.6;
 const STAR_TIME = 5;
 const BANANA_LIFETIME = 14;
+const BANANA_SPEED = 360;
+const BANANA_JUMP = -360;
 const SHELL_LIFETIME = 6;
 const SHELL_SPEED = 820;
 // Red shells always travel in their launch direction. Target distance only
@@ -284,7 +286,12 @@ class Entity extends platformEngine.Block<ClientData, RallyEngineData> {
 		engine: platformEngine.IBlockEngine<RallyEngineData>,
 		_clientData: ClientData | null
 	): void {
-		if (!this.active || !(other.block instanceof PlayerBlock)) return;
+		if (!this.active) return;
+		if (this.kind === 'banana' && other.category === 'platform') {
+			engine.game.landBanana(this.entityId);
+			return;
+		}
+		if (!(other.block instanceof PlayerBlock)) return;
 		engine.game.handleEntityContact(this, other.block.index);
 	}
 }
@@ -328,13 +335,12 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 	}
 
 	override detectCollision(
-		id: platformEngine.BlockId,
-		other: platformEngine.BlockEntry<RallyEngineData>,
-		entrySide: platformEngine.Side,
-		engine: platformEngine.IBlockEngine<RallyEngineData>,
-		clientData: ClientData | null
-	): void {
-	}
+		_id: platformEngine.BlockId,
+		_other: platformEngine.BlockEntry<RallyEngineData>,
+		_entrySide: platformEngine.Side,
+		_engine: platformEngine.IBlockEngine<RallyEngineData>,
+		_clientData: ClientData | null
+	): void {}
 
 	processBeforeEngine(_id: number, dt: number, engine: RallyEngine) {
 		const player = engine.game.players[this.index];
@@ -449,9 +455,8 @@ class Player {
 		this.boostTimer = 0;
 		this.slowTimer = 0;
 		this.starTimer = 0;
-		this.item = ITEM_NONE;
-		this.pendingItem = ITEM_NONE;
-		this.itemRollTimer = 0;
+		// Preserve held items across a completed lap. An unfinished roulette is
+		// preserved too; it continues after the player returns to the start.
 		this.itemQueued = false;
 		// A lap wrap is not a death respawn: keep the player visible and active.
 		this.respawn = 0;
@@ -639,6 +644,106 @@ class ClientData {
 		this.banner.classList.add("game-rally-banner");
 
 		this.html.append(scores, this.levelName, this.time, this.banner);
+	}
+
+	drawRacePosition(ctx: CanvasRenderingContext2D, game: GMRally, playerIdx: number) {
+		const ranking = game.getRaceRanking();
+		const rank = ranking.indexOf(playerIdx) + 1;
+
+		// Early exit if the player is not ranked
+		if (rank <= 0) return;
+
+		// Determine ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+		const suffix = rank % 100 >= 11 && rank % 100 <= 13
+			? "th"
+			: rank % 10 === 1
+				? "st"
+				: rank % 10 === 2
+					? "nd"
+					: rank % 10 === 3
+						? "rd"
+						: "th";
+
+		ctx.save();
+
+		// 1. Font setups (Enlarged size)
+		const numberFont = "black 120px 'Arial Black', Impact, sans-serif";
+		const suffixFont = "bold 50px 'Arial Black', Impact, sans-serif";
+
+		ctx.textBaseline = "bottom";
+
+		// 2. Measure text dimensions to avoid overlap and align properly from right margin
+		ctx.font = numberFont;
+		const numberWidth = ctx.measureText(`${rank}`).width*2 + 10;
+
+		ctx.font = suffixFont;
+		const suffixWidth = ctx.measureText(suffix).width;
+
+		const gap = 6; // Spacing between number and suffix
+		const totalWidth = numberWidth + gap + suffixWidth;
+
+		// Canvas layout calculations
+		const marginX = 36;
+		const marginY = 28;
+
+		const startX = WIDTH - marginX - totalWidth;
+		const numberY = HEIGHT - marginY;
+		const suffixY = numberY - 35; // Lift suffix up relative to the main baseline
+
+		// 3. Dynamic color gradient based on rank position
+		const gradient = ctx.createLinearGradient(startX, numberY - 110, startX, numberY);
+
+		if (rank === 1) {
+			// Gold gradient for 1st place
+			gradient.addColorStop(0, "#FFF59D");
+			gradient.addColorStop(0.5, "#FFD700");
+			gradient.addColorStop(1, "#FF8F00");
+		} else if (rank === 2) {
+			// Silver/Chrome gradient for 2nd place
+			gradient.addColorStop(0, "#FFFFFF");
+			gradient.addColorStop(0.5, "#ECEFF1");
+			gradient.addColorStop(1, "#78909C");
+		} else if (rank === 3) {
+			// Bronze gradient for 3rd place
+			gradient.addColorStop(0, "#FFCC80");
+			gradient.addColorStop(0.5, "#E65100");
+			gradient.addColorStop(1, "#BF360C");
+		} else {
+			// Neon Cyan/Blue gradient for remaining ranks
+			gradient.addColorStop(0, "#80DEEA");
+			gradient.addColorStop(0.5, "#00B0FF");
+			gradient.addColorStop(1, "#1565C0");
+		}
+
+		// 4. Drop shadow settings for contrast against gameplay background
+		ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+		ctx.shadowBlur = 16;
+		ctx.shadowOffsetX = 5;
+		ctx.shadowOffsetY = 7;
+
+		// 5. Stroke configuration
+		ctx.strokeStyle = "#000000";
+		ctx.lineJoin = "round";
+		ctx.miterLimit = 2;
+
+		// Switch alignment to left so text flows naturally from startX without overlapping
+		ctx.textAlign = "left";
+
+		// --- DRAW RANK NUMBER (LARGE) ---
+		ctx.font = numberFont;
+		ctx.lineWidth = 14;
+		ctx.strokeText(`${rank}`, startX, numberY);
+		ctx.fillStyle = gradient;
+		ctx.fillText(`${rank}`, startX, numberY);
+
+		// --- DRAW SUFFIX (SMALL & OFFSET) ---
+		const suffixX = startX + numberWidth + gap;
+		ctx.font = suffixFont;
+		ctx.lineWidth = 8;
+		ctx.strokeText(suffix, suffixX, suffixY);
+		ctx.fillText(suffix, suffixX, suffixY);
+
+		ctx.restore();
 	}
 
 	static showTime(time: number) {
@@ -862,6 +967,7 @@ interface BananaState {
 	owner: number;
 	life: number;
 	arming: number;
+	grounded?: boolean;
 }
 
 interface ShellState {
@@ -1266,7 +1372,7 @@ export class GMRally extends GameMode {
 			const boxIndex = entity.sourceIndex;
 			if (boxIndex < 0 || boxIndex >= this.boxCooldowns.length || this.boxCooldowns[boxIndex] > 0) return;
 			if (player.item !== ITEM_NONE || player.pendingItem !== ITEM_NONE || player.itemRollTimer > 0) return;
-			player.pendingItem = this.rollItem();
+			player.pendingItem = this.rollItem(playerIndex);
 			player.itemRollTimer = ITEM_ROLL_TIME;
 			this.boxCooldowns[boxIndex] = BOX_RESPAWN;
 			entity.active = false;
@@ -1275,7 +1381,7 @@ export class GMRally extends GameMode {
 
 		if (entity.kind === 'banana') {
 			const banana = this.bananas.find(candidate => candidate.id === entity.entityId);
-			if (!banana || banana.arming > 0 || playerIndex === banana.owner) return;
+			if (!banana || (banana.grounded !== true && playerIndex === banana.owner)) return;
 			this.hitPlayer(playerIndex);
 			this.bananas = this.bananas.filter(candidate => candidate.id !== banana.id);
 			entity.active = false;
@@ -1336,13 +1442,17 @@ export class GMRally extends GameMode {
 	}
 
 	/** RNG is consumed only by the authority; the selected item is immediately shared. */
-	private rollItem() {
+	private rollItem(playerIndex: number) {
 		const r = this.currentRng ? this.currentRng() : Math.random();
-		if (r < 0.18) return ITEM_BANANA;
-		if (r < 0.40) return ITEM_GREEN_SHELL;
-		if (r < 0.60) return ITEM_RED_SHELL;
-		if (r < 0.68) return ITEM_BLUE_SHELL;
-		if (r < 0.88) return ITEM_MUSHROOM;
+		const rank = this.getRaceRanking().findIndex(i => i === playerIndex);
+		// Trailing racers get stronger comeback items; leaders get mostly hazards.
+		const weights = rank <= 0
+			? [[ITEM_BANANA, .30], [ITEM_GREEN_SHELL, .28], [ITEM_RED_SHELL, .18], [ITEM_BLUE_SHELL, .01], [ITEM_MUSHROOM, .18], [ITEM_STAR, .05]]
+			: rank === 1
+				? [[ITEM_BANANA, .20], [ITEM_GREEN_SHELL, .22], [ITEM_RED_SHELL, .20], [ITEM_BLUE_SHELL, .05], [ITEM_MUSHROOM, .23], [ITEM_STAR, .10]]
+				: [[ITEM_BANANA, .10], [ITEM_GREEN_SHELL, .12], [ITEM_RED_SHELL, .18], [ITEM_BLUE_SHELL, .22], [ITEM_MUSHROOM, .20], [ITEM_STAR, .18]];
+		let cumulative = 0;
+		for (const [item, weight] of weights as [number, number][]) { cumulative += weight; if (r < cumulative) return item; }
 		return ITEM_STAR;
 	}
 
@@ -1355,11 +1465,11 @@ export class GMRally extends GameMode {
 			case ITEM_BANANA:
 				this.bananas.push({
 					id: this.nextEntityId++,
-					x: p.x - p.facing * (PLAYER_W * 0.8),
-					y: p.y + PLAYER_H * 0.35,
-					vx: -p.facing * 115,
-					vy: -70,
-					owner: idx, life: BANANA_LIFETIME, arming: 0.45,
+					x: p.x + p.facing * (PLAYER_W * 0.8),
+					y: p.y,
+					vx: p.vx + p.facing * BANANA_SPEED,
+					vy: p.vy + BANANA_JUMP,
+					owner: idx, life: BANANA_LIFETIME, arming: 0, grounded: false,
 				});
 				break;
 			case ITEM_GREEN_SHELL:
@@ -1411,24 +1521,70 @@ export class GMRally extends GameMode {
 		});
 	}
 
-	/** Highest lap count, then greatest progress along the current lap. */
+	getRaceRanking(): number[] {
+		const level = this.currentLevel();
+		
+		const progress = (p: Player) => p.checkpoint * 2 + (p.subCheckpoint >= 0 ? 1 : 0);
+		
+		const distanceToNext = (p: Player) => {
+			const next = level.checkpoints[p.checkpoint + 1];
+			if (!next) return Math.abs(level.finishX - p.x);
+			return Math.hypot(next.x - p.x, next.y - p.y);
+		};
+
+		const isWrongWay = (p: Player) => {
+			const next = level.checkpoints[p.checkpoint + 1];
+			const targetX = next ? next.x : level.finishX;
+			const targetY = next ? next.y : p.y; // On ignore Y si c'est la ligne d'arrivée 1D
+
+			const dx = targetX - p.x;
+			const dy = targetY - p.y;
+
+			// Si p.facing est un angle en radians :
+			const dotProduct = Math.cos(p.facing) * dx + Math.sin(p.facing) * dy;
+			
+			// Alternative si p.facing est un vecteur {x, y} :
+			// const dotProduct = p.facing.x * dx + p.facing.y * dy;
+			
+			// Alternative si p.facing est juste une direction 1D (ex: 1 pour droite, -1 pour gauche) :
+			// const dotProduct = p.facing * dx;
+
+			return dotProduct < 0 ? 1 : 0; // 1 = mauvaise direction (sera pénalisé dans le tri)
+		};
+
+		return this.players
+			.map((p, i) => i)
+			.filter(i => this.players[i].connected && !this.players[i].finished)
+			.sort((a, b) => {
+				const pa = this.players[a], pb = this.players[b];
+				return (
+					pb.lapsCompleted - pa.lapsCompleted || 
+					progress(pb) - progress(pa) || 
+					isWrongWay(pa) - isWrongWay(pb) || // Les joueurs dans le bon sens (0) passent avant ceux dans le mauvais (1)
+					distanceToNext(pa) - distanceToNext(pb) || 
+					a - b
+				);
+			});
+	}
+
 	private findRaceLeader(): number {
-		let leader = -1;
-		for (let i = 0; i < this.players.length; i++) {
-			const candidate = this.players[i];
-			if (candidate.finished || !candidate.connected) continue;
-			if (leader < 0 ||
-				candidate.lapsCompleted > this.players[leader].lapsCompleted ||
-				(candidate.lapsCompleted === this.players[leader].lapsCompleted && candidate.x > this.players[leader].x)) {
-				leader = i;
-			}
-		}
-		return leader;
+		return this.getRaceRanking()[0] ?? -1;
+	}
+
+	/** Called by Entity.detectCollision when a banana touches a platform. */
+	landBanana(id: number) {
+		const banana = this.bananas.find(candidate => candidate.id === id);
+		if (!banana || banana.grounded) return;
+		banana.grounded = true;
+		banana.owner = -1;
+		banana.vx = 0;
+		banana.vy = 0;
+		banana.arming = 0;
 	}
 
 	private hitPlayer(targetIndex: number) {
 		const target = this.players[targetIndex];
-		if (!target || target.finished || target.hit || target.starTimer > 0) return;
+		if (!target || target.finished || target.hit) return;
 		const block = this.getPlayerBlock(targetIndex);
 		if (!block) return;
 		target.hit = true;
@@ -1526,13 +1682,13 @@ export class GMRally extends GameMode {
 			banana.life -= dt;
 			banana.arming = Math.max(0, banana.arming - dt);
 			if (banana.life <= 0) continue;
-			const supported = this.hazardIsSupported(banana, HAZARD_SIZE, platforms);
-			this.moveGroundHazard(banana, dt, platforms, false, false);
-			// Projectiles complete a lap by returning to the start at the same height.
-			if (banana.x > level.finishX) banana.x = level.spawnX;
-			if (supported || this.hazardIsSupported(banana, HAZARD_SIZE, platforms)) {
-				banana.vx *= Math.pow(0.035, dt);
-				if (Math.abs(banana.vx) < 8) banana.vx = 0;
+			if (!banana.grounded) {
+				this.moveGroundHazard(banana, dt, platforms, false, false);
+				if (this.hazardIsSupported(banana, HAZARD_SIZE, platforms)) this.landBanana(banana.id);
+				if (banana.x > level.finishX) banana.x = level.spawnX;
+			} else {
+				banana.vx = 0;
+				banana.vy = 0;
 			}
 			liveBananas.push(banana);
 		}
@@ -1589,7 +1745,7 @@ export class GMRally extends GameMode {
 			liveShells.push(shell);
 		}
 
-		// Shell-to-shell contacts destroy both shells, including blue shells.
+		// Shell-to-shell contacts destroy ordinary shells; blue shells are indestructible.
 		const brokenShells = new Set<number>();
 		for (let i = 0; i < liveShells.length; i++) {
 			for (let j = i + 1; j < liveShells.length; j++) {
@@ -1597,8 +1753,8 @@ export class GMRally extends GameMode {
 					{ x: liveShells[i].x, y: liveShells[i].y, w: HAZARD_SIZE, h: HAZARD_SIZE },
 					{ x: liveShells[j].x, y: liveShells[j].y, w: HAZARD_SIZE, h: HAZARD_SIZE }
 				)) {
-					brokenShells.add(liveShells[i].id);
-					brokenShells.add(liveShells[j].id);
+					if (liveShells[i].kind !== ITEM_BLUE_SHELL) brokenShells.add(liveShells[i].id);
+					if (liveShells[j].kind !== ITEM_BLUE_SHELL) brokenShells.add(liveShells[j].id);
 				}
 			}
 		}
@@ -1700,6 +1856,7 @@ export class GMRally extends GameMode {
 
 		ctx.restore();
 		data.drawItemRoulette(ctx, this, playerIdx, imageLoader);
+		data.drawRacePosition(ctx, this, playerIdx);
 	}
 
 	/** Platforms, item boxes and finish line. */
@@ -1748,7 +1905,6 @@ export class GMRally extends GameMode {
 			const id = this.playerIds[i];
 			const block = engine.getBlock(id);
 			if (!block) continue;
-			if (p.respawn > 0 && Math.floor(p.respawn * 10) % 2 === 0) continue;
 
 			engine.getAnimator(id)?.draw(block, ctx, imageLoader);
 

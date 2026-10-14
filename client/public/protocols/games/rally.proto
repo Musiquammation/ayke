@@ -4,15 +4,9 @@ package game_rally;
 
 message Empty {}
 
-// ---------------------------------------------------------------------------
-// Shared player state
-// ---------------------------------------------------------------------------
-
 message PlayerState {
 	bool connected = 1;
 	bool isRed = 2;
-
-	// Physical state
 	float x = 3;
 	float y = 4;
 	float vx = 5;
@@ -20,48 +14,33 @@ message PlayerState {
 	int32 facing = 7;
 	float jumpBuffer = 8;
 	float wallBoost = 9;
-
-	// Effects
 	float boostTimer = 10;
-	float slowTimer = 11; // Retained for snapshot compatibility.
+	float slowTimer = 11;
 	float starTimer = 12;
-
-	// Items
 	int32 item = 13;
 	int32 pendingItem = 14;
 	float itemRollTimer = 15;
 	bool itemQueued = 16;
-
-	// Respawn and checkpoints
 	float respawn = 17;
-	int32 checkpoint = 18;    // Last validated checkpoint, -1 = none.
-	int32 subCheckpoint = 19; // Last validated sub-checkpoint, -1 = none.
-
-	// Hit state
+	int32 checkpoint = 18;
+	int32 subCheckpoint = 19;
 	bool hit = 20;
-
-	// Race progress
 	int32 lapsCompleted = 21;
 	bool finished = 22;
 	int32 finishRank = 23;
 	int32 points = 24;
 }
 
-// ---------------------------------------------------------------------------
-// Dynamic entities
-// ---------------------------------------------------------------------------
-
 message BananaState {
 	int32 id = 1;
 	float x = 2;
 	float y = 3;
-	int32 owner = 4;
+	int32 owner = 4; // -1 after landing: the banana no longer remembers its thrower.
 	float life = 5;
-	float arming = 6;
-	// Added so banana gravity and platform collisions remain deterministic
-	// across authoritative snapshots and clients.
+	float arming = 6; // Retained for snapshot compatibility; owner contact is ground-based.
 	float vx = 7;
 	float vy = 8;
+	bool grounded = 9;
 }
 
 message ShellState {
@@ -72,48 +51,31 @@ message ShellState {
 	float vx = 5;
 	float vy = 6;
 	int32 owner = 7;
-	int32 target = 8; // Target player index, -1 = none.
+	int32 target = 8;
 	float life = 9;
 }
 
-// ---------------------------------------------------------------------------
-// Shared game state (server save -> client load)
-//
-// The map is predefined and immutable. Static platforms and item boxes
-// are never sent over the network.
-// ---------------------------------------------------------------------------
-
 message State {
 	repeated PlayerState players = 1;
-
 	int32 levelIndex = 2;
 	float levelTime = 3;
 	int32 phase = 4;
 	float intermission = 5;
-
 	int32 redScore = 6;
 	int32 blueScore = 7;
 	int32 finishCount = 8;
-
 	repeated int32 lapFinishCounts = 9;
 	repeated float boxCooldowns = 10;
-
 	repeated BananaState bananas = 11;
 	repeated ShellState shells = 12;
-
 	int32 nextEntityId = 13;
 }
 
-// ---------------------------------------------------------------------------
-// Inputs
-// ---------------------------------------------------------------------------
-
 message QInput {
 	double timestamp = 1;
-
 	oneof action {
-		Empty jump = 2;
-		Empty item = 3;
+	Empty jump = 2;
+	Empty item = 3;
 	}
 }
 
@@ -132,10 +94,6 @@ message ClientMessage {
 	double timestamp = 1;
 	repeated QInput inputs = 2;
 }
-
-// ---------------------------------------------------------------------------
-// Start data
-// ---------------------------------------------------------------------------
 
 message StartData {
 	int32 preferTeam = 1;
