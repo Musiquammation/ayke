@@ -43,8 +43,8 @@ const WALLJUMP_VELOCITY = 520;      // horizontal target speed right after a wal
 const WALLJUMP_Y = 760;             // vertical impulse of a wall jump
 const WALLJUMP_BOOST_TIME = 0.35;   // how long WALLJUMP_VELOCITY replaces RUN_SPEED
 
-// Items. Items are selected by the authoritative simulation when a box is
-// collected, but are only handed to the player after ITEM_ROLL_TIME.
+// Items are selected by the authoritative simulation when an item box is
+// collected, and are handed to the player after ITEM_ROLL_TIME.
 const BOX_RESPAWN = 6;
 const BOX_SIZE = 56;
 const ITEM_ROLL_TIME = 1.8;
@@ -61,14 +61,30 @@ const VX_MAX = SHELL_SPEED * 1.35;
 const RED_SHELL_ACCEL = 760;
 const SHELL_JUMP_VELOCITY = 560;
 const BLUE_SHELL_SPEED = SHELL_SPEED * 1.08;
+const BLUE_SHELL_VERTICAL_ACCEL = 3200; // Accelerate strongly toward the desired vertical velocity; do not clamp it.
 const HAZARD_SIZE = 30;
 const HIT_KNOCKBACK = 560;
 const HIT_JUMP = 640;
 
-// Match flow: one predefined map, three laps.
+const SHELL_FRAME_SIZE = 16;
+const RED_SHELL_FRAME_COUNT = 8;
+const BLUE_SHELL_FRAME_COUNT = 6;
+const GREEN_SHELL_FRAME_COUNT = 8;
+const SHELL_FRAME_DELAY = 0.09;
+
+// Bomb/explosion kinds are encoded in the existing green-shell target field so
+// snapshots remain compatible with the current multiplayer protocol.
+const BOMB_ENTITY_MARKER = -1001;
+const EXPLOSION_ENTITY_MARKER = -1002;
+const EXPLOSION_DURATION = 0.42;
+const EXPLOSION_RADIUS = 100;
+const BOMB_SPEED = 320;
+
+// Match flow: one predefined map, three laps, a 30-second grace period, and a ten-minute hard limit.
 const RESPAWN_TIME = 1;
 const LAP_COUNT = 3;
-const LEVEL_TIME_LIMIT = 180;
+const LEVEL_TIME_LIMIT = 600;
+const FINISH_GRACE_TIME = 30;
 const RANK_POINTS = [4, 3, 2, 1]; // points for 1st, 2nd, ... on each lap
 
 const PHASE_RACING = 0;
@@ -81,6 +97,7 @@ const ITEM_RED_SHELL = 3;
 const ITEM_BLUE_SHELL = 4;
 const ITEM_MUSHROOM = 5;
 const ITEM_STAR = 6;
+const ITEM_BOMB = 7;
 
 /* -------------------------------------------------------------------------- */
 /* Levels (predefined, never sent over the network)                           */
@@ -189,7 +206,7 @@ type RallyEngine = platformEngine.IBlockEngine<RallyEngineData>;
 
 enum RallyAnimatorState {
 	IDLE = 0,
-	RUNNING = 1,
+	RUN = 1,
 	JUMPING = 2,
 	FALLING = 3,
 	WALL_SLIDE = 4,
@@ -200,11 +217,11 @@ enum RallyAnimatorState {
 class RallyAnimator extends platformEngine.Animator {
 	static readonly ANIMATION_LINES = {
 		[RallyAnimatorState.IDLE]: { delay: 0.2, count: 6 },
-		[RallyAnimatorState.RUNNING]: { delay: 0.1, count: 8 },
+		[RallyAnimatorState.RUN]: { delay: 0.1, count: 8 },
 		[RallyAnimatorState.JUMPING]: { delay: 0.2, count: 4 },
 		[RallyAnimatorState.FALLING]: { delay: 0.2, count: 4 },
 		[RallyAnimatorState.WALL_SLIDE]: { delay: 0.2, count: 4 },
-		[RallyAnimatorState.WALL_JUMP]: { delay: 0.2, count: 4 },
+		[RallyAnimatorState.WALL_JUMP]: { delay: 0.2, count: 5 },
 		[RallyAnimatorState.STUNNED]: { delay: 0.2, count: 2 },
 	};
 
@@ -226,10 +243,23 @@ class RallyAnimator extends platformEngine.Animator {
 
 		if (b.stunned) return to(S.STUNNED);
 		const grounded = walker.onFloor();
-		if (!grounded && b.wallJumping) return to(S.WALL_JUMP);
-		if (!grounded && b.wallSliding) return to(S.WALL_SLIDE);
-		if (!grounded) return b.velocity.y < -35 ? to(S.JUMPING) : to(S.FALLING);
-		return Math.abs(b.velocity.x) > 20 ? to(S.RUNNING) : to(S.IDLE);
+		if (!grounded && b.wallJumping && b.velocity.y < 0) return to(S.WALL_JUMP);
+		const onWall =
+			(walker.onLeft() && direction.dir < 0) ||
+			(walker.onRight() && direction.dir > 0);
+
+		// Follow the same wall-state transitions as the shared Bot animator.
+		if (onWall) {
+			if (current === S.WALL_SLIDE) return { type: 'loop' };
+			return to(S.WALL_SLIDE);
+		}
+		if (current === S.WALL_SLIDE && b.velocity.y < 0) return to(S.WALL_JUMP);
+		if (current === S.WALL_JUMP && b.velocity.y < 0) return { type: 'loop' };
+		if (!grounded) {
+			if (b.velocity.y < -35) return to(S.JUMPING);
+			return to(S.FALLING);
+		}
+		return Math.abs(b.velocity.x) > 20 ? to(S.RUN) : to(S.IDLE);
 	}
 
 	getVisualZoom(): number {
@@ -245,7 +275,7 @@ class Walker extends platformEngine.Walker {
 /* Blocks                                                                     */
 /* -------------------------------------------------------------------------- */
 
-type EntityKind = 'item-box' | 'banana' | 'shell';
+type EntityKind = 'item-box' | 'banana' | 'shell' | 'bomb' | 'explosion';
 
 /**
  * Non-solid game entity. The engine still runs detectCollision for these blocks,
@@ -289,7 +319,8 @@ class Entity extends platformEngine.Block<ClientData, RallyEngineData> {
 			engine.game.landBanana(this.entityId);
 			return;
 		}
-		if (!(other.block instanceof PlayerBlock)) return;
+		// Explosions are visual/effect entities and must not generate contacts.
+		if (this.kind === 'explosion' || !(other.block instanceof PlayerBlock)) return;
 		engine.game.handleEntityContact(this, other.block.index);
 	}
 }
@@ -304,7 +335,7 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 	readonly walker = new Walker();
 	readonly effects = new platformEngine.VelocityEffectHandler();
 
-	// Display-only flags (read by the animator)
+	// Display-only flags consumed by the shared animator
 	wallSliding = false;
 	wallJumping = false;
 	stunned = false;
@@ -533,7 +564,7 @@ class Player {
 
 	private applyDirection(block: PlayerBlock) {
 		let speed = this.wallBoost > 0 ? WALLJUMP_VELOCITY : RUN_SPEED;
-		if (this.boostTimer > 0) speed *= BOOST_MULT;
+		if (this.boostTimer > 0 || this.starTimer > 0) speed *= BOOST_MULT;
 		block.direction.dir = this.facing * speed;
 	}
 
@@ -598,14 +629,8 @@ class Camera {
 
 class ClientData {
 	firstFrame = true;
-
 	readonly html: HTMLDivElement;
-	readonly levelName: HTMLDivElement;
-	readonly time: HTMLDivElement;
-	readonly redScore: HTMLDivElement;
-	readonly blueScore: HTMLDivElement;
-	readonly banner: HTMLDivElement;
-
+	readonly laps: HTMLDivElement;
 	readonly camera = new Camera();
 	private lastLevel = -1;
 	private lastRespawn = 0;
@@ -614,6 +639,12 @@ class ClientData {
 	private wasRollingItem = false;
 	private revealUntil = 0;
 	private revealItem = ITEM_NONE;
+	private lastGameTime = Number.NaN;
+	private frameDelta = 1 / 60;
+	private readonly shellAnimations: Record<number, { step: number; delay: number }> = {};
+	private readonly lastBoostTimers: number[] = [];
+	private readonly lastStarTimers: number[] = [];
+	private particles: Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; color: string }> = [];
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -624,28 +655,16 @@ class ClientData {
 		this.html.style.width = "100%";
 		this.html.style.height = "100%";
 
-		this.levelName = document.createElement("div");
-		this.levelName.classList.add("game-rally-level");
-
-		this.time = document.createElement("div");
-		this.time.classList.add("game-rally-time");
-
-		const scores = document.createElement("div");
-		scores.classList.add("game-rally-scores");
-		this.redScore = document.createElement("div");
-		this.blueScore = document.createElement("div");
-		this.redScore.classList.add("game-rally-red-score");
-		this.blueScore.classList.add("game-rally-blue-score");
-		const dash = document.createElement("div");
-		dash.textContent = "-";
-		scores.append(this.redScore, dash, this.blueScore);
-
-
-
-		this.banner = document.createElement("div");
-		this.banner.classList.add("game-rally-banner");
-
-		this.html.append(scores, this.levelName, this.time, this.banner);
+		// Keep only the lap counter in the DOM HUD; all other gameplay graphics use the canvas.
+		this.laps = document.createElement("div");
+		this.laps.classList.add("game-rally-laps");
+		this.laps.style.position = "absolute";
+		this.laps.style.left = "18px";
+		this.laps.style.top = "14px";
+		this.laps.style.color = "white";
+		this.laps.style.font = "bold 30px Arial, sans-serif";
+		this.laps.style.textShadow = "2px 2px 4px #000";
+		this.html.append(this.laps);
 	}
 
 	drawRacePosition(ctx: CanvasRenderingContext2D, game: GMRally, playerIdx: number) {
@@ -748,13 +767,6 @@ class ClientData {
 		ctx.restore();
 	}
 
-	static showTime(time: number) {
-		const t = Math.max(0, time);
-		const minutes = Math.floor(t / 60);
-		const seconds = (t % 60).toFixed(1);
-		return `${minutes}:${seconds.padStart(4, "0")}`;
-	}
-
 	drawItemRoulette(
 		ctx: CanvasRenderingContext2D,
 		game: GMRally,
@@ -837,7 +849,7 @@ class ClientData {
 			ctx.lineTo(innerX + innerSize - 6, center + cell / 2);
 			ctx.stroke();
 
-			const rouletteItems = [ITEM_BANANA, ITEM_GREEN_SHELL, ITEM_RED_SHELL, ITEM_BLUE_SHELL, ITEM_MUSHROOM, ITEM_STAR];
+			const rouletteItems = [ITEM_BANANA, ITEM_GREEN_SHELL, ITEM_RED_SHELL, ITEM_BLUE_SHELL, ITEM_MUSHROOM, ITEM_STAR, ITEM_BOMB];
 			const first = Math.floor(reelPosition);
 			for (let offset = -2; offset <= 2; offset++) {
 				const index = first + offset;
@@ -884,18 +896,52 @@ class ClientData {
 		ctx.restore();
 	}
 
-	/** Refreshes the HTML overlay and the camera for this frame. */
+	/** Update the lap counter, camera, shell animations, and local-only particles. */
 	update(game: GMRally, playerIdx: number) {
-		const level = game.currentLevel();
-		this.levelName.innerText = `${Math.min(game.players[playerIdx].lapsCompleted + 1, LAP_COUNT)}/${LAP_COUNT} - ${level.name}`;
-		this.time.innerText = ClientData.showTime(LEVEL_TIME_LIMIT - game.levelTime);
-		this.redScore.innerText = String(game.redScore).padStart(2, "0");
-		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
-
 		const player = game.players[playerIdx];
-		this.banner.innerText = player.finished
-			? `Finished · ${player.lapsCompleted}/${LAP_COUNT} laps (#${player.finishRank + 1})`
-			: game.phase === PHASE_DONE ? "Race finished" : "";
+		this.laps.innerText = `${Math.min(player.lapsCompleted + 1, LAP_COUNT)}/${LAP_COUNT}`;
+
+		this.frameDelta = Number.isFinite(this.lastGameTime)
+			? Math.max(0, Math.min(0.1, game.levelTime - this.lastGameTime))
+			: 1 / 60;
+		this.lastGameTime = game.levelTime;
+
+		// Advance each projectile's animation independently and discard stale entries.
+		const liveShellIds = new Set<number>();
+		for (const shell of game.getShellsForAnimation()) {
+			liveShellIds.add(shell.entityId);
+			const count = getShellFrameCount(shell.itemKind);
+			const animation = this.shellAnimations[shell.entityId] ?? { step: 0, delay: SHELL_FRAME_DELAY };
+			animation.delay -= this.frameDelta;
+			while (animation.delay <= 0) {
+				animation.step = (animation.step + 1) % count;
+				animation.delay += SHELL_FRAME_DELAY;
+			}
+			this.shellAnimations[shell.entityId] = animation;
+		}
+		for (const id of Object.keys(this.shellAnimations)) {
+			if (!liveShellIds.has(Number(id))) delete this.shellAnimations[Number(id)];
+		}
+
+		// A newly activated boost is the shared signal that a mushroom was used.
+		game.players.forEach((current, i) => {
+			const previousBoost = this.lastBoostTimers[i] ?? 0;
+			const previousStar = this.lastStarTimers[i] ?? 0;
+			const starWasActivated = current.starTimer > previousStar + 0.05;
+			if (current.boostTimer > previousBoost + 0.05 && !starWasActivated) {
+				this.spawnBoostParticles(current.x, current.y);
+			}
+			this.lastBoostTimers[i] = current.boostTimer;
+			this.lastStarTimers[i] = current.starTimer;
+		});
+
+		for (const particle of this.particles) {
+			particle.life -= this.frameDelta;
+			particle.x += particle.vx * this.frameDelta;
+			particle.y += particle.vy * this.frameDelta;
+			particle.vy += GRAVITY * 0.22 * this.frameDelta;
+		}
+		this.particles = this.particles.filter(p => p.life > 0);
 
 		// Snap at match start and when a respawn finishes.
 		if (this.lastLevel !== game.levelIndex ||
@@ -908,19 +954,50 @@ class ClientData {
 		this.lastRespawn = player.respawn;
 		this.lastX = player.x;
 		this.lastY = player.y;
+		this.camera.update(player.x, player.y, player.facing, this.frameDelta || 1 / 60);
+	}
 
-		this.camera.update(player.x, player.y, player.facing, 1 / 60);
+	/** Return the currently selected animation frame for one projectile. */
+	getShellFrame(entityId: number): number {
+		return this.shellAnimations[entityId]?.step ?? 0;
+	}
+
+	/** Emit colored particles around a player when a boost begins. */
+	private spawnBoostParticles(x: number, y: number) {
+		const colors = ["#ff5252", "#ffca28", "#66bb6a", "#29b6f6", "#ab47bc"];
+		for (let i = 0; i < 18; i++) {
+			const angle = (Math.PI * 2 * i) / 18 + Math.random() * 0.25;
+			const speed = 90 + Math.random() * 240;
+			const life = 0.35 + Math.random() * 0.35;
+			this.particles.push({
+				x: x + (Math.random() - 0.5) * PLAYER_W,
+				y: y + (Math.random() - 0.5) * PLAYER_H,
+				vx: Math.cos(angle) * speed,
+				vy: Math.sin(angle) * speed - 80,
+				life, maxLife: life, size: 3 + Math.random() * 5,
+				color: colors[i % colors.length],
+			});
+		}
+	}
+
+	/** Draw boost particles in world space, before the camera transform is restored. */
+	drawParticles(ctx: CanvasRenderingContext2D) {
+		ctx.save();
+		for (const particle of this.particles) {
+			ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife);
+			ctx.fillStyle = particle.color;
+			ctx.beginPath();
+			ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		ctx.restore();
 	}
 }
 
 class TutorialData {
-	constructor(private readonly game: GMRally) {}
-
-	/** Returns the text to show, or "" for none. */
+	/** Keep the tutorial overlay empty; the lap counter is the only DOM HUD text. */
 	frame(_dt: number, _clock: number) {
-		const player = this.game.players[0];
-		if (player.finished) return "";
-		return "Jump over obstacles. Slide on walls, then jump to wall-jump!";
+		return "";
 	}
 }
 
@@ -997,8 +1074,8 @@ abstract class Shell extends Entity {
 	owner = -1;
 	abstract readonly itemKind: number;
 
-	constructor(entityId: number) {
-		super('shell', entityId, -1, HAZARD_SIZE);
+	constructor(entityId: number, entityKind: EntityKind = 'shell') {
+		super(entityKind, entityId, -1, HAZARD_SIZE);
 	}
 
 	load(data: any): void {
@@ -1013,6 +1090,9 @@ abstract class Shell extends Entity {
 
 	save() {
 		const state = { vx: this.vx, vy: this.vy, owner: this.owner };
+		if (this instanceof Bomb) {
+			return { id: this.entityId, x: this.x, y: this.y, green: { ...state, target: BOMB_ENTITY_MARKER } };
+		}
 		return {
 			id: this.entityId, x: this.x, y: this.y,
 			...(this.itemKind === ITEM_RED_SHELL ? { red: state }
@@ -1025,6 +1105,38 @@ abstract class Shell extends Entity {
 class RedShell extends Shell { readonly itemKind = ITEM_RED_SHELL; }
 class GreenShell extends Shell { readonly itemKind = ITEM_GREEN_SHELL; }
 class BlueShell extends Shell { readonly itemKind = ITEM_BLUE_SHELL; }
+
+/** A thrown bomb shares the existing shell snapshot envelope for wire compatibility. */
+class Bomb extends Shell {
+	readonly itemKind = ITEM_BOMB;
+	constructor(entityId: number) { super(entityId, 'bomb'); }
+}
+
+/** Short-lived, replicated explosion effect. Its remaining life uses the green-shell vy field. */
+class Explosion extends Entity {
+	remaining = EXPLOSION_DURATION;
+	owner = -1;
+
+	constructor(entityId: number) {
+		super('explosion', entityId, -1, HAZARD_SIZE * 2);
+	}
+
+	load(data: any): void {
+		this.x = data.x ?? 0;
+		this.y = data.y ?? 0;
+		const state = data.green ?? {};
+		this.remaining = Math.max(0, state.vy ?? EXPLOSION_DURATION);
+		this.owner = state.owner ?? -1;
+		this.active = this.remaining > 0;
+	}
+
+	save() {
+		return {
+			id: this.entityId, x: this.x, y: this.y,
+			green: { vx: 0, vy: this.remaining, owner: this.owner, target: EXPLOSION_ENTITY_MARKER },
+		};
+	}
+}
 /** Draw an item sprite from the Rally texture atlas/assets. */
 const ITEM_TEXTURE_KEYS: Record<number, string> = {
 	[ITEM_BANANA]: 'banana',
@@ -1033,7 +1145,41 @@ const ITEM_TEXTURE_KEYS: Record<number, string> = {
 	[ITEM_BLUE_SHELL]: 'blue-shell',
 	[ITEM_MUSHROOM]: 'mushroom',
 	[ITEM_STAR]: 'star',
+	[ITEM_BOMB]: 'bomb',
 };
+
+/** Return the configured horizontal frame count for a shell texture. */
+function getShellFrameCount(itemKind: number): number {
+	if (itemKind === ITEM_RED_SHELL) return RED_SHELL_FRAME_COUNT;
+	if (itemKind === ITEM_BLUE_SHELL) return BLUE_SHELL_FRAME_COUNT;
+	return GREEN_SHELL_FRAME_COUNT;
+}
+
+function drawAnimatedShellTexture(
+	ctx: CanvasRenderingContext2D,
+	imageLoader: ImageLoaderFolder,
+	itemKind: number,
+	cx: number,
+	cy: number,
+	size: number,
+	frame: number,
+) {
+	const key = ITEM_TEXTURE_KEYS[itemKind];
+	const texture = imageLoader.get(key);
+	if (!texture || size <= 0) return;
+	const image = texture as HTMLImageElement;
+	const width = image.naturalWidth || (texture as HTMLCanvasElement).width || SHELL_FRAME_SIZE;
+	const availableFrames = Math.max(1, Math.floor(width / SHELL_FRAME_SIZE));
+	const frameCount = Math.max(1, Math.min(getShellFrameCount(itemKind), availableFrames));
+	const sourceFrame = ((frame % frameCount) + frameCount) % frameCount;
+	ctx.save();
+	ctx.drawImage(
+		texture,
+		sourceFrame * SHELL_FRAME_SIZE, 0, SHELL_FRAME_SIZE, SHELL_FRAME_SIZE,
+		cx - size / 2, cy - size / 2, size, size,
+	);
+	ctx.restore();
+}
 
 function drawItemTexture(
 	ctx: CanvasRenderingContext2D,
@@ -1048,7 +1194,32 @@ function drawItemTexture(
 	const key = ITEM_TEXTURE_KEYS[item];
 	if (!key || size <= 0) return;
 	const texture = imageLoader.get(key);
-	if (!texture) return;
+	if (!texture) {
+		// Draw a simple fallback bomb if no dedicated bomb image is shipped with the game.
+		if (item !== ITEM_BOMB) return;
+		ctx.save();
+		ctx.translate(cx, cy + Math.sin(phase) * size * 0.018);
+		ctx.rotate(rotation);
+		ctx.fillStyle = "#24242b";
+		ctx.strokeStyle = "#050508";
+		ctx.lineWidth = Math.max(2, size * 0.06);
+		ctx.beginPath();
+		ctx.arc(0, 2, size * 0.36, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		ctx.strokeStyle = "#bcbcbc";
+		ctx.lineWidth = Math.max(2, size * 0.08);
+		ctx.beginPath();
+		ctx.moveTo(size * 0.12, -size * 0.28);
+		ctx.lineTo(size * 0.28, -size * 0.48);
+		ctx.stroke();
+		ctx.fillStyle = "#ffd54f";
+		ctx.beginPath();
+		ctx.arc(size * 0.31, -size * 0.51, size * 0.09, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.restore();
+		return;
+	}
 
 	ctx.save();
 	ctx.translate(cx, cy + Math.sin(phase) * size * 0.018);
@@ -1072,7 +1243,7 @@ export class GMRally extends GameMode {
 	levelIndex = 0; // kept for snapshot compatibility; this game has one map
 	levelTime = 0;
 	phase = PHASE_RACING;
-	intermission = 0; // retained for compatibility with older Rally snapshots
+	intermission = 0; // Absolute levelTime deadline for the 30-second post-finish grace period; zero means inactive.
 	finishCount = 0;
 	boxCooldowns: number[] = LEVELS[0].items.map(() => 0);
 	nextEntityId = 1;
@@ -1201,6 +1372,7 @@ export class GMRally extends GameMode {
 		'blue-shell': "/assets/games/rally/items/blue-shell.png",
 		'mushroom': "/assets/games/rally/items/mushroom.png",
 		'star': "/assets/games/rally/items/star.png",
+		'bomb': "/assets/games/rally/items/bomb.png",
 	};
 
 	/* ---------------------------- Engine / world ---------------------------- */
@@ -1268,16 +1440,26 @@ export class GMRally extends GameMode {
 		return [...this.engine.getBlocks()].map(entry => entry.block).filter((block): block is Shell => block instanceof Shell);
 	}
 
-	private getHazard(entityId: number): Banana | Shell | null {
+	/** Exposes live shell IDs to the client-side animation tracker. */
+	getShellsForAnimation(): Shell[] {
+		return this.getShells();
+	}
+
+	private getExplosions(): Explosion[] {
+		if (!this.engine) return [];
+		return [...this.engine.getBlocks()].map(entry => entry.block).filter((block): block is Explosion => block instanceof Explosion);
+	}
+
+	private getHazard(entityId: number): Banana | Shell | Explosion | null {
 		if (!this.engine) return null;
 		for (const entry of this.engine.getBlocks()) {
 			const block = entry.block;
-			if ((block instanceof Banana || block instanceof Shell) && block.entityId === entityId) return block;
+			if ((block instanceof Banana || block instanceof Shell || block instanceof Explosion) && block.entityId === entityId) return block;
 		}
 		return null;
 	}
 
-	private addHazard(hazard: Banana | Shell): void {
+	private addHazard(hazard: Banana | Shell | Explosion): void {
 		if (this.engine) this.engine.addBlock(hazard, 'entity');
 	}
 
@@ -1285,7 +1467,7 @@ export class GMRally extends GameMode {
 		if (!this.engine) return;
 		for (const entry of this.engine.getBlocks()) {
 			const block = entry.block;
-			if ((block instanceof Banana || block instanceof Shell) && block.entityId === entityId) {
+			if ((block instanceof Banana || block instanceof Shell || block instanceof Explosion) && block.entityId === entityId) {
 				this.engine.removeBlock(entry.id);
 				return;
 			}
@@ -1455,6 +1637,14 @@ export class GMRally extends GameMode {
 			return;
 		}
 
+		if (entity.kind === 'bomb') {
+			const bomb = this.getHazard(entity.entityId);
+			// The throwing player cannot trigger their own bomb by touching it.
+			if (bomb instanceof Bomb && playerIndex !== bomb.owner) this.explodeBomb(bomb.entityId);
+			return;
+		}
+		if (entity.kind === 'explosion') return;
+
 		if (entity.kind === 'banana') {
 			const banana = this.getHazard(entity.entityId);
 			if (!(banana instanceof Banana) || (!banana.grounded && playerIndex === banana.owner)) return;
@@ -1464,9 +1654,22 @@ export class GMRally extends GameMode {
 		}
 
 		const shell = this.getHazard(entity.entityId);
-		if (!(shell instanceof Shell) || (playerIndex === shell.owner && shell.itemKind !== ITEM_BLUE_SHELL)) return;
+		if (!(shell instanceof Shell)) return;
+		if (shell instanceof Bomb) {
+			if (playerIndex !== shell.owner) this.explodeBomb(shell.entityId);
+			return;
+		}
+		if (shell.itemKind === ITEM_BLUE_SHELL) {
+			// A blue shell only detonates on the current race leader.
+			if (playerIndex !== this.findRaceLeader()) return;
+			this.hitPlayer(playerIndex);
+			this.explodeAt(shell.x, shell.y, shell.owner);
+			this.removeHazard(shell.entityId);
+			return;
+		}
+		if (playerIndex === shell.owner) return;
 		this.hitPlayer(playerIndex);
-		if (shell.itemKind !== ITEM_BLUE_SHELL) this.removeHazard(shell.entityId);
+		this.removeHazard(shell.entityId);
 	}
 
 	/** Keep query-only Entity blocks aligned with snapshot-backed state. */
@@ -1489,19 +1692,20 @@ export class GMRally extends GameMode {
 		}
 
 		// Hazard blocks are the source of truth; update existing blocks in place.
-		for (const hazard of [...this.getBananas(), ...this.getShells()]) hazard.active = true;
+		for (const hazard of [...this.getBananas(), ...this.getShells(), ...this.getExplosions()]) hazard.active = true;
 	}
 
 	/** RNG is consumed only by the authority; the selected item is immediately shared. */
 	private rollItem(playerIndex: number) {
 		const r = this.currentRng ? this.currentRng() : Math.random();
+		return ITEM_GREEN_SHELL;
 		const rank = this.getRaceRanking().findIndex(i => i === playerIndex);
 		// Trailing racers get stronger comeback items; leaders get mostly hazards.
 		const weights = rank <= 0
-			? [[ITEM_BANANA, .30], [ITEM_GREEN_SHELL, .28], [ITEM_RED_SHELL, .18], [ITEM_BLUE_SHELL, .01], [ITEM_MUSHROOM, .18], [ITEM_STAR, .05]]
+			? [[ITEM_BANANA, .27], [ITEM_GREEN_SHELL, .25], [ITEM_RED_SHELL, .17], [ITEM_BLUE_SHELL, .01], [ITEM_MUSHROOM, .16], [ITEM_STAR, .04], [ITEM_BOMB, .10]]
 			: rank === 1
-				? [[ITEM_BANANA, .20], [ITEM_GREEN_SHELL, .22], [ITEM_RED_SHELL, .20], [ITEM_BLUE_SHELL, .05], [ITEM_MUSHROOM, .23], [ITEM_STAR, .10]]
-				: [[ITEM_BANANA, .10], [ITEM_GREEN_SHELL, .12], [ITEM_RED_SHELL, .18], [ITEM_BLUE_SHELL, .22], [ITEM_MUSHROOM, .20], [ITEM_STAR, .18]];
+				? [[ITEM_BANANA, .18], [ITEM_GREEN_SHELL, .20], [ITEM_RED_SHELL, .18], [ITEM_BLUE_SHELL, .04], [ITEM_MUSHROOM, .21], [ITEM_STAR, .08], [ITEM_BOMB, .11]]
+				: [[ITEM_BANANA, .08], [ITEM_GREEN_SHELL, .10], [ITEM_RED_SHELL, .16], [ITEM_BLUE_SHELL, .20], [ITEM_MUSHROOM, .18], [ITEM_STAR, .15], [ITEM_BOMB, .13]];
 		let cumulative = 0;
 		for (const [item, weight] of weights as [number, number][]) { cumulative += weight; if (r < cumulative) return item; }
 		return ITEM_STAR;
@@ -1527,6 +1731,9 @@ export class GMRally extends GameMode {
 			case ITEM_BLUE_SHELL:
 				this.spawnShell(idx, held, p);
 				break;
+			case ITEM_BOMB:
+				this.spawnBomb(idx, p);
+				break;
 			case ITEM_MUSHROOM:
 				p.boostTimer = BOOST_TIME;
 				break;
@@ -1538,6 +1745,17 @@ export class GMRally extends GameMode {
 		p.item = ITEM_NONE;
 		p.pendingItem = ITEM_NONE;
 		p.itemRollTimer = 0;
+	}
+
+	/** Throw a bomb forward; it detonates on landing or on a non-owner player. */
+	private spawnBomb(owner: number, player: Player) {
+		const bomb = new Bomb(this.nextEntityId++);
+		bomb.x = player.x + player.facing * (PLAYER_W * 0.8);
+		bomb.y = player.y;
+		bomb.vx = player.vx + player.facing * BOMB_SPEED;
+		bomb.vy = player.vy + BANANA_JUMP;
+		bomb.owner = owner;
+		this.addHazard(bomb);
 	}
 
 	private spawnShell(owner: number, kind: number, player: Player) {
@@ -1554,9 +1772,9 @@ export class GMRally extends GameMode {
 		this.addHazard(shell);
 	}
 
-	getRaceRanking(): number[] {
+	getRaceRanking(includeFinished = false, includeDisconnected = false): number[] {
 		const level = this.currentLevel();
-		
+
 		const progress = (p: Player) => p.checkpoint * 2 + (p.subCheckpoint >= 0 ? 1 : 0);
 		
 		const distanceToNext = (p: Player) => {
@@ -1568,33 +1786,24 @@ export class GMRally extends GameMode {
 		const isWrongWay = (p: Player) => {
 			const next = level.checkpoints[p.checkpoint + 1];
 			const targetX = next ? next.x : level.finishX;
-			const targetY = next ? next.y : p.y; // On ignore Y si c'est la ligne d'arrivée 1D
-
 			const dx = targetX - p.x;
-			const dy = targetY - p.y;
 
-			// Si p.facing est un angle en radians :
-			const dotProduct = Math.cos(p.facing) * dx + Math.sin(p.facing) * dy;
-			
-			// Alternative si p.facing est un vecteur {x, y} :
-			// const dotProduct = p.facing.x * dx + p.facing.y * dy;
-			
-			// Alternative si p.facing est juste une direction 1D (ex: 1 pour droite, -1 pour gauche) :
-			// const dotProduct = p.facing * dx;
-
-			return dotProduct < 0 ? 1 : 0; // 1 = mauvaise direction (sera pénalisé dans le tri)
+			// Facing is a one-dimensional direction (+1 right, -1 left), not an angle.
+			return dx * p.facing < 0 ? 1 : 0;
 		};
 
 		return this.players
 			.map((p, i) => i)
-			.filter(i => this.players[i].connected && !this.players[i].finished)
+			.filter(i => (includeDisconnected || this.players[i].connected) && (includeFinished || !this.players[i].finished))
 			.sort((a, b) => {
 				const pa = this.players[a], pb = this.players[b];
+				if (includeFinished && pa.finished !== pb.finished) return pa.finished ? -1 : 1;
+				if (includeFinished && pa.finished && pb.finished) return pa.finishRank - pb.finishRank || a - b;
 				return (
-					pb.lapsCompleted - pa.lapsCompleted || 
-					progress(pb) - progress(pa) || 
-					isWrongWay(pa) - isWrongWay(pb) || // Les joueurs dans le bon sens (0) passent avant ceux dans le mauvais (1)
-					distanceToNext(pa) - distanceToNext(pb) || 
+					pb.lapsCompleted - pa.lapsCompleted ||
+					progress(pb) - progress(pa) ||
+					isWrongWay(pa) - isWrongWay(pb) ||
+					distanceToNext(pa) - distanceToNext(pb) ||
 					a - b
 				);
 			});
@@ -1615,11 +1824,33 @@ export class GMRally extends GameMode {
 		banana.arming = 0;
 	}
 
-	private hitPlayer(targetIndex: number) {
+	/** Detonate a bomb and replace it with a short-lived replicated explosion. */
+	private explodeBomb(id: number) {
+		const bomb = this.getHazard(id);
+		if (!(bomb instanceof Bomb)) return;
+		this.explodeAt(bomb.x, bomb.y, bomb.owner);
+		this.removeHazard(bomb.entityId);
+	}
+
+	/** Spawn an explosion and immediately apply its blast to nearby non-owner players. */
+	private explodeAt(x: number, y: number, owner: number) {
+		const explosion = new Explosion(this.nextEntityId++);
+		explosion.x = x;
+		explosion.y = y;
+		explosion.owner = owner;
+		this.addHazard(explosion);
+		for (const [i, player] of this.players.entries()) {
+			if (i === owner || player.finished || player.respawn > 0) continue;
+			if (Math.hypot(player.x - x, player.y - y) <= EXPLOSION_RADIUS) this.hitPlayer(i);
+		}
+	}
+
+	private hitPlayer(targetIndex: number): boolean {
 		const target = this.players[targetIndex];
-		if (!target || target.finished || target.hit) return;
+		// Star power grants temporary damage immunity.
+		if (!target || target.finished || target.hit || target.starTimer > 0) return false;
 		const block = this.getPlayerBlock(targetIndex);
-		if (!block) return;
+		if (!block) return false;
 		target.hit = true;
 		target.jumpBuffer = 0;
 		target.itemQueued = false;
@@ -1630,6 +1861,7 @@ export class GMRally extends GameMode {
 		block.stunned = true;
 		target.vx = block.velocity.x;
 		target.vy = block.velocity.y;
+		return true;
 	}
 
 	private getPlatformRects(): Array<{ x: number; y: number; w: number; h: number }> {
@@ -1703,7 +1935,7 @@ export class GMRally extends GameMode {
 		}
 	}
 
-	/** Update authoritative hazards and resolve all projectile contacts. */
+	/** Update authoritative hazards, projectile guidance, and explosion lifetimes. */
 	private updateHazards(dt: number) {
 		const level = this.currentLevel();
 		const platforms = this.getPlatformRects();
@@ -1720,32 +1952,48 @@ export class GMRally extends GameMode {
 			}
 		}
 
+		for (const explosion of this.getExplosions()) {
+			explosion.remaining -= dt;
+			if (explosion.remaining <= 0) this.removeHazard(explosion.entityId);
+		}
+
 		const liveShells: Shell[] = [];
-		for (const shell of this.getShells()) {			
+		for (const shell of this.getShells()) {
+			if (shell instanceof Bomb) {
+				this.moveGroundHazard(shell, dt, platforms, false, false);
+				// A bomb explodes only after landing; side-wall contacts merely stop it.
+				if (this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) {
+					this.explodeBomb(shell.entityId);
+					continue;
+				}
+				liveShells.push(shell);
+				continue;
+			}
+
 			if (shell.itemKind === ITEM_BLUE_SHELL) {
-				const target = this.players[this.findRaceLeader()];
-					shell.vy = Math.max(-520, Math.min(520, (target.y - shell.y) * 2.2));
-				
-				shell.vx = BLUE_SHELL_SPEED;
+				const leaderIndex = this.findRaceLeader();
+				const target = leaderIndex >= 0 ? this.players[leaderIndex] : undefined;
+				if (target && !target.finished) {
+					// Home in on the active race leader. Vertical speed is intentionally
+					// unbounded; acceleration, rather than a velocity cap, smooths changes.
+					const desiredVy = (target.y - shell.y) * 2.2;
+					const maxDelta = BLUE_SHELL_VERTICAL_ACCEL * dt;
+					shell.vy += Math.max(-maxDelta, Math.min(maxDelta, desiredVy - shell.vy));
+					shell.vx = Math.sign(target.x - shell.x || 1) * BLUE_SHELL_SPEED;
+				}
 				shell.x += shell.vx * dt;
 				shell.y += shell.vy * dt;
-				if (shell.x > level.finishX) {
-					shell.x = level.spawnX;
-				}
-
 			} else {
 				if (shell.itemKind === ITEM_RED_SHELL) {
 					const direction = shell.vx < 0 ? -1 : 1;
 					const target = (
 						this.players
-						.filter(player => !player.finished)
-						.filter(player => direction > 0 ? player.x > shell.x : player.x < shell.x)
-						.sort((a, b) => direction > 0 ? a.x - b.x : b.x - a.x)[0]
-						?? (
-							direction > 0
-							? this.players.filter(player => !player.finished).sort((a, b) => a.x - b.x)[0]
-							: undefined
-						)
+							.filter(player => !player.finished && player.connected)
+							.filter(player => direction > 0 ? player.x > shell.x : player.x < shell.x)
+							.sort((a, b) => direction > 0 ? a.x - b.x : b.x - a.x)[0]
+							?? (direction > 0
+								? this.players.filter(player => !player.finished && player.connected).sort((a, b) => a.x - b.x)[0]
+								: undefined)
 					);
 
 					if (target) {
@@ -1753,8 +2001,8 @@ export class GMRally extends GameMode {
 						const desiredSpeed = Math.max(VX_MIN, Math.min(VX_MAX, VX_MIN + Math.max(0, forwardDx - 90) * 0.32));
 						const speed = Math.abs(shell.vx);
 						const nextSpeed = speed < desiredSpeed
-							? Math.min(desiredSpeed, speed + RED_SHELL_ACCEL * dt)
-							: Math.max(desiredSpeed, speed - RED_SHELL_ACCEL * dt);
+								? Math.min(desiredSpeed, speed + RED_SHELL_ACCEL * dt)
+								: Math.max(desiredSpeed, speed - RED_SHELL_ACCEL * dt);
 						shell.vx = direction * Math.max(VX_MIN, Math.min(VX_MAX, nextSpeed));
 						if (target.y < shell.y - 24 && this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) shell.vy = -SHELL_JUMP_VELOCITY;
 					}
@@ -1767,16 +2015,16 @@ export class GMRally extends GameMode {
 				}
 			}
 
-			if (shell.x > level.finishX) {
-				shell.x = level.spawnX;
-			}
-			
+			if (shell.itemKind !== ITEM_BLUE_SHELL && shell.x > level.finishX) shell.x = level.spawnX;
 			liveShells.push(shell);
 		}
 
+		// Ordinary shells can collide with each other; bombs are intentionally not
+		// included in this pairwise pass, and blue shells survive shell-to-shell hits.
 		const brokenShells = new Set<number>();
 		for (let i = 0; i < liveShells.length; i++) {
 			for (let j = i + 1; j < liveShells.length; j++) {
+				if (liveShells[i] instanceof Bomb || liveShells[j] instanceof Bomb) continue;
 				if (overlapsCenter(
 					{ x: liveShells[i].x, y: liveShells[i].y, w: HAZARD_SIZE, h: HAZARD_SIZE },
 					{ x: liveShells[j].x, y: liveShells[j].y, w: HAZARD_SIZE, h: HAZARD_SIZE }
@@ -1809,9 +2057,14 @@ export class GMRally extends GameMode {
 		if (this.isAuthoritative) this.updateHazards(dt);
 		this.syncEntityBlocks();
 
-		if (this.levelTime >= LEVEL_TIME_LIMIT || this.players.every(p => p.finished || !p.connected)) {
-			this.phase = PHASE_DONE;
+		// `intermission` stores the absolute race-clock deadline after the first finish.
+		// Zero means nobody has finished yet; no countdown is displayed in the HUD.
+		if (this.intermission <= 0 && this.players.some(p => p.finished)) {
+			this.intermission = this.levelTime + FINISH_GRACE_TIME;
 		}
+		const graceExpired = this.intermission > 0 && this.levelTime >= this.intermission;
+		const everyoneDone = this.players.every(p => p.finished || !p.connected);
+		if (this.levelTime >= LEVEL_TIME_LIMIT || graceExpired || everyoneDone) this.phase = PHASE_DONE;
 	}
 
 	/* ---------------------------- Inputs ---------------------------- */
@@ -1878,8 +2131,9 @@ export class GMRally extends GameMode {
 		ctx.scale(Camera.SCALE, Camera.SCALE);
 		ctx.translate(-cam.x, -cam.y);
 
-		this.drawLevel(ctx, imageLoader);
+		this.drawLevel(ctx, imageLoader, data);
 		this.drawPlayers(ctx, imageLoader);
+		data.drawParticles(ctx);
 
 		ctx.restore();
 		data.drawItemRoulette(ctx, this, playerIdx, imageLoader);
@@ -1887,7 +2141,7 @@ export class GMRally extends GameMode {
 	}
 
 	/** Platforms, item boxes and finish line. */
-	private drawLevel(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
+	private drawLevel(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, data: ClientData) {
 		const level = this.currentLevel();
 		const engine = this.engine;
 
@@ -1920,11 +2174,32 @@ export class GMRally extends GameMode {
 			drawItemTexture(ctx, imageLoader, ITEM_BANANA, banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
 		}
 		for (const shell of this.getShells()) {
-			drawItemTexture(ctx, imageLoader, shell.itemKind, shell.x, shell.y, 40, 0, this.levelTime * 2.5 + shell.entityId * 0.13);
+			if (shell instanceof Bomb) {
+				drawItemTexture(ctx, imageLoader, ITEM_BOMB, shell.x, shell.y, 42, 0, this.levelTime * 2.5);
+			} else {
+				drawAnimatedShellTexture(ctx, imageLoader, shell.itemKind, shell.x, shell.y, 40, data.getShellFrame(shell.entityId));
+			}
+		}
+
+		// Explosions are drawn procedurally so they do not require another asset.
+		for (const explosion of this.getExplosions()) {
+			const progress = 1 - Math.max(0, explosion.remaining) / EXPLOSION_DURATION;
+			const radius = 14 + progress * 54;
+			ctx.save();
+			ctx.globalAlpha = Math.max(0, 1 - progress);
+			const glow = ctx.createRadialGradient(explosion.x, explosion.y, radius * 0.15, explosion.x, explosion.y, radius);
+			glow.addColorStop(0, "#fff7b2");
+			glow.addColorStop(0.45, "#ff9d2e");
+			glow.addColorStop(1, "#ed3828");
+			ctx.fillStyle = glow;
+			ctx.beginPath();
+			ctx.arc(explosion.x, explosion.y, radius, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.restore();
 		}
 	}
 
-	/** Player sprites and team markers. The item roulette now lives in the screen HUD. */
+	/** Player sprites and team markers. */
 	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
 		const engine = this.engine;
 		if (!engine) return;
@@ -1933,16 +2208,13 @@ export class GMRally extends GameMode {
 			const block = engine.getBlock(id);
 			if (!block) continue;
 
-			engine.getAnimator(id)?.draw(block, ctx, imageLoader);
-
-			/// TODO: improve this drawing
+			// Star power applies a cycling rainbow hue to the entire player sprite.
+			ctx.save();
 			if (p.starTimer > 0) {
-				ctx.save();
-				ctx.strokeStyle = "#ffe34d";
-				ctx.lineWidth = 4;
-				ctx.strokeRect(block.x - PLAYER_W / 2 - 5, block.y - PLAYER_H / 2 - 5, PLAYER_W + 10, PLAYER_H + 10);
-				ctx.restore();
+				ctx.filter = `hue-rotate(${Math.floor((this.levelTime * 240) % 360)}deg) saturate(2)`;
 			}
+			engine.getAnimator(id)?.draw(block, ctx, imageLoader);
+			ctx.restore();
 		}
 	}
 
@@ -1972,7 +2244,7 @@ export class GMRally extends GameMode {
 	}
 
 	override createTutorial() {
-		return new TutorialData(this);
+		return new TutorialData();
 	}
 
 	/* ---------------------------- Save / load ---------------------------- */
@@ -2002,7 +2274,8 @@ export class GMRally extends GameMode {
 			finishCount: this.finishCount,
 			boxCooldowns: this.boxCooldowns,
 			bananas: this.getBananas().map(banana => banana.save()),
-			shells: this.getShells().map(shell => shell.save()),
+			// Bombs and explosions are encoded via negative green-shell target markers.
+			shells: [...this.getShells().map(shell => shell.save()), ...this.getExplosions().map(explosion => explosion.save())],
 			nextEntityId: this.nextEntityId,
 		};
 		return State.encode(object).finish();
@@ -2018,23 +2291,28 @@ export class GMRally extends GameMode {
 		this.levelIndex = 0;
 		this.levelTime = obj.levelTime ?? 0;
 		this.phase = obj.phase ?? PHASE_RACING;
-		this.intermission = 0;
+		this.intermission = obj.intermission ?? 0;
 		this.redScore = obj.redScore ?? 0;
 		this.blueScore = obj.blueScore ?? 0;
 		this.finishCount = obj.finishCount ?? 0;
 		this.boxCooldowns = [...(obj.boxCooldowns ?? LEVELS[0].items.map(() => 0))];
 
-		// Reconcile entities by stable entity ID, mutating matching blocks in place.
-		const existing = new Map<number, Banana | Shell>();
+		// Reconcile entities by stable ID and decode bomb/explosion markers from shell states.
+		const existing = new Map<number, Banana | Shell | Explosion>();
 		if (this.engine) {
 			for (const entry of this.engine.getBlocks()) {
 				const block = entry.block;
-				if (block instanceof Banana || block instanceof Shell) existing.set(block.entityId, block);
+				if (block instanceof Banana || block instanceof Shell || block instanceof Explosion) existing.set(block.entityId, block);
 			}
 		}
-		const incoming = new Map<number, any>();
+		const incoming = new Map<number, { type: 'banana' | 'shell' | 'bomb' | 'explosion'; state: any }>();
 		for (const state of obj.bananas ?? []) incoming.set(state.id, { type: 'banana', state });
-		for (const state of obj.shells ?? []) incoming.set(state.id, { type: 'shell', state });
+		for (const state of obj.shells ?? []) {
+			const marker = state.green?.target;
+			const type = marker === BOMB_ENTITY_MARKER ? 'bomb'
+				: marker === EXPLOSION_ENTITY_MARKER ? 'explosion' : 'shell';
+			incoming.set(state.id, { type, state });
+		}
 
 		for (const [id] of existing) {
 			if (!incoming.has(id)) this.removeHazard(id);
@@ -2047,10 +2325,22 @@ export class GMRally extends GameMode {
 					block = new Banana(id);
 					this.addHazard(block);
 				}
+			} else if (value.type === 'bomb') {
+				if (!(block instanceof Bomb)) {
+					if (block) this.removeHazard(id);
+					block = new Bomb(id);
+					this.addHazard(block);
+				}
+			} else if (value.type === 'explosion') {
+				if (!(block instanceof Explosion)) {
+					if (block) this.removeHazard(id);
+					block = new Explosion(id);
+					this.addHazard(block);
+				}
 			} else {
 				const state = value.state;
 				const desired = state.red ? ITEM_RED_SHELL : state.blue ? ITEM_BLUE_SHELL : ITEM_GREEN_SHELL;
-				if (!(block instanceof Shell) || block.itemKind !== desired) {
+				if (!(block instanceof Shell) || block instanceof Bomb || block.itemKind !== desired) {
 					if (block) this.removeHazard(id);
 					block = desired === ITEM_RED_SHELL ? new RedShell(id)
 						: desired === ITEM_BLUE_SHELL ? new BlueShell(id) : new GreenShell(id);
@@ -2059,6 +2349,7 @@ export class GMRally extends GameMode {
 			}
 			block.load(value.state);
 		}
+
 		this.nextEntityId = obj.nextEntityId ?? 1;
 
 		// Keep local block IDs and static platforms intact; restore bodies and boxes.
@@ -2068,36 +2359,59 @@ export class GMRally extends GameMode {
 
 	/* ---------------------------- Results ---------------------------- */
 
-	/** Teams ranked by score, players ranked by points inside their team. */
+	/** Build the final team/player standings from the authoritative race ranking. */
 	private produceFinish(): FinishGame {
-		const groups = [true, false]
-			.map(isRed => {
-				const members = this.players
-					.map((p, i) => ({ p, i }))
-					.filter(m => m.p.isRed === isRed)
-					.sort((a, b) => b.p.points - a.p.points || a.i - b.i);
-				const score = isRed ? this.redScore : this.blueScore;
-				return { members, score };
-			})
-			.sort((a, b) => b.score - a.score);
+		const ranking = this.getRaceRanking(true, true);
+		const rankByPlayer = new Map<number, number>(ranking.map((playerIndex, rank) => [playerIndex, rank]));
+		const groups = [true, false].map(isRed => {
+			const members = this.players
+				.map((p, i) => ({ p, i }))
+				.filter(member => member.p.isRed === isRed)
+				.sort((a, b) => (rankByPlayer.get(a.i) ?? Number.MAX_SAFE_INTEGER) - (rankByPlayer.get(b.i) ?? Number.MAX_SAFE_INTEGER) || a.i - b.i);
+			const ranks = members.map(member => rankByPlayer.get(member.i) ?? ranking.length + member.i);
+			// A lower average finishing position is the stronger team result.
+			const score = ranks.length ? ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length : Number.POSITIVE_INFINITY;
+			const bestRank = ranks.length ? Math.min(...ranks) : Number.POSITIVE_INFINITY;
+			return { members, score, bestRank };
+		}).sort((a, b) => a.score - b.score || a.bestRank - b.bestRank);
 
-		const results = groups.map(g => g.members.map(m => m.i));
-
+		const results = groups.map(group => group.members.map(member => member.i));
 		const teamEqualities: number[] = [];
 		for (let i = 0; i + 1 < groups.length; i++) {
-			if (groups[i].score === groups[i + 1].score) teamEqualities.push(i);
+			if (Math.abs(groups[i].score - groups[i + 1].score) < 1e-9) teamEqualities.push(i);
 		}
 
-		// Two consecutive players of a team with the same points are tied
+		// Equality indexes refer to adjacent positions in the flattened results list.
+		// Race ties use the same progress, wrong-way, and distance fields as the ranking.
+		const sameRaceStanding = (aIndex: number, bIndex: number): boolean => {
+			const a = this.players[aIndex];
+			const b = this.players[bIndex];
+			if (a.finished || b.finished) return a.finished && b.finished && a.finishRank === b.finishRank;
+			const progress = (player: Player) => player.checkpoint * 2 + (player.subCheckpoint >= 0 ? 1 : 0);
+			const distance = (player: Player) => {
+				const next = this.currentLevel().checkpoints[player.checkpoint + 1];
+				return next ? Math.hypot(next.x - player.x, next.y - player.y) : Math.abs(this.currentLevel().finishX - player.x);
+			};
+			const wrongWay = (player: Player) => {
+				const next = this.currentLevel().checkpoints[player.checkpoint + 1];
+				const targetX = next ? next.x : this.currentLevel().finishX;
+				return (targetX - player.x) * player.facing < 0 ? 1 : 0;
+			};
+			return a.lapsCompleted === b.lapsCompleted &&
+				progress(a) === progress(b) &&
+				wrongWay(a) === wrongWay(b) &&
+				Math.abs(distance(a) - distance(b)) < 1e-3;
+		};
 		const playerEqualities: number[] = [];
-		for (const g of groups) {
-			for (let k = 0; k + 1 < g.members.length; k++) {
-				const a = g.members[k];
-				const b = g.members[k + 1];
-				if (a.p.points === b.p.points) playerEqualities.push(Math.min(a.i, b.i));
+		let flattenedOffset = 0;
+		for (const group of groups) {
+			for (let i = 0; i + 1 < group.members.length; i++) {
+				if (sameRaceStanding(group.members[i].i, group.members[i + 1].i)) {
+					playerEqualities.push(flattenedOffset + i);
+				}
 			}
+			flattenedOffset += group.members.length;
 		}
-		playerEqualities.sort((a, b) => a - b);
 
 		return { results, teamEqualities, playerEqualities };
 	}
