@@ -1144,6 +1144,13 @@ export namespace platformEngine {
 		private readonly animators = new Map<BlockId, Animator>();
 		/** Block pairs whose collision was refused during the current step. */
 		private readonly passthrough = new Set<string>();
+		/** Fallback contact sides for refused pairs Rapier omits from its contact graph. */
+		private readonly refusedPairs = new Map<string, {
+			aId: BlockId;
+			bId: BlockId;
+			sideA: Side;
+			sideB: Side;
+		}>();
 		private readonly hooks: RAPIER.PhysicsHooks;
 		private disposed = false;
 		readonly world: RAPIER.World;
@@ -1173,7 +1180,19 @@ export namespace platformEngine {
 
 					if (solidA && solidB) return RAPIER.SolverFlags.COMPUTE_IMPULSE;
 
-					this.passthrough.add(pairKey(a.id, b.id));
+					const key = pairKey(a.id, b.id);
+					this.passthrough.add(key);
+					if (!this.refusedPairs.has(key)) {
+						const first = a.id < b.id ? a : b;
+						const second = a.id < b.id ? b : a;
+						const sides = this.inferOverlapSides(first.block, second.block);
+						this.refusedPairs.set(key, {
+							aId: first.id,
+							bId: second.id,
+							sideA: sides.sideA,
+							sideB: sides.sideB,
+						});
+					}
 					return RAPIER.SolverFlags.EMPTY;
 				},
 
@@ -1282,6 +1301,7 @@ export namespace platformEngine {
 
 			// 2. Rapier does all the collision detection and resolution.
 			this.passthrough.clear();
+			this.refusedPairs.clear();
 			this.world.timestep = dt;
 			this.world.step(this.eventQueue, this.hooks);
 
@@ -1479,15 +1499,54 @@ export namespace platformEngine {
 			this.updateCarriers();
 
 			// Notify both blocks, once per pair and face.
+			const reportedPairs = new Set<string>();
 			for (const touch of touches) {
 				const a = this.entries.get(touch.aId);
 				const b = this.entries.get(touch.bId);
 				if (!a || !b) continue;
+				reportedPairs.add(pairKey(touch.aId, touch.bId));
 				a.block.detectCollision(a.id, b, touch.sideA, this, a.data as any);
 				if (this.entries.has(b.id)) {
 					b.block.detectCollision(b.id, a, touch.sideB, this, b.data as any);
 				}
 			}
+
+			// Rapier may omit refused pairs from the contact graph entirely. Still
+			// report those overlaps, but never run physical contact reactions for them.
+			for (const [key, refused] of this.refusedPairs) {
+				if (reportedPairs.has(key)) continue;
+				const a = this.entries.get(refused.aId);
+				const b = this.entries.get(refused.bId);
+				if (!a || !b) continue;
+				a.block.detectCollision(a.id, b, refused.sideA, this, a.data as any);
+				if (this.entries.has(b.id)) {
+					b.block.detectCollision(b.id, a, refused.sideB, this, b.data as any);
+				}
+			}
+		}
+
+		/**
+		 * Approximate overlap sides for a refused pair that has no Rapier manifold.
+		 * The normal contact graph remains the source of exact sides whenever present.
+		 */
+		private inferOverlapSides(
+			a: AnyBlock<TEngineData>,
+			b: AnyBlock<TEngineData>,
+		): { sideA: Side; sideB: Side } {
+			const aSize = a.getSize();
+			const bSize = b.getSize();
+			const dx = a.x - b.x;
+			const dy = a.y - b.y;
+			const overlapX = (aSize.width + bSize.width) / 2 - Math.abs(dx);
+			const overlapY = (aSize.height + bSize.height) / 2 - Math.abs(dy);
+			const horizontal = overlapX < overlapY;
+			const sideFor = (x: number, y: number): Side => horizontal
+				? (x < 0 ? 'right' : 'left')
+				: (y < 0 ? 'floor' : 'ceiling');
+			return {
+				sideA: sideFor(dx, dy),
+				sideB: sideFor(-dx, -dy),
+			};
 		}
 
 		/** Ask Rapier's contact graph who touches whom, and from which direction. */

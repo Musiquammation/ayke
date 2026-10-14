@@ -245,6 +245,50 @@ class Walker extends platformEngine.Walker {
 /* Blocks                                                                     */
 /* -------------------------------------------------------------------------- */
 
+type EntityKind = 'item-box' | 'banana' | 'shell';
+
+/**
+ * Non-solid game entity. The engine still runs detectCollision for these blocks,
+ * even though applyCollision disables physical response. Authoritative contacts
+ * are handled by GMRally, while positions/lifetimes remain snapshot-friendly.
+ */
+class Entity extends platformEngine.Block<ClientData, RallyEngineData> {
+	active = true;
+
+	constructor(
+		readonly kind: EntityKind,
+		readonly entityId: number,
+		readonly sourceIndex: number,
+		readonly entitySize: number
+	) {
+		super();
+	}
+
+	getSize() {
+		const size = this.active ? this.entitySize : 0;
+		return { width: size, height: size };
+	}
+
+	applyCollision(
+		_id: number,
+		_clientData: ClientData | null,
+		_other: platformEngine.BlockEntry<RallyEngineData>
+	): boolean {
+		return false;
+	}
+
+	override detectCollision(
+		_id: platformEngine.BlockId,
+		other: platformEngine.BlockEntry<RallyEngineData>,
+		_entrySide: platformEngine.Side,
+		engine: platformEngine.IBlockEngine<RallyEngineData>,
+		_clientData: ClientData | null
+	): void {
+		if (!this.active || !(other.block instanceof PlayerBlock)) return;
+		engine.game.handleEntityContact(this, other.block.index);
+	}
+}
+
 /**
  * Engine block of a player. It holds the live physical state (position, velocity);
  * Player copies it back every frame so everything can be saved.
@@ -280,7 +324,16 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 		_clientData: ClientData | null,
 		other: platformEngine.BlockEntry<RallyEngineData>
 	): boolean {
-		return other.category !== 'player';
+		return other.category !== 'player' && !(other.block instanceof Entity);
+	}
+
+	override detectCollision(
+		id: platformEngine.BlockId,
+		other: platformEngine.BlockEntry<RallyEngineData>,
+		entrySide: platformEngine.Side,
+		engine: platformEngine.IBlockEngine<RallyEngineData>,
+		clientData: ClientData | null
+	): void {
 	}
 
 	processBeforeEngine(_id: number, dt: number, engine: RallyEngine) {
@@ -544,8 +597,6 @@ class ClientData {
 	readonly time: HTMLDivElement;
 	readonly redScore: HTMLDivElement;
 	readonly blueScore: HTMLDivElement;
-	readonly item: HTMLDivElement;
-	readonly itemCanvas: HTMLCanvasElement;
 	readonly banner: HTMLDivElement;
 
 	readonly camera = new Camera();
@@ -582,39 +633,12 @@ class ClientData {
 		dash.textContent = "-";
 		scores.append(this.redScore, dash, this.blueScore);
 
-		// Item roulette is a real HUD panel, fixed to the top of the screen.
-		// No floating item/name is drawn over the player's head anymore.
-		this.item = document.createElement("div");
-		this.item.classList.add("game-rally-item");
-		this.item.setAttribute("aria-label", "Item roulette");
-		this.item.style.cssText = [
-			"position:absolute", "top:14px", "right:24px", "left:auto", "transform:none",
-			"width:156px", "height:156px", "padding:7px", "display:none", "align-items:center",
-			"justify-content:center", "box-sizing:border-box", "border-radius:18px",
-			"background:linear-gradient(145deg,#f8ffff 0%,#9fb9d5 38%,#455d82 100%)",
-			"border:2px solid #253a5a", "box-shadow:0 0 0 3px #e4f2ff,0 8px 24px #0008,inset 0 2px 2px #fff",
-			"z-index:100", "pointer-events:none"
-		].join(";");
-		const viewport = document.createElement("div");
-		viewport.style.cssText = [
-			"position:relative", "width:100%", "height:100%", "overflow:hidden", "border-radius:10px",
-			"background:radial-gradient(ellipse at 45% 25%,#426fa4 0%,#193158 72%)",
-			"box-shadow:inset 0 0 16px #000a,0 0 0 1px #11213c"
-		].join(";");
-		this.itemCanvas = document.createElement("canvas");
-		this.itemCanvas.width = 142;
-		this.itemCanvas.height = 142;
-		this.itemCanvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;";
-		viewport.append(this.itemCanvas);
-		const shine = document.createElement("div");
-		shine.style.cssText = "position:absolute;inset:0;pointer-events:none;background:linear-gradient(125deg,#ffffff2b 0%,transparent 38%,transparent 68%,#ffffff10 100%);";
-		viewport.append(shine);
-		this.item.append(viewport);
+
 
 		this.banner = document.createElement("div");
 		this.banner.classList.add("game-rally-banner");
 
-		this.html.append(scores, this.levelName, this.time, this.item, this.banner);
+		this.html.append(scores, this.levelName, this.time, this.banner);
 	}
 
 	static showTime(time: number) {
@@ -624,11 +648,15 @@ class ClientData {
 		return `${minutes}:${seconds.padStart(4, "0")}`;
 	}
 
-	private updateItemRoulette(game: GMRally, playerIdx: number) {
+	drawItemRoulette(
+		ctx: CanvasRenderingContext2D,
+		game: GMRally,
+		playerIdx: number,
+		imageLoader: ImageLoaderFolder
+	) {
 		const player = game.players[playerIdx];
 		const rolling = player.itemRollTimer > 0 && player.pendingItem !== ITEM_NONE;
 		const heldItem = rolling ? ITEM_NONE : player.item;
-		this.item.style.display = rolling || heldItem !== ITEM_NONE ? "flex" : "none";
 
 		if (this.wasRollingItem && !rolling) {
 			this.revealItem = player.item;
@@ -637,70 +665,116 @@ class ClientData {
 		if (rolling) this.revealItem = ITEM_NONE;
 		this.wasRollingItem = rolling;
 
-		const ctx = this.itemCanvas.getContext("2d");
-		if (!ctx) return;
-		const w = this.itemCanvas.width;
-		const h = this.itemCanvas.height;
-		ctx.clearRect(0, 0, w, h);
-		const rouletteItems = [ITEM_BANANA, ITEM_GREEN_SHELL, ITEM_RED_SHELL, ITEM_BLUE_SHELL, ITEM_MUSHROOM, ITEM_STAR];
+		if (!rolling && heldItem === ITEM_NONE && game.levelTime >= this.revealUntil) {
+			this.revealItem = ITEM_NONE;
+		}
+		const item = heldItem !== ITEM_NONE ? heldItem : this.revealItem;
+		if (!rolling && item === ITEM_NONE) return;
+
+		// Draw after the world transform has been restored: this HUD is camera-free.
+		const x = WIDTH - 180;
+		const y = 22;
+		const size = 156;
+		const inset = 8;
+		const innerX = x + inset;
+		const innerY = y + inset;
+		const innerSize = size - inset * 2;
+
+		ctx.save();
+		ctx.shadowColor = '#0009';
+		ctx.shadowBlur = 18;
+		ctx.shadowOffsetY = 7;
+		const frame = ctx.createLinearGradient(x, y, x + size, y + size);
+		frame.addColorStop(0, '#f8ffff');
+		frame.addColorStop(0.38, '#9fb9d5');
+		frame.addColorStop(1, '#455d82');
+		ctx.fillStyle = frame;
+		ctx.beginPath();
+		ctx.roundRect(x, y, size, size, 18);
+		ctx.fill();
+		ctx.shadowColor = 'transparent';
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = '#253a5a';
+		ctx.stroke();
+
+		ctx.save();
+		ctx.beginPath();
+		ctx.roundRect(innerX, innerY, innerSize, innerSize, 10);
+		ctx.clip();
+		const background = ctx.createRadialGradient(
+			innerX + innerSize * 0.45, innerY + innerSize * 0.22, 2,
+			innerX + innerSize * 0.5, innerY + innerSize * 0.56, innerSize
+		);
+		background.addColorStop(0, '#426fa4');
+		background.addColorStop(1, '#193158');
+		ctx.fillStyle = background;
+		ctx.fillRect(innerX, innerY, innerSize, innerSize);
+		ctx.shadowColor = 'transparent';
 
 		if (rolling) {
 			const progress = Math.max(0, Math.min(1, 1 - player.itemRollTimer / ITEM_ROLL_TIME));
 			const eased = 1 - Math.pow(1 - progress, 4.2);
 			const winnerIndex = 48 + (player.pendingItem * 3 % 6);
 			const reelPosition = eased * winnerIndex;
-			const cell = 78;
-			const center = h / 2;
+			const cell = 68;
+			const center = innerY + innerSize / 2;
 
-			// Highlighted selection window, while the icon strip decelerates.
-			ctx.save();
-			ctx.fillStyle = "#8fcaff18";
-			ctx.fillRect(3, center - cell / 2, w - 6, cell);
-			ctx.strokeStyle = "#e5f4ffb5";
+			ctx.fillStyle = '#8fcaff20';
+			ctx.fillRect(innerX + 2, center - cell / 2, innerSize - 4, cell);
+			ctx.strokeStyle = '#e5f4ffb5';
 			ctx.lineWidth = 2;
 			ctx.beginPath();
-			ctx.moveTo(7, center - cell / 2);
-			ctx.lineTo(w - 7, center - cell / 2);
-			ctx.moveTo(7, center + cell / 2);
-			ctx.lineTo(w - 7, center + cell / 2);
+			ctx.moveTo(innerX + 6, center - cell / 2);
+			ctx.lineTo(innerX + innerSize - 6, center - cell / 2);
+			ctx.moveTo(innerX + 6, center + cell / 2);
+			ctx.lineTo(innerX + innerSize - 6, center + cell / 2);
 			ctx.stroke();
-			ctx.restore();
 
+			const rouletteItems = [ITEM_BANANA, ITEM_GREEN_SHELL, ITEM_RED_SHELL, ITEM_BLUE_SHELL, ITEM_MUSHROOM, ITEM_STAR];
 			const first = Math.floor(reelPosition);
 			for (let offset = -2; offset <= 2; offset++) {
 				const index = first + offset;
-				const item = index === winnerIndex
+				const reelItem = index === winnerIndex
 					? player.pendingItem
 					: rouletteItems[((index * 7 + Math.floor(index / 3) * 5) % rouletteItems.length + rouletteItems.length) % rouletteItems.length];
-				const y = center + (index - reelPosition) * cell;
-				if (y < -cell || y > h + cell) continue;
-				const distance = Math.abs(y - center) / cell;
+				const itemY = center + (index - reelPosition) * cell;
+				if (itemY < innerY - cell || itemY > innerY + innerSize + cell) continue;
+				const distance = Math.abs(itemY - center) / cell;
 				const scale = 1 - Math.min(0.25, distance * 0.14);
-				drawItemTexture(ctx, item, w / 2, y, 58 * scale, 0, game.levelTime * 3 + index * 0.2);
+				drawItemTexture(ctx, imageLoader, reelItem, innerX + innerSize / 2, itemY, 52 * scale, 0, game.levelTime * 3 + index * 0.2);
 			}
-			return;
+		} else {
+			let scale = 1;
+			let rotation = 0;
+			if (game.levelTime < this.revealUntil) {
+				const t = Math.max(0, Math.min(1, 1 - (this.revealUntil - game.levelTime) / 0.42));
+				if (t < 0.72) {
+					const q = t / 0.72;
+					scale = 0.52 + 0.63 * (1 - Math.pow(1 - q, 2));
+					rotation = -0.28 * (1 - q);
+				} else {
+					const q = (t - 0.72) / 0.28;
+					scale = 1.15 - 0.15 * q;
+					rotation = 0.05 * (1 - q);
+				}
+			} else {
+				scale = 1 + Math.sin(game.levelTime * 4) * 0.025;
+			}
+			drawItemTexture(ctx, imageLoader, item, innerX + innerSize / 2, innerY + innerSize / 2, 92 * scale, rotation, game.levelTime * 2);
 		}
 
-		const item = heldItem !== ITEM_NONE ? heldItem : this.revealItem;
-		if (item === ITEM_NONE) return;
-		let scale = 1;
-		let rotation = 0;
-		if (game.levelTime < this.revealUntil) {
-			const t = Math.max(0, Math.min(1, 1 - (this.revealUntil - game.levelTime) / 0.42));
-			// A quick overshoot and settle, like a prize reveal.
-			if (t < 0.72) {
-				const q = t / 0.72;
-				scale = 0.52 + 0.63 * (1 - Math.pow(1 - q, 2));
-				rotation = -0.28 * (1 - q);
-			} else {
-				const q = (t - 0.72) / 0.28;
-				scale = 1.15 - 0.15 * q;
-				rotation = 0.05 * (1 - q);
-			}
-		} else if (heldItem !== ITEM_NONE) {
-			scale = 1 + Math.sin(game.levelTime * 4) * 0.025;
-		}
-		drawItemTexture(ctx, item, w / 2, h / 2, 86 * scale, rotation, game.levelTime * 2);
+		ctx.restore();
+		// Subtle gloss, drawn on the main canvas rather than a separate DOM canvas.
+		const gloss = ctx.createLinearGradient(x, y, x + size, y + size);
+		gloss.addColorStop(0, '#ffffff30');
+		gloss.addColorStop(0.38, '#ffffff00');
+		gloss.addColorStop(0.72, '#ffffff00');
+		gloss.addColorStop(1, '#ffffff12');
+		ctx.fillStyle = gloss;
+		ctx.beginPath();
+		ctx.roundRect(x + inset, y + inset, innerSize, innerSize, 10);
+		ctx.fill();
+		ctx.restore();
 	}
 
 	/** Refreshes the HTML overlay and the camera for this frame. */
@@ -710,7 +784,6 @@ class ClientData {
 		this.time.innerText = ClientData.showTime(LEVEL_TIME_LIMIT - game.levelTime);
 		this.redScore.innerText = String(game.redScore).padStart(2, "0");
 		this.blueScore.innerText = String(game.blueScore).padStart(2, "0");
-		this.updateItemRoulette(game, playerIdx);
 
 		const player = game.players[playerIdx];
 		this.banner.innerText = player.finished
@@ -803,9 +876,19 @@ interface ShellState {
 	life: number;
 }
 
-/** Draws shaded, game-style item textures without platform-dependent emoji glyphs. */
+/** Draw an item sprite from the Rally texture atlas/assets. */
+const ITEM_TEXTURE_KEYS: Record<number, string> = {
+	[ITEM_BANANA]: 'banana',
+	[ITEM_GREEN_SHELL]: 'green-shell',
+	[ITEM_RED_SHELL]: 'red-shell',
+	[ITEM_BLUE_SHELL]: 'blue-shell',
+	[ITEM_MUSHROOM]: 'mushroom',
+	[ITEM_STAR]: 'star',
+};
+
 function drawItemTexture(
 	ctx: CanvasRenderingContext2D,
+	imageLoader: ImageLoaderFolder,
 	item: number,
 	cx: number,
 	cy: number,
@@ -813,129 +896,20 @@ function drawItemTexture(
 	rotation = 0,
 	phase = 0
 ) {
-	if (item === ITEM_NONE || size <= 0) return;
+	const key = ITEM_TEXTURE_KEYS[item];
+	if (!key || size <= 0) return;
+	const texture = imageLoader.get(key);
+	if (!texture) return;
+
 	ctx.save();
 	ctx.translate(cx, cy + Math.sin(phase) * size * 0.018);
 	ctx.rotate(rotation);
-	ctx.scale(size / 100, size / 100);
-	ctx.lineJoin = "round";
-	ctx.lineCap = "round";
-	ctx.shadowColor = "#0009";
+	ctx.shadowColor = '#0009';
 	ctx.shadowBlur = 7;
-	ctx.shadowOffsetY = 5;
-
-	if (item === ITEM_BANANA) {
-		const body = ctx.createLinearGradient(-34, -34, 30, 30);
-		body.addColorStop(0, "#fff59a");
-		body.addColorStop(0.22, "#ffe64b");
-		body.addColorStop(0.58, "#ffbf13");
-		body.addColorStop(0.83, "#e88a08");
-		body.addColorStop(1, "#a85708");
-		ctx.beginPath();
-		ctx.moveTo(-31, -31);
-		ctx.bezierCurveTo(-9, -41, 20, -18, 18, 7);
-		ctx.bezierCurveTo(17, 23, 7, 34, -8, 33);
-		ctx.bezierCurveTo(2, 20, 5, 9, -3, -2);
-		ctx.bezierCurveTo(-10, -15, -21, -18, -31, -12);
-		ctx.bezierCurveTo(-37, -16, -38, -25, -31, -31);
-		ctx.closePath();
-		ctx.fillStyle = body;
-		ctx.fill();
-		ctx.shadowColor = "transparent";
-		ctx.strokeStyle = "#8c4c0b";
-		ctx.lineWidth = 4.5;
-		ctx.stroke();
-		ctx.fillStyle = "#6d3710";
-		ctx.beginPath(); ctx.roundRect(-35, -33, 12, 9, 3); ctx.fill();
-		ctx.beginPath(); ctx.roundRect(-13, 27, 13, 9, 3); ctx.fill();
-		ctx.strokeStyle = "#fff7b4";
-		ctx.lineWidth = 3;
-		ctx.beginPath(); ctx.moveTo(-23, -25); ctx.bezierCurveTo(-5, -29, 9, -10, 10, 3); ctx.stroke();
-		ctx.strokeStyle = "#d88a0a";
-		ctx.lineWidth = 2;
-		ctx.beginPath(); ctx.moveTo(-7, 9); ctx.quadraticCurveTo(-5, 20, -14, 27); ctx.stroke();
-	} else if (item === ITEM_GREEN_SHELL || item === ITEM_RED_SHELL || item === ITEM_BLUE_SHELL) {
-		const palette = item === ITEM_GREEN_SHELL
-			? ["#d9ff9d", "#58c92b", "#208027", "#0c3e22"]
-			: item === ITEM_RED_SHELL
-				? ["#ffb8a8", "#f33c35", "#b90f27", "#5e1024"]
-				: ["#d5f4ff", "#4bc8ff", "#1761d0", "#102b73"];
-			const shell = ctx.createLinearGradient(-22, -35, 27, 32);
-			shell.addColorStop(0, palette[0]);
-			shell.addColorStop(0.28, palette[1]);
-			shell.addColorStop(0.7, palette[2]);
-			shell.addColorStop(1, palette[3]);
-			ctx.beginPath();
-			ctx.moveTo(-38, 17);
-			ctx.quadraticCurveTo(-43, 10, -34, 1);
-			ctx.lineTo(-29, -15);
-			ctx.quadraticCurveTo(-22, -34, 0, -36);
-			ctx.quadraticCurveTo(24, -35, 31, -13);
-			ctx.lineTo(38, 10);
-			ctx.quadraticCurveTo(42, 19, 29, 23);
-			ctx.lineTo(-28, 23);
-			ctx.quadraticCurveTo(-38, 23, -38, 17);
-			ctx.closePath();
-			ctx.fillStyle = shell; ctx.fill();
-			ctx.shadowColor = "transparent";
-			ctx.strokeStyle = palette[3]; ctx.lineWidth = 5; ctx.stroke();
-			ctx.fillStyle = palette[1];
-			ctx.beginPath();
-			ctx.moveTo(-22, 12); ctx.lineTo(-25, -6); ctx.lineTo(-12, -25);
-			ctx.lineTo(9, -26); ctx.lineTo(25, -8); ctx.lineTo(21, 12); ctx.closePath();
-			ctx.fill();
-			ctx.strokeStyle = palette[3]; ctx.lineWidth = 2.5; ctx.stroke();
-			ctx.beginPath(); ctx.moveTo(-25, -6); ctx.lineTo(-12, -2); ctx.lineTo(-12, -25);
-			ctx.moveTo(9, -26); ctx.lineTo(7, -2); ctx.lineTo(25, -8);
-			ctx.moveTo(-12, -2); ctx.lineTo(7, -2); ctx.lineTo(21, 12);
-			ctx.stroke();
-			ctx.fillStyle = "#ffffff70";
-			ctx.beginPath(); ctx.ellipse(-12, -22, 8, 4, -0.55, 0, Math.PI * 2); ctx.fill();
-			ctx.fillStyle = palette[3];
-			for (const x of [-23, -8, 8, 23]) {
-				ctx.beginPath(); ctx.ellipse(x, 20, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
-			}
-	} else if (item === ITEM_MUSHROOM) {
-		const stem = ctx.createLinearGradient(-10, 1, 15, 36);
-		stem.addColorStop(0, "#fffef0"); stem.addColorStop(0.5, "#e8e2cb"); stem.addColorStop(1, "#aaa28c");
-		ctx.beginPath(); ctx.moveTo(-17, -1); ctx.lineTo(17, -1); ctx.lineTo(20, 28);
-		ctx.quadraticCurveTo(19, 36, 9, 36); ctx.lineTo(-9, 36); ctx.quadraticCurveTo(-19, 35, -20, 27); ctx.closePath();
-		ctx.fillStyle = stem; ctx.fill(); ctx.shadowColor = "transparent"; ctx.strokeStyle = "#655d58"; ctx.lineWidth = 3; ctx.stroke();
-		const cap = ctx.createLinearGradient(-15, -38, 12, 11);
-		cap.addColorStop(0, "#ff9e9a"); cap.addColorStop(0.32, "#f73537"); cap.addColorStop(0.75, "#c70d27"); cap.addColorStop(1, "#8f1029");
-		ctx.beginPath(); ctx.moveTo(-39, 4); ctx.quadraticCurveTo(-43, -24, -18, -34);
-		ctx.quadraticCurveTo(0, -44, 19, -32); ctx.quadraticCurveTo(40, -20, 38, 4);
-		ctx.quadraticCurveTo(18, 14, 0, 10); ctx.quadraticCurveTo(-22, 15, -39, 4); ctx.closePath();
-		ctx.fillStyle = cap; ctx.fill(); ctx.strokeStyle = "#76112b"; ctx.lineWidth = 4; ctx.stroke();
-		ctx.fillStyle = "#fffef0";
-		ctx.beginPath(); ctx.ellipse(-18, -15, 8, 10, -0.3, 0, Math.PI * 2); ctx.fill();
-		ctx.beginPath(); ctx.ellipse(8, -23, 7, 9, 0.2, 0, Math.PI * 2); ctx.fill();
-		ctx.beginPath(); ctx.ellipse(25, -6, 5, 7, 0.5, 0, Math.PI * 2); ctx.fill();
-		ctx.strokeStyle = "#ffffff9c"; ctx.lineWidth = 3;
-		ctx.beginPath(); ctx.moveTo(-28, -3); ctx.quadraticCurveTo(-25, -21, -10, -27); ctx.stroke();
-	} else if (item === ITEM_STAR) {
-		const star = ctx.createLinearGradient(-25, -38, 26, 35);
-		star.addColorStop(0, "#fffda1"); star.addColorStop(0.25, "#ffe94a"); star.addColorStop(0.65, "#ffb90b"); star.addColorStop(1, "#e87500");
-		ctx.beginPath();
-		for (let i = 0; i < 10; i++) {
-			const a = -Math.PI / 2 + i * Math.PI / 5;
-			const r = i % 2 === 0 ? 42 : 19;
-			const x = Math.cos(a) * r, y = Math.sin(a) * r;
-			if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-		}
-		ctx.closePath(); ctx.fillStyle = star; ctx.fill(); ctx.shadowColor = "transparent";
-		ctx.strokeStyle = "#a95204"; ctx.lineWidth = 4; ctx.stroke();
-		ctx.strokeStyle = "#fff8ad"; ctx.lineWidth = 3;
-		ctx.beginPath(); ctx.moveTo(-12, -21); ctx.lineTo(-3, -30); ctx.stroke();
-		ctx.fillStyle = "#653b12";
-		ctx.beginPath(); ctx.ellipse(-9, 2, 3.4, 6, -0.1, 0, Math.PI * 2); ctx.fill();
-		ctx.beginPath(); ctx.ellipse(9, 2, 3.4, 6, 0.1, 0, Math.PI * 2); ctx.fill();
-		ctx.strokeStyle = "#653b12"; ctx.lineWidth = 2.5;
-		ctx.beginPath(); ctx.arc(0, 10, 6, 0.2, Math.PI - 0.2); ctx.stroke();
-	}
+	ctx.shadowOffsetY = 4;
+	ctx.drawImage(texture, -size / 2, -size / 2, size, size);
 	ctx.restore();
 }
-
 
 export class GMRally extends GameMode {
 	static readonly types = { Player };
@@ -965,6 +939,8 @@ export class GMRally extends GameMode {
 	private worldBuilt = false;
 	private playerIds: number[] = [];
 	private worldIds: number[] = [];
+	private itemBoxEntityIds: platformEngine.BlockId[] = [];
+	private readonly dynamicEntityIds = new Map<string, platformEngine.BlockId>();
 	private currentRng: GameRandomGenerator | null = null;
 
 	private constructor(total: number, isClient: boolean, isAuthoritative: boolean) {
@@ -1073,8 +1049,13 @@ export class GMRally extends GameMode {
 		'platform': "/assets/games/rally/platform.png",
 		'item-box': "/assets/games/rally/item-box.png",
 		'finish': "/assets/games/rally/finish.png",
-		'team-marker': "/assets/games/rally/team-marker.png",
 		'background': "/assets/games/rally/background.png",
+		'banana': "/assets/games/rally/items/banana.png",
+		'green-shell': "/assets/games/rally/items/green-shell.png",
+		'red-shell': "/assets/games/rally/items/red-shell.png",
+		'blue-shell': "/assets/games/rally/items/blue-shell.png",
+		'mushroom': "/assets/games/rally/items/mushroom.png",
+		'star': "/assets/games/rally/items/star.png",
 	};
 
 	/* ---------------------------- Engine / world ---------------------------- */
@@ -1109,6 +1090,7 @@ export class GMRally extends GameMode {
 		}
 		this.worldBuilt = true;
 		this.syncBlocksFromPlayers();
+		this.syncEntityBlocks();
 	}
 
 	/** Restore a snapshot into existing bodies; never remove/recreate the map. */
@@ -1185,7 +1167,6 @@ export class GMRally extends GameMode {
 			this.completeLap(idx, p, block);
 			return;
 		}
-		this.collectItemBoxes(p, level);
 	}
 
 	private killPlayer(_idx: number, p: Player, block: PlayerBlock) {
@@ -1275,17 +1256,82 @@ export class GMRally extends GameMode {
 		}
 	}
 
-	/** Box objects are part of the static map; only their cooldowns are replicated. */
-	private collectItemBoxes(p: Player, level: LevelDef) {
-		if (p.item !== ITEM_NONE || p.pendingItem !== ITEM_NONE || p.itemRollTimer > 0) return;
-		const playerRect = { x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H };
-		for (const [i, box] of level.items.entries()) {
-			if (this.boxCooldowns[i] > 0) continue;
-			if (!overlapsCenter(playerRect, { x: box.x, y: box.y, w: BOX_SIZE, h: BOX_SIZE })) continue;
-			p.pendingItem = this.rollItem();
-			p.itemRollTimer = ITEM_ROLL_TIME;
-			this.boxCooldowns[i] = BOX_RESPAWN;
+	/** Item-box collection is triggered by Entity.detectCollision inside the engine. */
+	handleEntityContact(entity: Entity, playerIndex: number): void {
+		if (!this.isAuthoritative || !entity.active) return;
+		const player = this.players[playerIndex];
+		if (!player || player.finished || player.respawn > 0) return;
+
+		if (entity.kind === 'item-box') {
+			const boxIndex = entity.sourceIndex;
+			if (boxIndex < 0 || boxIndex >= this.boxCooldowns.length || this.boxCooldowns[boxIndex] > 0) return;
+			if (player.item !== ITEM_NONE || player.pendingItem !== ITEM_NONE || player.itemRollTimer > 0) return;
+			player.pendingItem = this.rollItem();
+			player.itemRollTimer = ITEM_ROLL_TIME;
+			this.boxCooldowns[boxIndex] = BOX_RESPAWN;
+			entity.active = false;
 			return;
+		}
+
+		if (entity.kind === 'banana') {
+			const banana = this.bananas.find(candidate => candidate.id === entity.entityId);
+			if (!banana || banana.arming > 0 || playerIndex === banana.owner) return;
+			this.hitPlayer(playerIndex);
+			this.bananas = this.bananas.filter(candidate => candidate.id !== banana.id);
+			entity.active = false;
+			return;
+		}
+
+		const shell = this.shells.find(candidate => candidate.id === entity.entityId);
+		if (!shell || (playerIndex === shell.owner && shell.kind !== ITEM_BLUE_SHELL)) return;
+		this.hitPlayer(playerIndex);
+		if (shell.kind !== ITEM_BLUE_SHELL) {
+			this.shells = this.shells.filter(candidate => candidate.id !== shell.id);
+			entity.active = false;
+		}
+	}
+
+	/** Keep query-only Entity blocks aligned with snapshot-backed state. */
+	private syncEntityBlocks() {
+		const engine = this.engine;
+		if (!engine || !this.worldBuilt) return;
+
+		const level = this.currentLevel();
+		for (const [i, def] of level.items.entries()) {
+			let id = this.itemBoxEntityIds[i];
+			let box = id === undefined ? null : engine.getBlock(id) as Entity | null;
+			if (!(box instanceof Entity)) {
+				box = new Entity('item-box', -(i + 1), i, BOX_SIZE);
+				id = engine.addBlock(box, 'entity');
+				this.itemBoxEntityIds[i] = id;
+			}
+			box.x = def.x;
+			box.y = def.y;
+			box.active = (this.boxCooldowns[i] ?? 0) <= 0;
+		}
+
+		const activeKeys = new Set<string>();
+		const syncDynamicEntity = (key: string, kind: 'banana' | 'shell', id: number, x: number, y: number) => {
+			let blockId = this.dynamicEntityIds.get(key);
+			let block = blockId === undefined ? null : engine.getBlock(blockId) as Entity | null;
+			if (!(block instanceof Entity)) {
+				block = new Entity(kind, id, -1, HAZARD_SIZE);
+				blockId = engine.addBlock(block, 'entity');
+				this.dynamicEntityIds.set(key, blockId);
+			}
+			block.x = x;
+			block.y = y;
+			block.active = true;
+			activeKeys.add(key);
+		};
+
+		for (const banana of this.bananas) syncDynamicEntity(`banana:${banana.id}`, 'banana', banana.id, banana.x, banana.y);
+		for (const shell of this.shells) syncDynamicEntity(`shell:${shell.id}`, 'shell', shell.id, shell.x, shell.y);
+
+		for (const [key, id] of this.dynamicEntityIds) {
+			if (activeKeys.has(key)) continue;
+			const block = engine.getBlock(id) as Entity | null;
+			if (block instanceof Entity) block.active = false;
 		}
 	}
 
@@ -1472,7 +1518,6 @@ export class GMRally extends GameMode {
 	private updateHazards(dt: number) {
 		const level = this.currentLevel();
 		const platforms = this.getPlatformRects();
-		const playerRect = (p: Player) => ({ x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H });
 
 		// Bananas have their own vertical velocity, fall onto platforms, and then
 		// stay on the ground. Their full state is replicated in BananaState.
@@ -1488,18 +1533,6 @@ export class GMRally extends GameMode {
 			if (supported || this.hazardIsSupported(banana, HAZARD_SIZE, platforms)) {
 				banana.vx *= Math.pow(0.035, dt);
 				if (Math.abs(banana.vx) < 8) banana.vx = 0;
-			}
-			if (banana.arming <= 0) {
-				let hit = false;
-				for (let i = 0; i < this.players.length; i++) {
-					if (i === banana.owner || this.players[i].finished || this.players[i].respawn > 0) continue;
-					if (overlapsCenter(playerRect(this.players[i]), { x: banana.x, y: banana.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) {
-						this.hitPlayer(i);
-						hit = true;
-						break;
-					}
-				}
-				if (hit) continue;
 			}
 			liveBananas.push(banana);
 		}
@@ -1570,20 +1603,7 @@ export class GMRally extends GameMode {
 			}
 		}
 
-		const survivingShells = liveShells.filter(shell => !brokenShells.has(shell.id));
-		const destroyedByPlayer = new Set<number>();
-		for (const shell of survivingShells) {
-			for (let i = 0; i < this.players.length; i++) {
-				// A blue shell can hurt any player, including its owner, and keeps moving.
-				if ((i === shell.owner && shell.kind !== ITEM_BLUE_SHELL) || this.players[i].finished || this.players[i].respawn > 0) continue;
-				if (overlapsCenter(playerRect(this.players[i]), { x: shell.x, y: shell.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) {
-					this.hitPlayer(i);
-					if (shell.kind !== ITEM_BLUE_SHELL) destroyedByPlayer.add(shell.id);
-					break;
-				}
-			}
-		}
-		this.shells = survivingShells.filter(shell => !destroyedByPlayer.has(shell.id));
+		this.shells = liveShells.filter(shell => !brokenShells.has(shell.id));
 	}
 
 	/* ---------------------------- Main loop ---------------------------- */
@@ -1601,8 +1621,10 @@ export class GMRally extends GameMode {
 	private runRacing(dt: number) {
 		this.levelTime += dt;
 		this.boxCooldowns = this.boxCooldowns.map(c => Math.max(0, c - dt));
+		this.syncEntityBlocks();
 		this.engine!.update(dt);
 		if (this.isAuthoritative) this.updateHazards(dt);
+		this.syncEntityBlocks();
 
 		if (this.levelTime >= LEVEL_TIME_LIMIT || this.players.every(p => p.finished || !p.connected)) {
 			this.phase = PHASE_DONE;
@@ -1677,6 +1699,7 @@ export class GMRally extends GameMode {
 		this.drawPlayers(ctx, imageLoader);
 
 		ctx.restore();
+		data.drawItemRoulette(ctx, this, playerIdx, imageLoader);
 	}
 
 	/** Platforms, item boxes and finish line. */
@@ -1707,13 +1730,13 @@ export class GMRally extends GameMode {
 			ctx.drawImage(box, b.x - BOX_SIZE / 2, b.y - BOX_SIZE / 2, BOX_SIZE, BOX_SIZE);
 		}
 
-		// Hazards use shaded in-game textures rather than platform emoji glyphs.
+		// Hazards use dedicated image textures.
 		for (const banana of this.bananas) {
 			const tilt = Math.max(-0.45, Math.min(0.45, banana.vy * 0.00045));
-			drawItemTexture(ctx, ITEM_BANANA, banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
+			drawItemTexture(ctx, imageLoader, ITEM_BANANA, banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
 		}
 		for (const shell of this.shells) {
-			drawItemTexture(ctx, shell.kind, shell.x, shell.y, 40, 0, this.levelTime * 2.5 + shell.id * 0.13);
+			drawItemTexture(ctx, imageLoader, shell.kind, shell.x, shell.y, 40, 0, this.levelTime * 2.5 + shell.id * 0.13);
 		}
 	}
 
