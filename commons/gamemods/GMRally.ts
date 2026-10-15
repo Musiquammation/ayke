@@ -254,7 +254,7 @@ enum RallyAnimatorState {
 	WALL_SLIDE,
 	WALL_JUMP,
 	WALL_HANG,
-	STUNNED,
+	STUNNED = 4,
 }
 class RallyAnimator extends platformEngine.Animator {
 	static readonly ANIMATION_LINES = {
@@ -264,7 +264,7 @@ class RallyAnimator extends platformEngine.Animator {
 		[RallyAnimatorState.FALLING]: { delay: 0.2, count: 4 },
 		[RallyAnimatorState.WALL_SLIDE]: { delay: 0.2, count: 4 },
 		[RallyAnimatorState.WALL_JUMP]: { delay: 0.2, count: 5 },
-		[RallyAnimatorState.STUNNED]: { delay: 0.2, count: 2 },
+		// [RallyAnimatorState.STUNNED]: { delay: 0.2, count: 1 },
 	};
 
 	constructor(texture: string) {
@@ -1599,7 +1599,7 @@ export class GMRally extends GameMode {
 
 	static readonly generateClientDom = generateClientDom;
 
-static readonly TEXTURES = {
+	static readonly TEXTURES = {
 		"player": "/assets/games/rally/player.png",
 		'platform': "/assets/games/rally/platform.png",
 		'block-grass-floor': "/assets/games/rally/blocks/grass/floor.png",
