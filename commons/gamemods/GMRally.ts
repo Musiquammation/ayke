@@ -1954,18 +1954,80 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 	/** RNG is consumed only by the authority; the selected item is immediately shared. */
 	private rollItem(playerIndex: number) {
-		const r = this.currentRng ? this.currentRng() : Math.random();
-		return ITEM_MUSHROOM;
 		const rank = this.getRaceRanking().findIndex(i => i === playerIndex);
-		// Trailing racers get stronger comeback items; leaders get mostly hazards.
-		const weights = rank <= 0
-			? [[ITEM_BANANA, .27], [ITEM_GREEN_SHELL, .25], [ITEM_RED_SHELL, .17], [ITEM_BLUE_SHELL, .01], [ITEM_MUSHROOM, .16], [ITEM_STAR, .04], [ITEM_BOMB, .10]]
-			: rank === 1
-				? [[ITEM_BANANA, .18], [ITEM_GREEN_SHELL, .20], [ITEM_RED_SHELL, .18], [ITEM_BLUE_SHELL, .04], [ITEM_MUSHROOM, .21], [ITEM_STAR, .08], [ITEM_BOMB, .11]]
-				: [[ITEM_BANANA, .08], [ITEM_GREEN_SHELL, .10], [ITEM_RED_SHELL, .16], [ITEM_BLUE_SHELL, .20], [ITEM_MUSHROOM, .18], [ITEM_STAR, .15], [ITEM_BOMB, .13]];
+		const t = rank / Math.max(1, this.players.length - 1);
+
+		// Relative item weights for each race position, from 1st to 6th.
+		const itemWeights: [number, number[]][] = [
+			[ITEM_BANANA,      [70, 10, 5, 3, 0, 0]],
+			[ITEM_GREEN_SHELL, [23, 45, 10, 2, 0, 0]],
+			[ITEM_RED_SHELL,   [0, 25, 33, 35, 5, 0]],
+			[ITEM_MUSHROOM,    [5, 10, 20, 40, 55, 40]],
+			[ITEM_STAR,        [0, 0, 2, 10, 25, 50]],
+			[ITEM_BOMB,        [2, 10, 30, 5, 5, 0]],
+			[ITEM_BLUE_SHELL,  [0, 0, 0, 5, 10, 0]],
+		];
+
+		// Interpolate six equally spaced samples using monotone cubic Hermite interpolation.
+		const interpolate = (values: number[], x: number): number => {
+			const n = values.length;
+			const h = 1 / (n - 1);
+			const slopes = values.slice(1).map((v, i) => (v - values[i]) / h);
+			const tangents = new Array<number>(n);
+
+			// Compute shape-preserving endpoint tangents.
+			tangents[0] = slopes[0];
+			tangents[n - 1] = slopes[n - 2];
+
+			for (let i = 1; i < n - 1; i++) {
+				const prev = slopes[i - 1];
+				const next = slopes[i];
+
+				// Zero tangent at extrema to prevent artificial overshoots.
+				if (prev * next <= 0) {
+					tangents[i] = 0;
+				} else {
+					tangents[i] = 2 * prev * next / (prev + next);
+				}
+			}
+
+			// Locate the interval containing x.
+			const segment = Math.min(n - 2, Math.floor(x / h));
+			const u = (x - segment * h) / h;
+			const u2 = u * u;
+			const u3 = u2 * u;
+
+			const y0 = values[segment];
+			const y1 = values[segment + 1];
+			const m0 = tangents[segment] * h;
+			const m1 = tangents[segment + 1] * h;
+
+			// Cubic Hermite basis functions.
+			return Math.max(0,
+				(2 * u3 - 3 * u2 + 1) * y0
+				+ (u3 - 2 * u2 + u) * m0
+				+ (-2 * u3 + 3 * u2) * y1
+				+ (u3 - u2) * m1
+			);
+		};
+
+		// Evaluate and normalize the relative weights.
+		const weights = itemWeights.map(([item, values]) => [
+			item,
+			interpolate(values, t),
+		] as [number, number]);
+
+		const total = weights.reduce((sum, [, weight]) => sum + weight, 0);
+		const r = (this.currentRng ? this.currentRng() : Math.random()) * total;
+
 		let cumulative = 0;
-		for (const [item, weight] of weights as [number, number][]) { cumulative += weight; if (r < cumulative) return item; }
-		return ITEM_STAR;
+
+		for (const [item, weight] of weights) {
+			cumulative += weight;
+			if (r < cumulative) return item;
+		}
+
+		return ITEM_MUSHROOM;
 	}
 
 	private useItem(idx: number, _block: PlayerBlock) {
