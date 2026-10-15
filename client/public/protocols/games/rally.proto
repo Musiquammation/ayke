@@ -29,6 +29,8 @@ message PlayerState {
 	bool finished = 22;
 	int32 finishRank = 23;
 	int32 points = 24;
+	int32 finalRanking = 25;
+	repeated int32 lapFinishCounts = 26;
 }
 
 message BananaThrown {
@@ -41,16 +43,13 @@ message BananaState {
 	int32 id = 1;
 	float x = 2;
 	float y = 3;
-
-	// Absent = banana au repos.
 	oneof state {
 		BananaThrown thrown = 10;
 	}
-
 	reserved 4 to 9;
 }
 
-// Les shells ne connaissent ni leur owner ni leur cible.
+// Shells do not track their owner or target.
 message RedShellState {
 	float vx = 1;
 	float vy = 2;
@@ -73,13 +72,11 @@ message ShellState {
 	int32 id = 1;
 	float x = 2;
 	float y = 3;
-
 	oneof shell {
 		RedShellState red = 10;
 		BlueShellState blue = 11;
 		GreenShellState green = 12;
 	}
-
 	reserved 4 to 9;
 }
 
@@ -96,6 +93,7 @@ message ExplosionState {
 	float x = 2;
 	float y = 3;
 	float remaining = 4;
+	int32 itemKind = 5;
 }
 
 message State {
@@ -118,7 +116,6 @@ message State {
 
 message QInput {
 	double timestamp = 1;
-
 	oneof action {
 		Empty jump = 2;
 		Empty item = 3;
@@ -143,6 +140,8 @@ message ClientMessage {
 
 message StartData {
 	int32 preferTeam = 1;
+	// -1 means random; otherwise zero-based index into LEVELS.
+	int32 choice = 2;
 }
 
 message StartPlayerInfo {
@@ -151,4 +150,6 @@ message StartPlayerInfo {
 
 message StartDataClient {
 	repeated StartPlayerInfo players = 1;
+	// Zero means unspecified; otherwise the selected zero-based level index plus one.
+	int32 selectedLevel = 2;
 }

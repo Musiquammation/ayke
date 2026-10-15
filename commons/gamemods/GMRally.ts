@@ -136,7 +136,7 @@ interface LevelDef {
 	subCheckpoints: CheckpointDef[];
 }
 
-/** The map is static and known to all peers; it is never sent in snapshots. */
+/** Maps are static and known to all peers; their geometry is never sent in snapshots. */
 const LEVELS: LevelDef[] = [
 	{
 		name: "Warm-up",
@@ -153,6 +153,44 @@ const LEVELS: LevelDef[] = [
 		items: [{ x: 1300, y: 380 }, { x: 2300, y: 380 }],
 		checkpoints: [{ x: 1950, y: 380, w: 70, h: 500 }],
 		subCheckpoints: [{ x: 2600, y: 380, w: 70, h: 500, afterCheckpoint: 0 }],
+	},
+	{
+		name: "Skyline",
+		spawnX: 0, spawnY: 350,
+		finishX: 3150, deathY: 1050,
+		platforms: [
+			{ x: 560, y: 520, w: 1450, h: 140 },
+			{ x: 1370, y: 425, w: 260, h: 32 },
+			{ x: 1690, y: 350, w: 260, h: 32, move: { ax: 0, ay: 55, period: 2.7, phase: 0.2 } },
+			{ x: 2000, y: 430, w: 380, h: 36 },
+			{ x: 2250, y: 350, w: 320, h: 36 },
+			{ x: 2500, y: 250, w: 300, h: 36 },
+			{ x: 2770, y: 150, w: 300, h: 36 },
+			{ x: 3090, y: -10, w: 700, h: 40 },
+		],
+		items: [{ x: 980, y: 375 }, { x: 1840, y: 280 }, { x: 2680, y: 390 }],
+		checkpoints: [{ x: 2020, y: 350, w: 70, h: 520 }],
+		subCheckpoints: [{ x: 2710, y: 375, w: 70, h: 520, afterCheckpoint: 0 }],
+	},
+	{
+		name: "Switchback",
+		spawnX: 0, spawnY: 370,
+		finishX: 3250, deathY: 1100,
+		platforms: [
+			{ x: 580, y: 535, w: 1500, h: 140 },
+			{ x: 1510, y: 450, w: 260, h: 32, move: { ax: 120, ay: 0, period: 3.6, phase: 0.1 } },
+			{ x: 1900, y: 390, w: 440, h: 36 },
+			{ x: 2250, y: 300, w: 260, h: 32, move: { ax: 0, ay: 65, period: 2.4, phase: 0.55 } },
+			{ x: 2630, y: 200, w: 360, h: 36 },
+			{ x: 2970, y: 100, w: 360, h: 36 },
+			{ x: 3150, y: -10, w: 700, h: 40 },
+		],
+		items: [{ x: 1050, y: 390 }, { x: 2100, y: 320 }, { x: 2850, y: 410 }],
+		checkpoints: [
+			{ x: 1660, y: 360, w: 70, h: 520 },
+			{ x: 2730, y: 360, w: 70, h: 520 },
+		],
+		subCheckpoints: [{ x: 2190, y: 320, w: 70, h: 520, afterCheckpoint: 0 }],
 	},
 ];
 
@@ -376,7 +414,7 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 
 	processBeforeEngine(_id: number, dt: number, engine: RallyEngine) {
 		const player = engine.game.players[this.index];
-		if (!player.finished && player.respawn <= 0) this.velocity.y += dt * GRAVITY;
+		if (player.respawn <= 0) this.velocity.y += dt * GRAVITY;
 		engine.game.beforePlayerStep(this.index, this, dt);
 	}
 
@@ -448,6 +486,7 @@ class Player {
 	lapsCompleted = 0;
 	finished = false;
 	finishRank = -1;
+	finalRanking = -1;
 	points = 0;
 	lapFinishCounts: number[] = Array.from({ length: LAP_COUNT }, () => -1);
 
@@ -474,6 +513,7 @@ class Player {
 		this.lapsCompleted = 0;
 		this.finished = false;
 		this.finishRank = -1;
+		this.finalRanking = -1;
 		this.lapFinishCounts = Array.from({ length: LAP_COUNT }, () => -1);
 	}
 
@@ -499,6 +539,7 @@ class Player {
 		this.hit = false;
 		this.finished = false;
 		this.finishRank = -1;
+		this.finalRanking = -1;
 	}
 
 	private tickTimers(dt: number) {
@@ -518,12 +559,18 @@ class Player {
 		block.active = this.respawn <= 0;
 		block.stunned = this.hit;
 
-		if (this.respawn > 0 || this.hit || this.finished) {
+		if (this.respawn > 0 || this.hit) {
 			block.direction.dir = 0;
 			this.jumpBuffer = 0;
 			this.itemQueued = false;
 			if (this.respawn > 0) this.freeze(block);
 			return;
+		}
+
+		// Finished players still use the normal movement and terrain response; only runInput is blocked.
+		if (this.finished) {
+			this.jumpBuffer = 0;
+			this.itemQueued = false;
 		}
 
 		const onFloor = block.walker.onFloor();
@@ -583,7 +630,7 @@ class Player {
 			itemQueued: this.itemQueued, respawn: this.respawn,
 			checkpoint: this.checkpoint, subCheckpoint: this.subCheckpoint, hit: this.hit,
 			lapsCompleted: this.lapsCompleted, finished: this.finished,
-			finishRank: this.finishRank, points: this.points,
+			finishRank: this.finishRank, finalRanking: this.finalRanking, points: this.points,
 			lapFinishCounts: this.lapFinishCounts,
 		};
 	}
@@ -600,7 +647,9 @@ class Player {
 		this.respawn = obj.respawn ?? 0; this.checkpoint = obj.checkpoint ?? -1;
 		this.subCheckpoint = obj.subCheckpoint ?? -1; this.hit = obj.hit ?? false;
 		this.lapsCompleted = obj.lapsCompleted ?? 0; this.finished = obj.finished ?? false;
-		this.finishRank = obj.finishRank ?? -1; this.points = obj.points ?? 0;
+		this.finishRank = obj.finishRank ?? -1;
+		this.finalRanking = obj.finalRanking ?? -1;
+		this.points = obj.points ?? 0;
 		this.lapFinishCounts = [...(obj.lapFinishCounts ?? Array.from({ length: LAP_COUNT }, () => -1))];
 	}
 }
@@ -780,6 +829,11 @@ class ClientData {
 		imageLoader: ImageLoaderFolder
 	) {
 		const player = game.players[playerIdx];
+		if (player.finalRanking !== -1 || player.finished) {
+			this.wasRollingItem = false;
+			this.revealItem = ITEM_NONE;
+			return;
+		}
 		const rolling = player.itemRollTimer > 0 && player.pendingItem !== ITEM_NONE;
 		const heldItem = rolling ? ITEM_NONE : player.item;
 
@@ -905,7 +959,9 @@ class ClientData {
 	/** Update the lap counter, camera, shell animations, and local-only particles. */
 	update(game: GMRally, playerIdx: number) {
 		const player = game.players[playerIdx];
-		this.laps.innerText = `${Math.min(player.lapsCompleted + 1, LAP_COUNT)}/${LAP_COUNT}`;
+		this.laps.innerText = player.finalRanking !== -1 || player.finished
+			? "Finished"
+			: `${Math.min(player.lapsCompleted + 1, LAP_COUNT)}/${LAP_COUNT}`;
 
 		this.frameDelta = Number.isFinite(this.lastGameTime)
 			? Math.max(0, Math.min(0.1, game.levelTime - this.lastGameTime))
@@ -1014,19 +1070,45 @@ class TutorialData {
 	}
 }
 
-/* -------------------------------------------------------------------------- */
-/* DOM / skins                                                                */
-/* -------------------------------------------------------------------------- */
+
+/** Keep level selection in the protobuf schema; never inspect encoded wire bytes manually. */
+function normalizeLevelIndex(index: number): number {
+	if (!Number.isFinite(index) || LEVELS.length === 0) return 0;
+	return ((Math.trunc(index) % LEVELS.length) + LEVELS.length) % LEVELS.length;
+}
+
+function readMapVote(data: Uint8Array): number {
+	const { StartData } = protocols.get();
+	try {
+		const decoded = decodeFullMessage(StartData.decode(data));
+		const choice = Number(decoded.choice ?? -1);
+		return Number.isInteger(choice) ? choice : -1;
+	} catch {
+		return -1;
+	}
+}
 
 function generateClientDom(unlockedSkins: string[]) {
 	return {
+		mapChoice: -1,
+		maps: LEVELS.map(level => level.name),
 		preferTeam: 0,
 		unlockedSkins,
 
 		produce() {
 			const { StartData } = protocols.get();
+			const choice = (
+				(
+					Number.isInteger(this.mapChoice) &&
+					this.mapChoice >= 0 &&
+					this.mapChoice < LEVELS.length
+				) 
+				? this.mapChoice
+				: -1
+			);
 			return StartData.encode({
-				preferTeam: this.preferTeam
+				preferTeam: this.preferTeam,
+				choice
 			}).finish();
 		},
 
@@ -1342,12 +1424,12 @@ export class GMRally extends GameMode {
 	// Shared, authoritative match state.
 	redScore = 0;
 	blueScore = 0;
-	levelIndex = 0; // kept for snapshot compatibility; this game has one map
+	levelIndex = 0;
 	levelTime = 0;
 	phase = PHASE_RACING;
 	intermission = 0; // Absolute levelTime deadline for the 30-second post-finish grace period; zero means inactive.
 	finishCount = 0;
-	boxCooldowns: number[] = LEVELS[0].items.map(() => 0);
+	boxCooldowns: number[] = [];
 	nextEntityId = 1;
 
 	// The world is local and deterministic. Only dynamic game state is replicated.
@@ -1361,8 +1443,10 @@ export class GMRally extends GameMode {
 	private itemBoxEntityIds: platformEngine.BlockId[] = [];
 	private currentRng: GameRandomGenerator | null = null;
 
-	private constructor(total: number, isClient: boolean, isAuthoritative: boolean) {
+	private constructor(total: number, isClient: boolean, isAuthoritative: boolean, initialLevelIndex = 0) {
 		super();
+		this.levelIndex = normalizeLevelIndex(initialLevelIndex);
+		this.boxCooldowns = this.currentLevel().items.map(() => 0);
 		this.isClient = isClient;
 		this.isAuthoritative = isAuthoritative;
 		this.players = Array.from({ length: total }, () => new Player());
@@ -1386,7 +1470,13 @@ export class GMRally extends GameMode {
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	) {
 		const { StartData, StartDataClient } = protocols.get();
-		const game = new GMRally(total, false, true);
+		const chosenVote = players.length > 0
+			? readMapVote(players[Math.floor(Math.random() * players.length)].data)
+			: -1;
+		const initialLevelIndex = chosenVote >= 0 && chosenVote < LEVELS.length
+			? chosenVote
+			: Math.floor(Math.random() * LEVELS.length);
+		const game = new GMRally(total, false, true, initialLevelIndex);
 
 		const decode = (i: number) =>
 			i < players.length
@@ -1401,7 +1491,7 @@ export class GMRally extends GameMode {
 		);
 
 		const teams = GMRally.assignTeams(infos.map(i => i.pref));
-		const level = LEVELS[0];
+		const level = game.currentLevel();
 		for (const [i, p] of game.players.entries()) {
 			p.isRed = teams[i];
 			p.resetForLevel(level.spawnX, level.spawnY);
@@ -1410,7 +1500,8 @@ export class GMRally extends GameMode {
 		game.syncBlocksFromPlayers(); // handles the case where the engine finished loading first
 
 		const data = StartDataClient.encode({
-			players: game.players.map(p => ({ isRed: p.isRed }))
+			players: game.players.map(p => ({ isRed: p.isRed })),
+			selectedLevel: game.levelIndex + 1,
 		}).finish();
 		return { game, data };
 	}
@@ -1420,9 +1511,20 @@ export class GMRally extends GameMode {
 		total: number,
 		_playerIdx: number
 	) {
-		// Solo/tutorial clients are authoritative locally; multiplayer clients are not.
-		const game = new GMRally(total, true, origin === 'client');
 		const { StartData, StartDataClient } = protocols.get();
+		let initialLevelIndex = 0;
+		if (origin === 'server') {
+			const decoded = decodeFullMessage(StartDataClient.decode(data));
+			const selectedLevel = Number(decoded.selectedLevel ?? 0);
+			if (Number.isInteger(selectedLevel) && selectedLevel > 0) initialLevelIndex = selectedLevel - 1;
+		} else {
+			const localVote = readMapVote(data);
+			initialLevelIndex = localVote >= 0 && localVote < LEVELS.length
+				? localVote
+				: Math.floor(Math.random() * LEVELS.length);
+		}
+		// Solo/tutorial clients are authoritative locally; multiplayer clients are not.
+		const game = new GMRally(total, true, origin === 'client', initialLevelIndex);
 		const clientData = new ClientData();
 
 		if (origin === 'server') {
@@ -1433,7 +1535,7 @@ export class GMRally extends GameMode {
 			game.players.forEach((p, i) => { p.isRed = i % 2 === 0; });
 		}
 
-		const level = LEVELS[0];
+		const level = game.currentLevel();
 		game.players.forEach(p => p.resetForLevel(level.spawnX, level.spawnY));
 		game.boxCooldowns = level.items.map(() => 0);
 		game.syncBlocksFromPlayers();
@@ -1494,7 +1596,7 @@ static readonly TEXTURES = {
 		return Array.from({ length: count }, () => 0);
 	}
 
-	currentLevel(): LevelDef { return LEVELS[0]; }
+	currentLevel(): LevelDef { return LEVELS[normalizeLevelIndex(this.levelIndex)]; }
 
 	/** Build the deterministic map and player bodies exactly once per game instance. */
 	private buildWorldOnce() {
@@ -1531,7 +1633,7 @@ static readonly TEXTURES = {
 			block.y = p.y;
 			block.velocity.x = p.vx;
 			block.velocity.y = p.vy;
-			block.direction.dir = (p.hit || p.respawn > 0 || p.finished) ? 0 : p.facing * RUN_SPEED;
+			block.direction.dir = (p.hit || p.respawn > 0) ? 0 : p.facing * RUN_SPEED;
 			block.stunned = p.hit;
 			block.active = p.respawn <= 0;
 		}
@@ -1631,10 +1733,12 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			p.vy = 0;
 		}
 
-		if (!this.isAuthoritative || p.finished) return;
+		if (!this.isAuthoritative) return;
 
 		const level = this.currentLevel();
 		if (p.y > level.deathY) { this.killPlayer(idx, p, block); return; }
+		// Finished players still respawn if they fall, but can no longer score another lap.
+		if (p.finished) return;
 		this.updateCheckpoint(p, level);
 		if (p.checkpoint === level.checkpoints.length - 1 && overlapsCenter(
 			{ x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H },
@@ -1719,6 +1823,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			p.finished = true;
 			p.respawn = 0;
 			p.finishRank = rank;
+			p.finalRanking = rank;
 		}
 	}
 
@@ -1867,7 +1972,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		this.addHazard(shell);
 	}
 
-	getRaceRanking(includeFinished = false, includeDisconnected = false): number[] {
+	getRaceRanking(_includeFinished = true, includeDisconnected = false): number[] {
 		const level = this.currentLevel();
 
 		const progress = (p: Player) => p.checkpoint * 2 + (p.subCheckpoint >= 0 ? 1 : 0);
@@ -1889,11 +1994,18 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 		return this.players
 			.map((p, i) => i)
-			.filter(i => (includeDisconnected || this.players[i].connected) && (includeFinished || !this.players[i].finished))
+			// Finished players remain in the ranking so their displayed position is always valid.
+			.filter(i => includeDisconnected || this.players[i].connected)
 			.sort((a, b) => {
 				const pa = this.players[a], pb = this.players[b];
-				if (includeFinished && pa.finished !== pb.finished) return pa.finished ? -1 : 1;
-				if (includeFinished && pa.finished && pb.finished) return pa.finishRank - pb.finishRank || a - b;
+				const aFinished = pa.finalRanking >= 0 || pa.finished;
+				const bFinished = pb.finalRanking >= 0 || pb.finished;
+				if (aFinished !== bFinished) return aFinished ? -1 : 1;
+				if (aFinished && bFinished) {
+					const aRank = pa.finalRanking >= 0 ? pa.finalRanking : pa.finishRank;
+					const bRank = pb.finalRanking >= 0 ? pb.finalRanking : pb.finishRank;
+					return aRank - bRank || a - b;
+				}
 				return (
 					pb.lapsCompleted - pa.lapsCompleted ||
 					progress(pb) - progress(pa) ||
@@ -2161,6 +2273,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 	/** Only modifies player state; the actual use happens in the next frame. */
 	override runInput(playerIdx: number, input: Fields): void {
 		const player = this.players[playerIdx];
+		if (!player || player.finalRanking !== -1 || player.finished) return;
 		switch (input.action) {
 			case 'jump':
 				player.jumpBuffer = JUMP_BUFFER;
@@ -2234,9 +2347,29 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		const level = this.currentLevel();
 		const engine = this.engine;
 
-		// Finish line
+		// Repeat the square finish texture vertically rather than stretching it.
 		const finish = imageLoader.get('finish');
-		ctx.drawImage(finish, level.finishX - 32, -300, 64, 1200);
+		if (finish) {
+			const image = finish as HTMLImageElement;
+			const width = image.naturalWidth || (finish as HTMLCanvasElement).width || 0;
+			const height = image.naturalHeight || (finish as HTMLCanvasElement).height || 0;
+			const sourceTileSize = Math.min(width, height);
+			const destinationTileSize = 64;
+			const top = -300;
+			const flagHeight = 1200;
+			if (sourceTileSize > 0) {
+				for (let offset = 0; offset < flagHeight; offset += destinationTileSize) {
+					const drawHeight = Math.min(destinationTileSize, flagHeight - offset);
+					const sourceHeight = sourceTileSize * drawHeight / destinationTileSize;
+					ctx.drawImage(
+						finish,
+						0, 0, sourceTileSize, sourceHeight,
+						level.finishX - destinationTileSize / 2, top + offset,
+						destinationTileSize, drawHeight
+					);
+				}
+			}
+		}
 
 
 		// Platforms: drawn from the live blocks so moving ones are at the right place
@@ -2419,14 +2552,14 @@ bananas: this.getBananas().map(banana => banana.save()),
 		for (let i = 0; i < obj.players.length; i++) {
 			this.players[i].load(obj.players[i]);
 		}
-		this.levelIndex = 0;
+		this.levelIndex = normalizeLevelIndex(obj.levelIndex ?? this.levelIndex);
 		this.levelTime = obj.levelTime ?? 0;
 		this.phase = obj.phase ?? PHASE_RACING;
 		this.intermission = obj.intermission ?? 0;
 		this.redScore = obj.redScore ?? 0;
 		this.blueScore = obj.blueScore ?? 0;
 		this.finishCount = obj.finishCount ?? 0;
-		this.boxCooldowns = [...(obj.boxCooldowns ?? LEVELS[0].items.map(() => 0))];
+		this.boxCooldowns = [...(obj.boxCooldowns ?? this.currentLevel().items.map(() => 0))];
 
 // Reconcile entities by stable ID: reuse a block when its class matches, otherwise recreate it.
 		const existing = new Map<number, Hazard>();
@@ -2504,7 +2637,10 @@ bananas: this.getBananas().map(banana => banana.save()),
 		const sameRaceStanding = (aIndex: number, bIndex: number): boolean => {
 			const a = this.players[aIndex];
 			const b = this.players[bIndex];
-			if (a.finished || b.finished) return a.finished && b.finished && a.finishRank === b.finishRank;
+			if (a.finalRanking !== -1 || b.finalRanking !== -1 || a.finished || b.finished) {
+				return (a.finalRanking !== -1 || a.finished) && (b.finalRanking !== -1 || b.finished) &&
+					(a.finalRanking !== -1 ? a.finalRanking : a.finishRank) === (b.finalRanking !== -1 ? b.finalRanking : b.finishRank);
+			}
 			const progress = (player: Player) => player.checkpoint * 2 + (player.subCheckpoint >= 0 ? 1 : 0);
 			const distance = (player: Player) => {
 				const next = this.currentLevel().checkpoints[player.checkpoint + 1];
