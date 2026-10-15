@@ -144,8 +144,7 @@ const LEVELS: LevelDef[] = [
 		finishX: 3000, deathY: 900,
 		platforms: [
 			{ x: 700, y: 525, w: 1800, h: 150 },
-			{ x: 1000, y: 400, w: 40, h: 100 },
-			{ x: 1750, y: 470, w: 150, h: 30, move: { ax: 0, ay: 60, period: 3, phase: 0 } },
+			{ x: 1750, y: 470, w: 225, h: 30, move: { ax: 0, ay: 60, period: 3, phase: 0 } },
 			{ x: 2400, y: 525, w: 1000, h: 150 },
 			{ x: 2150, y: 0, w: 40, h: 500 },
 			{ x: 2450, y: 125, w: 40, h: 650 },
@@ -2369,9 +2368,8 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		return {
 			joysticks: {},
 			buttons: {
-				jump: { x: 220, xp: 'right', y: 200, yp: 'bottom', size: 220, color: "#44aaff" },
-				item: { x: 520, xp: 'right', y: 200, yp: 'bottom', size: 180, color: "#ffaa00" },
-			}
+				jump: { x: 180, xp: 'left', y: 180, yp: 'bottom', size: 120, color: "#44aaff" },
+				item: { x: 180, xp: 'right', y: 180, yp: 'bottom', size: 120, color: "#ffaa00" },			}
 		};
 	}
 
