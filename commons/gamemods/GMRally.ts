@@ -23,6 +23,7 @@ interface PlayerInput {
 const WIDTH = 2400;
 const HEIGHT = 1350;
 const GRAVITY = 1800;
+const GRID_SIZE = 64; // World geometry and terrain tiles use this grid.
 const PLAYER_W = 48;
 const PLAYER_H = 64;
 
@@ -107,7 +108,12 @@ interface MoveDef {
 	phase: number;  // 0..1
 }
 
+type PlatformSkin = 'grass' | 'platform' | 'box' | 'vertical-trampoline' | 'horizontal-trampoline' | 'mud';
+
 interface PlatformDef {
+	skin?: PlatformSkin;
+	trampoline?: number; // -1 disables it; otherwise the absolute launch speed.
+	mud?: number; // -1 disables it; otherwise the maximum running speed.
 	x: number; // center
 	y: number; // center
 	w: number;
@@ -140,19 +146,19 @@ interface LevelDef {
 const LEVELS: LevelDef[] = [
 	{
 		name: "Warm-up",
-		spawnX: 0, spawnY: 380,
-		finishX: 3000, deathY: 900,
+		spawnX: 0, spawnY: 384,
+		finishX: 3008, deathY: 896,
 		platforms: [
-			{ x: 700, y: 525, w: 1800, h: 150 },
-			{ x: 1750, y: 470, w: 225, h: 30, move: { ax: 0, ay: 60, period: 3, phase: 0 } },
-			{ x: 2400, y: 525, w: 1000, h: 150 },
-			{ x: 2150, y: 0, w: 40, h: 500 },
-			{ x: 2450, y: 125, w: 40, h: 650 },
-			{ x: 2800, y: -150, w: 600, h: 40 },
+			{ x: 704, y: 512, w: 1792, h: 160, skin: 'grass' },
+			{ x: 1760, y: 480, w: 224, h: 32, skin: 'platform', move: { ax: 0, ay: 64, period: 3, phase: 0 } },
+			{ x: 2400, y: 512, w: 992, h: 160, skin: 'mud', mud: 180 },
+			{ x: 2144, y: 0, w: 32, h: 512, skin: 'box' },
+			{ x: 2432, y: 128, w: 32, h: 640, skin: 'grass' },
+			{ x: 2816, y: -160, w: 608, h: 32, skin: 'grass' },
 		],
-		items: [{ x: 1300, y: 380 }, { x: 2300, y: 380 }],
-		checkpoints: [{ x: 1950, y: 380, w: 70, h: 500 }],
-		subCheckpoints: [{ x: 2600, y: 380, w: 70, h: 500, afterCheckpoint: 0 }],
+		items: [{ x: 1312, y: 384 }, { x: 2304, y: 384 }],
+		checkpoints: [{ x: 1952, y: 384, w: 64, h: 512 }],
+		subCheckpoints: [{ x: 2592, y: 384, w: 64, h: 512, afterCheckpoint: 0 }],
 	},
 	{
 		name: "Skyline",
@@ -193,6 +199,7 @@ const LEVELS: LevelDef[] = [
 		subCheckpoints: [{ x: 2190, y: 320, w: 70, h: 520, afterCheckpoint: 0 }],
 	},
 ];
+
 
 /** All game rectangles use center coordinates: (x, y) is the center. */
 function overlapsCenter(
@@ -374,6 +381,7 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 	wallSliding = false;
 	wallJumping = false;
 	stunned = false;
+	mudVmax = -1;
 
 	constructor(readonly index: number) {
 		super();
@@ -429,11 +437,37 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
  */
 class PlatformBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 	private forced: platformEngine.Velocity | null = null;
+	readonly trampoline: number;
+	readonly mud: number;
 
 	constructor(readonly def: PlatformDef) {
 		super();
 		this.x = def.x;
 		this.y = def.y;
+		this.trampoline = def.trampoline ?? -1;
+		this.mud = def.mud ?? -1;
+	}
+
+	// The engine calls this on contact, so launch impulses are applied immediately.
+	override detectCollision(
+		_id: platformEngine.BlockId,
+		other: platformEngine.BlockEntry<RallyEngineData>,
+		_entrySide: platformEngine.Side,
+		_engine: platformEngine.IBlockEngine<RallyEngineData>,
+		_clientData: ClientData | null
+	): void {
+		if (this.trampoline < 0) return;
+		const horizontal = this.def.skin === 'horizontal-trampoline';
+		if (other.block instanceof PlayerBlock) {
+			if (horizontal) other.block.velocity.x = Math.sign(other.block.velocity.x || other.block.direction.dir || 1) * this.trampoline;
+			else other.block.velocity.y = -this.trampoline;
+		} else if (other.block instanceof Entity) {
+			const entity = other.block as Entity & { vx?: number; vy?: number };
+			if (typeof entity.vx === 'number' && typeof entity.vy === 'number') {
+				if (horizontal) entity.vx = Math.sign(entity.vx || 1) * this.trampoline;
+				else entity.vy = -this.trampoline;
+			}
+		}
 	}
 
 	getSize() { return { width: this.def.w, height: this.def.h }; }
@@ -616,6 +650,7 @@ class Player {
 
 	private applyDirection(block: PlayerBlock) {
 		let speed = this.wallBoost > 0 ? WALLJUMP_VELOCITY : RUN_SPEED;
+		if (block.mudVmax >= 0 && this.boostTimer <= 0 && this.starTimer <= 0) speed = Math.min(speed, block.mudVmax);
 		if (this.boostTimer > 0 || this.starTimer > 0) speed *= BOOST_MULT;
 		block.direction.dir = this.facing * speed;
 	}
@@ -1567,7 +1602,15 @@ export class GMRally extends GameMode {
 static readonly TEXTURES = {
 		"player": "/assets/games/rally/player.png",
 		'platform': "/assets/games/rally/platform.png",
-		'finish': "/assets/games/rally/finish.png",
+		'block-grass-floor': "/assets/games/rally/blocks/grass/floor.png",
+		'block-grass-grass': "/assets/games/rally/blocks/grass/grass.png",
+		'block-platform-full': "/assets/games/rally/blocks/platform/full.png",
+		'block-platform-left': "/assets/games/rally/blocks/platform/left.png",
+		'block-platform-right': "/assets/games/rally/blocks/platform/right.png",
+		'block-box': "/assets/games/rally/blocks/box.png",
+		'block-trampoline': "/assets/games/rally/blocks/trampoline.png",
+		'block-mud': "/assets/games/rally/blocks/mud.png",
+		'finish': "/assets/games/rally/blocks/finish.png",
 		'background': "/assets/games/rally/background.png",
 
 		// entities/: world sprites, no prefix. red & green shells: 16x16, 5 frames; blue shell: no animation.
@@ -1697,6 +1740,18 @@ private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T
 			p.itemQueued = false;
 			if (this.isAuthoritative && p.respawn <= 0 && !p.finished && !p.hit && p.itemRollTimer <= 0) {
 				this.useItem(idx, block);
+			}
+		}
+		// Mud limits the player's running speed unless a mushroom boost or star is active.
+		block.mudVmax = -1;
+		if (this.engine && p.boostTimer <= 0 && p.starTimer <= 0) {
+			for (const entry of this.engine.getBlocks()) {
+				if (!(entry.block instanceof PlatformBlock) || entry.block.mud < 0) continue;
+				const size = entry.block.getSize();
+				if (overlapsCenter(
+					{ x: block.x, y: block.y + PLAYER_H / 2, w: PLAYER_W, h: 2 },
+					{ x: entry.block.x, y: entry.block.y, w: size.width, h: size.height }
+				)) block.mudVmax = block.mudVmax < 0 ? entry.block.mud : Math.min(block.mudVmax, entry.block.mud);
 			}
 		}
 		p.control(block, dt);
@@ -2163,7 +2218,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			if (explosion.remaining <= 0) this.removeHazard(explosion.entityId);
 		}
 
-// Bombs explode only after landing; side-wall contacts merely stop them.
+		// Bombs explode only after landing; side-wall contacts merely stop them.
 		for (const bomb of this.getBombs()) {
 			this.moveGroundHazard(bomb, dt, platforms, false, false);
 			if (this.hazardIsSupported(bomb, HAZARD_SIZE, platforms)) this.explodeBomb(bomb);
@@ -2349,7 +2404,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 		// Repeat the square finish texture vertically rather than stretching it.
 		const finish = imageLoader.get('finish');
-		if (finish) {
+		{
 			const image = finish as HTMLImageElement;
 			const width = image.naturalWidth || (finish as HTMLCanvasElement).width || 0;
 			const height = image.naturalHeight || (finish as HTMLCanvasElement).height || 0;
@@ -2372,14 +2427,38 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		}
 
 
-		// Platforms: drawn from the live blocks so moving ones are at the right place
+		// Draw terrain as 32-pixel tiles, preserving each skin's edge rules.
 		if (engine) {
-			const pattern = ctx.createPattern(imageLoader.get('platform'), 'repeat');
-			ctx.fillStyle = pattern ?? "#556";
 			for (const entry of engine.getBlocks()) {
-				if (entry.category !== 'platform') continue;
-				const { width, height } = entry.block.getSize();
-				ctx.fillRect(entry.block.x - width / 2, entry.block.y - height / 2, width, height);
+				if (!(entry.block instanceof PlatformBlock)) continue;
+				const block = entry.block;
+				const { width, height } = block.getSize();
+				const left = block.x - width / 2;
+				const top = block.y - height / 2;
+				const columns = Math.ceil(width / GRID_SIZE);
+				const rows = Math.ceil(height / GRID_SIZE);
+				const skin = block.def.skin ?? 'grass';
+				for (let row = 0; row < rows; row++) {
+					for (let column = 0; column < columns; column++) {
+						const x = left + column * GRID_SIZE;
+						const y = top + row * GRID_SIZE;
+						const tileW = Math.min(GRID_SIZE, width - column * GRID_SIZE);
+						const tileH = Math.min(GRID_SIZE, height - row * GRID_SIZE);
+						let key: string;
+						if (skin === 'grass') key = row === 0 ? 'block-grass-floor' : 'block-grass-grass';
+						else if (skin === 'platform') key = row === rows - 1 && column === 0 ? 'block-platform-left' : row === rows - 1 && column === columns - 1 ? 'block-platform-right' : 'block-platform-full';
+						else if (skin === 'vertical-trampoline' || skin === 'horizontal-trampoline') key = 'block-trampoline';
+						else if (skin === 'mud') key = 'block-mud';
+						else key = 'block-box';
+						const texture = imageLoader.get(key);
+						if (texture) {
+							if (skin === 'horizontal-trampoline') {
+								ctx.save(); ctx.translate(x + tileW / 2, y + tileH / 2); ctx.scale(-1, 1);
+								ctx.drawImage(texture, -tileW / 2, -tileH / 2, tileW, tileH); ctx.restore();
+							} else ctx.drawImage(texture, x, y, tileW, tileH);
+						} else { ctx.fillStyle = '#556'; ctx.fillRect(x, y, tileW, tileH); }
+					}
+				}
 			}
 		}
 
@@ -2393,7 +2472,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			drawAnimatedItemBoxTexture(ctx, imageLoader, b.x, b.y + bob, BOX_SIZE, frame, rotation);
 		}
 
-// Hazards: world sprites come from the entities folder.
+		// Hazards: world sprites come from the entities folder.
 		for (const banana of this.getBananas()) {
 			const tilt = Math.max(-0.45, Math.min(0.45, banana.vy * 0.00045));
 			drawEntitySprite(ctx, imageLoader, 'banana', banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
@@ -2536,7 +2615,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			blueScore: this.blueScore,
 			finishCount: this.finishCount,
 			boxCooldowns: this.boxCooldowns,
-bananas: this.getBananas().map(banana => banana.save()),
+			bananas: this.getBananas().map(banana => banana.save()),
 			shells: this.getShells().map(shell => shell.save()),
 			bombs: this.getBombs().map(bomb => bomb.save()),
 			explosions: this.getExplosions().map(explosion => explosion.save()),
@@ -2561,7 +2640,7 @@ bananas: this.getBananas().map(banana => banana.save()),
 		this.finishCount = obj.finishCount ?? 0;
 		this.boxCooldowns = [...(obj.boxCooldowns ?? this.currentLevel().items.map(() => 0))];
 
-// Reconcile entities by stable ID: reuse a block when its class matches, otherwise recreate it.
+		// Reconcile entities by stable ID: reuse a block when its class matches, otherwise recreate it.
 		const existing = new Map<number, Hazard>();
 		if (this.engine) {
 			for (const entry of this.engine.getBlocks()) {
