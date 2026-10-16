@@ -48,7 +48,7 @@ const WALLJUMP_BOOST_TIME = 0.35;   // how long WALLJUMP_VELOCITY replaces RUN_S
 // collected, and are handed to the player after ITEM_ROLL_TIME.
 const BOX_RESPAWN = 6;
 const BOX_SIZE = 56;
-const ITEM_ROLL_TIME = 1.8;
+const ITEM_ROLL_TIME = 1.2;
 const BOOST_TIME = 2;
 const BOOST_MULT = 1.6;
 const STAR_TIME = 5;
