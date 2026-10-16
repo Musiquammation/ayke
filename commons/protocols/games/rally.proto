@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package game_rally;
+
+message Empty {}
+
+message PlayerState {
+	bool connected = 1;
+	bool isRed = 2;
+	float x = 3;
+	float y = 4;
+	float vx = 5;
+	float vy = 6;
+	int32 facing = 7;
+	float jumpBuffer = 8;
+	float wallBoost = 9;
+	float boostTimer = 10;
+	float slowTimer = 11;
+	float starTimer = 12;
+	int32 item = 13;
+	int32 pendingItem = 14;
+	float itemRollTimer = 15;
+	bool itemQueued = 16;
+	float respawn = 17;
+	int32 checkpoint = 18;
+	int32 subCheckpoint = 19;
+	bool hit = 20;
+	int32 lapsCompleted = 21;
+	bool finished = 22;
+	int32 finishRank = 23;
+	int32 points = 24;
+	int32 finalRanking = 25;
+	repeated int32 lapFinishCounts = 26;
+}
+
+message BananaThrown {
+	int32 owner = 1;
+	float vx = 2;
+	float vy = 3;
+}
+
+message BananaState {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	oneof state {
+		BananaThrown thrown = 10;
+	}
+	reserved 4 to 9;
+}
+
+// Shells do not track their owner or target.
+message RedShellState {
+	float vx = 1;
+	float vy = 2;
+	reserved 3, 4;
+}
+
+message BlueShellState {
+	float vx = 1;
+	float vy = 2;
+	reserved 3;
+}
+
+message GreenShellState {
+	float vx = 1;
+	float vy = 2;
+	reserved 3, 4;
+}
+
+message ShellState {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	oneof shell {
+		RedShellState red = 10;
+		BlueShellState blue = 11;
+		GreenShellState green = 12;
+	}
+	reserved 4 to 9;
+}
+
+message BombState {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+}
+
+message ExplosionState {
+	int32 id = 1;
+	float x = 2;
+	float y = 3;
+	float remaining = 4;
+	int32 itemKind = 5;
+}
+
+message State {
+	repeated PlayerState players = 1;
+	int32 levelIndex = 2;
+	float levelTime = 3;
+	int32 phase = 4;
+	float intermission = 5;
+	int32 redScore = 6;
+	int32 blueScore = 7;
+	int32 finishCount = 8;
+	repeated int32 lapFinishCounts = 9;
+	repeated float boxCooldowns = 10;
+	repeated BananaState bananas = 11;
+	repeated ShellState shells = 12;
+	int32 nextEntityId = 13;
+	repeated BombState bombs = 14;
+	repeated ExplosionState explosions = 15;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		Empty jump = 2;
+		Empty item = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	int32 preferTeam = 1;
+	// -1 means random; otherwise zero-based index into LEVELS.
+	int32 choice = 2;
+}
+
+message StartPlayerInfo {
+	bool isRed = 1;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+	// Zero means unspecified; otherwise the selected zero-based level index plus one.
+	int32 selectedLevel = 2;
+}

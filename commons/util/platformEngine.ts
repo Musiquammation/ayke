@@ -1,538 +1,8 @@
 import RAPIER from '@dimforge/rapier2d-compat';
+import { ImageLoaderFolder } from './ImageLoader';
 
 
 export namespace platformEngine {
-	/* -------------------------------------------------------------------------- */
-	/* Image loader                                                               */
-	/* -------------------------------------------------------------------------- */
-
-	interface ColorRule {
-		prev: string;
-		next: string;
-	}
-
-	export interface ImageLoaderFolder {
-		get: (
-			name: string | null,
-			colorId?: number | undefined,
-		) => HTMLCanvasElement | HTMLImageElement;
-
-		setColorRule: (
-			name: string,
-			id: number,
-			rules: ColorRule[],
-		) => void;
-	}
-
-	export class ImageLoader {
-		private loadedCount = 0;
-		private totalCount = 0;
-
-		private readonly placeholder:
-			HTMLCanvasElement;
-
-		private readonly pathRoot: string;
-
-		private baseImages: {
-			[folder: string]: {
-				[imageName: string]: HTMLImageElement;
-			};
-		} = {};
-
-		private coloredImages: {
-			[folder: string]: {
-				[imageName: string]: {
-					[colorId: number]: HTMLCanvasElement;
-				};
-			};
-		} = {};
-
-		private colorRules: {
-			[folder: string]: {
-				[imageName: string]: {
-					[colorId: number]: ColorRule[];
-				};
-			};
-		} = {};
-
-		constructor(pathRoot: string) {
-			this.pathRoot = pathRoot;
-
-			const size = 2;
-			const canvas =
-				document.createElement('canvas');
-
-			canvas.width = size;
-			canvas.height = size;
-
-			const ctx =
-				canvas.getContext('2d')!;
-
-			ctx.imageSmoothingEnabled = false;
-
-			ctx.fillStyle = 'violet';
-			ctx.fillRect(
-				0,
-				0,
-				size / 2,
-				size / 2,
-			);
-
-			ctx.fillRect(
-				size / 2,
-				size / 2,
-				size / 2,
-				size / 2,
-			);
-
-			ctx.fillStyle = 'white';
-
-			ctx.fillRect(
-				size / 2,
-				0,
-				size / 2,
-				size / 2,
-			);
-
-			ctx.fillRect(
-				0,
-				size / 2,
-				size / 2,
-				size / 2,
-			);
-
-			this.placeholder = canvas;
-		}
-
-		private hexToRgb(
-			hex: string,
-		): [number, number, number] {
-			const clean =
-				hex.replace('#', '');
-
-			const r =
-				parseInt(
-					clean.substring(0, 2),
-					16,
-				);
-
-			const g =
-				parseInt(
-					clean.substring(2, 4),
-					16,
-				);
-
-			const b =
-				parseInt(
-					clean.substring(4, 6),
-					16,
-				);
-
-			return [r, g, b];
-		}
-
-		private recolorImage(
-			img: HTMLImageElement,
-			rules: ColorRule[],
-		): HTMLCanvasElement {
-			const canvas =
-				document.createElement('canvas');
-
-			canvas.width = img.width;
-			canvas.height = img.height;
-
-			const ctx =
-				canvas.getContext('2d')!;
-
-			ctx.imageSmoothingEnabled = false;
-
-			ctx.drawImage(
-				img,
-				0,
-				0,
-			);
-
-			const parsedRules =
-				rules.map(rule => ({
-					prev:
-						this.hexToRgb(
-							rule.prev,
-						),
-
-					next:
-						this.hexToRgb(
-							rule.next,
-						),
-				}));
-
-			const imageData =
-				ctx.getImageData(
-					0,
-					0,
-					canvas.width,
-					canvas.height,
-				);
-
-			const data =
-				imageData.data;
-
-			for (
-				let i = 0;
-				i < data.length;
-				i += 4
-			) {
-				const r = data[i];
-				const g = data[i + 1];
-				const b = data[i + 2];
-
-				for (
-					const rule
-					of parsedRules
-				) {
-					if (
-						r === rule.prev[0]
-						&& g === rule.prev[1]
-						&& b === rule.prev[2]
-					) {
-						data[i] =
-							rule.next[0];
-
-						data[i + 1] =
-							rule.next[1];
-
-						data[i + 2] =
-							rule.next[2];
-
-						break;
-					}
-				}
-			}
-
-			ctx.putImageData(
-				imageData,
-				0,
-				0,
-			);
-
-			return canvas;
-		}
-
-		private generateColoredVersion(
-			name: string,
-			id: number,
-			folderKey: string,
-		): void {
-			const img =
-				this.baseImages[
-					folderKey
-				]?.[name];
-
-			const rules =
-				this.colorRules[
-					folderKey
-				]?.[name]?.[id];
-
-			if (!img || !rules) {
-				return;
-			}
-
-			const canvas =
-				this.recolorImage(
-					img,
-					rules,
-				);
-
-			if (!this.coloredImages[folderKey]) {
-				this.coloredImages[
-					folderKey
-				] = {};
-			}
-
-			if (
-				!this.coloredImages[
-					folderKey
-				][name]
-			) {
-				this.coloredImages[
-					folderKey
-				][name] = {};
-			}
-
-			this.coloredImages[
-				folderKey
-			][name][id] = canvas;
-		}
-
-		setColorRule(
-			name: string,
-			id: number,
-			rules: ColorRule[],
-			folder: string | null = null,
-		): void {
-			const folderKey =
-				folder ?? 'root';
-
-			if (!this.colorRules[folderKey]) {
-				this.colorRules[
-					folderKey
-				] = {};
-			}
-
-			if (
-				!this.colorRules[
-					folderKey
-				][name]
-			) {
-				this.colorRules[
-					folderKey
-				][name] = {};
-			}
-
-			this.colorRules[
-				folderKey
-			][name][id] = rules;
-
-			if (
-				this.baseImages[
-					folderKey
-				]?.[name]
-			) {
-				this.generateColoredVersion(
-					name,
-					id,
-					folderKey,
-				);
-			}
-		}
-
-		async load(
-			list: {
-				[key: string]: string;
-			},
-			folder: string | null = null,
-		): Promise<void> {
-			const folderKey =
-				folder ?? 'root';
-
-			this.totalCount +=
-				Object.keys(list).length;
-
-			if (!this.baseImages[folderKey]) {
-				this.baseImages[
-					folderKey
-				] = {};
-			}
-
-			const promises:
-				Promise<void>[] = [];
-
-			for (
-				const [name, path]
-				of Object.entries(list)
-			) {
-				const promise =
-					(async (): Promise<void> => {
-						let objectUrl:
-							string | null = null;
-
-						try {
-							const response =
-								await fetch(
-									this.pathRoot + path,
-								);
-
-							if (!response.ok) {
-								throw new Error(
-									'Failed to fetch ' +
-									path,
-								);
-							}
-
-							const blob =
-								await response.blob();
-
-							objectUrl =
-								URL.createObjectURL(
-									blob,
-								);
-
-							const img =
-								await new Promise<
-									HTMLImageElement
-								>(
-									(resolve, reject) => {
-										const image =
-											new Image();
-
-										image.onload =
-											() => {
-												resolve(
-													image,
-												);
-											};
-
-										image.onerror =
-											error => {
-												reject(
-													error,
-												);
-											};
-
-										image.src =
-											objectUrl!;
-									},
-								);
-
-							this.baseImages[
-								folderKey
-							][name] = img;
-
-							if (
-								this.colorRules[
-									folderKey
-								]?.[name]
-							) {
-								for (
-									const idStr
-									of Object.keys(
-										this
-											.colorRules[
-											folderKey
-										][name],
-									)
-								) {
-									const id =
-										parseInt(
-											idStr,
-											10,
-										);
-
-									this.generateColoredVersion(
-										name,
-										id,
-										folderKey,
-									);
-								}
-							}
-						} catch (error) {
-							console.warn(
-								'Error with:',
-								path,
-							);
-
-							console.error(
-								error,
-							);
-						} finally {
-							if (objectUrl) {
-								URL.revokeObjectURL(
-									objectUrl,
-								);
-							}
-
-							this.loadedCount++;
-						}
-					})();
-
-				promises.push(
-					promise,
-				);
-			}
-
-			await Promise.all(
-				promises,
-			);
-		}
-
-		isLoaded(): boolean {
-			return (
-				this.loadedCount
-					=== this.totalCount
-				&& this.totalCount > 0
-			);
-		}
-
-		get(
-			name: string | null,
-			colorId?: number,
-			folder?: string | null,
-		): HTMLCanvasElement | HTMLImageElement {
-			if (name === null) {
-				return this.placeholder;
-			}
-
-			const folderKey =
-				folder ?? 'root';
-
-			if (colorId !== undefined) {
-				const colored =
-					this.coloredImages[
-						folderKey
-					]?.[name]?.[colorId];
-
-				if (colored) {
-					return colored;
-				}
-
-				return this.placeholder;
-			}
-
-			const base =
-				this.baseImages[
-					folderKey
-				]?.[name];
-
-			if (base) {
-				return base;
-			}
-
-			return this.placeholder;
-		}
-
-		getFolder(
-			folder: string,
-		): ImageLoaderFolder {
-			return {
-				get: (
-					name: string | null,
-					colorId?: number,
-				):
-					HTMLCanvasElement
-					| HTMLImageElement => {
-					return this.get(
-						name,
-						colorId,
-						folder,
-					);
-				},
-
-				setColorRule: (
-					name: string,
-					id: number,
-					rules: ColorRule[],
-				): void => {
-					this.setColorRule(
-						name,
-						id,
-						rules,
-						folder,
-					);
-				},
-			};
-		}
-
-		getFolders() {
-			return {
-				default:
-					this.baseImages,
-
-				colored:
-					this.coloredImages,
-			};
-		}
-	}
-
-
 	/* -------------------------------------------------------------------------- */
 	/* Constants                                                                  */
 	/* -------------------------------------------------------------------------- */
@@ -540,59 +10,17 @@ export namespace platformEngine {
 	export const MAX_FALL_SPEED =
 		1400;
 
-	export const EFFECT_REDUCTION =
-		100;
-
-	export const MAX_FRAME_DT =
-		1 / 20;
-
 	/**
-	 * Physical separation maintained by the Rapier character controller.
+	 * Approximate size (in world units, i.e. pixels) of "one meter" for Rapier.
+	 * Rapier scales its internal tolerances (contact skin, prediction distance...)
+	 * with this value, so it keeps working well with pixel-sized worlds.
 	 */
-	export const COLLISION_SKIN =
-		0.01;
+	const LENGTH_UNIT =
+		32;
 
-	/*
-	* Kept as exported compatibility constants.
-	*
-	* Collision detection itself is now performed by Rapier.
-	*/
-	export const PENETRATION_EPSILON =
-		0.001;
-
-	export const MAX_COLLISION_ITERATIONS =
-		8;
-
-	export const CONTACT_PROBE_DISTANCE =
-		0.05;
-
-	export const BROAD_PHASE_MARGIN =
-		2;
-
-	export const PARALLEL_EPSILON =
-		1e-9;
-
-	export const MIN_REMAINING_DISTANCE_SQ =
-		1e-12;
-
-	export const ANIMATION_FPS =
-		10;
-
-	export const JUMP_START_DURATION =
+	/** Surface tolerance (radians) used for blocks that do not have a Walker. */
+	const DEFAULT_VERTICAL_TOLERANCE =
 		0.1;
-
-	export const LANDING_DURATION =
-		0.12;
-
-	export const WALL_HANG_DURATION =
-		0.15;
-
-	export const WALL_JUMP_DURATION =
-		0.15;
-
-	export const IDLE_SPEED_EPSILON =
-		1;
-
 
 	/* -------------------------------------------------------------------------- */
 	/* Basic types                                                                */
@@ -604,11 +32,21 @@ export namespace platformEngine {
 	export type BlockCategory =
 		string;
 
+	/**
+	 * Which face of a block is touched.
+	 *
+	 * - left / right: the touched surface is (almost) vertical
+	 * - floor / ceiling: the touched surface is (almost) horizontal
+	 * - climbing: slope in between, facing upward (the block stands on it)
+	 * - sliding: slope in between, facing downward (the block is under it)
+	 */
 	export type Side =
 		| 'floor'
 		| 'ceiling'
 		| 'left'
-		| 'right';
+		| 'right'
+		| 'climbing'
+		| 'sliding';
 
 	const SIDES:
 		readonly Side[] = [
@@ -616,38 +54,9 @@ export namespace platformEngine {
 			'ceiling',
 			'left',
 			'right',
+			'climbing',
+			'sliding',
 		];
-
-	const OPPOSITE_SIDE:
-		Record<Side, Side> = {
-			floor: 'ceiling',
-			ceiling: 'floor',
-			left: 'right',
-			right: 'left',
-		};
-
-	const SIDE_DIRECTION:
-		Record<Side, Point> = {
-			floor: {
-				x: 0,
-				y: 1,
-			},
-
-			ceiling: {
-				x: 0,
-				y: -1,
-			},
-
-			left: {
-				x: -1,
-				y: 0,
-			},
-
-			right: {
-				x: 1,
-				y: 0,
-			},
-		};
 
 
 	/* -------------------------------------------------------------------------- */
@@ -674,230 +83,130 @@ export namespace platformEngine {
 		y: number;
 	}
 
-	export interface Polygon {
-		/**
-		 * Polygon coordinates normalized in [0, 1] * [0, 1].
-		 *
-		 * The polygon may be convex or concave.
-		 *
-		 * It must be a simple polygon:
-		 * - no self-intersections;
-		 * - no holes;
-		 * - at least three vertices.
-		 */
-		sides: Point[];
-	}
-
-
-	/* -------------------------------------------------------------------------- */
-	/* Geometry -> Rapier conversion                                              */
-	/* -------------------------------------------------------------------------- */
-
 	/**
-	 * Removes invalid duplicate polygon points.
+	 * Axis-aligned rectangle, in block-normalized coordinates:
+	 * (0, 0) is the top-left corner of the block, (1, 1) the bottom-right one.
+	 * (x, y) is the top-left corner of the rectangle.
 	 */
-	function cleanPolygon(
-		polygon: Polygon,
-	): Point[] {
-		const result: Point[] = [];
-
-		for (
-			const point
-			of polygon.sides
-		) {
-			if (
-				!Number.isFinite(point.x)
-				|| !Number.isFinite(point.y)
-			) {
-				throw new Error(
-					'Polygon contains a non-finite vertex.',
-				);
-			}
-
-			const previous =
-				result[result.length - 1];
-
-			if (
-				previous
-				&& Math.hypot(
-					point.x - previous.x,
-					point.y - previous.y,
-				) <= PARALLEL_EPSILON
-			) {
-				continue;
-			}
-
-			result.push({
-				x: point.x,
-				y: point.y,
-			});
-		}
-
-		if (result.length >= 2) {
-			const first =
-				result[0];
-
-			const last =
-				result[result.length - 1];
-
-			if (
-				Math.hypot(
-					first.x - last.x,
-					first.y - last.y,
-				) <= PARALLEL_EPSILON
-			) {
-				result.pop();
-			}
-		}
-
-		if (result.length < 3) {
-			throw new Error(
-				'A polygon requires at least three distinct vertices.',
-			);
-		}
-
-		return result;
-	}
-
-		/**
-	 * Converts polygon coordinates into coordinates relative to the center
-	 * of the Block.
-	 *
-	 * Polygon coordinates are expressed in [-0.5, 0.5] relative to the
-	 * Block center.
-	 *
-	 * For example:
-	 *   (-0.5, -0.5) = top-left
-	 *   ( 0.5, -0.5) = top-right
-	 *   ( 0.5,  0.5) = bottom-right
-	 *   (-0.5,  0.5) = bottom-left
-	 */
-	function createPolygonColliderDesc(
-		polygon: Polygon,
-		size: Size,
-	): RAPIER.ColliderDesc {
-		const points =
-			cleanPolygon(
-				polygon,
-			);
-
-		const vertices =
-			new Float32Array(
-				points.length * 2,
-			);
-
-		for (
-			let i = 0;
-			i < points.length;
-			i++
-		) {
-			const point =
-				points[i];
-
-			/*
-			* Polygon coordinates are normalized in [0, 1].
-			*
-			* The Block position is its center, so convert the polygon
-			* coordinates into coordinates relative to that center.
-			*
-			* (0, 0) -> top-left
-			* (0.5, 0.5) -> center
-			* (1, 1) -> bottom-right
-			*/
-			vertices[i * 2] =
-				(point.x - 0.5)
-				* size.width;
-
-			vertices[
-				i * 2 + 1
-			] =
-				(point.y - 0.5)
-				* size.height;
-		}
-
-		/*
-		* The indices form a closed polygon:
-		*   0 -> 1
-		*   1 -> 2
-		*   ...
-		*   n -> 0
-		*/
-		const indices =
-			new Uint32Array(
-				points.length * 2,
-			);
-
-		for (
-			let i = 0;
-			i < points.length;
-			i++
-		) {
-			indices[i * 2] =
-				i;
-
-			indices[
-				i * 2 + 1
-			] =
-				(i + 1)
-				% points.length;
-		}
-
-		const descriptor =
-			RAPIER.ColliderDesc
-				.convexDecomposition(
-					vertices,
-					indices,
-					undefined,
-					RAPIER.CompoundFlags
-						.FIX_INTERNAL_EDGES,
-				);
-
-		if (!descriptor) {
-			throw new Error(
-				'Rapier could not decompose the polygon.',
-			);
-		}
-
-		return descriptor;
+	export interface Rectangle {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
 	}
 
 	/**
-	 * Creates the Rapier collider corresponding to a Block.
+	 * Right triangle, in block-normalized coordinates.
+	 *
+	 * The hypotenuse goes from (x0, y0) to (x1, y1). The right angle is
+	 * deduced from the signs of dx = x1 - x0 and dy = y1 - y0: it sits at
+	 * (x1, y0), i.e. "go horizontally first, then vertically".
+	 *
+	 *   dx > 0, dy < 0   "/"  solid below-right   (floor ramp rising to the right)
+	 *   dx < 0, dy < 0   "\"  solid below-left    (floor ramp rising to the left)
+	 *   dx > 0, dy > 0   "\"  solid above-right   (ceiling ramp)
+	 *   dx < 0, dy > 0   "/"  solid above-left    (ceiling ramp)
 	 */
-	function createColliderDesc<
-		TEngineData extends EngineData,
-	>(
-		block: Block<any, TEngineData>,
-	): RAPIER.ColliderDesc {
-		const size =
-			block.getSize();
+	export interface Ramp {
+		x0: number;
+		y0: number;
+		x1: number;
+		y1: number;
+	}
 
-		if (
-			!Number.isFinite(size.width)
-			|| !Number.isFinite(size.height)
-			|| size.width <= 0
-			|| size.height <= 0
+	/** The three vertices of a ramp, right angle last. Single place to change the convention. */
+	function rampVertices(ramp: Ramp): [Point, Point, Point] {
+		return [
+			{ x: ramp.x0, y: ramp.y0 },
+			{ x: ramp.x1, y: ramp.y1 },
+			{ x: ramp.x1, y: ramp.y0 },
+		];
+	}
+
+	function assertUnit(...values: number[]): void {
+		for (const value of values) {
+			if (!Number.isFinite(value) || value < -1e-9 || value > 1 + 1e-9) {
+				throw new Error(`Hitbox coordinates must be within [0, 1], got ${value}.`);
+			}
+		}
+	}
+
+	/** Collision shape of a block: a union of rectangles and ramps, all within [0, 1]. */
+	export class Hitbox {
+		constructor(
+			public readonly rectangles: readonly Rectangle[] = [],
+			public readonly ramps: readonly Ramp[] = [],
 		) {
-			throw new Error(
-				`Invalid block size: ${size.width} x ${size.height}`,
+			if (rectangles.length + ramps.length === 0) {
+				throw new Error('A hitbox needs at least one rectangle or ramp.');
+			}
+			for (const r of rectangles) {
+				assertUnit(r.x, r.y, r.x + r.width, r.y + r.height);
+				if (!(r.width > 0) || !(r.height > 0)) {
+					throw new Error('Rectangle dimensions must be positive.');
+				}
+			}
+			for (const r of ramps) {
+				assertUnit(r.x0, r.y0, r.x1, r.y1);
+				if (r.x0 === r.x1 || r.y0 === r.y1) {
+					throw new Error('A ramp must have a non-zero area.');
+				}
+			}
+		}
+
+		/** A single rectangle covering the whole block. */
+		static full(): Hitbox {
+			return new Hitbox([{ x: 0, y: 0, width: 1, height: 1 }]);
+		}
+	}
+
+	/** Build the Rapier colliders of a hitbox, relative to the block center. */
+	function hitboxToColliders(hitbox: Hitbox, size: Size): RAPIER.ColliderDesc[] {
+		const toLocal = (x: number, y: number): Point => ({
+			x: (x - 0.5) * size.width,
+			y: (y - 0.5) * size.height,
+		});
+		const descs: RAPIER.ColliderDesc[] = [];
+
+		for (const r of hitbox.rectangles) {
+			const center = toLocal(r.x + r.width / 2, r.y + r.height / 2);
+			descs.push(
+				RAPIER.ColliderDesc
+					.cuboid(r.width * size.width / 2, r.height * size.height / 2)
+					.setTranslation(center.x, center.y),
 			);
 		}
 
-		const polygon =
-			block.getPolygon();
-
-		if (!polygon) {
-			return RAPIER.ColliderDesc
-				.cuboid(
-					size.width / 2,
-					size.height / 2,
-				);
+		for (const ramp of hitbox.ramps) {
+			const coordinates: number[] = [];
+			for (const vertex of rampVertices(ramp)) {
+				const local = toLocal(vertex.x, vertex.y);
+				coordinates.push(local.x, local.y);
+			}
+			const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(coordinates));
+			if (!desc) throw new Error('Invalid ramp.');
+			descs.push(desc);
 		}
 
-		return createPolygonColliderDesc(
-			polygon,
-			size,
-		);
+		for (const desc of descs) {
+			desc
+				// No friction anywhere in the engine.
+				.setFriction(0)
+				.setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
+				.setRestitution(0)
+				// Mass comes from the rigid body (see createBody), not from the shapes.
+				.setDensity(0)
+				// Lets blocks veto a collision through Block.applyCollision.
+				.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS)
+				// Also report contacts involving kinematic bodies (moving platforms).
+				// FIXED_FIXED is deliberately left out: tiles never need to see each other.
+				.setActiveCollisionTypes(
+					RAPIER.ActiveCollisionTypes.DEFAULT
+					| RAPIER.ActiveCollisionTypes.KINEMATIC_KINEMATIC
+					| RAPIER.ActiveCollisionTypes.KINEMATIC_FIXED,
+				);
+		}
+		return descs;
 	}
 
 
@@ -962,39 +271,69 @@ export namespace platformEngine {
 	}
 
 
-	export interface VelocityEffect {
+	/* -------------------------------------------------------------------------- */
+	/* Velocity effects                                                           */
+	/* -------------------------------------------------------------------------- */
+
+	export enum EffectId {
+		/** Speed inherited from a moving object the block just left. */
+		ADDITIONNAL_SPEED,
+	}
+
+	export interface Effect {
+		id: number;
 		vx: number;
 		vy: number;
 	}
 
-	function shrinkTowardZero(
-		value: number,
-		amount: number,
-	): number {
-		if (value > 0) {
-			return Math.max(
-				0,
-				value - amount,
-			);
-		}
+	/** Kept so existing code using the old name keeps compiling. */
+	export type VelocityEffect = Effect;
 
-		if (value < 0) {
-			return Math.min(
-				0,
-				value + amount,
-			);
-		}
+	/**
+	 * Called once per update for every effect of the matching id.
+	 * It may mutate the effect (e.g. reduce its norm) and returns whether the
+	 * effect is still alive (false = remove it).
+	 */
+	export type EffectUpdater = (effect: Effect, dt: number) => boolean;
 
-		return 0;
-	}
+	/** Norm lost per second by an ADDITIONNAL_SPEED effect. */
+	const ADDITIONAL_SPEED_DECAY =
+		100;
+
+	const DEFAULT_EFFECT_UPDATERS: Record<number, EffectUpdater> = {
+		[EffectId.ADDITIONNAL_SPEED]: (effect, dt) => {
+			const norm = Math.hypot(effect.vx, effect.vy);
+			const reduced = Math.max(0, norm - ADDITIONAL_SPEED_DECAY * dt);
+			if (reduced === 0) return false;
+
+			const ratio = reduced / norm;
+			effect.vx *= ratio;
+			effect.vy *= ratio;
+			return true;
+		},
+	};
 
 	export class VelocityEffectHandler {
 		private effects:
-			VelocityEffect[] = [];
+			Effect[] = [];
+
+		private readonly updaters:
+			Record<number, EffectUpdater>;
+
+		/** Extra updaters complete (or override) the default ones. */
+		constructor(
+			updaters: Record<number, EffectUpdater> = {},
+		) {
+			this.updaters = {
+				...DEFAULT_EFFECT_UPDATERS,
+				...updaters,
+			};
+		}
 
 		append(
 			vx: number,
 			vy: number,
+			id: number = EffectId.ADDITIONNAL_SPEED,
 		): void {
 			if (
 				vx === 0
@@ -1004,9 +343,15 @@ export namespace platformEngine {
 			}
 
 			this.effects.push({
+				id,
 				vx,
 				vy,
 			});
+		}
+
+		/** Live effects; the engine mutates them when a collision blocks them. */
+		getEffects(): Effect[] {
+			return this.effects;
 		}
 
 		total(): Point {
@@ -1027,54 +372,26 @@ export namespace platformEngine {
 			};
 		}
 
-		reduced(
+		/** Run every updater, then drop dead and null effects. Effects without updater never expire. */
+		update(
 			dt: number,
-		): VelocityEffect[] {
-			const amount =
-				EFFECT_REDUCTION * dt;
-
-			const result:
-				VelocityEffect[] = [];
-
-			for (
-				const effect
-				of this.effects
-			) {
-				const vx =
-					shrinkTowardZero(
-						effect.vx,
-						amount,
-					);
-
-				const vy =
-					shrinkTowardZero(
-						effect.vy,
-						amount,
-					);
-
-				if (
-					vx !== 0
-					|| vy !== 0
-				) {
-					result.push({
-						vx,
-						vy,
-					});
-				}
-			}
-
-			return result;
-		}
-
-		replace(
-			effects: VelocityEffect[],
 		): void {
 			this.effects =
-				effects.filter(
-					effect =>
-						effect.vx !== 0
-						|| effect.vy !== 0,
-				);
+				this.effects.filter(effect => {
+					const updater =
+						this.updaters[effect.id];
+
+					const alive =
+						updater
+							? updater(effect, dt)
+							: true;
+
+					return alive
+						&& (
+							effect.vx !== 0
+							|| effect.vy !== 0
+						);
+				});
 		}
 	}
 
@@ -1093,10 +410,21 @@ export namespace platformEngine {
 				ceiling: null,
 				left: null,
 				right: null,
+				climbing: null,
+				sliding: null,
 			};
 
 		carrierId:
 			BlockId | null = null;
+
+		/**
+		 * Angle (radians) below which a touched surface is considered
+		 * completely vertical (left/right) or completely horizontal
+		 * (floor/ceiling). Anything in between is climbing/sliding.
+		 */
+		getVerticalTolerancy() {
+			return 0.1;
+		}
 
 		clear(): void {
 			for (
@@ -1146,6 +474,20 @@ export namespace platformEngine {
 		onCeiling(): boolean {
 			return (
 				this.contacts.ceiling
+				!== null
+			);
+		}
+
+		onClimbing(): boolean {
+			return (
+				this.contacts.climbing
+				!== null
+			);
+		}
+
+		onSliding(): boolean {
+			return (
+				this.contacts.sliding
 				!== null
 			);
 		}
@@ -1350,28 +692,17 @@ export namespace platformEngine {
 		Data,
 		TEngineData extends EngineData,
 	> {
-		/*
-		* Before the block is added to an engine, these are the authoritative
-		* coordinates.
-		*
-		* After a collider has been bound, x/y are exposed through the collider
-		* position and setters keep the collider synchronized.
-		*/
+		/* Block coordinates stay authoritative for teleports; the Rapier body follows them. */
 		private _x = 0;
 		private _y = 0;
 
-		private physicsCollider:
-			RAPIER.Collider | null = null;
+		private physicsBody: RAPIER.RigidBody | null = null;
 
 		/**
 		 * The horizontal center coordinate of the block.
 		 */
 		get x(): number {
-			if (!this.physicsCollider) {
-				return this._x;
-			}
-
-			return this.physicsCollider.translation().x;
+			return this._x;
 		}
 
 		/**
@@ -1393,11 +724,7 @@ export namespace platformEngine {
 		 * The vertical center coordinate of the block.
 		 */
 		get y(): number {
-			if (!this.physicsCollider) {
-				return this._y;
-			}
-
-			return this.physicsCollider.translation().y;
+			return this._y;
 		}
 
 		/**
@@ -1418,13 +745,10 @@ export namespace platformEngine {
 		abstract getSize(): Size;
 
 		/**
-		 * Collision polygon.
-		 *
-		 * null means an axis-aligned rectangle with the block size.
-		 *
-		 * A polygon may be convex or concave.
+		 * Collision shape of the block. Null means a single rectangle
+		 * covering the whole block.
 		 */
-		getPolygon(): Polygon | null {
+		getPolygon(): Hitbox | null {
 			return null;
 		}
 
@@ -1446,6 +770,11 @@ export namespace platformEngine {
 			return null;
 		}
 
+		/**
+		 * Velocity of the block, mutated in place by the engine.
+		 *
+		 * Without a velocity (null) the block is never moved by collisions.
+		 */
 		getVelocity(): Velocity | null {
 			return null;
 		}
@@ -1462,6 +791,33 @@ export namespace platformEngine {
 			return null;
 		}
 
+		/** Angle in radians, or null if the block has no angle. */
+		getAngle(): number | null {
+			return null;
+		}
+
+		/** Called by the engine when the angle changed during the simulation. */
+		setAngle(angle: number): void {
+		}
+
+		/**
+		 * Angular velocity in rad/s, or null if the block has none.
+		 *
+		 * Without an angular velocity (null) the block is never rotated by collisions.
+		 */
+		getAngularVelocity(): number | null {
+			return null;
+		}
+
+		/** Called by the engine when the angular velocity changed during the simulation. */
+		setAngularVelocity(angularVelocity: number): void {
+		}
+
+		/** Angular counterpart of getForcedVelocity: never modified by collisions. */
+		getForcedAngularVelocity(): number | null {
+			return null;
+		}
+
 		getVelocityEffects():
 			VelocityEffectHandler | null {
 			return null;
@@ -1471,34 +827,22 @@ export namespace platformEngine {
 			return false;
 		}
 
-		/**
-		 * Returns the Rapier collider attached to this block.
-		 *
-		 * This is mostly useful for advanced engine integrations and debugging.
-		 */
-		getPhysicsCollider():
-			RAPIER.Collider | null {
-			return this.physicsCollider;
+		/** Return the Rapier rigid body attached to this block. */
+		getPhysicsCollider(): RAPIER.RigidBody | null {
+			return this.physicsBody;
 		}
 
-		/**
-		 * Called by PlatformerEngine when the block receives its Rapier collider.
-		 *
-		 * The collider is intentionally parentless:
-		 * the engine owns its translation directly.
-		 */
+		/** Bind the Rapier body created by the engine. */
 		bindPhysicsCollider(
-			collider: RAPIER.Collider,
+			body: RAPIER.RigidBody,
 		): void {
-			if (this.physicsCollider) {
+			if (this.physicsBody) {
 				throw new Error(
-					'The block already has a Rapier collider.',
+					'The block already has a physics body.',
 				);
 			}
 
-			this.physicsCollider =
-				collider;
-
+			this.physicsBody = body;
 			this.syncPhysicsPosition();
 		}
 
@@ -1506,18 +850,20 @@ export namespace platformEngine {
 		 * Called when the block is removed from its engine.
 		 */
 		unbindPhysicsCollider(): void {
-			this.physicsCollider = null;
+			this.physicsBody = null;
+		}
+
+		/** @internal Engine only: store the position computed by Rapier without pushing it back. */
+		syncFromPhysics(x: number, y: number): void {
+			this._x = x;
+			this._y = y;
 		}
 
 		private syncPhysicsPosition(): void {
-			if (!this.physicsCollider) {
-				return;
-			}
-
-			this.physicsCollider.setTranslation({
-				x: this._x,
-				y: this._y,
-			});
+			this.physicsBody?.setTranslation(
+				{ x: this._x, y: this._y },
+				true,
+			);
 		}
 
 		processBeforeEngine(
@@ -1538,6 +884,12 @@ export namespace platformEngine {
 		): void {
 		}
 
+		/**
+		 * Whether this block physically collides with `block`.
+		 * Both blocks are asked; the pair collides only if both agree.
+		 * Called from inside Rapier's step: it must not add or remove blocks.
+		 * A refused pair is still reported through detectCollision (overlap).
+		 */
 		applyCollision(
 			id: BlockId,
 			clientData: Data | null,
@@ -1620,8 +972,7 @@ export namespace platformEngine {
 		readonly game:
 			TEngineData['Game'];
 
-		readonly world:
-			RAPIER.World;
+		readonly world: RAPIER.World;
 
 		addBlock(
 			block:
@@ -1653,6 +1004,7 @@ export namespace platformEngine {
 			id: BlockId,
 			vx: number,
 			vy: number,
+			effectId?: number,
 		): boolean;
 
 		update(
@@ -1663,8 +1015,6 @@ export namespace platformEngine {
 			TEngineData['Game'];
 
 		getAnimator(key: BlockId): Animator | null;
-		
-
 	}
 
 
@@ -1672,128 +1022,112 @@ export namespace platformEngine {
 	/* Internal state                                                             */
 	/* -------------------------------------------------------------------------- */
 
-	interface MoverState<
-		TEngineData extends EngineData,
-	> {
-		entry:
-			BlockEntry<TEngineData>;
-
-		collider:
-			RAPIER.Collider;
-
-		velocity:
-			Velocity | null;
-
-		forcedVelocity:
-			Velocity | null;
-
-		effects:
-			VelocityEffectHandler | null;
-
-		direction:
-			Direction | null;
-
-		nextVx: number;
-		nextVy: number;
-
-		nextEffects:
-			VelocityEffect[];
-
-		/**
-		 * Requested velocity before Rapier collision resolution.
-		 */
-		speedX: number;
-		speedY: number;
-
-		/**
-		 * Actual intended final position after the primary movement pass.
-		 */
-		nextX: number;
-		nextY: number;
-
-		startX: number;
-		startY: number;
-	}
-
-	interface CollisionNote {
-		aId:
-			BlockId;
-
-		bId:
-			BlockId;
-
-		sideA:
-			Side;
-	}
-
-
-	/* -------------------------------------------------------------------------- */
-	/* Utility functions                                                          */
-	/* -------------------------------------------------------------------------- */
-
 	/**
-	 * Returns the velocity of a state for relative shape casts.
+	 * How a block is simulated by Rapier:
+	 * - fixed: nothing moves it (no velocity, no angular velocity)
+	 * - kinematic: driven by a forced velocity, collisions never alter it
+	 * - dynamic: Rapier resolves collisions; locked axes stay locked
 	 */
-	function getStateSpeed(
-		states:
-			Map<
-				BlockId,
-				MoverState<any>
-			>,
-		id: BlockId,
-	): Velocity {
-		const state =
-			states.get(id);
+	type BodyKind =
+		'fixed' | 'kinematic' | 'dynamic';
 
-		if (!state) {
-			return {
-				x: 0,
-				y: 0,
-			};
+	interface BodyMode {
+		kind: BodyKind;
+		linearLocked: boolean;
+		angularLocked: boolean;
+	}
+
+	/** Velocity is "blocked" without getVelocity or with a forced velocity (same for angular). */
+	function bodyModeOf(block: Block<any, any>): BodyMode {
+		const forced = block.getForcedVelocity() !== null;
+		const forcedAngular = block.getForcedAngularVelocity() !== null;
+		const linearLocked = forced || block.getVelocity() === null;
+		const angularLocked = forcedAngular || block.getAngularVelocity() === null;
+
+		const driven = forced || (forcedAngular && linearLocked);
+		const kind: BodyKind = driven
+			? 'kinematic'
+			: linearLocked && angularLocked
+				? 'fixed'
+				: 'dynamic';
+
+		return { kind, linearLocked, angularLocked };
+	}
+
+	function toRapierBodyType(kind: BodyKind): RAPIER.RigidBodyType {
+		switch (kind) {
+			case 'fixed': return RAPIER.RigidBodyType.Fixed;
+			case 'kinematic': return RAPIER.RigidBodyType.KinematicVelocityBased;
+			default: return RAPIER.RigidBodyType.Dynamic;
 		}
+	}
 
-		return {
-			x:
-				state.speedX,
+	interface BodyState {
+		readonly id: BlockId;
+		readonly body: RAPIER.RigidBody;
+		readonly colliders: RAPIER.Collider[];
+		kind: BodyKind;
+		translationsLocked: boolean;
+		rotationsLocked: boolean;
+		/** Last angle exchanged with Rapier, to detect external changes. */
+		angle: number | null;
+		/** Velocity of the carrier that was added to this block during the last step. */
+		carrierVx: number;
+		carrierVy: number;
+	}
 
-			y:
-				state.speedY,
-		};
+	/** A pair of blocks in contact. The normal points from b toward a. */
+	interface Touch {
+		aId: BlockId;
+		bId: BlockId;
+		nx: number;
+		ny: number;
+		sideA: Side;
+		sideB: Side;
+		/** False when a block refused the collision (overlap only). */
+		solid: boolean;
+	}
+
+	function pairKey(a: BlockId, b: BlockId): string {
+		return a < b ? `${a}:${b}` : `${b}:${a}`;
 	}
 
 	/**
-	 * Projects velocity out of a surface normal.
-	 *
-	 * The normal points from the obstacle toward the moving block.
+	 * Converts a contact normal (pointing from the obstacle toward the block)
+	 * into the face of the block that is touched. Y points down.
 	 */
-	function removeVelocityIntoNormal(
+	function classifySide(
+		nx: number,
+		ny: number,
+		tolerance: number,
+	): Side {
+		const slack = Math.sin(tolerance);
+
+		if (Math.abs(ny) <= slack) {
+			return nx > 0 ? 'left' : 'right';
+		}
+		if (Math.abs(nx) <= slack) {
+			return ny < 0 ? 'floor' : 'ceiling';
+		}
+		return ny < 0 ? 'climbing' : 'sliding';
+	}
+
+	/**
+	 * Remove the part of a velocity that pushes into a surface.
+	 * Only the dominant axis of the normal is cleared, so the intent of the
+	 * other axis (e.g. walking speed on a ramp) is kept: Rapier already
+	 * deflects the actual motion along the surface.
+	 */
+	function removeBlockedComponent(
 		vx: number,
 		vy: number,
 		nx: number,
 		ny: number,
-	): Velocity {
-		const dot =
-			vx * nx
-			+ vy * ny;
-
-		if (
-			dot >= 0
-		) {
-			return {
-				x: vx,
-				y: vy,
-			};
+	): [number, number] {
+		if (Math.abs(ny) >= Math.abs(nx)) {
+			return ny * vy < 0 ? [vx, 0] : [vx, vy];
 		}
-
-		return {
-			x:
-				vx
-				- dot * nx,
-
-			y:
-				vy
-				- dot * ny,
-		};
+		return nx * vx < 0 ? [0, vy] : [vx, vy];
 	}
 
 
@@ -1801,1998 +1135,552 @@ export namespace platformEngine {
 	/* Platformer engine                                                          */
 	/* -------------------------------------------------------------------------- */
 
-	class PlatformerEngine<
-		TEngineData extends EngineData,
-	> implements IBlockEngine<TEngineData> {
+	class PlatformerEngine<TEngineData extends EngineData>
+		implements IBlockEngine<TEngineData> {
 		private nextId = 0;
-
-		private readonly entries =
-			new Map<
-				BlockId,
-				BlockEntry<TEngineData>
-			>();
-
-		/*
-		 * Animators are client-only state. Keeping them outside BlockEntry also
-		 * guarantees that server-side engine instances never instantiate them.
-		 */
-		private readonly animators =
-			new Map<BlockId, Animator>();
-
-		private readonly colliderToId =
-			new Map<
-				number,
-				BlockId
-			>();
-
-		private readonly pendingEffects:
-			{
-				id: BlockId;
-				vx: number;
-				vy: number;
-			}[] = [];
-
-		private readonly characterController:
-			RAPIER.KinematicCharacterController;
-
-		private updating = false;
-
+		private readonly entries = new Map<BlockId, BlockEntry<TEngineData>>();
+		private readonly bodies = new Map<BlockId, BodyState>();
+		private readonly bodyToId = new Map<number, BlockId>();
+		private readonly animators = new Map<BlockId, Animator>();
+		/** Block pairs whose collision was refused during the current step. */
+		private readonly passthrough = new Set<string>();
+		/** Fallback contact sides for refused pairs Rapier omits from its contact graph. */
+		private readonly refusedPairs = new Map<string, {
+			aId: BlockId;
+			bId: BlockId;
+			sideA: Side;
+			sideB: Side;
+		}>();
+		private readonly hooks: RAPIER.PhysicsHooks;
 		private disposed = false;
-
-		readonly world:
-			RAPIER.World;
+		readonly world: RAPIER.World;
+		private readonly eventQueue = new RAPIER.EventQueue(true);
 
 		constructor(
-			public readonly isClient:
-				boolean,
-
-			public readonly storage:
-				TEngineData['Storage'],
-
-			public readonly game:
-				TEngineData['Game'],
-
-			gravity:
-				Point = {
-					x: 0,
-					y: 0,
-				},
+			public readonly isClient: boolean,
+			public readonly storage: TEngineData['Storage'],
+			public readonly game: TEngineData['Game'],
+			gravity: Point = { x: 0, y: 0 },
 		) {
-			/*
-			* initRapier() must have completed before this constructor is called.
-			*/
-			this.world =
-				new RAPIER.World(
-					gravity,
-				);
+			// Gravity is supplied by game logic through block velocities.
+			this.world = new RAPIER.World({ x: 0, y: 0 });
+			this.world.integrationParameters.lengthUnit = LENGTH_UNIT;
+			void gravity;
 
-			/*
-			* Y points down in this engine, therefore the world-space up vector
-			* points toward negative Y.
-			*/
-			this.characterController =
-				this.world.createCharacterController(
-					COLLISION_SKIN,
-				);
+			this.hooks = {
+				filterContactPair: (_collider1, _collider2, body1, body2) => {
+					const aId = this.bodyToId.get(body1);
+					const bId = this.bodyToId.get(body2);
+					const a = aId === undefined ? undefined : this.entries.get(aId);
+					const b = bId === undefined ? undefined : this.entries.get(bId);
+					if (!a || !b) return RAPIER.SolverFlags.COMPUTE_IMPULSE;
 
-			this.characterController.setUp({
-				x: 0,
-				y: -1,
-			});
+					const solidA = a.block.applyCollision(a.id, a.data as any, b);
+					const solidB = b.block.applyCollision(b.id, b.data as any, a);
 
-			this.characterController.setSlideEnabled(
-				true,
-			);
+					if (solidA && solidB) return RAPIER.SolverFlags.COMPUTE_IMPULSE;
 
-			this.characterController.disableAutostep();
+					const key = pairKey(a.id, b.id);
+					this.passthrough.add(key);
+					if (!this.refusedPairs.has(key)) {
+						const first = a.id < b.id ? a : b;
+						const second = a.id < b.id ? b : a;
+						const sides = this.inferOverlapSides(first.block, second.block);
+						this.refusedPairs.set(key, {
+							aId: first.id,
+							bId: second.id,
+							sideA: sides.sideA,
+							sideB: sides.sideB,
+						});
+					}
+					return RAPIER.SolverFlags.EMPTY;
+				},
 
-			this.characterController.disableSnapToGround();
+				filterIntersectionPair: () => true,
+			};
 		}
 
 		addBlock(
-			block:
-				AnyBlock<TEngineData>,
-			category:
-				| BlockCategory
-				| null = null,
+			block: AnyBlock<TEngineData>,
+			category: BlockCategory | null = null,
 			data: unknown = null,
 		): BlockId {
 			this.assertNotDisposed();
-
-			if (
-				block.getPhysicsCollider()
-			) {
-				throw new Error(
-					'The block is already attached to a physics engine.',
-				);
+			if (block.getPhysicsCollider()) {
+				throw new Error('The block is already attached to a physics engine.');
 			}
 
-			const id =
-				this.nextId++;
+			const id = this.nextId++;
+			const state = this.createBody(id, block);
+			block.bindPhysicsCollider(state.body);
+			this.bodies.set(id, state);
+			this.bodyToId.set(state.body.handle, id);
+			this.entries.set(id, { id, block, category, data });
 
-
-			const descriptor =
-				createColliderDesc(
-					block,
-				);
-
-			const collider =
-				this.world.createCollider(
-					descriptor,
-				);
-
-			/*
-			* Disable rotation indirectly by never exposing rotation and by keeping
-			* all movement translational.
-			*/
-			collider.setRotation(0);
-
-			/*
-			* The collider position is the block center.
-			*/
-			collider.setTranslation({
-				x: block.x,
-				y: block.y
-			});
-
-			block.bindPhysicsCollider(
-				collider,
-			);
-
-			this.colliderToId.set(
-				collider.handle,
-				id,
-			);
-
-			this.entries.set(
-				id,
-				{
-					id,
-					block,
-					category,
-					data,
-				},
-			);
-
-			/*
-			 * Animators are loaded only on the client. The block remains entirely
-			 * usable on the server without importing or constructing its animator.
-			 */
 			if (this.isClient) {
 				const animator = block.createAnimator();
-
-				if (animator) {
-					this.animators.set(
-						id,
-						animator,
-					);
-				}
+				if (animator) this.animators.set(id, animator);
 			}
-
 			return id;
 		}
 
-		removeBlock(
-			id: BlockId,
-		): boolean {
-			const entry =
-				this.entries.get(id);
+		removeBlock(id: BlockId): boolean {
+			const entry = this.entries.get(id);
+			if (!entry) return false;
 
-			if (!entry) {
-				return false;
+			const state = this.bodies.get(id);
+			if (state) {
+				this.bodyToId.delete(state.body.handle);
+				this.world.removeRigidBody(state.body);
+				this.bodies.delete(id);
 			}
-
-			const collider =
-				entry.block.getPhysicsCollider();
-
-			if (collider) {
-				this.colliderToId.delete(
-					collider.handle,
-				);
-
-				this.world.removeCollider(
-					collider,
-					false,
-				);
-
-				entry.block.unbindPhysicsCollider();
-			}
-
+			entry.block.unbindPhysicsCollider();
 			this.animators.delete(id);
-
-			return this.entries.delete(
-				id,
-			);
+			return this.entries.delete(id);
 		}
 
-		getBlock(
-			id: BlockId,
-		):
-			AnyBlock<TEngineData> | null {
-			return (
-				this.entries
-					.get(id)
-					?.block
-				?? null
-			);
+		getBlock(id: BlockId): AnyBlock<TEngineData> | null {
+			return this.entries.get(id)?.block ?? null;
 		}
 
-		getEntry(
-			id: BlockId,
-		):
-			BlockEntry<TEngineData> | null {
-			return (
-				this.entries.get(id)
-				?? null
-			);
+		getEntry(id: BlockId): BlockEntry<TEngineData> | null {
+			return this.entries.get(id) ?? null;
 		}
 
-		*getBlocks():
-			Generator<
-				BlockEntry<TEngineData>
-			> {
-			for (
-				const entry
-				of this.entries.values()
-			) {
-				yield entry;
-			}
+		*getBlocks(): Generator<BlockEntry<TEngineData>> {
+			for (const entry of this.entries.values()) yield entry;
 		}
 
 		addVelocityEffect(
 			id: BlockId,
 			vx: number,
 			vy: number,
+			effectId: number = EffectId.ADDITIONNAL_SPEED,
 		): boolean {
-			const handler =
-				this.entries
-					.get(id)
-					?.block
-					.getVelocityEffects();
-
-			if (!handler) {
-				return false;
-			}
-
-			if (this.updating) {
-				this.pendingEffects.push({
-					id,
-					vx,
-					vy,
-				});
-			} else {
-				handler.append(
-					vx,
-					vy,
-				);
-			}
-
+			const handler = this.entries.get(id)?.block.getVelocityEffects();
+			if (!handler) return false;
+			handler.append(vx, vy, effectId);
 			return true;
 		}
 
-		getGame():
-			TEngineData['Game'] {
+		getGame(): TEngineData['Game'] {
 			return this.game;
 		}
 
-		getAnimator(key: BlockId) {
-			return this.animators.get(key) ?? null;
+		getAnimator(id: BlockId): Animator | null {
+			return this.animators.get(id) ?? null;
+		}
+
+		dispose(): void {
+			if (this.disposed) return;
+			this.disposed = true;
+			for (const entry of this.entries.values()) entry.block.unbindPhysicsCollider();
+			this.entries.clear();
+			this.bodies.clear();
+			this.bodyToId.clear();
+			this.animators.clear();
+			this.world.free();
+			this.eventQueue.free();
+		}
+
+		update(dt: number): void {
+			this.assertNotDisposed();
+			if (!(dt > 0)) return;
+
+			for (const entry of Array.from(this.entries.values())) {
+				if (this.entries.has(entry.id)) {
+					entry.block.processBeforeEngine(entry.id, dt, this, entry.data as any);
+				}
+			}
+
+			// 1. Give Rapier the state wanted by the blocks. Carriers are read first
+			//    so that the order of the blocks does not matter.
+			const states = Array.from(this.bodies.values());
+			for (const state of states) this.readCarrierVelocity(state);
+			for (const state of states) this.pushToRapier(state, dt);
+
+			// 2. Rapier does all the collision detection and resolution.
+			this.passthrough.clear();
+			this.refusedPairs.clear();
+			this.world.timestep = dt;
+			this.world.step(this.eventQueue, this.hooks);
+
+			// 3. Read the result back and react to the contacts.
+			for (const state of states) this.pullFromRapier(state);
+			this.reactToContacts();
+
+			for (const entry of Array.from(this.entries.values())) {
+				if (this.entries.has(entry.id)) {
+					entry.block.processAfterEngine(entry.id, dt, this, entry.data as any);
+				}
+			}
+
+			if (this.isClient) {
+				for (const [id, animator] of this.animators) {
+					const entry = this.entries.get(id);
+					if (!entry) continue;
+					const walker = entry.block.getWalker();
+					const direction = entry.block.getDirection();
+					if (walker && direction) animator.frame(entry.block, walker, direction, dt);
+				}
+			}
+
+			for (const entry of Array.from(this.entries.values())) {
+				if (entry.block.mustBeDestroyed()) this.removeBlock(entry.id);
+			}
+		}
+
+		/* ---------------------------------------------------------------------- */
+		/* Blocks -> Rapier                                                       */
+		/* ---------------------------------------------------------------------- */
+
+		private createBody(id: BlockId, block: AnyBlock<TEngineData>): BodyState {
+			const size = block.getSize();
+			if (
+				!Number.isFinite(size.width) || !Number.isFinite(size.height)
+				|| size.width <= 0 || size.height <= 0
+			) {
+				throw new Error(`Invalid block size: ${size.width} x ${size.height}`);
+			}
+
+			const kind = bodyModeOf(block).kind;
+			const angle = block.getAngle();
+			const body = this.world.createRigidBody(
+				new RAPIER.RigidBodyDesc(toRapierBodyType(kind))
+					.setTranslation(block.x, block.y)
+					.setRotation(angle ?? 0)
+					.setCanSleep(false)
+					.setCcdEnabled(true)
+					// The whole mass sits at the block center, so rotations pivot around
+					// the block position whatever the hitbox looks like.
+					.setAdditionalMassProperties(
+						1,
+						{ x: 0, y: 0 },
+						(size.width * size.width + size.height * size.height) / 12,
+					),
+			);
+
+			const colliders = (
+				hitboxToColliders(block.getPolygon() ?? Hitbox.full(), size)
+				.map(desc => {
+					desc.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
+					desc.setActiveCollisionTypes(RAPIER.ActiveCollisionTypes.ALL);
+					return this.world.createCollider(desc, body);
+				})
+			);
+
+			for (const collider of colliders) {
+				console.log({
+					collider: collider.handle,
+					hooks: collider.activeHooks(),
+					bodyType: body.bodyType(),
+					sensor: collider.isSensor(),
+				});
+			}
+
+			return {
+				id,
+				body,
+				colliders,
+				kind,
+				translationsLocked: false,
+				rotationsLocked: false,
+				angle,
+				carrierVx: 0,
+				carrierVy: 0,
+			};
+		}
+
+		/** Remember how fast the platform under (or beside) a walker was moving. */
+		private readCarrierVelocity(state: BodyState): void {
+			const walker = this.entries.get(state.id)?.block.getWalker();
+			const carrier = walker && walker.carrierId !== null
+				? this.bodies.get(walker.carrierId)
+				: undefined;
+			const velocity = carrier?.body.linvel();
+			state.carrierVx = velocity?.x ?? 0;
+			state.carrierVy = velocity?.y ?? 0;
+		}
+
+		private pushToRapier(state: BodyState, dt: number): void {
+			const block = this.entries.get(state.id)!.block;
+			const body = state.body;
+			const mode = bodyModeOf(block);
+
+			if (mode.kind !== state.kind) {
+				body.setBodyType(toRapierBodyType(mode.kind), true);
+				state.kind = mode.kind;
+			}
+
+			// Locked axes only make sense for dynamic bodies; the other kinds are
+			// already insensitive to collisions (or do not move at all).
+			const lockTranslations = mode.kind === 'dynamic' && mode.linearLocked;
+			if (lockTranslations !== state.translationsLocked) {
+				body.lockTranslations(lockTranslations, true);
+				state.translationsLocked = lockTranslations;
+			}
+			const lockRotations = mode.kind === 'dynamic' && mode.angularLocked;
+			if (lockRotations !== state.rotationsLocked) {
+				body.lockRotations(lockRotations, true);
+				state.rotationsLocked = lockRotations;
+			}
+
+			// Picks up angle changes made by the game since the last update.
+			const angle = block.getAngle();
+			if (angle !== null && angle !== state.angle) {
+				body.setRotation(angle, true);
+			}
+			state.angle = angle;
+
+			if (mode.kind === 'fixed') return;
+
+			let vx = 0;
+			let vy = 0;
+			const forced = block.getForcedVelocity();
+			const velocity = block.getVelocity();
+			if (forced) {
+				vx = forced.x;
+				vy = forced.y;
+			} else if (velocity) {
+				const direction = block.getDirection();
+				if (direction) velocity.x = approachSpeed(velocity.x, direction, dt);
+
+				const effects = block.getVelocityEffects();
+				effects?.update(dt);
+				const bonus = effects?.total() ?? { x: 0, y: 0 };
+
+				vx = velocity.x + bonus.x + state.carrierVx;
+				vy = velocity.y + bonus.y + state.carrierVy;
+			}
+			body.setLinvel({ x: vx, y: vy }, true);
+			body.setAngvel(
+				block.getForcedAngularVelocity() ?? block.getAngularVelocity() ?? 0,
+				true,
+			);
+		}
+
+		/* ---------------------------------------------------------------------- */
+		/* Rapier -> blocks                                                       */
+		/* ---------------------------------------------------------------------- */
+
+		private pullFromRapier(state: BodyState): void {
+			if (state.kind === 'fixed') return;
+			const block = this.entries.get(state.id)!.block;
+			const position = state.body.translation();
+			block.syncFromPhysics(position.x, position.y);
+
+			if (block.getAngle() !== null) {
+				state.angle = state.body.rotation();
+				block.setAngle(state.angle);
+			}
+			if (
+				block.getAngularVelocity() !== null
+				&& block.getForcedAngularVelocity() === null
+			) {
+				block.setAngularVelocity(state.body.angvel());
+			}
+		}
+
+		/* ---------------------------------------------------------------------- */
+		/* Reactions to collisions                                                */
+		/* ---------------------------------------------------------------------- */
+
+		private reactToContacts(): void {
+			for (const state of this.bodies.values()) {
+				this.entries.get(state.id)?.block.getWalker()?.clear();
+			}
+
+			const touches = this.collectTouches();
+			for (const touch of touches) {
+				if (!touch.solid) continue;
+				this.react(touch.aId, touch.bId, touch.sideA, touch.nx, touch.ny);
+				this.react(touch.bId, touch.aId, touch.sideB, -touch.nx, -touch.ny);
+			}
+			this.updateCarriers();
+
+			// Notify both blocks, once per pair and face.
+			const reportedPairs = new Set<string>();
+			for (const touch of touches) {
+				const a = this.entries.get(touch.aId);
+				const b = this.entries.get(touch.bId);
+				if (!a || !b) continue;
+				reportedPairs.add(pairKey(touch.aId, touch.bId));
+				a.block.detectCollision(a.id, b, touch.sideA, this, a.data as any);
+				if (this.entries.has(b.id)) {
+					b.block.detectCollision(b.id, a, touch.sideB, this, b.data as any);
+				}
+			}
+
+			// Rapier may omit refused pairs from the contact graph entirely. Still
+			// report those overlaps, but never run physical contact reactions for them.
+			for (const [key, refused] of this.refusedPairs) {
+				if (reportedPairs.has(key)) continue;
+				const a = this.entries.get(refused.aId);
+				const b = this.entries.get(refused.bId);
+				if (!a || !b) continue;
+				a.block.detectCollision(a.id, b, refused.sideA, this, a.data as any);
+				if (this.entries.has(b.id)) {
+					b.block.detectCollision(b.id, a, refused.sideB, this, b.data as any);
+				}
+			}
 		}
 
 		/**
-		 * Releases the Rapier resources owned by this engine.
+		 * Approximate overlap sides for a refused pair that has no Rapier manifold.
+		 * The normal contact graph remains the source of exact sides whenever present.
 		 */
-		dispose(): void {
-			if (this.disposed) {
-				return;
-			}
-
-			this.disposed = true;
-
-			for (
-				const entry
-				of this.entries.values()
-			) {
-				entry.block
-					.unbindPhysicsCollider();
-			}
-
-			this.entries.clear();
-			this.animators.clear();
-			this.colliderToId.clear();
-
-			this.world.removeCharacterController(
-				this.characterController,
-			);
-
-			this.world.free();
-		}
-
-		update(
-			dt: number,
-		): void {
-			this.assertNotDisposed();
-
-			dt = Math.min(
-				dt,
-				MAX_FRAME_DT,
-			);
-
-			if (!(dt > 0)) {
-				return;
-			}
-
-			this.updating = true;
-
-			try {
-				/*
-				* The timestep used by Rapier is updated once per engine update.
-				*/
-				this.world.timestep =
-					dt;
-
-				/* ------------------------------------------------------------------ */
-				/* 1. Pre-engine processing                                             */
-				/* ------------------------------------------------------------------ */
-
-				for (
-					const entry
-					of Array.from(
-						this.entries.values(),
-					)
-				) {
-					if (
-						!this.entries.has(
-							entry.id,
-						)
-					) {
-						continue;
-					}
-
-					entry.block.processBeforeEngine(
-						entry.id,
-						dt,
-						this,
-						entry.data as any,
-					);
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 2. Build movement states                                              */
-				/* ------------------------------------------------------------------ */
-
-				const states =
-					new Map<
-						BlockId,
-						MoverState<TEngineData>
-					>();
-
-				for (
-					const entry
-					of this.entries.values()
-				) {
-					const state =
-						this.computeNextState(
-							entry,
-							dt,
-						);
-
-					if (state) {
-						states.set(
-							entry.id,
-							state,
-						);
-					}
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 3. Resolve all primary movement                                       */
-				/* ------------------------------------------------------------------ */
-
-				const notes:
-					CollisionNote[] = [];
-
-				const seenPairs =
-					new Set<string>();
-
-				for (
-					const state
-					of states.values()
-				) {
-					if (
-						!this.entries.has(
-							state.entry.id,
-						)
-					) {
-						continue;
-					}
-
-					this.resolvePrimaryMovement(
-						state,
-						states,
-						notes,
-						seenPairs,
-						dt,
-					);
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 4. Collision callbacks                                                */
-				/* ------------------------------------------------------------------ */
-
-				for (
-					const note
-					of notes
-				) {
-					this.dispatchNote(
-						note,
-					);
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 5. Commit primary positions                                           */
-				/* ------------------------------------------------------------------ */
-
-				for (
-					const state
-					of states.values()
-				) {
-					if (
-						!this.entries.has(
-							state.entry.id,
-						)
-					) {
-						continue;
-					}
-
-					state.entry.block.x =
-						state.nextX;
-
-					state.entry.block.y =
-						state.nextY;
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 6. Resolve walkers and moving-platform carrying                      */
-				/* ------------------------------------------------------------------ */
-
-				for (
-					const state
-					of states.values()
-				) {
-					if (
-						!this.entries.has(
-							state.entry.id,
-						)
-					) {
-						continue;
-					}
-
-					this.resolveWalker(
-						state,
-						states,
-						dt,
-					);
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 7. Commit walker carrying movement                                   */
-				/* ------------------------------------------------------------------ */
-
-				for (
-					const state
-					of states.values()
-				) {
-					if (
-						!this.entries.has(
-							state.entry.id,
-						)
-					) {
-						continue;
-					}
-
-					state.entry.block.x =
-						state.nextX;
-
-					state.entry.block.y =
-						state.nextY;
-
-					/*
-					* Forced velocity is immutable.
-					*
-					* Normal velocity is updated with the collision-resolved result.
-					*/
-					if (
-						state.velocity
-						&& !state.forcedVelocity
-					) {
-						state.velocity.x =
-							state.nextVx;
-
-						state.velocity.y =
-							state.nextVy;
-					}
-
-					state.effects?.replace(
-						state.nextEffects,
-					);
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 8. Update Rapier's narrow/broad phase                                 */
-				/* ------------------------------------------------------------------ */
-
-				this.world.step();
-
-				/* ------------------------------------------------------------------ */
-				/* 9. Apply effects generated during callbacks                           */
-				/* ------------------------------------------------------------------ */
-
-				for (
-					const effect
-					of this.pendingEffects
-				) {
-					this.entries
-						.get(effect.id)
-						?.block
-						.getVelocityEffects()
-						?.append(
-							effect.vx,
-							effect.vy,
-						);
-				}
-
-				this.pendingEffects.length =
-					0;
-
-				/* ------------------------------------------------------------------ */
-				/* 10. Post-engine processing                                           */
-				/* ------------------------------------------------------------------ */
-
-				for (
-					const entry
-					of Array.from(
-						this.entries.values(),
-					)
-				) {
-					if (
-						!this.entries.has(
-							entry.id,
-						)
-					) {
-						continue;
-					}
-
-					entry.block.processAfterEngine(
-						entry.id,
-						dt,
-						this,
-						entry.data as any,
-					);
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 11. Animation                                                       */
-				/* ------------------------------------------------------------------ */
-
-				if (this.isClient) {
-					for (
-						const [id, animator]
-						of this.animators
-					) {
-						const entry =
-							this.entries.get(id);
-
-						if (!entry) {
-							continue;
-						}
-
-						const walker =
-							entry.block.getWalker();
-
-						const direction =
-							entry.block.getDirection();
-
-						if (!walker || !direction) {
-							continue;
-						}
-
-						/*
-						 * frame() drives the animator state and calls animator.update()
-						 * with the current animation state.
-						 */
-						animator.frame(
-							entry.block,
-							walker,
-							direction,
-							dt,
-						);
-					}
-				}
-
-				/* ------------------------------------------------------------------ */
-				/* 12. Destruction                                                     */
-				/* ------------------------------------------------------------------ */
-
-				for (
-					const entry
-					of Array.from(
-						this.entries.values(),
-					)
-				) {
-					if (
-						entry.block.mustBeDestroyed()
-					) {
-						this.removeBlock(
-							entry.id,
-						);
-					}
-				}
-			} finally {
-				this.updating = false;
-			}
-		}
-
-
-		/* ---------------------------------------------------------------------- */
-		/* State generation                                                       */
-		/* ---------------------------------------------------------------------- */
-
-		private computeNextState(
-			entry:
-				BlockEntry<TEngineData>,
-			dt: number,
-		):
-			| MoverState<TEngineData>
-			| null {
-			const block =
-				entry.block;
-
-			const collider =
-				block.getPhysicsCollider();
-
-			if (!collider) {
-				throw new Error(
-					'Every engine block must have a Rapier collider.',
-				);
-			}
-
-			const velocity =
-				block.getVelocity();
-
-			const forcedVelocity =
-				block.getForcedVelocity();
-
-			const effects =
-				block.getVelocityEffects();
-
-			const direction =
-				block.getDirection();
-
-			const walker =
-				block.getWalker();
-
-			if (
-				!velocity
-				&& !forcedVelocity
-				&& !effects
-				&& !direction
-				&& !walker
-			) {
-				return null;
-			}
-
-			let vx =
-				velocity?.x ?? 0;
-
-			let vy =
-				velocity?.y ?? 0;
-
-			/*
-			* Forced velocity has absolute priority.
-			*/
-			if (forcedVelocity) {
-				vx =
-					forcedVelocity.x;
-
-				vy =
-					forcedVelocity.y;
-			} else if (direction) {
-				vx =
-					approachSpeed(
-						vx,
-						direction,
-						dt,
-					);
-			}
-
-			const nextEffects =
-				effects
-					? effects.reduced(dt)
-					: [];
-
-			let effectX = 0;
-			let effectY = 0;
-
-			/*
-			* A forced velocity is absolute.
-			* Effects are therefore intentionally not added to it.
-			*/
-			if (!forcedVelocity) {
-				for (
-					const effect
-					of nextEffects
-				) {
-					effectX +=
-						effect.vx;
-
-					effectY +=
-						effect.vy;
-				}
-			}
-
-			const state: MoverState<TEngineData> = {
-				entry,
-				collider,
-
-				velocity,
-				forcedVelocity,
-				effects,
-				direction,
-
-				nextVx: vx,
-				nextVy: vy,
-
-				nextEffects,
-
-				speedX: vx + effectX,
-				speedY: vy + effectY,
-
-				nextX:
-					block.x
-					+ (vx + effectX) * dt,
-
-				nextY:
-					block.y
-					+ (vy + effectY) * dt,
-
-				startX:
-					block.x,
-
-				startY:
-					block.y,
+		private inferOverlapSides(
+			a: AnyBlock<TEngineData>,
+			b: AnyBlock<TEngineData>,
+		): { sideA: Side; sideB: Side } {
+			const aSize = a.getSize();
+			const bSize = b.getSize();
+			const dx = a.x - b.x;
+			const dy = a.y - b.y;
+			const overlapX = (aSize.width + bSize.width) / 2 - Math.abs(dx);
+			const overlapY = (aSize.height + bSize.height) / 2 - Math.abs(dy);
+			const horizontal = overlapX < overlapY;
+			const sideFor = (x: number, y: number): Side => horizontal
+				? (x < 0 ? 'right' : 'left')
+				: (y < 0 ? 'floor' : 'ceiling');
+			return {
+				sideA: sideFor(dx, dy),
+				sideB: sideFor(-dx, -dy),
 			};
-
-			/*
-			 * Refresh contacts at the START of the frame. The previous
-			 * implementation only refreshed them after movement, which leaves
-			 * one frame where gravity/input can request movement into a surface.
-			 */
-			this.refreshWalkerContacts(
-				state,
-			);
-
-			/*
-			 * A persistent contact blocks the corresponding component before the
-			 * movement is submitted to Rapier. This makes the gameplay velocity
-			 * exactly zero on the blocked axis instead of correcting one frame late.
-			 */
-			this.stabilizeVelocityAgainstContacts(
-				state,
-			);
-
-			state.speedX =
-				state.nextVx;
-
-			for (
-				const effect
-				of state.nextEffects
-			) {
-				state.speedX +=
-					effect.vx;
-			}
-
-			state.speedY =
-				state.nextVy;
-
-			for (
-				const effect
-				of state.nextEffects
-			) {
-				state.speedY +=
-					effect.vy;
-			}
-
-			state.nextX =
-				state.startX
-				+ state.speedX * dt;
-
-			state.nextY =
-				state.startY
-				+ state.speedY * dt;
-
-			return state;
 		}
 
-
-		/* ---------------------------------------------------------------------- */
-		/* Collision filtering                                                    */
-		/* ---------------------------------------------------------------------- */
-
-		private shouldCollide(
-			self:
-				MoverState<TEngineData>,
-			otherCollider:
-				RAPIER.Collider,
-		): boolean {
-			const otherId =
-				this.colliderToId.get(
-					otherCollider.handle,
-				);
-
-			if (
-				otherId === undefined
-				|| otherId === self.entry.id
-			) {
-				return false;
-			}
-
-			const other =
-				this.entries.get(
-					otherId,
-				);
-
-			if (!other) {
-				return false;
-			}
-
-			return self.entry.block
-				.applyCollision(
-					self.entry.id,
-					self.entry.data as any,
-					other,
-				);
-		}
-
-		private isGhost(
-			self:
-				MoverState<TEngineData>,
-			otherCollider:
-				RAPIER.Collider,
-		): boolean {
-			const otherId =
-				this.colliderToId.get(
-					otherCollider.handle,
-				);
-
-			if (
-				otherId === undefined
-				|| otherId === self.entry.id
-			) {
-				return false;
-			}
-
-			const other =
-				this.entries.get(
-					otherId,
-				);
-
-			if (!other) {
-				return false;
-			}
-
-			return !self.entry.block
-				.applyCollision(
-					self.entry.id,
-					self.entry.data as any,
-					other,
-				);
-		}
-
-
-		/* ---------------------------------------------------------------------- */
-		/* Collision note management                                              */
-		/* ---------------------------------------------------------------------- */
-
-		private addNote(
-			notes:
-				CollisionNote[],
-			seenPairs:
-				Set<string>,
-			aId: BlockId,
-			bId: BlockId,
-			sideA: Side,
-		): void {
-			const key =
-				aId < bId
-					? `${aId}:${bId}`
-					: `${bId}:${aId}`;
-
-			if (
-				seenPairs.has(key)
-			) {
-				return;
-			}
-
-			seenPairs.add(key);
-
-			notes.push({
-				aId,
-				bId,
-				sideA,
-			});
-		}
-
-		private dispatchNote(
-			note:
-				CollisionNote,
-		): void {
-			const a =
-				this.entries.get(
-					note.aId,
-				);
-
-			const b =
-				this.entries.get(
-					note.bId,
-				);
-
-			if (!a || !b) {
-				return;
-			}
-
-			a.block.detectCollision(
-				a.id,
-				b,
-				note.sideA,
-				this,
-				a.data as any,
-			);
-
-			/*
-			* A may destroy B during its callback.
-			*/
-			if (
-				this.entries.has(
-					b.id,
-				)
-			) {
-				b.block.detectCollision(
-					b.id,
-					a,
-					OPPOSITE_SIDE[
-						note.sideA
-					],
-					this,
-					b.data as any,
-				);
-			}
-		}
-
-
-		/* ---------------------------------------------------------------------- */
-		/* Primary movement                                                       */
-		/* ---------------------------------------------------------------------- */
-
-		private resolvePrimaryMovement(
-			state:
-				MoverState<TEngineData>,
-			states:
-				Map<
-					BlockId,
-					MoverState<TEngineData>
-				>,
-			notes:
-				CollisionNote[],
-			seenPairs:
-				Set<string>,
-			dt: number,
-		): void {
-			/*
-			* A forced velocity is deliberately not passed through the character
-			* controller. This is the important semantic difference for moving
-			* platforms: their trajectory cannot be modified by a collision.
-			*/
-			if (state.forcedVelocity) {
-				this.collectForcedVelocityCollisions(
-					state,
-					states,
-					notes,
-					seenPairs,
-					dt,
-				);
-
-				return;
-			}
-
-			const desiredTranslation = {
-				x:
-					state.speedX * dt,
-
-				y:
-					state.speedY * dt,
-			};
-
-			this.characterController
-				.computeColliderMovement(
-					state.collider,
-					desiredTranslation,
-					undefined,
-					undefined,
-					otherCollider =>
-						this.shouldCollide(
-							state,
-							otherCollider,
-						),
-				);
-
-			const corrected =
-				this.characterController
-					.computedMovement();
-
-			state.nextX =
-				state.startX
-				+ corrected.x;
-
-			state.nextY =
-				state.startY
-				+ corrected.y;
-
-			/*
-			* The character controller is the source of truth for the movement
-			* that actually happened. Rebuild the gameplay velocity from that
-			* movement before processing the collision notes below.
-			*
-			* This is important when the character is already within the
-			* controller's collision offset: in that case relying only on a
-			* reported contact can leave a small downward/upward velocity alive
-			* (for example gravity's ~33 px/s contribution).
-			*
-			* Effects are kept separately, so only the base velocity is rebuilt.
-			* The sum of base velocity + surviving effects therefore exactly
-			* matches the movement accepted by Rapier.
-			*/
-			this.syncVelocityWithCorrectedMovement(
-				state,
-				corrected.x,
-				corrected.y,
-				dt,
-			);
-
-			/*
-			* Rapier reports collisions chronologically.
-			*/
-			for (
-				let i = 0;
-				i <
-					this.characterController
-						.numComputedCollisions();
-				i++
-			) {
-				const collision =
-					this.characterController
-						.computedCollision(i);
-
-				if (
-					!collision
-					|| !collision.collider
-				) {
-					continue;
-				}
-
-				const otherId =
-					this.colliderToId.get(
-						collision
-							.collider
-							.handle,
-					);
-
-				if (
-					otherId === undefined
-				) {
-					continue;
-				}
-
-				const normal =
-					collision.normal1;
-
-				/*
-				* normal1 is the obstacle's outward world-space normal.
-				*/
-				const side =
-					sideFromNormal(
-						normal.x,
-						normal.y,
-					);
-
-				/*
-				* Collision resolution is performed by Rapier.
-				*
-				* The gameplay velocity is adjusted separately so that the next
-				* frame does not immediately request movement into the same wall.
-				*/
-				this.cancelVelocityIntoNormal(
-					state,
-					normal.x,
-					normal.y,
-				);
-
-				this.addNote(
-					notes,
-					seenPairs,
-					state.entry.id,
-					otherId,
-					side,
-				);
-			}
-
-			/*
-			* Traversable blocks are not fed to the character controller.
-			*
-			* We still perform continuous shape casts against them so that
-			* detectCollision() retains the old "ghost collision" semantics.
-			*/
-			this.collectGhostCollisions(
-				state,
-				states,
-				notes,
-				seenPairs,
-				dt,
-			);
-		}
-
-
-		/* ---------------------------------------------------------------------- */
-		/* Forced-velocity collision callbacks                                    */
-		/* ---------------------------------------------------------------------- */
-
-		private collectForcedVelocityCollisions(
-			state:
-				MoverState<TEngineData>,
-			states:
-				Map<
-					BlockId,
-					MoverState<TEngineData>
-				>,
-			notes:
-				CollisionNote[],
-			seenPairs:
-				Set<string>,
-			dt: number,
-		): void {
-			const velocity = {
-				x:
-					state.speedX,
-
-				y:
-					state.speedY,
-			};
-
-			for (
-				const other
-				of this.entries.values()
-			) {
-				if (
-					other.id
-					=== state.entry.id
-				) {
-					continue;
-				}
-
-				const otherCollider =
-					other.block
-						.getPhysicsCollider();
-
-				if (!otherCollider) {
-					continue;
-				}
-
-				const otherVelocity =
-					getStateSpeed(
-						states,
-						other.id,
-					);
-
-				const hit =
-					state.collider.castCollider(
-						velocity,
-						otherCollider,
-						otherVelocity,
-						0,
-						dt,
-						true,
-					);
-
-				if (!hit) {
-					continue;
-				}
-
-				const normal =
-					hit.normal2;
-
-				this.addNote(
-					notes,
-					seenPairs,
-					state.entry.id,
-					other.id,
-					sideFromNormal(
-						normal.x,
-						normal.y,
-					),
-				);
-			}
-		}
-
-
-		/* ---------------------------------------------------------------------- */
-		/* Ghost collision callbacks                                               */
-		/* ---------------------------------------------------------------------- */
-
-		private collectGhostCollisions(
-			state:
-				MoverState<TEngineData>,
-			states:
-				Map<
-					BlockId,
-					MoverState<TEngineData>
-				>,
-			notes:
-				CollisionNote[],
-			seenPairs:
-				Set<string>,
-			dt: number,
-		): void {
-			const movementX =
-				state.nextX
-				- state.startX;
-
-			const movementY =
-				state.nextY
-				- state.startY;
-
-			/*
-			* The cast follows the actual movement that survived Rapier's
-			* character-controller resolution.
-			*/
-			const velocity =
-				dt > 0
-					? {
-						x:
-							movementX / dt,
-
-						y:
-							movementY / dt,
-					}
-					: {
-						x: 0,
-						y: 0,
-					};
-
-			for (
-				const other
-				of this.entries.values()
-			) {
-				if (
-					other.id
-					=== state.entry.id
-				) {
-					continue;
-				}
-
-				const otherCollider =
-					other.block
-						.getPhysicsCollider();
-
-				if (!otherCollider) {
-					continue;
-				}
-
-				if (
-					!this.isGhost(
-						state,
-						otherCollider,
-					)
-				) {
-					continue;
-				}
-
-				const otherVelocity =
-					getStateSpeed(
-						states,
-						other.id,
-					);
-
-				const hit =
-					state.collider.castCollider(
-						velocity,
-						otherCollider,
-						otherVelocity,
-						0,
-						dt,
-						true,
-					);
-
-				if (!hit) {
-					continue;
-				}
-
-				const normal =
-					hit.normal2;
-
-				this.addNote(
-					notes,
-					seenPairs,
-					state.entry.id,
-					other.id,
-					sideFromNormal(
-						normal.x,
-						normal.y,
-					),
-				);
-			}
-		}
-
-
-		/* ---------------------------------------------------------------------- */
-		/* Persistent contact stabilization                                        */
-		/* ---------------------------------------------------------------------- */
-
-		private stabilizeVelocityAgainstContacts(
-			state:
-				MoverState<TEngineData>,
-		): void {
-			if (
-				state.forcedVelocity
-			) {
-				return;
-			}
-
-			const walker =
-				state.entry.block.getWalker();
-
-			if (!walker) {
-				return;
-			}
-
-			const speedX =
-				state.nextVx
-				+ state.nextEffects.reduce(
-						(total, effect) =>
-							total + effect.vx,
-						0,
-					);
-
-			const speedY =
-				state.nextVy
-				+ state.nextEffects.reduce(
-						(total, effect) =>
-							total + effect.vy,
-						0,
-					);
-
-			/*
-			 * Floor / ceiling. Y points down.
-			 */
-			if (walker.onFloor() && speedY > 0) {
-				state.nextVy = 0;
-				for (const effect of state.nextEffects) {
-					effect.vy =
-						Math.min(effect.vy, 0);
-				}
-			}
-
-			if (walker.onCeiling() && speedY < 0) {
-				state.nextVy = 0;
-				for (const effect of state.nextEffects) {
-					effect.vy =
-						Math.max(effect.vy, 0);
-				}
-			}
-
-			/*
-			 * Walls. Only the component pointing INTO the wall is cancelled.
-			 */
-			if (walker.onLeft() && speedX < 0) {
-				state.nextVx = 0;
-				for (const effect of state.nextEffects) {
-					effect.vx =
-						Math.max(effect.vx, 0);
-				}
-			}
-
-			if (walker.onRight() && speedX > 0) {
-				state.nextVx = 0;
-				for (const effect of state.nextEffects) {
-					effect.vx =
-						Math.min(effect.vx, 0);
-				}
-			}
-		}
-
-		private refreshWalkerContacts(
-			state:
-				MoverState<TEngineData>,
-		): void {
-			const walker =
-				state.entry.block.getWalker();
-
-			if (!walker) {
-				return;
-			}
-
-			walker.clear();
-
-			for (const side of SIDES) {
-				const direction =
-					SIDE_DIRECTION[side];
-
-				this.characterController
-					.computeColliderMovement(
-						state.collider,
-						{
-							x:
-							direction.x
-							* CONTACT_PROBE_DISTANCE,
-							y:
-							direction.y
-							* CONTACT_PROBE_DISTANCE,
-						},
-						undefined,
-						undefined,
-						otherCollider =>
-							this.shouldCollide(
-								state,
-								otherCollider,
-							),
-					);
-
-				for (
-					let i = 0;
-					i <
-						this.characterController
-							.numComputedCollisions();
-					i++
-				) {
-					const collision =
-						this.characterController
-							.computedCollision(i);
-
-					if (
-						!collision
-						|| !collision.collider
-					) {
-						continue;
-					}
-
-					const normal =
-						collision.normal1;
-
-					const opposing =
-						normal.x * direction.x
-						+ normal.y * direction.y;
-
-					if (opposing >= -0.5) {
-						continue;
-					}
-
-					const otherId =
-						this.colliderToId.get(
-							collision.collider.handle,
-						);
-
-					if (otherId === undefined) {
-						continue;
-					}
-
-					walker.setContact(
-						side,
-						otherId,
-					);
-
-					break;
-				}
-			}
-		}
-
-
-		/* ---------------------------------------------------------------------- */
-		/* Velocity collision resolution                                          */
-		/* ---------------------------------------------------------------------- */
-
-		private syncVelocityWithCorrectedMovement(
-			state:
-				MoverState<TEngineData>,
-			movementX: number,
-			movementY: number,
-			dt: number,
-		): void {
-			if (
-				state.forcedVelocity
-				|| !(dt > 0)
-			) {
-				return;
-			}
-
-			const resolvedVx =
-				movementX / dt;
-
-			const resolvedVy =
-				movementY / dt;
-
-			let effectX = 0;
-			let effectY = 0;
-
-			for (
-				const effect
-				of state.nextEffects
-			) {
-				effectX += effect.vx;
-				effectY += effect.vy;
-			}
-
-			state.nextVx =
-				this.cleanResolvedVelocity(
-					resolvedVx - effectX,
-				);
-
-			state.nextVy =
-				this.cleanResolvedVelocity(
-					resolvedVy - effectY,
-				);
-		}
-
-		private cleanResolvedVelocity(
-			value: number,
-		): number {
-			return Math.abs(value) <= 1e-7
-				? 0
-				: value;
-		}
-
-
-		private cancelVelocityIntoNormal(
-			state:
-				MoverState<TEngineData>,
-			nx: number,
-			ny: number,
-		): void {
-			if (
-				state.forcedVelocity
-			) {
-				/*
-				* Forced velocity is explicitly immutable.
-				*/
-				return;
-			}
-
-			const velocity =
-				removeVelocityIntoNormal(
-					state.nextVx,
-					state.nextVy,
-					nx,
-					ny,
-				);
-
-			state.nextVx =
-				this.cleanResolvedVelocity(
-					velocity.x,
-				);
-
-			state.nextVy =
-				this.cleanResolvedVelocity(
-					velocity.y,
-				);
-
-			/*
-			* Rapier keeps a small collision skin around the character. As a
-			* result, the corrected translation can contain a tiny velocity in
-			* the direction opposite to the surface (for example -0.006 while
-			* standing on the floor). That is not gameplay motion and must not
-			* leak into the Block velocity.
-			*
-			* For axis-aligned gameplay contacts, force the blocked axis to the
-			* exact mathematical zero. The tangential component is preserved.
-			*/
-			if (
-				Math.abs(ny)
-				>= Math.abs(nx)
-			) {
-				state.nextVy = 0;
-			} else {
-				state.nextVx = 0;
-			}
-
-			/*
-			* Velocity effects are velocities as well, so remove their component
-			* going into the same surface.
-			*/
-			for (
-				const effect
-				of state.nextEffects
-			) {
-				const result =
-					removeVelocityIntoNormal(
-						effect.vx,
-						effect.vy,
-						nx,
-						ny,
-					);
-
-				effect.vx =
-					result.x;
-
-				effect.vy =
-					result.y;
-			}
-		}
-
-
-		/* ---------------------------------------------------------------------- */
-		/* Walker contacts                                                        */
-		/* ---------------------------------------------------------------------- */
-
-		private resolveWalker(
-			state:
-				MoverState<TEngineData>,
-			states:
-				Map<
-					BlockId,
-					MoverState<TEngineData>
-				>,
-			dt: number,
-		): void {
-			const walker =
-				state.entry.block.getWalker();
-
-			if (!walker) {
-				return;
-			}
-
-			const previousCarrier =
-				walker.carrierId;
-
-			walker.clear();
-
-			/*
-			* State positions have already been committed before this function.
-			*
-			* The Rapier collider therefore represents the block's final primary
-			* position for this frame.
-			*/
-			for (
-				const side
-				of SIDES
-			) {
-				const direction =
-					SIDE_DIRECTION[side];
-
-				const probe = {
-					x:
-						direction.x
-						* CONTACT_PROBE_DISTANCE,
-
-					y:
-						direction.y
-						* CONTACT_PROBE_DISTANCE,
-				};
-
-				this.characterController
-					.computeColliderMovement(
-						state.collider,
-						probe,
-						undefined,
-						undefined,
-						otherCollider =>
-							this.shouldCollide(
-								state,
-								otherCollider,
-							),
-					);
-
-				for (
-					let i = 0;
-					i <
-						this
-							.characterController
-							.numComputedCollisions();
-					i++
-				) {
-					const collision =
-						this
-							.characterController
-							.computedCollision(i);
-
-					if (
-						!collision
-						|| !collision.collider
-					) {
-						continue;
-					}
-
-					const normal =
-						collision.normal1;
-
-					/*
-					* The obstacle normal must oppose the probe direction.
-					*
-					* This prevents a floor probe from accidentally accepting a
-					* nearly vertical wall, for example.
-					*/
-					const opposing =
-						normal.x * direction.x
-						+ normal.y * direction.y;
-
-					if (
-						opposing >=
-						-0.5
-					) {
-						continue;
-					}
-
-					const otherId =
-						this.colliderToId.get(
-							collision
-								.collider
-								.handle,
-						);
-
-					if (
-						otherId === undefined
-					) {
-						continue;
-					}
-
-					walker.setContact(
-						side,
-						otherId,
-					);
-
-					break;
-				}
-			}
-
-			/*
-			* A floor, left wall, or right wall can carry the walker.
-			* A ceiling cannot.
-			*/
-			const carrierId =
-				walker.getContact('floor')
-				?? walker.getContact('left')
-				?? walker.getContact('right');
-
-			walker.carrierId =
-				carrierId;
-
-			if (
-				carrierId !== null
-			) {
-				const carrierState =
-					states.get(
-						carrierId,
-					);
-
-				if (!carrierState) {
-					return;
-				}
-
-				const carrierDx =
-					carrierState.nextX
-					- carrierState.startX;
-
-				const carrierDy =
-					carrierState.nextY
-					- carrierState.startY;
-
-				if (
-					carrierDx === 0
-					&& carrierDy === 0
-				) {
-					return;
-				}
-
-				/*
-				* Move the walker by the carrier displacement.
-				*
-				* The carrier itself is excluded from the obstacle set because it
-				* is intentionally the object doing the carrying.
-				*/
-				this.characterController
-					.computeColliderMovement(
-						state.collider,
-						{
-							x: carrierDx,
-							y: carrierDy,
-						},
-						undefined,
-						undefined,
-						otherCollider => {
-							const otherId =
-								this.colliderToId.get(
-									otherCollider.handle,
-								);
-
-							if (
-								otherId ===
-								state.entry.id
-							) {
-								return false;
-							}
-
-							if (
-								otherId ===
-								carrierId
-							) {
-								return false;
-							}
-
-							return this.shouldCollide(
-								state,
-								otherCollider,
-							);
-						},
-					);
-
-				const corrected =
-					this
-						.characterController
-						.computedMovement();
-
-				state.nextX +=
-					corrected.x;
-
-				state.nextY +=
-					corrected.y;
-
-				for (
-					let i = 0;
-					i <
-						this
-							.characterController
-							.numComputedCollisions();
-					i++
-				) {
-					const collision =
-						this
-							.characterController
-							.computedCollision(i);
-
-					if (
-						!collision
-						|| !collision.collider
-					) {
-						continue;
-					}
-
-					const normal =
-						collision.normal1;
-
-					this.cancelVelocityIntoNormal(
-						state,
-						normal.x,
-						normal.y,
-					);
-				}
-
-				return;
-			}
-
-			/*
-			* If the walker has just left a moving platform, preserve that
-			* platform's velocity as a temporary effect.
-			*/
-			if (
-				previousCarrier !== null
-				&& !state.forcedVelocity
-			) {
-				const previousCarrierState =
-					states.get(
-						previousCarrier,
-					);
-
-				if (
-					previousCarrierState
-					&& (
-						previousCarrierState.speedX
-						!== 0
-						|| previousCarrierState.speedY
-						!== 0
-					)
-				) {
-					this.pendingEffects.push({
-						id:
-							state.entry.id,
-
-						vx:
-							previousCarrierState.speedX,
-
-						vy:
-							previousCarrierState.speedY,
+		/** Ask Rapier's contact graph who touches whom, and from which direction. */
+		private collectTouches(): Touch[] {
+			const touches = new Map<string, Touch>();
+
+			for (const state of this.bodies.values()) {
+				// Every contact involves at least one non-fixed body.
+				if (state.kind === 'fixed') continue;
+
+				for (const collider of state.colliders) {
+					this.world.contactPairsWith(collider, other => {
+						const otherBody = other.parent();
+						const otherId = otherBody ? this.bodyToId.get(otherBody.handle) : undefined;
+						if (otherId === undefined || otherId === state.id) return;
+
+						this.world.contactPair(collider, other, (manifold, flipped) => {
+							if (manifold.numContacts() === 0) return;
+
+							// Rapier's normal goes from the manifold's first collider to its
+							// second one; flip it so that it points toward this block.
+							const normal = manifold.normal();
+							const sign = flipped ? 1 : -1;
+							this.addTouch(touches, state.id, otherId, sign * normal.x, sign * normal.y);
+						});
 					});
 				}
 			}
+			return Array.from(touches.values());
 		}
 
+		private addTouch(
+			touches: Map<string, Touch>,
+			selfId: BlockId,
+			otherId: BlockId,
+			nx: number,
+			ny: number,
+		): void {
+			// (nx, ny) points from other toward self. Store pairs as a < b with the
+			// normal pointing toward a, so both bodies of a pair give the same entry.
+			const swap = selfId > otherId;
+			const aId = swap ? otherId : selfId;
+			const bId = swap ? selfId : otherId;
+			const ax = swap ? -nx : nx;
+			const ay = swap ? -ny : ny;
 
-		/* ---------------------------------------------------------------------- */
-		/* Miscellaneous                                                          */
-		/* ---------------------------------------------------------------------- */
+			const sideA = classifySide(ax, ay, this.toleranceOf(aId));
+			const sideB = classifySide(-ax, -ay, this.toleranceOf(bId));
+			const key = `${aId}:${bId}:${sideA}:${sideB}`;
+			if (touches.has(key)) return;
 
-		private assertNotDisposed():
-			void {
-			if (this.disposed) {
-				throw new Error(
-					'PlatformerEngine has been disposed.',
-				);
+			touches.set(key, {
+				aId, bId, nx: ax, ny: ay, sideA, sideB,
+				solid: !this.passthrough.has(pairKey(aId, bId)),
+			});
+		}
+
+		private toleranceOf(id: BlockId): number {
+			return this.entries.get(id)?.block.getWalker()?.getVerticalTolerancy()
+				?? DEFAULT_VERTICAL_TOLERANCE;
+		}
+
+		/** A solid contact: record it on the walker and stop the motion pushing into it. */
+		private react(
+			selfId: BlockId,
+			otherId: BlockId,
+			side: Side,
+			nx: number,
+			ny: number,
+		): void {
+			const block = this.entries.get(selfId)?.block;
+			if (!block) return;
+
+			const walker = block.getWalker();
+			if (walker && walker.getContact(side) === null) walker.setContact(side, otherId);
+
+			// Velocity controlled by the block itself is never altered by collisions.
+			if (block.getForcedVelocity()) return;
+
+			const velocity = block.getVelocity();
+			if (velocity) {
+				[velocity.x, velocity.y] = removeBlockedComponent(velocity.x, velocity.y, nx, ny);
+			}
+			for (const effect of block.getVelocityEffects()?.getEffects() ?? []) {
+				[effect.vx, effect.vy] = removeBlockedComponent(effect.vx, effect.vy, nx, ny);
 			}
 		}
-	}
 
+		/**
+		 * A walker is carried by what it stands on (or leans against). When it
+		 * loses its carrier it keeps the carrier's speed as an effect.
+		 */
+		private updateCarriers(): void {
+			for (const state of this.bodies.values()) {
+				const block = this.entries.get(state.id)?.block;
+				const walker = block?.getWalker();
+				if (!block || !walker) continue;
 
-	let rapierInitialization:
-		Promise<void> | null = null;
+				const carrierId = walker.getContact('floor')
+					?? walker.getContact('climbing')
+					?? walker.getContact('left')
+					?? walker.getContact('right');
 
-	function initRapier(): Promise<void> {
-		if (!rapierInitialization) {
-			rapierInitialization =
-				RAPIER.init();
+				if (
+					walker.carrierId !== null && carrierId === null
+					&& block.getVelocity() && !block.getForcedVelocity()
+				) {
+					block.getVelocityEffects()?.append(
+						state.carrierVx,
+						state.carrierVy,
+						EffectId.ADDITIONNAL_SPEED,
+					);
+				}
+				walker.carrierId = carrierId;
+			}
 		}
 
-		return rapierInitialization;
+		private assertNotDisposed(): void {
+			if (this.disposed) throw new Error('PlatformerEngine has been disposed.');
+		}
 	}
 
-	export async function createPlatformerEngine<
-		TEngineData extends EngineData,
-	>(
+	let rapierReady: Promise<void> | null = null;
+
+	export async function createPlatformerEngine<TEngineData extends EngineData>(
 		isClient: boolean,
 		storage: TEngineData['Storage'],
 		game: TEngineData['Game'],
-		gravity: Point = {
-			x: 0,
-			y: 0,
-		},
-	): Promise<
-		PlatformerEngine<TEngineData>
-	> {
-		await initRapier();
-
-		return new PlatformerEngine(
-			isClient,
-			storage,
-			game,
-			gravity,
-		);
+		gravity: Point = { x: 0, y: 0 },
+	): Promise<PlatformerEngine<TEngineData>> {
+		// Rapier's WASM module is loaded once, then shared by every engine.
+		if (!rapierReady) rapierReady = RAPIER.init();
+		await rapierReady;
+		return new PlatformerEngine(isClient, storage, game, gravity);
 	}
-
-	/* -------------------------------------------------------------------------- */
-	/* Side classification                                                        */
-	/* -------------------------------------------------------------------------- */
-
-	/**
-	 * Converts an obstacle normal into the gameplay side seen by the block.
-	 *
-	 * The normal points from the obstacle toward the block.
-	 *
-	 * Since Y points down:
-	 *   negative Y = floor normal
-	 *   positive Y = ceiling normal
-	 */
-	function sideFromNormal(
-		nx: number,
-		ny: number,
-	): Side {
-		if (
-			Math.abs(ny)
-			>= Math.abs(nx)
-		) {
-			return ny < 0
-				? 'floor'
-				: 'ceiling';
-		}
-
-		return nx > 0
-			? 'left'
-			: 'right';
-	}
-
 
 }

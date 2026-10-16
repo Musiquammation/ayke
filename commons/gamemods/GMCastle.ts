@@ -362,10 +362,9 @@ type NoData = null;
 type BlockId = platformEngine.BlockId;
 type Side = platformEngine.Side;
 type Size = platformEngine.Size;
-type Polygon = platformEngine.Polygon;
 type Velocity = platformEngine.Velocity;
 type Direction = platformEngine.Direction;
-type Folder = platformEngine.ImageLoaderFolder;
+type Folder = ImageLoaderFolder;
 type Engine = platformEngine.IBlockEngine<CDEngineData>;
 type Entry = platformEngine.BlockEntry<CDEngineData>;
 
@@ -1926,12 +1925,12 @@ class RampElement extends PlacedElement {
 	getTypeIdx() { return TYPE_RAMP; }
 
 	/** Right triangle. variant 0 rises toward the right (+x), variant 1 toward the left. */
-	override getPolygon(): Polygon | null {
-		return {
-			sides: this.variant === 0
-				? [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0 }]
-				: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 0 }],
-		};
+	override getPolygon() {
+		return new platformEngine.Hitbox([], [
+			this.variant === 0
+				? { x0: 0, y0: 1, x1: 1, y1: 0 } // Rises to the right
+				: { x0: 0, y0: 0, x1: 1, y1: 1 }, // Rises to the left
+		]);
 	}
 
 	protected override drawBody(ctx: CanvasRenderingContext2D, folder: Folder, colorId: number | undefined) {

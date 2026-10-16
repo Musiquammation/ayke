@@ -17,6 +17,8 @@
     "@dimforge/rapier2d-compat": "^0.21.0",
     "alpinejs": "^3.16.2",
     "marked": "^18.0.13",
+    "matter-js": "^0.20.0",
+    "phaser": "^4.2.1",
     "prando": "^6.0.1",
     "protobufjs": "^8.7.2",
     "sqlite3": "^6.0.1",
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@types/alpinejs": "^3.13.11",
+    "@types/matter-js": "^0.20.2",
     "@types/node": "^26.5.0"
   }
 }
