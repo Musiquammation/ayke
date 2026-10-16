@@ -167,7 +167,36 @@ const LEVELS = (function(){
 				{ x: 46, y: 5, w: 1, h: 9, skin: 'box' },
 				{ x: 36, y: -5, w: 12, h: 1, skin: 'box' },
 			],
-			items: [],
+			items: [
+				{x: 2, y: 13},
+				{x: 4, y: 13},
+				{x: 6, y: 13},
+				{x: 7, y: 12},
+				{x: 9, y: 13},
+				{x: 10, y: 12},
+				{x: 12, y: 9},
+				{x: 14, y: 9},
+				{x: 16, y: 9},
+				{x: 19, y: 12},
+				{x: 21, y: 12},
+				{x: 23, y: 12},
+				{x: 25, y: 12},
+				{x: 27, y: 12},
+				{x: 29, y: 12},
+				{x: 30, y: 12},
+				{x: 32, y: 12},
+				{x: 34, y: 12},
+				{x: 36, y: 12},
+				{x: 38, y: 12},
+				{x: 40, y: 12},
+				{x: 42, y: 12},
+				{x: 44, y: 12},
+				{x: 47, y: 13},
+				{x: 49, y: 13},
+				{x: 51, y: 13},
+				{x: 53, y: 13},
+				{x: 55, y: 13},
+			],
 			checkpoints: [
 				{x: 33, y: 7, w: 1, h: 10}
 			],
@@ -188,6 +217,7 @@ const LEVELS = (function(){
 			p.x += p.w / 2;
 			p.y += p.h / 2;
 		}
+
 		for (const cp of [...level.checkpoints, ...level.subCheckpoints]) {
 			const w = (cp.w ?? 1) * GRID_SIZE;
 			const h = (cp.h ?? 1) * GRID_SIZE;
@@ -195,6 +225,11 @@ const LEVELS = (function(){
 			cp.y = cp.y * GRID_SIZE + h / 2;
 			cp.w = w;
 			cp.h = h;
+		}
+
+		for (const i of level.items) {
+			i.x = GRID_SIZE * (i.x + .5);
+			i.y = GRID_SIZE * (i.y + .5);
 		}
 	}
 
@@ -2358,9 +2393,31 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			liveShells.push(shell);
 		}
 
-		// Ordinary shells can collide with each other; bombs are intentionally not
-		// included in this pairwise pass, and blue shells survive shell-to-shell hits.
+		// Hazards interact with each other in the authoritative simulation:
+		// bananas break red/green shells, while bombs bounce shells away without
+		// detonating. Blue shells keep their special behavior and are excluded.
+		const bananas = this.getBananas().filter(banana => banana.active);
+		const bombs = this.getBombs().filter(bomb => bomb.active);
 		const brokenShells = new Set<number>();
+		for (const shell of liveShells) {
+			if (shell.itemKind === ITEM_BLUE_SHELL) continue;
+			const shellRect = { x: shell.x, y: shell.y, w: HAZARD_SIZE, h: HAZARD_SIZE };
+			for (const banana of bananas) {
+				if (!banana.active || !overlapsCenter(shellRect, { x: banana.x, y: banana.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) continue;
+				brokenShells.add(shell.entityId);
+				break;
+			}
+			if (brokenShells.has(shell.entityId)) continue;
+			for (const bomb of bombs) {
+				if (!bomb.active || !overlapsCenter(shellRect, { x: bomb.x, y: bomb.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) continue;
+				// Reverse horizontal travel and give the shell a small vertical kick.
+				// Separate it slightly from the bomb to avoid repeated flips next frame.
+				shell.vx = -shell.vx;
+				shell.vy = Math.min(shell.vy, -SHELL_JUMP_VELOCITY * 0.35);
+				shell.x += Math.sign(shell.vx || 1) * (HAZARD_SIZE / 2 + 1);
+				break;
+			}
+		}
 		for (let i = 0; i < liveShells.length; i++) {
 			for (let j = i + 1; j < liveShells.length; j++) {
 				if (overlapsCenter(
