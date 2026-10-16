@@ -1369,15 +1369,6 @@ export namespace platformEngine {
 				})
 			);
 
-			for (const collider of colliders) {
-				console.log({
-					collider: collider.handle,
-					hooks: collider.activeHooks(),
-					bodyType: body.bodyType(),
-					sensor: collider.isSensor(),
-				});
-			}
-
 			return {
 				id,
 				body,
