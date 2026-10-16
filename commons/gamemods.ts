@@ -146,6 +146,45 @@ export const gamemods: Record<
 		nodes: bots_airbasket
 	},
 
+	castle: {
+		type: 'multiplayer',
+		server: GMCastle.createServ,
+		client: GMCastle.createClient,
+		dom: GMCastle.generateClientDom,
+		textures: GMCastle.TEXTURES,
+		name: "Castle",
+		description: "",
+		tropheesPerPlayer: 25,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 2,
+		protoFields: GMCastle.PROTO_FIELDS as readonly string[],
+		nodes: bots_castle
+	},
+
+	rally: {
+		type: 'multiplayer',
+		server: GMRally.createServ,
+		client: GMRally.createClient,
+		dom: GMRally.generateClientDom,
+		textures: GMRally.TEXTURES,
+		name: "Rally",
+		description: "",
+		tropheesPerPlayer: 15,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 8,
+		nodes: bots_rally
+	},
+
 	crayzoll: {
 		type: 'multiplayer',
 		server: GMCrayzoll.createServ,
@@ -163,25 +202,6 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_crayzoll
-	},
-
-	turrets: {
-		type: 'multiplayer',
-		server: GMTurrets.createServ,
-		client: GMTurrets.createClient,
-		dom: GMTurrets.generateClientDom,
-		textures: GMTurrets.TEXTURES,
-		name: "Turrets",
-		description: "Build and defend your turret while trying to destroy your opponents using items.",
-		tropheesPerPlayer: 20,
-		explainationSlides: null,
-		computerOnly: false,
-		skins: [],
-		collectibles: null,
-		tropheeRoalPixelsPerTrophy: 3.5,
-		iconExtension: 'svg',
-		defaultPlayerCount: 4,
-		nodes: bots_turrets
 	},
 
 	separator_mobile: {
@@ -285,49 +305,30 @@ export const gamemods: Record<
 		nodes: bots_lavaBall
 	},
 
-	castle: {
-		type: 'multiplayer',
-		server: GMCastle.createServ,
-		client: GMCastle.createClient,
-		dom: GMCastle.generateClientDom,
-		textures: GMCastle.TEXTURES,
-		name: "Castle",
-		description: "",
-		tropheesPerPlayer: 15,
-		explainationSlides: null,
-		computerOnly: false,
-		skins: [],
-		collectibles: null,
-		tropheeRoalPixelsPerTrophy: 3.5,
-		iconExtension: 'png',
-		defaultPlayerCount: 2,
-		protoFields: GMCastle.PROTO_FIELDS as readonly string[],
-		nodes: bots_castle
-	},
-
-	rally: {
-		type: 'multiplayer',
-		server: GMRally.createServ,
-		client: GMRally.createClient,
-		dom: GMRally.generateClientDom,
-		textures: GMRally.TEXTURES,
-		name: "Rally",
-		description: "",
-		tropheesPerPlayer: 15,
-		explainationSlides: null,
-		computerOnly: false,
-		skins: [],
-		collectibles: null,
-		tropheeRoalPixelsPerTrophy: 3.5,
-		iconExtension: 'png',
-		defaultPlayerCount: 2,
-		nodes: bots_rally
-	},
-
 	separator_comingSoon: {
 		type: 'ui-separator',
 		category: "Coming soon..."
 	},
+
+	turrets: {
+		type: 'multiplayer',
+		server: GMTurrets.createServ,
+		client: GMTurrets.createClient,
+		dom: GMTurrets.generateClientDom,
+		textures: GMTurrets.TEXTURES,
+		name: "Turrets",
+		description: "Build and defend your turret while trying to destroy your opponents using items.",
+		tropheesPerPlayer: 20,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'svg',
+		defaultPlayerCount: 4,
+		nodes: bots_turrets
+	},
+
 
 	moveArmy: {
 		type: 'multiplayer',
