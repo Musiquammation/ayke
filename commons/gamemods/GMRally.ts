@@ -143,63 +143,63 @@ interface LevelDef {
 }
 
 /** Maps are static and known to all peers; their geometry is never sent in snapshots. */
-const LEVELS: LevelDef[] = [
-	{
-		name: "Warm-up",
-		spawnX: 0, spawnY: 384,
-		finishX: 3008, deathY: 896,
-		platforms: [
-			{ x: 704, y: 512, w: 1792, h: 160, skin: 'grass' },
-			{ x: 1760, y: 480, w: 224, h: 32, skin: 'platform', move: { ax: 0, ay: 64, period: 3, phase: 0 } },
-			{ x: 2400, y: 512, w: 992, h: 160, skin: 'mud', mud: 180 },
-			{ x: 2144, y: 0, w: 32, h: 512, skin: 'box' },
-			{ x: 2432, y: 128, w: 32, h: 640, skin: 'grass' },
-			{ x: 2816, y: -160, w: 608, h: 32, skin: 'grass' },
-		],
-		items: [{ x: 1312, y: 384 }, { x: 2304, y: 384 }],
-		checkpoints: [{ x: 1952, y: 384, w: 64, h: 512 }],
-		subCheckpoints: [{ x: 2592, y: 384, w: 64, h: 512, afterCheckpoint: 0 }],
-	},
-	{
-		name: "Skyline",
-		spawnX: 0, spawnY: 350,
-		finishX: 3150, deathY: 1050,
-		platforms: [
-			{ x: 560, y: 520, w: 1450, h: 140 },
-			{ x: 1370, y: 425, w: 260, h: 32 },
-			{ x: 1690, y: 350, w: 260, h: 32, move: { ax: 0, ay: 55, period: 2.7, phase: 0.2 } },
-			{ x: 2000, y: 430, w: 380, h: 36 },
-			{ x: 2250, y: 350, w: 320, h: 36 },
-			{ x: 2500, y: 250, w: 300, h: 36 },
-			{ x: 2770, y: 150, w: 300, h: 36 },
-			{ x: 3090, y: -10, w: 700, h: 40 },
-		],
-		items: [{ x: 980, y: 375 }, { x: 1840, y: 280 }, { x: 2680, y: 390 }],
-		checkpoints: [{ x: 2020, y: 350, w: 70, h: 520 }],
-		subCheckpoints: [{ x: 2710, y: 375, w: 70, h: 520, afterCheckpoint: 0 }],
-	},
-	{
-		name: "Switchback",
-		spawnX: 0, spawnY: 370,
-		finishX: 3250, deathY: 1100,
-		platforms: [
-			{ x: 580, y: 535, w: 1500, h: 140 },
-			{ x: 1510, y: 450, w: 260, h: 32, move: { ax: 120, ay: 0, period: 3.6, phase: 0.1 } },
-			{ x: 1900, y: 390, w: 440, h: 36 },
-			{ x: 2250, y: 300, w: 260, h: 32, move: { ax: 0, ay: 65, period: 2.4, phase: 0.55 } },
-			{ x: 2630, y: 200, w: 360, h: 36 },
-			{ x: 2970, y: 100, w: 360, h: 36 },
-			{ x: 3150, y: -10, w: 700, h: 40 },
-		],
-		items: [{ x: 1050, y: 390 }, { x: 2100, y: 320 }, { x: 2850, y: 410 }],
-		checkpoints: [
-			{ x: 1660, y: 360, w: 70, h: 520 },
-			{ x: 2730, y: 360, w: 70, h: 520 },
-		],
-		subCheckpoints: [{ x: 2190, y: 320, w: 70, h: 520, afterCheckpoint: 0 }],
-	},
-];
+const LEVELS = (function(){
+	const LEVELS: LevelDef[] = [
+		{
+			name: "Default",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 57*GRID_SIZE,
+			deathY: 1024,
+			platforms: [
+				{ x: 0, y: 14, w: 57, h: 2, skin: 'grass' },
+				{ x: 5, y: 2, w: 1, h: 10, skin: 'box' },
+				{ x: 8, y: 5, w: 1, h: 9, skin: 'box' },
+				{ x: 11, y: -5, w: 1, h: 16, skin: 'box' },
+				{ x: 18, y: 7, w: 1, h: 7, skin: 'box' },
+				{ x: 11, y: 10, w: 5, h: 1, skin: 'box' },
+				{ x: 18, y: -3, w: 1, h: 7, skin: 'box' },
+				{ x: 21, y: -3, w: 1, h: 14, skin: 'box' },
+				{ x: 21, y: -2, w: 10, h: 1, skin: 'box' },
+				{ x: 19, y: 13, w: 10, h: 1, skin: 'mud', mud: 40 },
+				{ x: 33, y: -10, w: 1, h: 23, skin: 'box' },
+				{ x: 35, y: -5, w: 1, h: 15, skin: 'box' },
+				{ x: 46, y: 5, w: 1, h: 9, skin: 'box' },
+				{ x: 36, y: -5, w: 12, h: 1, skin: 'box' },
+			],
+			items: [],
+			checkpoints: [
+				{x: 33, y: 7, w: 1, h: 10}
+			],
+			subCheckpoints: [],
+		},
+	];
 
+
+	// Work levels
+	for (const level of LEVELS) {
+		// Platform and checkpoint definitions are both authored in grid units.
+		// Convert every rectangle to world-space center coordinates exactly once.
+		for (const p of level.platforms) {
+			p.x *= GRID_SIZE;
+			p.y *= GRID_SIZE;
+			p.w *= GRID_SIZE;
+			p.h *= GRID_SIZE;
+			p.x += p.w / 2;
+			p.y += p.h / 2;
+		}
+		for (const cp of [...level.checkpoints, ...level.subCheckpoints]) {
+			const w = (cp.w ?? 1) * GRID_SIZE;
+			const h = (cp.h ?? 1) * GRID_SIZE;
+			cp.x = cp.x * GRID_SIZE + w / 2;
+			cp.y = cp.y * GRID_SIZE + h / 2;
+			cp.w = w;
+			cp.h = h;
+		}
+	}
+
+	return LEVELS;
+})();
 
 /** All game rectangles use center coordinates: (x, y) is the center. */
 function overlapsCenter(
@@ -381,6 +381,8 @@ class PlayerBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 	wallSliding = false;
 	wallJumping = false;
 	stunned = false;
+	/** True while the player's feet overlap mud; jumping is disabled on mud. */
+	mudContact = false;
 	mudVmax = -1;
 
 	constructor(readonly index: number) {
@@ -606,6 +608,10 @@ class Player {
 			this.jumpBuffer = 0;
 			this.itemQueued = false;
 		}
+
+		// Mud disables both ground jumps and wall jumps. Clear the buffered input
+		// too, so a jump pressed while on mud cannot fire after leaving it.
+		if (block.mudContact) this.jumpBuffer = 0;
 
 		const onFloor = block.walker.onFloor();
 		const pushingWall =
@@ -1742,16 +1748,23 @@ private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T
 				this.useItem(idx, block);
 			}
 		}
-		// Mud limits the player's running speed unless a mushroom boost or star is active.
+		// Detect mud contact independently from its speed penalty: boosts may cancel
+		// the slowdown, but must not re-enable jumping while the player is on mud.
+		block.mudContact = false;
 		block.mudVmax = -1;
-		if (this.engine && p.boostTimer <= 0 && p.starTimer <= 0) {
+		if (this.engine) {
 			for (const entry of this.engine.getBlocks()) {
 				if (!(entry.block instanceof PlatformBlock) || entry.block.mud < 0) continue;
 				const size = entry.block.getSize();
-				if (overlapsCenter(
+				const touchingMud = overlapsCenter(
 					{ x: block.x, y: block.y + PLAYER_H / 2, w: PLAYER_W, h: 2 },
 					{ x: entry.block.x, y: entry.block.y, w: size.width, h: size.height }
-				)) block.mudVmax = block.mudVmax < 0 ? entry.block.mud : Math.min(block.mudVmax, entry.block.mud);
+				);
+				if (!touchingMud) continue;
+				block.mudContact = true;
+				if (p.boostTimer <= 0 && p.starTimer <= 0) {
+					block.mudVmax = block.mudVmax < 0 ? entry.block.mud : Math.min(block.mudVmax, entry.block.mud);
+				}
 			}
 		}
 		p.control(block, dt);
@@ -1795,12 +1808,19 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		// Finished players still respawn if they fall, but can no longer score another lap.
 		if (p.finished) return;
 		this.updateCheckpoint(p, level);
-		if (p.checkpoint === level.checkpoints.length - 1 && overlapsCenter(
-			{ x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H },
-			{ x: level.finishX, y: -150, w: 80, h: 450 }
-		)) {
-			this.completeLap(idx, p, block);
-			return;
+		const ground = level.platforms.find(platform => platform.skin === 'grass');
+		if (p.checkpoint === level.checkpoints.length - 1 && ground) {
+			// finishX is the right edge of the ground platform and the center of the
+			// rendered finish stripe. Use a small approach zone so the player can
+			// trigger it before walking off the platform edge.
+			const groundTop = ground.y - ground.h / 2;
+			const runningCenterY = groundTop - PLAYER_H / 2;
+			const crossedFinish = p.x + PLAYER_W / 2 >= level.finishX - GRID_SIZE;
+			const onFinishApproach = Math.abs(p.y - runningCenterY) <= GRID_SIZE * 2;
+			if (crossedFinish && onFinishApproach) {
+				this.completeLap(idx, p, block);
+				return;
+			}
 		}
 	}
 
@@ -1840,7 +1860,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		if (nextCheckpoint < level.checkpoints.length) {
 			const cp = level.checkpoints[nextCheckpoint];
 			if (overlapsCenter(playerRect, {
-				x: cp.x, y: cp.y, w: cp.w ?? 48, h: cp.h ?? 220,
+				x: cp.x, y: cp.y, w: cp.w ?? GRID_SIZE, h: cp.h ?? GRID_SIZE,
 			})) p.checkpoint = nextCheckpoint;
 		}
 
@@ -1849,7 +1869,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			const cp = level.subCheckpoints[nextSubCheckpoint];
 			const prerequisite = cp.afterCheckpoint ?? -1;
 			if (p.checkpoint >= prerequisite && overlapsCenter(playerRect, {
-				x: cp.x, y: cp.y, w: cp.w ?? 48, h: cp.h ?? 220,
+				x: cp.x, y: cp.y, w: cp.w ?? GRID_SIZE, h: cp.h ?? GRID_SIZE,
 			})) p.subCheckpoint = nextSubCheckpoint;
 		}
 	}
