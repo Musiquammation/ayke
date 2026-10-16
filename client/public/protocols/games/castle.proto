@@ -127,10 +127,7 @@ message State {
 	int32 blueScore = 4;
 	int32 castleHp = 5;
 
-	float waveTimer = 6;
-	int32 waveIndex = 7;
-	int32 spawnQueue = 8;
-	float spawnTimer = 9;
+	float spawnTimer = 6;
 
 	reserved 10; // former nextUid
 	repeated BlockState blocks = 11;

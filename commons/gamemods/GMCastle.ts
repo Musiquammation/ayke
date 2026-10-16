@@ -84,23 +84,15 @@ const ELIXIR_REGEN_PER_SECOND = 0.6;
 const REMOVAL_BASE_FACTOR = 1;
 
 // ---- Bots (waves) ----------------------------------------------------------
-const BOT_MAX_LENGTH = 50;
 const BOT_SIZE = 30;
 const BOT_RUN_SPEED = 140;           // target horizontal speed (px/s) written into Direction.dir
 const BOT_JUMP_SPEED = 560;
 const BOT_ACCELERATION = 800;
 const BOT_SOFT_DECELERATION = 600;
 const BOT_HARD_DECELERATION = 1200;
-const BOT_JUMP_HOLD_TIME = 0.08;
 const BOT_JUMP_COOLDOWN = 0.20;
-const BOT_WALL_JUMP_SPEED = 1000;
-const BOT_WALL_JUMP_LOCK_TIME = 0.16;
-const BOT_WALL_JUMP_REVERSE_TIME = 0.10;
 const BOT_WALL_JUMP_MAX_REPEAT_PER_SECOND = 5;
-const BOT_JUMP_ACCELERATION = 1000;
-const BOT_FALL_ACCELERATION = 2000;
 const BOT_WALL_SLIDE_MAX_SPEED = 100;
-const BOT_STUCK_DISTANCE = 6;
 const BOT_SPAWN_X = 2 * CELL;
 const BOT_SPAWN_Y = FLOOR_TOP_Y - BOT_SIZE / 2 - 2;
 const SPAWN_MIN_Y = BOT_SIZE / 2;
@@ -112,12 +104,7 @@ const BOT_RUNNING_SPEED = 100;       // speed from which the 'running' animation
 const KILL_CREDIT_WINDOW = 2;
 const BOT_WALL_JUMP_KICK = 260;
 
-const WAVE_FIRST_DELAY = 0.1;
-const WAVE_INTERVAL = 2;
-const WAVE_BASE_SIZE = 3;
-const WAVE_SIZE_GROWTH = 1;
-const WAVE_MAX_SIZE = 5;
-const BOT_SPAWN_INTERVAL = 0.2;
+const BOT_SPAWN_INTERVAL = 0.7;
 
 // ---- Element: block --------------------------------------------------------
 const BLOCK_PRICE = 0.5;
@@ -2892,9 +2879,6 @@ export class GMCastle extends GameMode {
 	time = MATCH_DURATION;
 
 	// ---- Wave state (shared) ----
-	waveTimer = WAVE_FIRST_DELAY;
-	waveIndex = 0;
-	spawnQueue = 0;
 	spawnTimer = 0;
 	nextUid = 0;
 	/** Number of player-driven modifications made to the map (place/remove/replace). */
@@ -3200,27 +3184,16 @@ export class GMCastle extends GameMode {
 
 	/* ---------------------------------- waves --------------------------------- */
 
+	
 	private runWaves(dt: number) {
-		this.waveTimer -= dt;
-		while (this.waveTimer <= 0) {
-			const waveSize = WAVE_MAX_SIZE;
-			this.spawnQueue += waveSize;
-			this.waveIndex++;
-			this.waveTimer += WAVE_INTERVAL;
-		}
-
 		this.spawnTimer -= dt;
-		while (this.spawnQueue > 0 && this.spawnTimer <= 0) {
+		while (this.spawnTimer <= 0) {
 			const bot = Bot.create();
-
-			// if (this.storage.bots.size < BOT_MAX_LENGTH) {
-				this.register(bot, 'bot', this.storage.bots);
-			// }
-
-			this.spawnQueue--;
+			this.register(bot, 'bot', this.storage.bots);
 			this.spawnTimer += BOT_SPAWN_INTERVAL;
 		}
 	}
+
 
 	/* --------------------------- frame post-processing ------------------------- */
 
@@ -3824,9 +3797,6 @@ export class GMCastle extends GameMode {
 			redScore: this.redScore,
 			blueScore: this.blueScore,
 			castleHp: this.castleHp,
-			waveTimer: this.waveTimer,
-			waveIndex: this.waveIndex,
-			spawnQueue: this.spawnQueue,
 			spawnTimer: this.spawnTimer,
 			blocks: [...this.storage.elements.values()].map(element => ({
 				typeIdx: element.getTypeIdx(),
@@ -3870,9 +3840,6 @@ export class GMCastle extends GameMode {
 		this.redScore = obj.redScore;
 		this.blueScore = obj.blueScore;
 		this.castleHp = obj.castleHp;
-		this.waveTimer = obj.waveTimer;
-		this.waveIndex = obj.waveIndex;
-		this.spawnQueue = obj.spawnQueue;
 		this.spawnTimer = obj.spawnTimer;
 		fake.updateState(obj, protocols.get());
 	}
