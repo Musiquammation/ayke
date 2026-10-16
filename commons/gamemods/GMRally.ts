@@ -532,7 +532,6 @@ class PlatformBlock extends platformEngine.Block<ClientData, RallyEngineData> {
 
 class Player {
 	connected = true;
-	isRed = true;
 
 	// Mirror of the authoritative physical state.
 	x = 0;
@@ -699,7 +698,7 @@ class Player {
 	save() {
 		return {
 			x: this.x, y: this.y, vx: this.vx, vy: this.vy,
-			connected: this.connected, isRed: this.isRed, facing: this.facing,
+			connected: this.connected, facing: this.facing,
 			jumpBuffer: this.jumpBuffer, wallBoost: this.wallBoost,
 			boostTimer: this.boostTimer, slowTimer: this.slowTimer, starTimer: this.starTimer,
 			item: this.item, pendingItem: this.pendingItem, itemRollTimer: this.itemRollTimer,
@@ -713,7 +712,7 @@ class Player {
 
 	load(obj: Fields) {
 		this.x = obj.x; this.y = obj.y; this.vx = obj.vx; this.vy = obj.vy;
-		this.connected = obj.connected; this.isRed = obj.isRed;
+		this.connected = obj.connected;
 		this.facing = obj.facing === 0 ? 1 : obj.facing;
 		this.jumpBuffer = obj.jumpBuffer ?? 0; this.wallBoost = obj.wallBoost ?? 0;
 		this.boostTimer = obj.boostTimer ?? 0; this.slowTimer = obj.slowTimer ?? 0;
@@ -1168,7 +1167,6 @@ function generateClientDom(unlockedSkins: string[]) {
 	return {
 		mapChoice: -1,
 		maps: LEVELS.map(level => level.name),
-		preferTeam: 0,
 		unlockedSkins,
 
 		produce() {
@@ -1183,7 +1181,6 @@ function generateClientDom(unlockedSkins: string[]) {
 				: -1
 			);
 			return StartData.encode({
-				preferTeam: this.preferTeam,
 				choice
 			}).finish();
 		},
@@ -1498,8 +1495,6 @@ export class GMRally extends GameMode {
 	readonly players: Player[];
 
 	// Shared, authoritative match state.
-	redScore = 0;
-	blueScore = 0;
 	levelIndex = 0;
 	levelTime = 0;
 	phase = PHASE_RACING;
@@ -1545,7 +1540,7 @@ export class GMRally extends GameMode {
 		total: number,
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	) {
-		const { StartData, StartDataClient } = protocols.get();
+		const { StartDataClient } = protocols.get();
 		const chosenVote = players.length > 0
 			? readMapVote(players[Math.floor(Math.random() * players.length)].data)
 			: -1;
@@ -1554,29 +1549,14 @@ export class GMRally extends GameMode {
 			: Math.floor(Math.random() * LEVELS.length);
 		const game = new GMRally(total, false, true, initialLevelIndex);
 
-		const decode = (i: number) =>
-			i < players.length
-				? decodeFullMessage(StartData.decode(players[i].data))
-				: generateClientDom([]);
-
-		const infos = await Promise.all(
-			game.players.map(async (_p, i) => {
-				const d = decode(i);
-				return { pref: (d.preferTeam ?? 0) as number };
-			})
-		);
-
-		const teams = GMRally.assignTeams(infos.map(i => i.pref));
 		const level = game.currentLevel();
 		for (const [i, p] of game.players.entries()) {
-			p.isRed = teams[i];
 			p.resetForLevel(level.spawnX, level.spawnY);
 		}
 		game.boxCooldowns = level.items.map(() => 0);
 		game.syncBlocksFromPlayers(); // handles the case where the engine finished loading first
 
 		const data = StartDataClient.encode({
-			players: game.players.map(p => ({ isRed: p.isRed })),
 			selectedLevel: game.levelIndex + 1,
 		}).finish();
 		return { game, data };
@@ -1587,7 +1567,7 @@ export class GMRally extends GameMode {
 		total: number,
 		_playerIdx: number
 	) {
-		const { StartData, StartDataClient } = protocols.get();
+		const { StartDataClient } = protocols.get();
 		let initialLevelIndex = 0;
 		if (origin === 'server') {
 			const decoded = decodeFullMessage(StartDataClient.decode(data));
@@ -1603,13 +1583,6 @@ export class GMRally extends GameMode {
 		const game = new GMRally(total, true, origin === 'client', initialLevelIndex);
 		const clientData = new ClientData();
 
-		if (origin === 'server') {
-			const decoded = decodeFullMessage(StartDataClient.decode(data));
-			game.players.forEach((p, i) => { p.isRed = decoded.players?.[i]?.isRed ?? i % 2 === 0; });
-		} else {
-			decodeFullMessage(StartData.decode(data));
-			game.players.forEach((p, i) => { p.isRed = i % 2 === 0; });
-		}
 
 		const level = game.currentLevel();
 		game.players.forEach(p => p.resetForLevel(level.spawnX, level.spawnY));
@@ -1618,25 +1591,6 @@ export class GMRally extends GameMode {
 		return { game, data: clientData, html: clientData.html, skins: {} };
 	}
 
-	/** Split players into balanced teams while honouring preferences when possible. */
-	private static assignTeams(prefs: number[]): boolean[] {
-		const total = prefs.length;
-		const maxPerTeam = Math.ceil(total / 2);
-		const isRed: (boolean | undefined)[] = new Array(total).fill(undefined);
-		let red = 0;
-		let blue = 0;
-		for (let i = 0; i < total; i++) {
-			if (prefs[i] === 1 && red < maxPerTeam) { isRed[i] = true; red++; }
-			else if (prefs[i] === -1 && blue < maxPerTeam) { isRed[i] = false; blue++; }
-		}
-		for (let i = 0; i < total; i++) {
-			if (isRed[i] !== undefined) continue;
-			const wantRed = red < blue || (red === blue && i % 2 === 0);
-			if (wantRed && red < maxPerTeam) { isRed[i] = true; red++; }
-			else { isRed[i] = false; blue++; }
-		}
-		return isRed as boolean[];
-	}
 
 	static readonly generateClientDom = generateClientDom;
 
@@ -1921,7 +1875,6 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		p.finishRank = rank;
 		p.points += RANK_POINTS[rank] ?? 0;
 		this.finishCount++;
-		this.recomputeScores();
 
 		// Reset lap progression, but preserve movement, items, mushroom boost, and star power.
 		const level = this.currentLevel();
@@ -1937,14 +1890,6 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		}
 	}
 
-	private recomputeScores() {
-		this.redScore = 0;
-		this.blueScore = 0;
-		for (const p of this.players) {
-			if (p.isRed) this.redScore += p.points;
-			else this.blueScore += p.points;
-		}
-	}
 
 	/** Item-box collection is triggered by Entity.detectCollision inside the engine. */
 handleEntityContact(entity: Entity, playerIndex: number): void {
@@ -2511,9 +2456,6 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 		if (data.firstFrame) {
 			data.firstFrame = false;
-			// Team marker: magenta placeholder -> red (0) / blue (1)
-			imageLoader.setColorRule('team-marker', 0, [{ prev: "#ff00ff", next: "#ff0044" }]);
-			imageLoader.setColorRule('team-marker', 1, [{ prev: "#ff00ff", next: "#0044ff" }]);
 		}
 
 		data.update(this, playerIdx);
@@ -2680,7 +2622,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		}
 	}
 
-	/** Player sprites and team markers. */
+	/** Draw all player sprites. */
 	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
 		const engine = this.engine;
 		if (!engine) return;
@@ -2750,8 +2692,6 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			levelTime: this.levelTime,
 			phase: this.phase,
 			intermission: this.intermission,
-			redScore: this.redScore,
-			blueScore: this.blueScore,
 			finishCount: this.finishCount,
 			boxCooldowns: this.boxCooldowns,
 			bananas: this.getBananas().map(banana => banana.save()),
@@ -2774,8 +2714,6 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		this.levelTime = obj.levelTime ?? 0;
 		this.phase = obj.phase ?? PHASE_RACING;
 		this.intermission = obj.intermission ?? 0;
-		this.redScore = obj.redScore ?? 0;
-		this.blueScore = obj.blueScore ?? 0;
 		this.finishCount = obj.finishCount ?? 0;
 		this.boxCooldowns = [...(obj.boxCooldowns ?? this.currentLevel().items.map(() => 0))];
 
@@ -2828,30 +2766,10 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 	/* ---------------------------- Results ---------------------------- */
 
-	/** Build the final team/player standings from the authoritative race ranking. */
+	/** Build final standings from the authoritative individual race ranking. */
 	private produceFinish(): FinishGame {
 		const ranking = this.getRaceRanking(true, true);
-		const rankByPlayer = new Map<number, number>(ranking.map((playerIndex, rank) => [playerIndex, rank]));
-		const groups = [true, false].map(isRed => {
-			const members = this.players
-				.map((p, i) => ({ p, i }))
-				.filter(member => member.p.isRed === isRed)
-				.sort((a, b) => (rankByPlayer.get(a.i) ?? Number.MAX_SAFE_INTEGER) - (rankByPlayer.get(b.i) ?? Number.MAX_SAFE_INTEGER) || a.i - b.i);
-			const ranks = members.map(member => rankByPlayer.get(member.i) ?? ranking.length + member.i);
-			// A lower average finishing position is the stronger team result.
-			const score = ranks.length ? ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length : Number.POSITIVE_INFINITY;
-			const bestRank = ranks.length ? Math.min(...ranks) : Number.POSITIVE_INFINITY;
-			return { members, score, bestRank };
-		}).sort((a, b) => a.score - b.score || a.bestRank - b.bestRank);
-
-		const results = groups.map(group => group.members.map(member => member.i));
-		const teamEqualities: number[] = [];
-		for (let i = 0; i + 1 < groups.length; i++) {
-			if (Math.abs(groups[i].score - groups[i + 1].score) < 1e-9) teamEqualities.push(i);
-		}
-
-		// Equality indexes refer to adjacent positions in the flattened results list.
-		// Race ties use the same progress, wrong-way, and distance fields as the ranking.
+		const playerEqualities: number[] = [];
 		const sameRaceStanding = (aIndex: number, bIndex: number): boolean => {
 			const a = this.players[aIndex];
 			const b = this.players[bIndex];
@@ -2869,22 +2787,12 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 				const targetX = next ? next.x : this.currentLevel().finishX;
 				return (targetX - player.x) * player.facing < 0 ? 1 : 0;
 			};
-			return a.lapsCompleted === b.lapsCompleted &&
-				progress(a) === progress(b) &&
-				wrongWay(a) === wrongWay(b) &&
-				Math.abs(distance(a) - distance(b)) < 1e-3;
+			return a.lapsCompleted === b.lapsCompleted && progress(a) === progress(b) &&
+				wrongWay(a) === wrongWay(b) && Math.abs(distance(a) - distance(b)) < 1e-3;
 		};
-		const playerEqualities: number[] = [];
-		let flattenedOffset = 0;
-		for (const group of groups) {
-			for (let i = 0; i + 1 < group.members.length; i++) {
-				if (sameRaceStanding(group.members[i].i, group.members[i + 1].i)) {
-					playerEqualities.push(flattenedOffset + i);
-				}
-			}
-			flattenedOffset += group.members.length;
+		for (let i = 0; i + 1 < ranking.length; i++) {
+			if (sameRaceStanding(ranking[i], ranking[i + 1])) playerEqualities.push(i);
 		}
-
-		return { results, teamEqualities, playerEqualities };
+		return { results: [ranking], teamEqualities: [], playerEqualities };
 	}
 }

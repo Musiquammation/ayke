@@ -6,31 +6,30 @@ message Empty {}
 
 message PlayerState {
 	bool connected = 1;
-	bool isRed = 2;
-	float x = 3;
-	float y = 4;
-	float vx = 5;
-	float vy = 6;
-	int32 facing = 7;
-	float jumpBuffer = 8;
-	float wallBoost = 9;
-	float boostTimer = 10;
-	float slowTimer = 11;
-	float starTimer = 12;
-	int32 item = 13;
-	int32 pendingItem = 14;
-	float itemRollTimer = 15;
-	bool itemQueued = 16;
-	float respawn = 17;
-	int32 checkpoint = 18;
-	int32 subCheckpoint = 19;
-	bool hit = 20;
-	int32 lapsCompleted = 21;
-	bool finished = 22;
-	int32 finishRank = 23;
-	int32 points = 24;
-	int32 finalRanking = 25;
-	repeated int32 lapFinishCounts = 26;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	int32 facing = 6;
+	float jumpBuffer = 7;
+	float wallBoost = 8;
+	float boostTimer = 9;
+	float slowTimer = 10;
+	float starTimer = 11;
+	int32 item = 12;
+	int32 pendingItem = 13;
+	float itemRollTimer = 14;
+	bool itemQueued = 15;
+	float respawn = 16;
+	int32 checkpoint = 17;
+	int32 subCheckpoint = 18;
+	bool hit = 19;
+	int32 lapsCompleted = 20;
+	bool finished = 21;
+	int32 finishRank = 22;
+	int32 points = 23;
+	int32 finalRanking = 24;
+	repeated int32 lapFinishCounts = 25;
 }
 
 message BananaThrown {
@@ -102,8 +101,7 @@ message State {
 	float levelTime = 3;
 	int32 phase = 4;
 	float intermission = 5;
-	int32 redScore = 6;
-	int32 blueScore = 7;
+	reserved 6, 7; // Removed: redScore and blueScore.
 	int32 finishCount = 8;
 	repeated int32 lapFinishCounts = 9;
 	repeated float boxCooldowns = 10;
@@ -139,17 +137,13 @@ message ClientMessage {
 }
 
 message StartData {
-	int32 preferTeam = 1;
+	reserved 1; // Removed: preferTeam.
 	// -1 means random; otherwise zero-based index into LEVELS.
 	int32 choice = 2;
 }
 
-message StartPlayerInfo {
-	bool isRed = 1;
-}
-
 message StartDataClient {
-	repeated StartPlayerInfo players = 1;
+	reserved 1; // Removed: per-player team assignments.
 	// Zero means unspecified; otherwise the selected zero-based level index plus one.
 	int32 selectedLevel = 2;
 }
