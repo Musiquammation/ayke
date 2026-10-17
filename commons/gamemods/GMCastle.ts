@@ -70,7 +70,7 @@ const CASTLE_RECT = {
 const VOID_Y = LEVEL_HEIGHT + CELL * 3;
 
 // ---- Match rules -----------------------------------------------------------
-const CASTLE_HP = 100;
+const CASTLE_HP = 60;
 const MATCH_DURATION = 300;          // 5 minutes
 const TIMER_VISIBLE_SECONDS = 60;    // the clock is only displayed during the last minute
 const NO_OWNER = -1;
