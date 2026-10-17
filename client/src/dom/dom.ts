@@ -1013,7 +1013,8 @@ class WaitPlayPanelComponent {
 		this.logs.push(msg);
 	}
 
-	private onAllowBotsChange() {
+	private toggleAllowBotsChange() {
+		this.allowBots = !this.allowBots;
 		sendMessage({
 			allowBotsOrder: this.allowBots
 		});

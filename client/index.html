@@ -415,14 +415,9 @@
 						x-text="'Waiting for players' + '.'.repeat(dots)"
 					></h1>
 					<div>
-						<span>
-							Allow bots?
-						</span>
-						<input
-							type="checkbox"
-							x-model="allowBots"
-							@change="onAllowBotsChange()"
-						>
+						<button x-data="{ allowBots : false }" @click="toggleAllowBotsChange()">
+							<span x-text="allowBots ? 'Forbid bots' : 'Allow bots'"></span>
+						</button>
 					</div>
 
 					<div>
