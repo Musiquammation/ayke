@@ -153,7 +153,7 @@ export const gamemods: Record<
 		dom: GMCastle.generateClientDom,
 		textures: GMCastle.TEXTURES,
 		name: "Castle",
-		description: "",
+		description: "Place blocks to stop heroes from reaching the castle, and kill as many as possible.",
 		tropheesPerPlayer: 25,
 		explainationSlides: null,
 		computerOnly: false,

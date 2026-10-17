@@ -2823,10 +2823,11 @@ class TutorialData {
 	constructor(private readonly game: GMCastle) {}
 
 	frame(_dt: number, clock: number) {
-		if (clock < 8) return "Drag a card onto the level and release to build.";
-		if (clock < 16) return "Drag on the level to move the camera, pinch or use the wheel to zoom.";
-		if (clock < 24) return "Use the trash tool to remove elements. Your own are free!";
-		return "";
+		return (
+			"Place blocks to prevent heroes from reaching the castle.\n" + 
+			"The player who kills the most heroes wins.\n" +
+			`To finish the game, ${CASTLE_HP} players must enter the castle.`
+		);
 	}
 }
 
