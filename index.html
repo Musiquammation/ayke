@@ -416,14 +416,9 @@
 						x-text="'Waiting for players' + '.'.repeat(dots)"
 					></h1>
 					<div>
-						<span>
-							Allow bots?
-						</span>
-						<input
-							type="checkbox"
-							x-model="allowBots"
-							@change="onAllowBotsChange()"
-						>
+						<button x-data="{ allowBots : false }" @click="toggleAllowBotsChange()">
+							<span x-text="allowBots ? 'Forbid bots' : 'Allow bots'"></span>
+						</button>
 					</div>
 
 					<div>
@@ -650,7 +645,7 @@
 				<template x-if="panel && panel.TUTORIAL_MARKER">
 					<div
 						class="tutorialText" 
-						x-text="panel.text"
+						x-html="panel.text"
 						x-show="panel.text && panel.text.length !== 0"
 					></div>
 				</template>
@@ -814,8 +809,8 @@
 			window.PROTOCOL_FILE = "/ayke/public/protocols/game.proto";
 			window.PROTOCOLS_FOLDER = "/ayke/public/protocols/games/";
 			window.INDEX_TS = "/src/index.ts";
-			window.VERSION_CODE = 3;
-			console.log("v1.5.1");
+			window.VERSION_CODE = 4;
+			console.log("v1.5.2");
 
 			// Set "Rye" font
 			{
