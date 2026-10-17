@@ -1,0 +1,40 @@
+<div x-data="data">
+	<style>
+		.game-castle-team-buttons {
+			display: flex;
+			gap: 1vw;
+		}
+
+		.game-castle-team-button {
+			padding: 1vh 1vw;
+		}
+	</style>
+
+	<div class="game-castle-config">
+		<div>
+			<span>Preferred team:</span>
+			<div class="game-castle-team-buttons">
+				<button
+					class="game-castle-team-button"
+					type="button"
+					@pointerup="preferTeam = 0"
+					:class="{ selected: preferTeam === 0 }"
+				>None</button>
+
+				<button
+					class="game-castle-team-button"
+					type="button"
+					@pointerup="preferTeam = 1"
+					:class="{ selected: preferTeam === 1 }"
+				>Red</button>
+
+				<button
+					class="game-castle-team-button"
+					type="button"
+					@pointerup="preferTeam = -1"
+					:class="{ selected: preferTeam === -1 }"
+				>Blue</button>
+			</div>
+		</div>
+	</div>
+</div>

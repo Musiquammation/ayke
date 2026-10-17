@@ -131,6 +131,13 @@ export class GMTest extends GameMode {
 		};
 	}
 	override run(dt: number, produceFinish: boolean) {
+		const LOOP_DELAY = 100;
+		const end = Date.now() + LOOP_DELAY;
+		console.log(end);
+		while (Date.now() < end) {
+
+		}
+
 		for (const p of this.players) {
 			p.y += p.move * dt;
 		}

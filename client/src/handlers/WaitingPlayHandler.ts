@@ -39,7 +39,7 @@ class WaitingPlayHandler {
 		private readonly update: UpdateMethod,
 		users: IUser[]
 	) {
-		const protocol = getProtocol(gamemode);
+		const protocol = getProtocol(gamemode, 'multiplayer');
 
 		protocol.load().then(() => {
 			const { StartData } = protocol.get();
@@ -63,7 +63,7 @@ class WaitingPlayHandler {
 	}
 
 	add(user: IUser) {
-		const protocol = getProtocol(this.gamemode);
+		const protocol = getProtocol(this.gamemode, 'multiplayer');
 
 		protocol.load().then(() => {
 			const { StartData } = protocol.get();
