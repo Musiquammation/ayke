@@ -173,7 +173,7 @@ export const gamemods: Record<
 		dom: GMRally.generateClientDom,
 		textures: GMRally.TEXTURES,
 		name: "Rally",
-		description: "",
+		description: "Jump and use items to finish the race first",
 		tropheesPerPlayer: 15,
 		explainationSlides: null,
 		computerOnly: false,
