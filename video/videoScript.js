@@ -1,39 +1,75 @@
 function initScript(game) {
-	const players = game.players;
-
-	const positions = [
-		[-320, 100],
-		[320, 100],
-		[-520, 250],
-		[520, 250]
-	];
-
-	for (let i = 0; i < players.length; i++) {
-		const p = players[i];
-
-		p.x = positions[i][0];
-		p.y = positions[i][1];
-		p.vx = 0;
-		p.vy = 0;
-		p.alive = -1;
-	}
-
-	game.ball.x = 0;
-	game.ball.y = 0;
-	game.ball.vx = 0;
-	game.ball.vy = 0;
-	game.ball.grabber = -1;
-	game.ball.prevGrabber = -1;
+	
 }
 function scheduleActions() {}
 
 
-function script(game, now) {
+
+let lastStep = -1;
+
+function script(now, game, clientData, bots) {
 	const PLAYER_SPEED = 1500;
 	const PLAYER_JUMP = 800;
 
 	const players = game.players;
 	const ball = game.ball;
 
-	
+	const inputs = [];
+
+	const STEPS = [
+		// Startup
+		{
+			start: 0,
+			perform(t, first) {
+				// Setup
+				if (first) {
+					for (const p of game.buckets) {
+						p.team = 'red';
+					}
+
+					game.buckets[7].team = null;
+					
+					const positions = [
+						{x: -500, y: -200},
+						{x: +500, y: -200},
+						{x: -300, y: 200},
+						{x: +300, y: 200},
+					];
+
+					for (let [i, p] of game.players.entries()) {
+						p.x = positions[i].x;
+						p.y = positions[i].y;
+						p.vx = 0;
+						p.vy = -90;
+					}
+
+					clientData.camera.teleport(0, 0);
+				}
+
+				/// TODO: make bots to play
+				for (const {playerIdx, bot} of bots) {
+					for (const input of bot.play(game)) {
+						inputs.push({playerIdx, ...input});
+					}
+				}
+			}
+		},
+
+		{
+			start: 2,
+			perform(t, first) {
+
+			}
+		}
+	];
+
+	const stepIndex = STEPS.findLastIndex(step => now >= step.start);
+	if (stepIndex === -1) return;
+
+	const first = lastStep !== stepIndex;
+	lastStep = stepIndex;
+
+	STEPS[stepIndex].perform(now - STEPS[stepIndex].start, first);
+
+	return inputs;
 }

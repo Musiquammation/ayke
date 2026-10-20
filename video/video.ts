@@ -5,7 +5,9 @@ import { initProtocols } from "../commons/protocolLoader";
 import { gamemods } from "../commons/gamemods";
 import { createServer } from "vite";
 import { chromium, type Page } from "playwright";
-import { mkdir, writeFile, unlink, stat } from "node:fs/promises";
+import { mkdir, writeFile, unlink, rm, rename } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { readFile } from "node:fs/promises";
@@ -15,14 +17,24 @@ const ROOT = process.cwd();
 const DIST = resolve(ROOT, "dist");
 const AUDIO_PATH = resolve(DIST, "audio.mp3");
 const OUTPUT_PATH = resolve(DIST, "video.webm");
+const VIDEO_ONLY_PATH = resolve(DIST, "video-only.webm");
+const FRAMES_DIR = resolve(DIST, ".video-frames");
+const execFileAsync = promisify(execFile);
 
 const CLASS_NAME = "GMAirBasket";
+const MODE_NAME = "airbasket";
 
 // Resolve source files by filesystem path so Vite's configured root does not
 // incorrectly map /commons/... to a nonexistent URL.
 const GAME_MODULE_PATH = existsSync(resolve(ROOT, `commons/gamemods/${CLASS_NAME}.ts`))
 	? resolve(ROOT, `commons/gamemods/${CLASS_NAME}.ts`)
 	: resolve(ROOT, `src/commons/gamemods/${CLASS_NAME}.ts`);
+const BOT_MODULE_PATH = existsSync(resolve(ROOT, "commons/Bot.ts"))
+	? resolve(ROOT, "commons/Bot.ts")
+	: resolve(ROOT, "src/commons/Bot.ts");
+const BOTS_IMPORT_MODULE_PATH = existsSync(resolve(ROOT, `commons/bots/bots-${MODE_NAME}.ts`))
+	? resolve(ROOT, `commons/bots/bots-${MODE_NAME}.ts`)
+	: resolve(ROOT, `src/commons/bots/bots-${MODE_NAME}.ts`);
 const IMAGE_LOADER_MODULE_PATH = existsSync(resolve(ROOT, "commons/util/ImageLoader.ts"))
 	? resolve(ROOT, "commons/util/ImageLoader.ts")
 	: resolve(ROOT, "src/commons/util/ImageLoader.ts");
@@ -30,20 +42,29 @@ const PROTOCOL_LOADER_MODULE_PATH = existsSync(resolve(ROOT, "commons/protocolLo
 	? resolve(ROOT, "commons/protocolLoader.ts")
 	: resolve(ROOT, "src/commons/protocolLoader.ts");
 const GAME_MODULE_URL = `/@fs${GAME_MODULE_PATH.replace(/\\/g, "/")}`;
+const BOT_MODULE_URL = `/@fs${BOT_MODULE_PATH.replace(/\\/g, "/")}`;
+const BOTS_IMPORT_MODULE_URL = `/@fs${BOTS_IMPORT_MODULE_PATH.replace(/\\/g, "/")}`;
 const IMAGE_LOADER_MODULE_URL = `/@fs${IMAGE_LOADER_MODULE_PATH.replace(/\\/g, "/")}`;
 const PROTOCOL_LOADER_MODULE_URL = `/@fs${PROTOCOL_LOADER_MODULE_PATH.replace(/\\/g, "/")}`;
 const BROWSER_PROTOCOL_BOOTSTRAP_PATH = resolve(ROOT, "video/.videoProtocolBootstrap.ts");
 const BROWSER_PROTOCOL_BOOTSTRAP_URL = `/@fs${BROWSER_PROTOCOL_BOOTSTRAP_PATH.replace(/\\/g, "/")}`;
 
-const WIDTH = 1280;
-const HEIGHT = 720;
+const HEIGHT = 480;
+const WIDTH = Math.floor(HEIGHT * 16/9);
 const FPS = 30;
-const SILENT_DURATION = 10;
+const SILENT_DURATION = 3;
 
 
 
 async function main() {
 	const videoScript = await readFile("./video/videoScript.js", "utf-8");
+	const hasAudio = existsSync(AUDIO_PATH);
+	const duration = hasAudio ? await getAudioDuration(AUDIO_PATH) : SILENT_DURATION;
+	// One output image per presentation timestamp. Rendering speed never changes
+	// this timeline: a frame may take seconds to draw but still occupies 1/FPS.
+	const frameCount = Math.max(1, Math.ceil(duration * FPS - 1e-9));
+	await runCommand("ffmpeg", ["-version"]);
+	if (hasAudio) await runCommand("ffprobe", ["-version"]);
 
 	await initProtocols(
 		name => protobuf.load("commons/protocols/games/" + name + ".proto"),
@@ -56,6 +77,12 @@ async function main() {
 	if (!existsSync(GAME_MODULE_PATH)) {
 		throw new Error(`${CLASS_NAME} module not found: ${GAME_MODULE_PATH}`);
 	}
+	if (!existsSync(BOT_MODULE_PATH)) {
+		throw new Error(`Bot module not found: ${BOT_MODULE_PATH}`);
+	}
+	if (!existsSync(BOTS_IMPORT_MODULE_PATH)) {
+		throw new Error(`Bots import module not found: ${BOTS_IMPORT_MODULE_PATH}`);
+	}
 	if (!existsSync(IMAGE_LOADER_MODULE_PATH)) {
 		throw new Error(`ImageLoader module not found: ${IMAGE_LOADER_MODULE_PATH}`);
 	}
@@ -66,12 +93,14 @@ async function main() {
 	console.log(`[setup] ImageLoader module path: ${IMAGE_LOADER_MODULE_PATH}`);
 	console.log(`[setup] protocolLoader module path: ${PROTOCOL_LOADER_MODULE_PATH}`);
 	await mkdir(DIST, { recursive: true });
-	// Do not mistake a video from a previous run for this run's output.
+	await rm(FRAMES_DIR, { recursive: true, force: true });
+	await mkdir(FRAMES_DIR, { recursive: true });
+	// Do not mistake outputs from a previous run for this run's output.
 	await unlink(OUTPUT_PATH).catch(() => undefined);
+	await unlink(VIDEO_ONLY_PATH).catch(() => undefined);
 
-	const hasAudio = existsSync(AUDIO_PATH);
-
-	console.log(`Audio: ${hasAudio ? AUDIO_PATH : "none (silent video)"}`);
+	console.log(`Audio: ${hasAudio ? `${AUDIO_PATH} (duration ${duration.toFixed(3)}s; muxed after rendering)` : `none (silent video, ${duration}s)`}`);
+	console.log(`Offline render: ${frameCount} frames at ${FPS} FPS`);
 
 	// A module script injected with page.addScriptTag() is not transformed by Vite,
 	// so bare imports such as "protobufjs" cannot be resolved there. Write a tiny
@@ -123,6 +152,7 @@ async function main() {
 
 	let browser;
 	let videoFailure: string | null = null;
+	let renderedFrameCount: number | null = null;
 	const pageErrors: string[] = [];
 
 	try {
@@ -181,30 +211,27 @@ async function main() {
 			videoFailure = message;
 		});
 
-		const chunks: string[] = [];
-
-		await page.exposeFunction(
-			"__videoChunk",
-			(index: number, chunk: string) => {
-				chunks[index] = chunk;
-				if (index === 0 || (index + 1) % 10 === 0) {
-					console.log(`[video-transfer] received chunk ${index + 1}, chars=${chunk.length}`);
-				}
+		await page.exposeFunction("__videoFrame", async (index: number, dataUrl: string) => {
+			if (!Number.isInteger(index) || index < 0 || index >= frameCount) {
+				throw new Error(`Invalid frame index ${index}; expected 0..${frameCount - 1}`);
 			}
-		);
-
-		await page.exposeFunction(
-			"__videoComplete",
-			async (count: number) => {
-				console.log(`[video-transfer] completion received; expected chunks=${count}, stored chunks=${chunks.filter(Boolean).length}`);
-				const base64 = chunks.slice(0, count).join("");
-				console.log(`[video-transfer] joined Base64 length=${base64.length}; decoding...`);
-				const output = Buffer.from(base64, "base64");
-				console.log(`[video-transfer] decoded bytes=${output.length}; writing ${OUTPUT_PATH}...`);
-				await writeFile(OUTPUT_PATH, output);
-				console.log(`[video-transfer] file write complete (${output.length} bytes)`);
+			const prefix = "data:image/png;base64,";
+			if (typeof dataUrl !== "string" || !dataUrl.startsWith(prefix)) {
+				throw new Error(`Frame ${index} was not supplied as a PNG data URL`);
 			}
-		);
+			const bytes = Buffer.from(dataUrl.slice(prefix.length), "base64");
+			if (bytes.length === 0) throw new Error(`Frame ${index} is empty`);
+			const framePath = resolve(FRAMES_DIR, `frame_${String(index).padStart(6, "0")}.png`);
+			await writeFile(framePath, bytes);
+			if (index === 0 || (index + 1) % FPS === 0 || index === frameCount - 1) {
+				console.log(`[frame-transfer] saved ${index + 1}/${frameCount} (${bytes.length} bytes)`);
+			}
+		});
+
+		await page.exposeFunction("__videoRenderComplete", (count: number) => {
+			renderedFrameCount = count;
+			console.log(`[frame-transfer] offline render complete; frames=${count}`);
+		});
 
 		console.log(`[setup] Vite listening at ${baseUrl}`);
 		console.log("[setup] Navigating to the Vite page...");
@@ -217,19 +244,19 @@ async function main() {
 			document.body.style.cssText = "margin:0;padding:0;overflow:hidden;background:#111";
 		});
 
-		const audioUrl = hasAudio ? `${baseUrl}/dist/audio.mp3` : null;
-
 		await page.addScriptTag({
 			type: "module",
 			content: `
 				const GAME_MODULE_URL = ${JSON.stringify(GAME_MODULE_URL)};
+				const BOT_MODULE_URL = ${JSON.stringify(BOT_MODULE_URL)};
+				const BOTS_IMPORT_MODULE_URL = ${JSON.stringify(BOTS_IMPORT_MODULE_URL)};
 				const IMAGE_LOADER_MODULE_URL = ${JSON.stringify(IMAGE_LOADER_MODULE_URL)};
 				const BROWSER_PROTOCOL_BOOTSTRAP_URL = ${JSON.stringify(BROWSER_PROTOCOL_BOOTSTRAP_URL)};
 				const WIDTH = ${WIDTH};
 				const HEIGHT = ${HEIGHT};
 				const FPS = ${FPS};
-				const audioUrl = ${JSON.stringify(audioUrl)};
-				const silentDuration = ${SILENT_DURATION};
+				const duration = ${duration};
+				const frameCount = ${frameCount};
 				const subtitles = ${JSON.stringify(SUBTITLES)};
 
 				function log(message) {
@@ -249,38 +276,11 @@ async function main() {
 
 				ctx.imageSmoothingEnabled = false;
 
-				const audio = audioUrl ? new Audio(audioUrl) : null;
-				if (audio) {
-					audio.preload = "auto";
-					audio.crossOrigin = "anonymous";
-				}
-
-				function waitForAudio() {
-					if (!audio) { log(\`No audio file; using silent duration \${silentDuration}s\`); return Promise.resolve(silentDuration); }
-					log("Waiting for audio metadata...");
-
-					return new Promise((resolve, reject) => {
-						audio.addEventListener("loadedmetadata", () => {
-							if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
-								reject(new Error("Invalid MP3 duration."));
-								return;
-							}
-							log(\`Audio metadata loaded; duration=\${audio.duration}s\`);
-							resolve(audio.duration);
-						}, { once: true });
-
-						audio.addEventListener("error", () => {
-							reject(new Error("Could not load dist/audio.mp3."));
-						}, { once: true });
-
-						audio.load();
-					});
-				}
 
 				function drawSubtitle(time, duration) {
 					const item = subtitles.find(
-						s => time / duration >= s.start &&
-							time / duration < s.end
+						s => time >= s.start &&
+							time < s.end
 					);
 
 					if (!item) return;
@@ -338,11 +338,13 @@ async function main() {
 					log("Importing game module: ${GAME_MODULE_URL}");
 					const { ${CLASS_NAME} } = await import(GAME_MODULE_URL);
 					log("Game module imported successfully");
+					const { generateBot } = await import(BOT_MODULE_URL);
+					const { default: botsImport } = await import(BOTS_IMPORT_MODULE_URL);
+					log("Bot modules imported successfully");
 					log("Importing ImageLoader module: ${IMAGE_LOADER_MODULE_URL}");
 					const { ImageLoader } = await import(IMAGE_LOADER_MODULE_URL);
 					log("ImageLoader module imported successfully");
-					const duration = await waitForAudio();
-					log(\`Target recording duration=\${duration}s\`);
+					log(\`Target offline render duration=\${duration}s\`);
 
 					log("Generating game client DOM...");
 					const clientMessage = ${CLASS_NAME}.generateClientDom([]).produce();
@@ -357,7 +359,13 @@ async function main() {
 					${videoScript}
 
 					const game = client.game;
-					const data = client.data;
+					const clientData = client.data;
+
+					// Generate one independent bot for each player in the simulation.
+					const bots = Array.from(
+						{ length: game.players?.length ?? 0 },
+						(_, playerIdx) => ({ playerIdx, bot: generateBot(botsImport, 0, playerIdx) })
+					);
 
 					log("Initializing game...");
 					game.init();
@@ -374,161 +382,60 @@ async function main() {
 					await imageLoader.load(textures, "airbasket");
 					log("Texture/skin loading completed");
 
-					log("Creating canvas capture stream...");
-					const stream = canvas.captureStream(FPS);
-
-					if (audio) {
-						const audioStream = audio.captureStream();
-						for (const track of audioStream.getAudioTracks()) {
-							stream.addTrack(track);
-						}
-					}
-
-					const mimeType = [
-						"video/webm;codecs=vp9,opus",
-						"video/webm;codecs=vp8,opus",
-						"video/webm"
-					].find(type => MediaRecorder.isTypeSupported(type));
-
-					if (!mimeType) {
-						throw new Error("This browser does not support WebM recording.");
-					}
-
-					log(\`MediaRecorder MIME type selected: \${mimeType}\`);
-					const recorder = new MediaRecorder(stream, {
-						mimeType,
-						videoBitsPerSecond: 6_000_000
-					});
-
-					const recordedChunks = [];
-
-					recorder.addEventListener("dataavailable", event => {
-						if (event.data.size > 0) {
-							recordedChunks.push(event.data);
-							if (recordedChunks.length === 1 || recordedChunks.length % 20 === 0) {
-								log(\`Recorder dataavailable: chunks=\${recordedChunks.length}, latest=\${event.data.size} bytes\`);
-							}
-						} else {
-							log("Recorder emitted an empty data chunk");
-						}
-					});
-					recorder.addEventListener("start", () => log("MediaRecorder started"));
-					recorder.addEventListener("stop", () => log(\`MediaRecorder stopped; recorded chunks=\${recordedChunks.length}\`));
-					recorder.addEventListener("error", event => log(\`MediaRecorder error event: \${event?.error?.message ?? "unknown"}\`));
-
-					const recordingFinished = new Promise((resolve, reject) => {
-						recorder.addEventListener("stop", resolve, { once: true });
-						recorder.addEventListener("error", reject, { once: true });
-					});
-
-					let elapsed = 0;
-					let lastFrame = performance.now();
-					let stopped = false;
-
-					// Gameplay control layer: all scripted player commands go through input(),
-					// and scheduleActions() defines what happens at each point in the recording.
+					// Fixed-step offline simulation. We explicitly render each timestamp instead
+					// of recording browser wall-clock frames, so slow drawing cannot collapse the
+					// beginning of the final video into a single frame.
 					function input(player, action, extra = {}) {
 						game.runInput(player, { action, ...extra });
 					}
 
+					const simulationStep = 1 / 60;
+					let simulationTime = 0;
+					let lastProgressFrame = 0;
 
-					let lastProgressLog = 0;
-					function frame(now) {
-						if (stopped) return;
-						
-						const dt = Math.min((now - lastFrame) / 1000, 0.05);
-						lastFrame = now;
-						elapsed += dt;
-						if (elapsed - lastProgressLog >= 5) {
-							lastProgressLog = elapsed;
-							log(\`Frame loop progressing: \${elapsed.toFixed(1)} / \${duration.toFixed(1)}s\`);
-						}
+					for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+						const frameTime = frameIndex / FPS;
 
-						scheduleActions(elapsed);
-
-						// Keep simulation steps small so the game physics remain stable.
-						let remaining = dt;
-						while (remaining > 0) {
-							const step = Math.min(remaining, 1 / 60);
+						// Step the game on a deterministic 60 Hz clock up to this output frame.
+						// scheduleActions, game.run and script keep their original per-tick order.
+						while (simulationTime < frameTime) {
+							const step = Math.min(simulationStep, frameTime - simulationTime);
+							const nextTime = simulationTime + step;
+							const inputs = script(nextTime, game, clientData, bots) ?? [];
+							// Inputs returned by videoScript identify their target with playerIdx.
+							for (const { playerIdx, ...inputData } of inputs) {
+								if (!Number.isInteger(playerIdx) || playerIdx < 0 || playerIdx >= game.players.length) {
+									throw new Error(\`Invalid playerIdx in bot input: \${playerIdx}\`);
+								}
+								game.runInput(playerIdx, inputData);
+							}
+								scheduleActions(nextTime);
 							game.run(step, false);
-							remaining -= step;
+							simulationTime = nextTime;
 						}
-
-						script(game, elapsed);
 
 						ctx.clearRect(0, 0, WIDTH, HEIGHT);
 						ctx.save();
-						const {width, height} = game.getSize();
+						const { width, height } = game.getSize();
 						ctx.scale(WIDTH / width, HEIGHT / height);
-						game.draw(ctx, 0, data, imageLoader, 0, dt);
+						game.draw(ctx, 0, clientData, imageLoader, 0, 1 / FPS);
 						ctx.restore();
 
-						drawSubtitle(elapsed, duration);
+						// Burn subtitles into the same numbered frame as the game state.
+						// They therefore use the exact same timeline as the audio muxed later.
+						drawSubtitle(frameTime, duration);
 
-						if (elapsed >= duration) {
-							log(\`Target duration reached (\${elapsed.toFixed(2)}s); stopping recorder\`);
-							stopped = true;
-							recorder.stop();
-							return;
+						const pngDataUrl = canvas.toDataURL("image/png");
+						await window.__videoFrame(frameIndex, pngDataUrl);
+
+						if (frameIndex - lastProgressFrame >= FPS) {
+							lastProgressFrame = frameIndex;
+							log(\`Rendered frame \${frameIndex + 1}/\${frameCount} at t=\${frameTime.toFixed(3)}s\`);
 						}
-
-						requestAnimationFrame(frame);
 					}
 
-					log("Starting MediaRecorder (250ms timeslice)...");
-					recorder.start(250);
-
-					if (audio) {
-						log("Starting audio playback...");
-						await audio.play();
-						log("Audio playback started");
-					}
-
-					lastFrame = performance.now();
-					requestAnimationFrame(frame);
-
-					await new Promise(resolve => {
-						const check = () => {
-							if (stopped) resolve();
-							else requestAnimationFrame(check);
-						};
-						check();
-					});
-
-					log("Waiting for MediaRecorder stop event...");
-					await recordingFinished;
-					log("Recording finished; assembling Blob...");
-
-					const blob = new Blob(recordedChunks, { type: mimeType });
-					log(\`Blob assembled; size=\${blob.size} bytes; type=\${blob.type}\`);
-					const buffer = await blob.arrayBuffer();
-					const bytes = new Uint8Array(buffer);
-					log(\`Blob converted to ArrayBuffer; bytes=\${bytes.length}\`);
-
-					// Encode and transfer incrementally: constructing one giant binary string
-					// with Array.from(...).join("") can stall or exhaust memory on large videos.
-					const chunkSizeBytes = 384 * 1024; // divisible by 3, so Base64 chunks join cleanly
-					const chunkCount = Math.ceil(bytes.length / chunkSizeBytes);
-					log(\`Encoding and transferring \${bytes.length} bytes in \${chunkCount} chunks...\`);
-					for (let i = 0; i < chunkCount; i++) {
-						const start = i * chunkSizeBytes;
-						const end = Math.min(start + chunkSizeBytes, bytes.length);
-						let binary = "";
-						// Keep each conversion loop small to avoid argument/string limits.
-						for (let offset = start; offset < end; offset += 0x8000) {
-							const slice = bytes.subarray(offset, Math.min(offset + 0x8000, end));
-							binary += String.fromCharCode(...slice);
-						}
-						const base64Chunk = btoa(binary);
-						if (i === 0 || (i + 1) % 10 === 0 || i === chunkCount - 1) {
-							log(\`Sending chunk \${i + 1}/\${chunkCount} (\${end - start} bytes)\`);
-						}
-						await window.__videoChunk(i, base64Chunk);
-					}
-
-					log("All chunks sent; notifying Node to write output file...");
-					await window.__videoComplete(chunkCount);
-					log("Node acknowledged video file write; rendering complete");
+					await window.__videoRenderComplete(frameCount);
+					log("Offline frame rendering complete; audio has not been played or mixed yet");
 				}
 
 				main().catch(error => {
@@ -545,46 +452,86 @@ async function main() {
 			`
 		});
 
-		await waitForVideo(page, () => videoFailure, () => pageErrors);
+		await waitForRender(page, () => renderedFrameCount, frameCount, () => videoFailure, () => pageErrors);
+
+		console.log(`[encode] Creating constant-FPS video from ${frameCount} rendered frames...`);
+		await runCommand("ffmpeg", [
+			"-hide_banner", "-loglevel", "error", "-y",
+			"-framerate", String(FPS),
+			"-start_number", "0",
+			"-i", resolve(FRAMES_DIR, "frame_%06d.png"),
+			"-frames:v", String(frameCount),
+			"-an",
+			"-c:v", "libvpx-vp9",
+			"-deadline", "good",
+			"-cpu-used", "4",
+			"-crf", "28",
+			"-b:v", "0",
+			"-pix_fmt", "yuv420p",
+			VIDEO_ONLY_PATH
+		]);
+
+		if (hasAudio) {
+			console.log("[mux] Adding audio only after game frames and subtitles are fully rendered...");
+			await runCommand("ffmpeg", [
+				"-hide_banner", "-loglevel", "error", "-y",
+				"-i", VIDEO_ONLY_PATH,
+				"-i", AUDIO_PATH,
+				"-map", "0:v:0",
+				"-map", "1:a:0",
+				"-c:v", "copy",
+				"-c:a", "libopus",
+				"-b:a", "160k",
+				"-af", "asetpts=PTS-STARTPTS",
+				"-t", duration.toFixed(6),
+				"-shortest",
+				OUTPUT_PATH
+			]);
+			await unlink(VIDEO_ONLY_PATH).catch(() => undefined);
+		} else {
+			await rename(VIDEO_ONLY_PATH, OUTPUT_PATH);
+		}
 
 		console.log(`[done] Video written to ${OUTPUT_PATH}`);
 	} finally {
 		if (browser) await browser.close();
 		await vite.close();
 		await unlink(BROWSER_PROTOCOL_BOOTSTRAP_PATH).catch(() => undefined);
+		await rm(FRAMES_DIR, { recursive: true, force: true });
+		await unlink(VIDEO_ONLY_PATH).catch(() => undefined);
 	}
 }
 
-async function waitForVideo(
+async function waitForRender(
 	page: Page,
+	getRenderedFrameCount: () => number | null,
+	expectedFrameCount: number,
 	getFailure: () => string | null,
 	getPageErrors: () => string[]
 ): Promise<void> {
-	// A 30-second recording can take considerably longer on a slow machine,
-	// especially while the browser loads game textures and encodes WebM.
 	const timeoutMs = 10 * 60_000;
 	const deadline = Date.now() + timeoutMs;
 	let nextLog = Date.now() + 10_000;
 	const startedAt = Date.now();
 
-	console.log(`[watchdog] Waiting for output file; timeout=${Math.round(timeoutMs / 1000)}s`);
+	console.log(`[watchdog] Waiting for offline frame render; expected=${expectedFrameCount}, timeout=${Math.round(timeoutMs / 1000)}s`);
 	while (Date.now() < deadline) {
-		if (existsSync(OUTPUT_PATH)) {
-			const output = await stat(OUTPUT_PATH);
-			if (output.size > 0) {
-				console.log(`[watchdog] Output file detected: ${output.size} bytes`);
-				return;
+		const completedCount = getRenderedFrameCount();
+		if (completedCount !== null) {
+			if (completedCount !== expectedFrameCount) {
+				throw new Error(`Offline render completed with ${completedCount} frames; expected ${expectedFrameCount}.`);
 			}
+			return;
 		}
 
 		const failure = getFailure();
-		if (failure) {
-			throw new Error(`Video rendering failed in the browser:\n${failure}`);
-		}
+		if (failure) throw new Error(`Video rendering failed in the browser:
+${failure}`);
 
 		const pageText = await page.locator("body").innerText().catch(() => "");
 		if (/Error:|Could not load|does not support/i.test(pageText)) {
-			throw new Error(`Video rendering failed:\n${pageText}`);
+			throw new Error(`Video rendering failed:
+${pageText}`);
 		}
 
 		if (Date.now() >= nextLog) {
@@ -602,9 +549,32 @@ async function waitForVideo(
 	console.error(`[watchdog] TIMEOUT. Final page body: ${bodyAtTimeout.slice(0, 2000)}`);
 	console.error(`[watchdog] Browser diagnostics (${diagnostics.length}):\n${diagnostics.slice(-30).join("\n") || "<none>"}`);
 	throw new Error(
-		`Video generation timed out after ${Math.round(timeoutMs / 1000)} seconds.` +
+		`Offline video rendering timed out after ${Math.round(timeoutMs / 1000)} seconds.` +
 		(diagnostics.length ? `\nBrowser diagnostics:\n${diagnostics.slice(-10).join("\n")}` : "")
 	);
+}
+
+async function getAudioDuration(path: string): Promise<number> {
+	const { stdout } = await runCommand("ffprobe", [
+		"-v", "error",
+		"-show_entries", "format=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		path
+	]);
+	const duration = Number(stdout.trim());
+	if (!Number.isFinite(duration) || duration <= 0) {
+		throw new Error(`Could not determine a valid audio duration for ${path}: ${JSON.stringify(stdout)}`);
+	}
+	return duration;
+}
+
+async function runCommand(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+	try {
+		return await execFileAsync(command, args, { maxBuffer: 16 * 1024 * 1024 });
+	} catch (error: any) {
+		const detail = error?.stderr || error?.message || String(error);
+		throw new Error(`${command} failed: ${String(detail).trim()}`);
+	}
 }
 
 main().catch(error => {
