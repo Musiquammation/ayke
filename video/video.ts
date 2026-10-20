@@ -49,22 +49,25 @@ const PROTOCOL_LOADER_MODULE_URL = `/@fs${PROTOCOL_LOADER_MODULE_PATH.replace(/\
 const BROWSER_PROTOCOL_BOOTSTRAP_PATH = resolve(ROOT, "video/.videoProtocolBootstrap.ts");
 const BROWSER_PROTOCOL_BOOTSTRAP_URL = `/@fs${BROWSER_PROTOCOL_BOOTSTRAP_PATH.replace(/\\/g, "/")}`;
 
-const HEIGHT = 480;
+const HEIGHT = 720;
 const WIDTH = Math.floor(HEIGHT * 16/9);
 const FPS = 30;
-const SILENT_DURATION = 3;
+const SILENT_DURATION = 20;
+const SIMULATING = true; // Interactive browser mode; set false to render video.
 
 
 
 async function main() {
 	const videoScript = await readFile("./video/videoScript.js", "utf-8");
-	const hasAudio = existsSync(AUDIO_PATH);
+	const hasAudio = !SIMULATING && existsSync(AUDIO_PATH);
 	const duration = hasAudio ? await getAudioDuration(AUDIO_PATH) : SILENT_DURATION;
 	// One output image per presentation timestamp. Rendering speed never changes
 	// this timeline: a frame may take seconds to draw but still occupies 1/FPS.
 	const frameCount = Math.max(1, Math.ceil(duration * FPS - 1e-9));
-	await runCommand("ffmpeg", ["-version"]);
-	if (hasAudio) await runCommand("ffprobe", ["-version"]);
+	if (!SIMULATING) {
+		await runCommand("ffmpeg", ["-version"]);
+		if (hasAudio) await runCommand("ffprobe", ["-version"]);
+	}
 
 	await initProtocols(
 		name => protobuf.load("commons/protocols/games/" + name + ".proto"),
@@ -93,11 +96,13 @@ async function main() {
 	console.log(`[setup] ImageLoader module path: ${IMAGE_LOADER_MODULE_PATH}`);
 	console.log(`[setup] protocolLoader module path: ${PROTOCOL_LOADER_MODULE_PATH}`);
 	await mkdir(DIST, { recursive: true });
-	await rm(FRAMES_DIR, { recursive: true, force: true });
-	await mkdir(FRAMES_DIR, { recursive: true });
-	// Do not mistake outputs from a previous run for this run's output.
-	await unlink(OUTPUT_PATH).catch(() => undefined);
-	await unlink(VIDEO_ONLY_PATH).catch(() => undefined);
+	if (!SIMULATING) {
+		await rm(FRAMES_DIR, { recursive: true, force: true });
+		await mkdir(FRAMES_DIR, { recursive: true });
+		// Do not mistake outputs from a previous run for this run's output.
+		await unlink(OUTPUT_PATH).catch(() => undefined);
+		await unlink(VIDEO_ONLY_PATH).catch(() => undefined);
+	}
 
 	console.log(`Audio: ${hasAudio ? `${AUDIO_PATH} (duration ${duration.toFixed(3)}s; muxed after rendering)` : `none (silent video, ${duration}s)`}`);
 	console.log(`Offline render: ${frameCount} frames at ${FPS} FPS`);
@@ -167,7 +172,7 @@ async function main() {
 		const baseUrl = `http://127.0.0.1:${address.port}`;
 
 		browser = await chromium.launch({
-			headless: true,
+			headless: !SIMULATING,
 			args: [
 				"--autoplay-policy=no-user-gesture-required",
 				"--disable-background-timer-throttling",
@@ -212,6 +217,7 @@ async function main() {
 		});
 
 		await page.exposeFunction("__videoFrame", async (index: number, dataUrl: string) => {
+			if (SIMULATING) return;
 			if (!Number.isInteger(index) || index < 0 || index >= frameCount) {
 				throw new Error(`Invalid frame index ${index}; expected 0..${frameCount - 1}`);
 			}
@@ -255,6 +261,7 @@ async function main() {
 				const WIDTH = ${WIDTH};
 				const HEIGHT = ${HEIGHT};
 				const FPS = ${FPS};
+				const SIMULATING = ${SIMULATING};
 				const duration = ${duration};
 				const frameCount = ${frameCount};
 				const subtitles = ${JSON.stringify(SUBTITLES)};
@@ -382,58 +389,135 @@ async function main() {
 					await imageLoader.load(textures, "airbasket");
 					log("Texture/skin loading completed");
 
-					// Fixed-step offline simulation. We explicitly render each timestamp instead
-					// of recording browser wall-clock frames, so slow drawing cannot collapse the
-					// beginning of the final video into a single frame.
-					function input(player, action, extra = {}) {
-						game.runInput(player, { action, ...extra });
-					}
-
+					// Deterministic fixed-step simulation. Interactive seeking backwards
+					// resets the game and replays from the beginning.
 					const simulationStep = 1 / 60;
 					let simulationTime = 0;
 					let lastProgressFrame = 0;
+					let paused = false;
+					let targetFrame = 0;
 
-					for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
-						const frameTime = frameIndex / FPS;
-
-						// Step the game on a deterministic 60 Hz clock up to this output frame.
-						// scheduleActions, game.run and script keep their original per-tick order.
-						while (simulationTime < frameTime) {
-							const step = Math.min(simulationStep, frameTime - simulationTime);
+					function advanceTo(time) {
+						while (simulationTime + 1e-9 < time) {
+							const step = Math.min(simulationStep, time - simulationTime);
 							const nextTime = simulationTime + step;
 							const inputs = script(nextTime, game, clientData, bots) ?? [];
-							// Inputs returned by videoScript identify their target with playerIdx.
 							for (const { playerIdx, ...inputData } of inputs) {
 								if (!Number.isInteger(playerIdx) || playerIdx < 0 || playerIdx >= game.players.length) {
 									throw new Error(\`Invalid playerIdx in bot input: \${playerIdx}\`);
 								}
 								game.runInput(playerIdx, inputData);
 							}
-								scheduleActions(nextTime);
+							scheduleActions(nextTime);
 							game.run(step, false);
 							simulationTime = nextTime;
 						}
+					}
 
+					function drawFrame(frameIndex) {
+						const frameTime = frameIndex / FPS;
 						ctx.clearRect(0, 0, WIDTH, HEIGHT);
 						ctx.save();
 						const { width, height } = game.getSize();
 						ctx.scale(WIDTH / width, HEIGHT / height);
 						game.draw(ctx, 0, clientData, imageLoader, 0, 1 / FPS);
 						ctx.restore();
-
-						// Burn subtitles into the same numbered frame as the game state.
-						// They therefore use the exact same timeline as the audio muxed later.
 						drawSubtitle(frameTime, duration);
+					}
 
-						const pngDataUrl = canvas.toDataURL("image/png");
-						await window.__videoFrame(frameIndex, pngDataUrl);
+					function resetSimulation() {
+						game.init();
+						initScript(game);
+						simulationTime = 0;
+					}
 
-						if (frameIndex - lastProgressFrame >= FPS) {
-							lastProgressFrame = frameIndex;
-							log(\`Rendered frame \${frameIndex + 1}/\${frameCount} at t=\${frameTime.toFixed(3)}s\`);
+					if (SIMULATING) {
+						const panel = document.createElement("div");
+						panel.style.cssText = "position:fixed;z-index:2147483647;left:12px;top:12px;padding:10px 12px;background:rgba(0,0,0,.8);color:white;font:14px Arial;border-radius:6px;pointer-events:none";
+						panel.innerHTML = '<b>SIMULATING</b><div id="sim-status">t=0.00s · frame 0</div><div>Space: pause · X: frame · N/P: ±1s</div>';
+						document.body.appendChild(panel);
+						const status = panel.querySelector("#sim-status");
+
+						function refreshStatus() {
+							status.textContent = \`\${paused ? "PAUSED" : "PLAYING"} · t=\${(targetFrame / FPS).toFixed(2)}s · frame \${targetFrame}\`;
+						}
+
+						function moveToFrame(frame) {
+							// Restart at frame 0, whenever seeking into the past, or when
+							// the requested frame is beyond the source video's duration.
+							if (frame === 0 || frame / FPS < simulationTime || frame >= frameCount) {
+								resetSimulation();
+							}
+							targetFrame = frame >= frameCount ? 0 : frame;
+						}
+
+						function seekFrame() {
+							alert("Choose a frame number in the next dialog (0-based).");
+							const value = prompt("Frame number (0-based):", String(targetFrame));
+							if (value === null) return;
+							const frame = Number(value);
+							if (!Number.isInteger(frame) || frame < 0) {
+								alert("Please enter a non-negative integer frame number.");
+								return;
+							}
+							paused = true;
+							moveToFrame(frame);
+							refreshStatus();
+						}
+
+						window.addEventListener("keydown", async event => {
+							if (event.code === "Space") {
+								event.preventDefault();
+								paused = !paused;
+								refreshStatus();
+							} else if (event.key.toLowerCase() === "x") {
+								event.preventDefault();
+								await seekFrame();
+							} else if (event.key.toLowerCase() === "n") {
+								event.preventDefault();
+								paused = true;
+								moveToFrame(targetFrame + FPS);
+								refreshStatus();
+							} else if (event.key.toLowerCase() === "p") {
+								event.preventDefault();
+								paused = true;
+								moveToFrame(Math.max(0, targetFrame - FPS));
+								refreshStatus();
+							}
+						});
+
+						refreshStatus();
+						log("Interactive simulation ready. Space pause/resume, X choose frame, N/P move by one second.");
+						while (true) {
+							if (paused) {
+								await new Promise(resolve => setTimeout(resolve, 30));
+								continue;
+							}
+							// Loop the simulation from the beginning once its duration
+							// reaches or exceeds the source video's frame count.
+							if (targetFrame >= frameCount) {
+								resetSimulation();
+								targetFrame = 0;
+							}
+							advanceTo(targetFrame / FPS);
+							drawFrame(targetFrame);
+							targetFrame++;
+							refreshStatus();
+							await new Promise(resolve => setTimeout(resolve, 1000 / FPS));
 						}
 					}
 
+					for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+						const frameTime = frameIndex / FPS;
+						advanceTo(frameTime);
+						drawFrame(frameIndex);
+						const pngDataUrl = canvas.toDataURL("image/png");
+						await window.__videoFrame(frameIndex, pngDataUrl);
+						if (frameIndex - lastProgressFrame >= FPS) {
+							lastProgressFrame = frameIndex;
+							log(\`Rendered frame \${frameIndex + 1}/${frameCount} at t=\${frameTime.toFixed(3)}s\`);
+						}
+					}
 					await window.__videoRenderComplete(frameCount);
 					log("Offline frame rendering complete; audio has not been played or mixed yet");
 				}
@@ -451,6 +535,12 @@ async function main() {
 				});
 			`
 		});
+
+		if (SIMULATING) {
+			console.log("[simulation] Interactive browser started; close it to stop.");
+			await page.waitForEvent("close");
+			return;
+		}
 
 		await waitForRender(page, () => renderedFrameCount, frameCount, () => videoFailure, () => pageErrors);
 
@@ -497,8 +587,10 @@ async function main() {
 		if (browser) await browser.close();
 		await vite.close();
 		await unlink(BROWSER_PROTOCOL_BOOTSTRAP_PATH).catch(() => undefined);
-		await rm(FRAMES_DIR, { recursive: true, force: true });
-		await unlink(VIDEO_ONLY_PATH).catch(() => undefined);
+		if (!SIMULATING) {
+			await rm(FRAMES_DIR, { recursive: true, force: true });
+			await unlink(VIDEO_ONLY_PATH).catch(() => undefined);
+		}
 	}
 }
 
