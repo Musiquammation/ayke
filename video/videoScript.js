@@ -33,9 +33,60 @@ function script(now, game, clientData, bots) {
 	}
 
 	const STEPS = [
-		// Startup
+		// Presentation
 		{
 			start: 0,
+			perform(t, first) {
+				if (first) {
+					game.ball.x = 0;
+					game.ball.y = 0;
+					game.ball.vx = 0;
+					game.ball.vy = -20;
+					game.ball.grabber = -1;
+					game.ball.prevGrabber = -1;
+
+					
+					
+				}
+
+				for (const p of game.buckets) {
+					p.team = 'red';
+				}
+
+				game.buckets[7].team = null;
+				game.buckets[0].team = null;
+
+
+				const p = game.players[0];
+				p.dir = 1;
+
+				if (p.y > 100)
+					p.vy = -800;
+
+
+				placeMouse();
+				
+				const positions = [
+					{x: -300, y: 200},
+					{x: -800, y: -200},
+					{x: +600, y: 200},
+					{x: +800, y: -200},
+				];
+
+				for (let [i, p] of game.players.entries()) {
+					if (i == 0) continue;
+					p.x = positions[i].x;
+					p.y = positions[i].y;
+					p.vx = 0;
+					p.vy = -90;
+				}
+				
+			}
+		},
+
+		// Game
+		{
+			start: 2.8,
 			perform(t, first) {
 				// Setup
 				if (first) {
@@ -44,6 +95,14 @@ function script(now, game, clientData, bots) {
 					}
 
 					game.buckets[7].team = null;
+					game.buckets[0].team = null;
+
+					game.ball.x = 0;
+					game.ball.y = 0;
+					game.ball.vx = 0;
+					game.ball.vy = -20;
+					game.ball.grabber = -1;
+					game.ball.prevGrabber = -1;
 					
 					const positions = [
 						{x: -300, y: 200},
@@ -53,10 +112,10 @@ function script(now, game, clientData, bots) {
 					];
 
 					for (let [i, p] of game.players.entries()) {
-						p.x = positions[i].x;
-						p.y = positions[i].y;
 						p.vx = 0;
 						p.vy = -90;
+						p.y = positions[i].y;
+						p.x = positions[i].x;
 					}
 
 					clientData.camera.teleport(0, 0);
@@ -64,7 +123,7 @@ function script(now, game, clientData, bots) {
 
 				// Bots play
 				for (const bot of bots) {
-					if (t < 2 || (t < 2.37 && bot.playerIdx <= 1)) {
+					if (t < 2 || (t < 2.37 && bot.playerIdx <= 1) || t >= 3) {
 						playBot(bot);
 					} else {
 						const player = game.players[bot.playerIdx];
@@ -91,7 +150,7 @@ function script(now, game, clientData, bots) {
 
 		// Game too easy
 		{
-			start: 3.2,
+			start: 7.8,
 			perform(t, first) {
 				if (first) {
 					for (const bucket of game.buckets) {
@@ -103,6 +162,8 @@ function script(now, game, clientData, bots) {
 					game.ball.y = 0;
 					game.ball.vx = 0;
 					game.ball.vy = -20;
+					game.ball.grabber = -1;
+					game.ball.prevGrabber = -1;
 
 					const player = game.players[0];
 					player.x = -1200;
@@ -131,7 +192,7 @@ function script(now, game, clientData, bots) {
 
 				clientData.mouseX = Math.floor(game.players[0].x / 2400) * 2400;
 
-				if (player.y > 400) {
+				if (player.y > 400 || player.x >= 4300) {
 					player.vy = -800;
 				}
 
@@ -149,7 +210,7 @@ function script(now, game, clientData, bots) {
 
 		// Cannot jump while holding the ball
 		{
-			start: 8.5,
+			start: 12.8,
 			perform(t, first) {
 				if (first) {
 					for (const bucket of game.buckets) {
@@ -160,21 +221,25 @@ function script(now, game, clientData, bots) {
 					game.ball.y = 0;
 					game.ball.vx = 0;
 					game.ball.vy = -20;
+					game.ball.grabber = -1
 					game.ball.prevGrabber = -1
 
 					game.players[0].x = 0;
 					game.players[0].y = -500;
 					game.players[0].vx = 0;
+					game.players[0].vy = -500;
 					game.players[0].dir = 0;
-					game.players[0].vy = -90;
+
+					clientData.camera.teleport(0, 0);
 
 				}
 
+				if (t <= .1) {
+					game.players[0].vy = -1000;
+				}
+
 				for (let i = 1; i < 4; i++) {
-					game.players[i].x = 2400;
-					game.players[i].y = 0;
-					game.players[i].vx = 0;
-					game.players[i].vy = 0;
+					game.players[i].alive = 0.1;
 				}
 
 				placeMouse();
@@ -190,11 +255,119 @@ function script(now, game, clientData, bots) {
 			}
 		},
 
-		// 
+		// Passing the ball to a teammate
 		{
-			start: 12.5,
+			start: 16.1,
 			perform(t, first) {
+				const passer = game.players[0];
+				const teammate = game.players[2];
 
+				if (first) {
+					for (const bucket of game.buckets) {
+						bucket.team = 'red';
+					}
+					clientData.camera.teleport(0, 0);
+
+					game.buckets[8].team = null;
+
+					game.ball.x = 0;
+					game.ball.y = -300;
+					game.ball.vx = 0;
+					game.ball.vy = 0;
+					game.ball.grabber = -1;
+					game.ball.prevGrabber = -1;
+
+					passer.x = -700;
+					passer.y = 0;
+					passer.vx = 0;
+					passer.vy = -800;
+					passer.dir = 1;
+					passer.target = null;
+					passer.alive = -1;
+					passer.grabber = false;
+					passer.pushDown = false;
+
+					teammate.x = 2700;
+					teammate.y = 1350 * 2.4;
+					teammate.vx = 0;
+					teammate.vy = -1300;
+					teammate.dir = 0;
+					teammate.target = null;
+
+					game.players[1].x = -5000;
+					game.players[1].y = 300;
+					game.players[3].x = -5000;
+					game.players[3].y = 300;
+				}
+
+
+				if (t <= 1.5) {
+					teammate.x = 2900 - 1.26 * 1500;
+					teammate.y = 1350;
+					teammate.vy = -2000;
+					teammate.dir = 0;
+				} else if (t <= 3) {
+					teammate.dir = 1;
+				}
+
+				if (t >= 2 && t < 2.2) {
+					passer.target = {
+						type: 'fixed',
+						x: 4800,
+						y: -2700
+					};
+				}
+
+				if (t >= 1.9 && t <= 2.4) {
+					passer.vy = -800;
+				}
+
+
+				if (t >= 4) {
+					playBot(bots[2]);
+				}
+
+				placeMouse();
+			}
+		},
+
+		{
+			start: 21.5,
+			perform(t, first) {
+				if (first) {
+					for (const bucket of game.buckets) {
+						bucket.team = null;
+					}
+					game.buckets[11].team = 'red';
+					game.buckets[12].team = 'blue';
+					clientData.camera.teleport(0, 0);
+					
+					game.ball.x = 0;
+					game.ball.y = -200;
+					game.ball.vx = 0;
+					game.ball.vy = -50;
+				
+					const positions = [
+						{x: -600, y: 200},
+						{x: -1000, y: -200},
+						{x: +800, y: 200},
+						{x: +1000, y: -200},
+					];
+
+					for (let [i, p] of game.players.entries()) {
+						p.x = positions[i].x;
+						p.y = positions[i].y;
+						p.vx = 0;
+						p.vy = -90;
+						p.alive = -1;
+					}
+				}
+
+				for (const bot of bots) {
+					playBot(bot);
+				}
+
+				placeMouse();
 			}
 		}
 

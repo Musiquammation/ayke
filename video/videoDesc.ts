@@ -1,24 +1,23 @@
 const NARRATION = [
-	"So, we're building a 2v2 game where you play as a cowboy flying through the air.",
-	"And your goal is to throw the ball through a hoop.",
-	"At first, the game was way too easy.",
-	"You could grab the ball and score in every hoop by yourself.",
+	"So, we're making a 2v2 game where you play as a cowboy flying around.",
+	"The goal? Throw the ball through a hoop.",
+	"But at first, the game was way too easy.",
+	"You could just grab the ball and score in every hoop on your own.",
 	"So we removed the ability to jump while holding the ball.",
-	"Now, you have to either throw it into a hoop or pass it to a teammate.",
-	"Then, we wanted to encourage players to take more risks.",
-	"So we decided to reward them for stealing the ball from their teammates.",
-	"Finally, we added a ranking system: score more hoops than your teammate, and you'll earn more trophies than them."
+	"Now, you've gotta pass it to a teammate or throw it straight into a hoop.",
+	"Next, we wanted players to take more risks.",
+	"So we decided to reward them for stealing the ball from their own teammates.",
+	"And finally, we added a ranking system. Score more hoops than your teammate, and you'll get more trophies than them."
 ];
 
 export const SUBTITLES = [
-	{ text: NARRATION[0], start: 0, end: 1 },
-	{ text: NARRATION[1], start: 1, end: 2 },
-	{ text: NARRATION[2], start: 2, end: 3 },
-// 	{ text: NARRATION[2], start: 0.21, end: 0.30 },
-// 	{ text: NARRATION[3], start: 0.30, end: 0.41 },
-// 	{ text: NARRATION[4], start: 0.41, end: 0.51 },
-// 	{ text: NARRATION[5], start: 0.51, end: 0.64 },
-// 	{ text: NARRATION[6], start: 0.64, end: 0.74 },
-// 	{ text: NARRATION[7], start: 0.74, end: 0.85 },
-// 	{ text: NARRATION[8], start: 0.85, end: 1 }
+	{ text: NARRATION[0], start: 0, end: 4.2 },
+	{ text: NARRATION[1], start: 4.2, end: 6.5 },
+	{ text: NARRATION[2], start: 6.5, end: 8.0 },
+	{ text: NARRATION[3], start: 8.0, end: 12.4 },
+	{ text: NARRATION[4], start: 12.4, end: 16.0 },
+	{ text: NARRATION[5], start: 16.0, end: 20.2 },
+	{ text: NARRATION[6], start: 20.2, end: 23.5 },
+	{ text: NARRATION[7], start: 23.5, end: 28.0 },
+	{ text: NARRATION[8], start: 28.5, end: 32.0 },
 ];

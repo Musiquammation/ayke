@@ -49,11 +49,11 @@ const PROTOCOL_LOADER_MODULE_URL = `/@fs${PROTOCOL_LOADER_MODULE_PATH.replace(/\
 const BROWSER_PROTOCOL_BOOTSTRAP_PATH = resolve(ROOT, "video/.videoProtocolBootstrap.ts");
 const BROWSER_PROTOCOL_BOOTSTRAP_URL = `/@fs${BROWSER_PROTOCOL_BOOTSTRAP_PATH.replace(/\\/g, "/")}`;
 
-const HEIGHT = 720;
+const HEIGHT = 1080;
 const WIDTH = Math.floor(HEIGHT * 16/9);
 const FPS = 30;
-const SILENT_DURATION = 20;
-const SIMULATING = true; // Interactive browser mode; set false to render video.
+const SILENT_DURATION = 35;
+const SIMULATING = false; // Interactive browser mode; set false to render video.
 
 
 
