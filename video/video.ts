@@ -49,8 +49,9 @@ const PROTOCOL_LOADER_MODULE_URL = `/@fs${PROTOCOL_LOADER_MODULE_PATH.replace(/\
 const BROWSER_PROTOCOL_BOOTSTRAP_PATH = resolve(ROOT, "video/.videoProtocolBootstrap.ts");
 const BROWSER_PROTOCOL_BOOTSTRAP_URL = `/@fs${BROWSER_PROTOCOL_BOOTSTRAP_PATH.replace(/\\/g, "/")}`;
 
-const HEIGHT = 1080;
-const WIDTH = Math.floor(HEIGHT * 16/9);
+const HEIGHT = 1920;
+// const WIDTH = Math.floor(HEIGHT * 9/16);
+const WIDTH = 1080;
 const FPS = 30;
 const SILENT_DURATION = 35;
 const SIMULATING = false; // Interactive browser mode; set false to render video.
@@ -297,7 +298,7 @@ async function main() {
 					let line = "";
 
 					ctx.save();
-					ctx.font = "bold 25px Arial, sans-serif";
+					ctx.font = "bold 45px Arial, sans-serif";
 
 					for (const word of words) {
 						const candidate = line ? line + " " + word : word;
@@ -312,7 +313,7 @@ async function main() {
 
 					if (line) lines.push(line);
 
-					const lineHeight = 34;
+					const lineHeight = 54;
 					const boxHeight = lines.length * lineHeight + 30;
 					const boxY = HEIGHT - boxHeight - 28;
 
@@ -419,7 +420,17 @@ async function main() {
 						ctx.clearRect(0, 0, WIDTH, HEIGHT);
 						ctx.save();
 						const { width, height } = game.getSize();
-						ctx.scale(WIDTH / width, HEIGHT / height);
+						if (!(width > 0) || !(height > 0)) {
+							throw new Error(\`Invalid game size: \${width}x\${height}\`);
+						}
+
+						// Cover the output while preserving the game's aspect ratio:
+						// zoom enough to remove letterboxing, then crop the overflow centrally.
+						const scale = Math.max(WIDTH / width, HEIGHT / height);
+						const offsetX = (WIDTH - width * scale) / 2;
+						const offsetY = (HEIGHT - height * scale) / 2;
+						ctx.translate(offsetX, offsetY);
+						ctx.scale(scale, scale);
 						game.draw(ctx, 0, clientData, imageLoader, 0, 1 / FPS);
 						ctx.restore();
 						drawSubtitle(frameTime, duration);

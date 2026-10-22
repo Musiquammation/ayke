@@ -1,14 +1,16 @@
 const NARRATION = [
-	"So, we're making a 2v2 game where you play as a cowboy flying around.",
-	"The goal? Throw the ball through a hoop.",
-	"But at first, the game was way too easy.",
-	"You could just grab the ball and score in every hoop on your own.",
-	"So we removed the ability to jump while holding the ball.",
-	"Now, you've gotta pass it to a teammate or throw it straight into a hoop.",
-	"Next, we wanted players to take more risks.",
-	"So we decided to reward them for stealing the ball from their own teammates.",
-	"And finally, we added a ranking system. Score more hoops than your teammate, and you'll get more trophies than them."
+	"Ok, je suis en train de crée un jeu 2v2 où on joue un cowboy qui fait du basket dans les airs",
+	"Et le but, c'est d'envoyer la balle dans les différents paniers",
+	"Sauf qu'au début, c'était trop facile",
+	"Il suffisait juste de prendre le ballon et on pouvait prendre tous les paniers",
+	"Alors j'ai supprimé la possibilité de sauter quand on tient la balle",
+	"Maintenant, il faut soit faire une passe à mate, soit la lancer directement un panier",
+	"Mais il manquait un truc, donc pour inciter les joueurs à prendre plus de risques",
+	"J'ai décidé de les récompenser quand il volent la balle à un mate",
+	"En gros, si tu marques plus de paniers que tes mates, alors t'es joueur star et tu gagnes plus de trophées"
 ];
+
+
 
 export const SUBTITLES = [
 	{ text: NARRATION[0], start: 0, end: 4.2 },

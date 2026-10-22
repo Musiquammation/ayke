@@ -8,6 +8,8 @@ function scheduleActions() {}
 let lastStep = -1;
 
 function script(now, game, clientData, bots) {
+	clientData.camera.SCALE = 0.4;
+
 	const PLAYER_SPEED = 1500;
 	const PLAYER_JUMP = 800;
 
