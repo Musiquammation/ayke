@@ -4,3 +4,4 @@ node_modules/
 dist/
 client/dist/
 android/
+video/.videoProtocolBootstrap.ts

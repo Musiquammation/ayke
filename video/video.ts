@@ -57,7 +57,6 @@ const SILENT_DURATION = 35;
 const SIMULATING = false; // Interactive browser mode; set false to render video.
 
 
-
 async function main() {
 	const videoScript = await readFile("./video/videoScript.js", "utf-8");
 	const hasAudio = !SIMULATING && existsSync(AUDIO_PATH);
@@ -73,7 +72,7 @@ async function main() {
 	await initProtocols(
 		name => protobuf.load("commons/protocols/games/" + name + ".proto"),
 		[
-			{ name: 'airbasket', type: 'multiplayer' },
+			{ name: MODE_NAME, type: 'multiplayer' },
 		],
 	);
 
@@ -115,10 +114,10 @@ async function main() {
 		BROWSER_PROTOCOL_BOOTSTRAP_PATH,
 		`import protobuf from "protobufjs";\n` +
 		`import { initProtocols } from "../commons/protocolLoader";\n` +
-		`export async function initBrowserAirbasketProtocol() {\n` +
+		`export async function initBrowserProtocol() {\n` +
 		`  await initProtocols(\n` +
 		`    () => protobuf.load("/dist/video"),\n` +
-		`    [{ name: "airbasket", type: "multiplayer" }],\n` +
+		`    [{ name: "${MODE_NAME}", type: "multiplayer" }],\n` +
 		`  );\n` +
 		`}\n`
 	);
@@ -131,7 +130,7 @@ async function main() {
 				server.middlewares.use("/dist/video", async (_req, res) => {
 					try {
 						const proto = await readFile(
-							resolve(ROOT, "commons/protocols/games/airbasket.proto"),
+							resolve(ROOT, `commons/protocols/games/${MODE_NAME}.proto`),
 							"utf8"
 						);
 						res.statusCode = 200;
@@ -259,6 +258,8 @@ async function main() {
 				const BOTS_IMPORT_MODULE_URL = ${JSON.stringify(BOTS_IMPORT_MODULE_URL)};
 				const IMAGE_LOADER_MODULE_URL = ${JSON.stringify(IMAGE_LOADER_MODULE_URL)};
 				const BROWSER_PROTOCOL_BOOTSTRAP_URL = ${JSON.stringify(BROWSER_PROTOCOL_BOOTSTRAP_URL)};
+				const CLASS_NAME = ${JSON.stringify(CLASS_NAME)};
+				const MODE_NAME = ${JSON.stringify(MODE_NAME)};
 				const WIDTH = ${WIDTH};
 				const HEIGHT = ${HEIGHT};
 				const FPS = ${FPS};
@@ -338,27 +339,28 @@ async function main() {
 
 				async function main() {
 					log("Render main() entered; canvas is attached to DOM");
-					log("Initializing browser-side airbasket protocol registry...");
+					log(\`Initializing browser-side \${MODE_NAME} protocol registry...\`);
 					// Import through Vite so "protobufjs" is resolved and bundled correctly.
-					const { initBrowserAirbasketProtocol } = await import(BROWSER_PROTOCOL_BOOTSTRAP_URL);
-					await initBrowserAirbasketProtocol();
-					log("Browser-side airbasket protocol initialized");
-					log("Importing game module: ${GAME_MODULE_URL}");
-					const { ${CLASS_NAME} } = await import(GAME_MODULE_URL);
+					const { initBrowserProtocol } = await import(BROWSER_PROTOCOL_BOOTSTRAP_URL);
+					await initBrowserProtocol();
+					log(\`Browser-side \${MODE_NAME} protocol initialized\`);
+					log(\`Importing game module: \${GAME_MODULE_URL}\`);
+					const gameModule = await import(GAME_MODULE_URL);
+					const GameClass = gameModule[CLASS_NAME];
 					log("Game module imported successfully");
 					const { generateBot } = await import(BOT_MODULE_URL);
 					const { default: botsImport } = await import(BOTS_IMPORT_MODULE_URL);
 					log("Bot modules imported successfully");
-					log("Importing ImageLoader module: ${IMAGE_LOADER_MODULE_URL}");
+					log(\`Importing ImageLoader module: \${IMAGE_LOADER_MODULE_URL}\`);
 					const { ImageLoader } = await import(IMAGE_LOADER_MODULE_URL);
 					log("ImageLoader module imported successfully");
 					log(\`Target offline render duration=\${duration}s\`);
 
 					log("Generating game client DOM...");
-					const clientMessage = ${CLASS_NAME}.generateClientDom([]).produce();
+					const clientMessage = GameClass.generateClientDom([]).produce();
 
 					log("Game client DOM generated; creating client...");
-					const client = ${CLASS_NAME}.createClient({
+					const client = GameClass.createClient({
 						data: clientMessage,
 						origin: "client"
 					}, 4);
@@ -383,11 +385,11 @@ async function main() {
 
 					const imageLoader = new ImageLoader("");
 					const textures = {
-						...${CLASS_NAME}.TEXTURES,
+						...GameClass.TEXTURES,
 						...client.skins
 					};
 					log(\`Loading textures/skins; texture keys=\${Object.keys(textures).length}...\`);
-					await imageLoader.load(textures, "airbasket");
+					await imageLoader.load(textures, MODE_NAME);
 					log("Texture/skin loading completed");
 
 					// Deterministic fixed-step simulation. Interactive seeking backwards
@@ -628,13 +630,11 @@ async function waitForRender(
 		}
 
 		const failure = getFailure();
-		if (failure) throw new Error(`Video rendering failed in the browser:
-${failure}`);
+		if (failure) throw new Error(`Video rendering failed in the browser:\n${failure}`);
 
 		const pageText = await page.locator("body").innerText().catch(() => "");
 		if (/Error:|Could not load|does not support/i.test(pageText)) {
-			throw new Error(`Video rendering failed:
-${pageText}`);
+			throw new Error(`Video rendering failed:\n${pageText}`);
 		}
 
 		if (Date.now() >= nextLog) {
