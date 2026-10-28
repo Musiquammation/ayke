@@ -49,7 +49,8 @@ export class LocalGameHandler {
 		const {game, data, html, skins} = factory.client(
 			{data: startData, origin: 'client'},
 			this.playerCount,
-			0
+			0,
+			true // Enable the local authoritative engine for modes with custom network behavior.
 		);
 		const gameHtml = document.getElementById("game-html")!;
 		gameHtml.innerHTML = "";
@@ -106,6 +107,9 @@ export class LocalGameHandler {
 
 	async start() {
 		await fullScreenHandler.openFull(this.gamemode.getMobileOrientation());
+		// Some custom game modes need a local physics engine, initialized asynchronously.
+		const engineReady = (this.gamemode as GameMode & { engineReady?: Promise<void> }).engineReady;
+		if (engineReady) await engineReady;
 		await this.imageLoaderPromise;
 		this.clock = 0;
 		this.lastTime = performance.now();

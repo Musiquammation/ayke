@@ -1,0 +1,194 @@
+syntax = "proto3";
+
+package game_castle;
+
+message Empty {}
+
+// ---------------------------------------------------------------------------
+// Shared state (server save -> client load)
+// ---------------------------------------------------------------------------
+
+message PlayerState {
+	bool connected = 1;
+	bool isRed = 2;
+	float elixir = 3;
+	int32 kills = 4;
+}
+
+// One payload per placed-element type. Common fields come first (1..5).
+message BlockData {
+	float hp = 1;
+	int32 owner = 2;       // player index, -1 = neutral
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+}
+
+message FloorBlockData {}
+
+message SpikeData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+}
+
+message TrampolineData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+}
+
+message ArcherData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+	float cooldown = 6;
+}
+
+message FireBarData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+	float angle = 6;
+}
+
+message ThwompData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+	int32 phase = 6;
+	float timer = 7;
+	float offsetY = 8;
+}
+
+message SpawnerData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+	float cooldown = 6;
+}
+
+message RampData {
+	float hp = 1;
+	int32 owner = 2;
+	int32 col = 3;
+	int32 row = 4;
+	int32 variant = 5;
+}
+
+// Network snapshots deliberately contain no entity IDs: clients replace the
+// visual snapshot wholesale and never reconcile or simulate individual bodies.
+message BlockState {
+	reserved 1; // former blockId; IDs are internal to the server only
+	int32 typeIdx = 2;
+	bytes data = 3;
+}
+
+message BotState {
+	reserved 1, 4 to 10; // blockId and server-only physics/navigation fields
+	float x = 2;
+	float y = 3;
+	int32 animationState = 11;
+	uint32 animationFrame = 12;
+	bool facingLeft = 13;
+}
+
+message ArrowState {
+	reserved 1, 4 to 6; // blockId, velocity and lifetime are not needed by the renderer
+	float x = 2;
+	float y = 3;
+	int32 owner = 7;
+	float angle = 8;
+}
+
+message MonsterState {
+	reserved 1, 4 to 6; // blockId, velocity and lifetime are server-only
+	float x = 2;
+	float y = 3;
+	int32 owner = 7;
+}
+
+message State {
+	repeated PlayerState players = 1;
+	float time = 2;
+	int32 redScore = 3;
+	int32 blueScore = 4;
+	int32 castleHp = 5;
+
+	float spawnTimer = 6;
+
+	reserved 10; // former nextUid
+	repeated BlockState blocks = 11;
+	repeated BotState bots = 12;
+	repeated ArrowState arrows = 13;
+	repeated MonsterState monsters = 14;
+}
+
+// ---------------------------------------------------------------------------
+// Inputs
+// ---------------------------------------------------------------------------
+
+message PlaceInput {
+	int32 typeIdx = 1;
+	int32 col = 2;
+	int32 row = 3;
+	int32 variant = 4;
+}
+
+message RemoveInput {
+	reserved 1; // former blockId
+	int32 col = 2;
+	int32 row = 3;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		PlaceInput place = 2;
+		RemoveInput remove = 3;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Start data
+// ---------------------------------------------------------------------------
+
+message StartData {
+	int32 preferTeam = 1;
+}
+
+message StartPlayerInfo {
+	bool isRed = 1;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}

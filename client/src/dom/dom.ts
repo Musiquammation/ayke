@@ -1013,7 +1013,8 @@ class WaitPlayPanelComponent {
 		this.logs.push(msg);
 	}
 
-	private onAllowBotsChange() {
+	private toggleAllowBotsChange() {
+		this.allowBots = !this.allowBots;
 		sendMessage({
 			allowBotsOrder: this.allowBots
 		});
@@ -1366,7 +1367,8 @@ class LocalPlayComponent {
 	constructor(public readonly game: LocalGameHandler) {}
 
 	setText(text: string) {
-		this.text = text;
+		console.log(text);
+		this.text = escapeHTML(text).replaceAll('\n', "<br>");
 	}
 
 	createPlayResults(finish: FinishGame) {

@@ -14,6 +14,7 @@ import { GMMoveArmy } from "./gamemods/GMMoveArmy";
 import { GMPopit } from "./gamemods/GMPopit";
 import { GMLavaBall } from "./gamemods/GMLavaBall";
 import { GMCrayzoll } from "./gamemods/GMCrayzoll";
+import { GMCastle } from "./gamemods/GMCastle";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -25,9 +26,12 @@ import bots_moveArmy from "./bots/bots-moveArmy";
 import bots_popit from "./bots/bots-popit";
 import bots_lavaBall from "./bots/bots-lavaBall";
 import bots_crayzoll from "./bots/bots-crayzoll";
+import bots_castle from "./bots/bots-castle";
+import bots_rally from "./bots/bots-rally";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
+import { GMRally } from "./gamemods/GMRally";
 
 
 interface Player {
@@ -44,11 +48,16 @@ interface MultiplayerFactory {
 		total: number,
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	): Promise<{ game: GameMode, data: Uint8Array }>,
-	client(entry: MultiplayerClientEntry, total: number, playerIdx: number): {
+	client(
+		entry: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number,
+		playLocally: boolean
+	): {
 		game: GameMode,
 		data: any,
 		html: HTMLDivElement | null,
-		skins: { [key: string]: string },
+		skins: { [key: string]: string }
 	},
 	dom(unlockedSkins: string[]): {produce: ()=>Uint8Array},
 	textures: { [key: string]: string },
@@ -62,6 +71,7 @@ interface MultiplayerFactory {
 	iconExtension: string,
 	defaultPlayerCount: number,
 	tropheeRoalPixelsPerTrophy: number,
+	protoFields?: readonly string[],
 	nodes: {
 		root: ActionNode<GameMode, any>,
 		data: (()=>any)
@@ -136,6 +146,45 @@ export const gamemods: Record<
 		nodes: bots_airbasket
 	},
 
+	castle: {
+		type: 'multiplayer',
+		server: GMCastle.createServ,
+		client: GMCastle.createClient,
+		dom: GMCastle.generateClientDom,
+		textures: GMCastle.TEXTURES,
+		name: "Castle",
+		description: "Place blocks to stop heroes from reaching the castle, and kill as many as possible.",
+		tropheesPerPlayer: 25,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 2,
+		protoFields: GMCastle.PROTO_FIELDS as readonly string[],
+		nodes: bots_castle
+	},
+
+	rally: {
+		type: 'multiplayer',
+		server: GMRally.createServ,
+		client: GMRally.createClient,
+		dom: GMRally.generateClientDom,
+		textures: GMRally.TEXTURES,
+		name: "Rally",
+		description: "Jump and use items to finish the race first",
+		tropheesPerPlayer: 15,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 8,
+		nodes: bots_rally
+	},
+
 	crayzoll: {
 		type: 'multiplayer',
 		server: GMCrayzoll.createServ,
@@ -153,25 +202,6 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_crayzoll
-	},
-
-	turrets: {
-		type: 'multiplayer',
-		server: GMTurrets.createServ,
-		client: GMTurrets.createClient,
-		dom: GMTurrets.generateClientDom,
-		textures: GMTurrets.TEXTURES,
-		name: "Turrets",
-		description: "Build and defend your turret while trying to destroy your opponents using items.",
-		tropheesPerPlayer: 20,
-		explainationSlides: null,
-		computerOnly: false,
-		skins: [],
-		collectibles: null,
-		tropheeRoalPixelsPerTrophy: 3.5,
-		iconExtension: 'svg',
-		defaultPlayerCount: 4,
-		nodes: bots_turrets
 	},
 
 	separator_mobile: {
@@ -279,6 +309,26 @@ export const gamemods: Record<
 		type: 'ui-separator',
 		category: "Coming soon..."
 	},
+
+	turrets: {
+		type: 'multiplayer',
+		server: GMTurrets.createServ,
+		client: GMTurrets.createClient,
+		dom: GMTurrets.generateClientDom,
+		textures: GMTurrets.TEXTURES,
+		name: "Turrets",
+		description: "Build and defend your turret while trying to destroy your opponents using items.",
+		tropheesPerPlayer: 20,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'svg',
+		defaultPlayerCount: 4,
+		nodes: bots_turrets
+	},
+
 
 	moveArmy: {
 		type: 'multiplayer',

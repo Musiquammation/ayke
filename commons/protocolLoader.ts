@@ -1,12 +1,10 @@
 import * as protobuf from 'protobufjs';
-import { gamemods } from './gamemods';
 
 // Type alias for the loader function
 type ProtocolLoaderFn = (name: string) => Promise<protobuf.Root>;
 
 // Interface defining the expected message types for a game
 export interface ProtocolTypes {
-	type: 'multiplayer';
 	ServerMessage: protobuf.Type;
 	ClientMessage: protobuf.Type;
 	StartData: protobuf.Type;
@@ -16,8 +14,13 @@ export interface ProtocolTypes {
 }
 
 export interface SoloProtocolTypes {
-	type: 'solo';
 	Input: protobuf.Type;
+}
+
+interface ProtocolConfig {
+    name: string;
+    type: 'multiplayer' | 'solo';
+    protoFields?: readonly string[];
 }
 
 // Internal state
@@ -29,38 +32,118 @@ const loadedProtocols = new Map<string, ProtocolTypes | SoloProtocolTypes>();
  * Initializes the protocol loader mechanism.
  * @param loader A function that asynchronously fetches and returns a protobuf.Root
  */
-export function initProtocols(loader: ProtocolLoaderFn): void {
+export async function initProtocols(
+	loader: ProtocolLoaderFn,
+	gamemods: readonly ProtocolConfig[],
+): Promise<void> {
 	protocolLoader = loader;
 
-	for (const name in gamemods) {
-		const type = gamemods[name].type;
-		if (type !== 'ui-separator') {
-			getProtocol(name, type).load();
+	const loads: Promise<void>[] = [];
+
+	for (const g of gamemods) {
+		if (
+			g.type !== "multiplayer" &&
+			g.type !== "solo"
+		) {
+			continue;
+		}
+
+		if (g.type === "multiplayer" && g.protoFields) {
+			loads.push(
+				getProtocol(g.name, g.type, g.protoFields).load(),
+			);
+		} else {
+			loads.push(
+				getProtocol(g.name, g.type).load(),
+			);
 		}
 	}
+
+	await Promise.all(loads);
 }
 
-export function getProtocol(name: string, type: 'multiplayer'): {
-	load(): Promise<void>;
-	get(): ProtocolTypes;
+
+
+
+type ProtocolFields<T extends readonly string[]> = {
+	[K in T[number]]: protobuf.Type;
 };
 
-export function getProtocol(name: string, type: 'solo'): {
+type ExtendedProtocolTypes<T extends readonly string[]> =
+	ProtocolTypes & ProtocolFields<T>;
+
+
+/* -------------------------------------------------------------------------- */
+/* Solo                                                                       */
+/* -------------------------------------------------------------------------- */
+
+export function getProtocol(
+	name: string,
+	type: 'solo',
+): {
 	load(): Promise<void>;
 	get(): SoloProtocolTypes;
 };
 
-export function getProtocol(name: string, type: 'solo' | 'multiplayer'): {
+export function getProtocol<const T extends readonly string[]>(
+	name: string,
+	type: 'solo',
+	fields: T,
+): {
 	load(): Promise<void>;
-	get(): ProtocolTypes | SoloProtocolTypes;
+	get(): SoloProtocolTypes & ProtocolFields<T>;
 };
 
-export function getProtocol(name: string, type: 'solo' | 'multiplayer') {
+
+/* -------------------------------------------------------------------------- */
+/* Multiplayer                                                                */
+/* -------------------------------------------------------------------------- */
+
+export function getProtocol(
+	name: string,
+	type: 'multiplayer',
+): {
+	load(): Promise<void>;
+	get(): ProtocolTypes;
+};
+
+export function getProtocol<const T extends readonly string[]>(
+	name: string,
+	type: 'multiplayer',
+	fields: T,
+): {
+	load(): Promise<void>;
+	get(): ExtendedProtocolTypes<T>;
+};
+
+
+/* -------------------------------------------------------------------------- */
+/* Dynamic type                                                               */
+/* -------------------------------------------------------------------------- */
+
+export function getProtocol(
+	name: string,
+	type: 'solo' | 'multiplayer',
+): {
+	load(): Promise<void>;
+	get(): SoloProtocolTypes | ProtocolTypes;
+};
+
+
+/* -------------------------------------------------------------------------- */
+/* Implementation                                                             */
+/* -------------------------------------------------------------------------- */
+
+export function getProtocol<const T extends readonly string[]>(
+	name: string,
+	type: 'solo' | 'multiplayer',
+	fields?: T,
+) {
 	return {
 		async load(): Promise<void> {
 			if (!protocolLoader) {
 				throw new Error(
-					'Protocol loader is not initialized. Call initProtocols first.'
+					'Protocol loader is not initialized. Call initProtocols first.',
 				);
 			}
 
@@ -71,26 +154,40 @@ export function getProtocol(name: string, type: 'solo' | 'multiplayer') {
 			const root = await protocolLoader(name);
 			const namespace = `game_${name}`;
 
-			let resolvedTypes: ProtocolTypes | SoloProtocolTypes;
+			const additionalTypes = fields
+				? Object.fromEntries(
+					fields.map((field) => [
+						field,
+						root.lookupType(`${namespace}.${field}`),
+					]),
+				)
+				: {};
+
 
 			if (type === 'multiplayer') {
-				resolvedTypes = {
-					type: 'multiplayer',
-					ServerMessage: root.lookupType(`${namespace}.ServerMessage`),
-					ClientMessage: root.lookupType(`${namespace}.ClientMessage`),
-					StartData: root.lookupType(`${namespace}.StartData`),
-					StartDataClient: root.lookupType(`${namespace}.StartDataClient`),
+				loadedProtocols.set(name, {
+					ServerMessage: root.lookupType(
+						`${namespace}.ServerMessage`,
+					),
+					ClientMessage: root.lookupType(
+						`${namespace}.ClientMessage`,
+					),
+					StartData: root.lookupType(
+						`${namespace}.StartData`,
+					),
+					StartDataClient: root.lookupType(
+						`${namespace}.StartDataClient`,
+					),
 					State: root.lookupType(`${namespace}.State`),
 					Input: root.lookupType(`${namespace}.Input`),
-				};
+					...additionalTypes,
+				});
 			} else {
-				resolvedTypes = {
-					type: 'solo',
+				loadedProtocols.set(name, {
 					Input: root.lookupType(`${namespace}.Input`),
-				};
+					...additionalTypes,
+				});
 			}
-
-			loadedProtocols.set(name, resolvedTypes);
 		},
 
 		get() {
@@ -98,11 +195,11 @@ export function getProtocol(name: string, type: 'solo' | 'multiplayer') {
 
 			if (!types) {
 				throw new Error(
-					`Protocol '${name}' is not loaded. Make sure to await load() before calling get().`
+					`Protocol '${name}' is not loaded. Make sure to await load() before calling get().`,
 				);
 			}
 
 			return types;
-		}
+		},
 	};
 }

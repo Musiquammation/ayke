@@ -1,11 +1,10 @@
-import { Fields } from "../../../commons/Fields";
-import { FinishGame, GameMode } from "../../../commons/GameMode";
-import { gamemods, getMultiGmFactory } from "../../../commons/gamemods";
-import { getNow, msgtypes } from "../messages/sendMessage";
+import { GameMode } from "../../../commons/GameMode";
+import { getMultiGmFactory } from "../../../commons/gamemods";
+import { getNow } from "../messages/sendMessage";
 import { keyboardController } from "../controllers/KeyboardController";
 import { mouseController } from "../controllers/MouseController";
 import { mergeSortedArrays } from "../../../commons/util/mergeSortedArrays";
-import { dom, PlayResults } from "../dom/dom";
+import { dom } from "../dom/dom";
 import { getProtocol, ProtocolTypes } from "../../../commons/protocolLoader";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { imageLoader } from "./imageLoader";
@@ -72,9 +71,9 @@ class GameHandler {
 	private readonly gameHeight: number;
 	private prevDraw: number | null = null;
 	private readonly allowsMobile;
+	private readonly useDefaultNetworkBehavior: boolean;
 	
 	// Networking & Emulation timers
-	private lastEmulation = getNow();
 	private emulationTime = getNow(); // Used to simulate slowed time locally
 	private lastReceive = getNow();
 	private pingSum = 0;
@@ -94,6 +93,8 @@ class GameHandler {
 		private readonly protocols: ProtocolTypes,
 		private readonly clientData: any
 	) {
+		this.useDefaultNetworkBehavior = this.gamemode.useDefaultNetworkBehavior();
+
 		const gsize = this.gamemode.getSize();
 		this.gameWidth = gsize.width;
 		this.gameHeight = gsize.height;
@@ -171,19 +172,21 @@ class GameHandler {
 			this.emulationTime = now;
 		}
 
-		const inputs = mergeSortedArrays(
-			msg.inputs.map((i: any) => ({...(i.data), player: i.player})),
-			this.userInputs.map(i => ({...i, player: this.playerIdx})),
-			compareInputs
-		);
+		if (this.useDefaultNetworkBehavior) {
+			const inputs = mergeSortedArrays(
+				msg.inputs.map((i: any) => ({...(i.data), player: i.player})),
+				this.userInputs.map(i => ({...i, player: this.playerIdx})),
+				compareInputs
+			);
 
-		// Emulate to catch up state from the server state timestamp to local simulated time
-		this.gamemode.emulate(
-			msg.timestamp,
-			this.emulationTime,
-			inputs,
-			null
-		);
+			// In the default mode, replay server and local inputs to catch up.
+			this.gamemode.emulate(
+				msg.timestamp,
+				this.emulationTime,
+				inputs,
+				null
+			);
+		}
 
 		// Send accumulated inputs back to the server
 		const output = this.protocols.ClientMessage.encode({
@@ -292,14 +295,17 @@ class GameHandler {
 			mouseController.frame();
 			mobileController.frame();
 
-			// Emulate the current frame locally to provide instant feedback
-			this.gamemode.emulate(
-				this.emulationTime,
-				nextEmulationTime,
-				newInputs.map(i => ({...i, player: this.playerIdx})),
-				null
-			);
-		} else {
+			// Only the default network mode predicts locally. In server-authoritative
+			// mode, inputs are buffered and sent without mutating the local game state.
+			if (this.useDefaultNetworkBehavior) {
+				this.gamemode.emulate(
+					this.emulationTime,
+					nextEmulationTime,
+					newInputs.map(i => ({...i, player: this.playerIdx})),
+					null
+				);
+			}
+		} else if (this.useDefaultNetworkBehavior) {
 			this.gamemode.emulate(
 				this.emulationTime,
 				nextEmulationTime,
@@ -369,7 +375,8 @@ export async function setGameHandler(
 	const {game, data, html, skins} = factory.client(
 		{data: startData, origin: 'server'},
 		total,
-		playerIdx
+		playerIdx,
+		false
 	);
 
 	await imageLoader.load(skins, gamemode);

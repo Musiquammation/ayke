@@ -8,6 +8,18 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.2",
+		date: 1792224000000, // Sat. 17 oct 2026 at 10:00 AM
+		title: "Adding Castle and Rally gamemods",
+		lines: [
+			"<ust>New gamemode:</ust> rally",
+			"<ust>New gamemode:</ust> castle",
+			"Fix latency problem in few gamemods (using `useDefaultNetworkBehavior`)",
+			"*Allow bots* is now a button",
+			"Fix coin give",
+		]
+	},
+	{
 		version: "1.5.1",
 		date: 1790694000000, // Tue. 29 sept 2026 at 5:00 PM
 		title: "Friends, Crayzoll, animations and fixes",

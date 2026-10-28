@@ -23,7 +23,7 @@ export const COLLECTIBLE_APPLIES: Record<
 	},
 
 	async giveCoins(pseudo, db, arg: any) {
-		const fcoins = await db.addCoins(pseudo, arg);
+		const fcoins = await db.addCoins(pseudo, Number(arg.coins));
 		
 		logger.info(
 			`Give coins +${arg.coins} to '${pseudo}' ; now at ${fcoins}`

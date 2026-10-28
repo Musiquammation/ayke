@@ -35,7 +35,21 @@ export type MultiplayerClientEntry = (
 	{data: Uint8Array, origin: 'client'}
 );
 
+const AVG_DURATION_FACTOR = 0.3;
+const MAX_EXEC_TIME = 20;
+
+
+let data: any = [];
+setInterval(() => {
+	/*console.clear();
+	console.log(data);
+	for (let i of data) 
+		console.log(i);*/
+}, 5000);
+
 export abstract class GameMode {
+	private avgDuration = 1; // 1ms
+
 	public static readonly MAX_DT = 0.020; // 20ms
 
 	abstract init(): void;
@@ -77,15 +91,63 @@ export abstract class GameMode {
 
 	abstract createTutorial(): TutorialData;
 
+	/**
+	 * Enables the legacy client prediction and server state-replay behavior.
+	 * Returning false makes the server authoritative: clients only render received
+	 * states and submit inputs, while the server applies those inputs directly.
+	 */
+	useDefaultNetworkBehavior(): boolean {
+		return true;
+	}
+
 	quickEmulate(
 		duration: number,
 		produceFinish: boolean = false,
 		rng: GameRandomGenerator | null
 	) {
+		data.push(`Call duration ${duration.toFixed(3)}`);
+		let execTimeLeft = MAX_EXEC_TIME;
+		let uniqueIteration = true;
 		while (duration > GameMode.MAX_DT) {
-			const f = this.run(GameMode.MAX_DT, produceFinish, rng);
+			uniqueIteration = false;
+			const begin = performance.now();
+
+			// Run game
+			const dt = Math.max(
+				GameMode.MAX_DT,
+				duration / Math.ceil(execTimeLeft / this.avgDuration)
+			);
+
+
+			const f = this.run(dt, produceFinish, rng);
 			if (f && produceFinish) {return f;}
-			duration -= GameMode.MAX_DT;
+			duration -= dt;
+			
+			// Update avgDuration
+			const taken = performance.now() - begin;
+			data.push(`loop ${taken.toFixed(1)} avg=${this.avgDuration.toFixed(1)} dt=${(1000*dt).toFixed(1)} n=${(duration / Math.ceil(execTimeLeft / this.avgDuration)).toFixed(1)} left=${execTimeLeft}`);
+			this.avgDuration = (
+				this.avgDuration * (1 - AVG_DURATION_FACTOR)
+				+ taken * AVG_DURATION_FACTOR
+			);
+
+			execTimeLeft -= taken;
+			if (execTimeLeft <= 0)
+				break;
+
+
+		}
+
+		if (uniqueIteration) {
+			const begin = performance.now();
+			const r = this.run(duration, produceFinish, rng);
+			const taken = performance.now() - begin;
+			this.avgDuration = (
+				this.avgDuration * (1 - AVG_DURATION_FACTOR)
+				+ taken * AVG_DURATION_FACTOR
+			);
+			data.push(`took ${taken.toFixed(1)}`);
+			return r;
 		}
 
 		return this.run(duration, produceFinish, rng);

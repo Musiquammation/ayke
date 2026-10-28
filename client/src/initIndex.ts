@@ -4,6 +4,7 @@ import { dom, initDom } from "./dom/dom";
 import { sendMessage } from "./messages/sendMessage";
 import { hasNavigatorMobile, hasNavigatorMouse } from "./dom/clientNavigatorType";
 import { resolveMobileInterface } from "./getMobile";
+import { gamemods } from "../../commons/gamemods";
 
 
 declare global {
@@ -15,11 +16,16 @@ declare global {
 
 
 export default function() {
-	initProtocols(async name => {
-		const response = await fetch(window.PROTOCOLS_FOLDER + name + ".proto");
-		const protoText = await response.text();
-		return protobuf.parse(protoText).root;
-	});
+	initProtocols(
+		async name => {
+			const response = await fetch(window.PROTOCOLS_FOLDER + name + ".proto");
+			const protoText = await response.text();
+			return protobuf.parse(protoText).root;
+		},
+		[
+			{ name: 'airbasket', type: 'multiplayer' },
+		],
+	);
 	
 
 	initDom();
