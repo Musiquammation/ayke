@@ -27,6 +27,13 @@ const GRID_SIZE = 64; // World geometry and terrain tiles use this grid.
 const PLAYER_W = 48;
 const PLAYER_H = 64;
 
+// ImageLoader palette used to distinguish opponents from the local player.
+const ENEMY_PLAYER_COLOR_ID = 1;
+const ENEMY_PLAYER_COLOR_RULES = [
+	{ prev: '#7f90aa', next: '#d94b4b' }, // light blue-grey -> bright red
+	{ prev: '#585974', next: '#8f2438' }, // dark blue-grey -> deep red
+];
+
 // Running
 const RUN_SPEED = 420;
 const RUN_ACC = 2400;
@@ -1561,6 +1568,7 @@ export class GMRally extends GameMode {
 	private worldIds: number[] = [];
 	private itemBoxEntityIds: platformEngine.BlockId[] = [];
 	private currentRng: GameRandomGenerator | null = null;
+	private enemyColorRuleRegistered = false;
 
 	private constructor(total: number, isClient: boolean, isAuthoritative: boolean, initialLevelIndex = 0) {
 		super();
@@ -2558,7 +2566,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 		this.drawLevel(ctx, imageLoader, data);
 		this.drawDebugCheckpoints(ctx, playerIdx);
-		this.drawPlayers(ctx, imageLoader);
+		this.drawPlayers(ctx, imageLoader, playerIdx);
 		data.drawParticles(ctx);
 
 
@@ -2736,9 +2744,26 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 	}
 
 	/** Draw all player sprites. */
-	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
+	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, localPlayerIdx: number) {
 		const engine = this.engine;
 		if (!engine) return;
+
+		// Register once: ImageLoader also applies this rule to textures loaded later.
+		if (!this.enemyColorRuleRegistered) {
+			imageLoader.setColorRule('player', ENEMY_PLAYER_COLOR_ID, ENEMY_PLAYER_COLOR_RULES);
+			this.enemyColorRuleRegistered = true;
+		}
+
+		// The animator asks ImageLoaderFolder for its texture by name. Route only
+		// the player texture through the enemy palette; every other asset stays raw.
+		const enemyImageLoader: ImageLoaderFolder = {
+			get: (name, colorId) => imageLoader.get(
+				name,
+				name === 'player' ? ENEMY_PLAYER_COLOR_ID : colorId
+			),
+			setColorRule: (name, id, rules) => imageLoader.setColorRule(name, id, rules),
+		};
+
 		for (const [i, p] of this.players.entries()) {
 			const id = this.playerIds[i];
 			if (p.respawn > 0) continue; // off the map while waiting to respawn
@@ -2750,7 +2775,11 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			if (p.starTimer > 0) {
 				ctx.filter = `hue-rotate(${Math.floor((this.levelTime * 240) % 360)}deg) saturate(2)`;
 			}
-			engine.getAnimator(id)?.draw(block, ctx, imageLoader);
+			engine.getAnimator(id)?.draw(
+				block,
+				ctx,
+				i === localPlayerIdx ? imageLoader : enemyImageLoader
+			);
 			ctx.restore();
 		}
 	}
