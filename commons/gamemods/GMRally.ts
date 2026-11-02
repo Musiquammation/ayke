@@ -55,7 +55,7 @@ const WALLJUMP_BOOST_TIME = 0.35;   // how long WALLJUMP_VELOCITY replaces RUN_S
 // collected, and are handed to the player after ITEM_ROLL_TIME.
 const BOX_RESPAWN = 6;
 const BOX_SIZE = 56;
-const ITEM_ROLL_TIME = 1.2;
+const ITEM_ROLL_TIME = 1.0;
 const BOOST_TIME = 2;
 const BOOST_MULT = 1.6;
 const STAR_TIME = 5;
@@ -69,7 +69,8 @@ const VX_MAX = SHELL_SPEED * 1.35;
 const RED_SHELL_ACCEL = 760;
 const SHELL_JUMP_VELOCITY = 560;
 const BLUE_SHELL_SPEED = SHELL_SPEED * 1.08;
-const BLUE_SHELL_VERTICAL_ACCEL = 3200; // Accelerate strongly toward the desired vertical velocity; do not clamp it.
+const BLUE_SHELL_VERTICAL_ACCEL = 8000; // Accelerate strongly toward the desired vertical velocity.
+const BLUE_SHELL_VY_MAX = 1500; // Same limit as the fall speed of ground hazards.
 const HAZARD_SIZE = 30;
 const HIT_KNOCKBACK = 560;
 const HIT_JUMP = 640;
@@ -1555,8 +1556,8 @@ export class GMRally extends GameMode {
 	finishCount = 0;
 	boxCooldowns: number[] = [];
 	nextEntityId = 1;
-	/** Bit mask: one bit per lap on which a catch-up blue shell was already awarded. */
-	catchUpBlueShellAwardedLapMask = 0;
+	/** Leader lap from which the next non-leader opening an item box gets a blue shell. */
+	blueShellPunishmentLap = 1;
 
 	// The world is local and deterministic. Only dynamic game state is replicated.
 	private engine: RallyEngine | null = null;
@@ -1979,13 +1980,9 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			if (player.item !== ITEM_NONE || player.pendingItem !== ITEM_NONE || player.itemRollTimer > 0) return;
 			const leaderIndex = this.findRaceLeader();
 			const leaderLap = leaderIndex >= 0 ? this.players[leaderIndex].lapsCompleted : -1;
-			const playerLap = player.lapsCompleted;
-			const catchUpShellAvailable = playerLap >= 0 && playerLap < LAP_COUNT &&
-				leaderIndex >= 0 && leaderIndex !== playerIndex && leaderLap > playerLap &&
-				(this.catchUpBlueShellAwardedLapMask & (1 << playerLap)) === 0;
-			if (catchUpShellAvailable) {
-				// Only the first player to open an item box on this lap gets the catch-up shell.
-				this.catchUpBlueShellAwardedLapMask |= 1 << playerLap;
+			if (leaderIndex !== playerIndex && leaderLap >= this.blueShellPunishmentLap) {
+				// Only the first non-leader to open an item box gets the shell for this leader lap.
+				this.blueShellPunishmentLap = leaderLap + 1;
 				player.pendingItem = ITEM_BLUE_SHELL;
 			} else {
 				player.pendingItem = this.rollItem(playerIndex);
@@ -2376,8 +2373,8 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 				const leaderIndex = this.findRaceLeader();
 				const target = leaderIndex >= 0 ? this.players[leaderIndex] : undefined;
 				if (target && !target.finished) {
-					// Home in on the active race leader. Vertical speed is intentionally
-					// unbounded; acceleration, rather than a velocity cap, smooths changes.
+					// Home in on the active race leader. Acceleration smooths changes;
+					// vertical speed is capped below, before moving the shell.
 					const desiredVy = (target.y - shell.y) * 2.2;
 					const maxDelta = BLUE_SHELL_VERTICAL_ACCEL * dt;
 					shell.vy += Math.max(-maxDelta, Math.min(maxDelta, desiredVy - shell.vy));
@@ -2394,6 +2391,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 					shell.wrapToStart = false;
 					shell.wrappedToStart = true;
 				}
+				shell.vy = Math.max(-BLUE_SHELL_VY_MAX, Math.min(BLUE_SHELL_VY_MAX, shell.vy));
 				shell.y += shell.vy * dt;
 			} else {
 				if (shell.itemKind === ITEM_RED_SHELL) {
@@ -2841,8 +2839,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			bombs: this.getBombs().map(bomb => bomb.save()),
 			explosions: this.getExplosions().map(explosion => explosion.save()),
 			nextEntityId: this.nextEntityId,
-			// Keep the existing serialized field for compatibility; it now stores a lap bit mask.
-			maxCatchUpBlueShellLap: this.catchUpBlueShellAwardedLapMask,
+			blueShellPunishmentLap: this.blueShellPunishmentLap,
 		};
 		return State.encode(object).finish();
 	}
@@ -2902,7 +2899,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		}
 
 		this.nextEntityId = obj.nextEntityId ?? 1;
-		this.catchUpBlueShellAwardedLapMask = obj.maxCatchUpBlueShellLap ?? 0;
+		this.blueShellPunishmentLap = obj.blueShellPunishmentLap ?? 1;
 
 		// Keep local block IDs and static platforms intact; restore bodies and boxes.
 		this.syncBlocksFromPlayers();

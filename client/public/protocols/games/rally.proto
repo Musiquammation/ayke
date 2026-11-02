@@ -109,6 +109,7 @@ message State {
 	int32 nextEntityId = 13;
 	repeated BombState bombs = 14;
 	repeated ExplosionState explosions = 15;
+	int32 blueShellPunishmentLap = 16;
 }
 
 message QInput {

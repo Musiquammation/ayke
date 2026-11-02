@@ -22,9 +22,10 @@ export default function() {
 			const protoText = await response.text();
 			return protobuf.parse(protoText).root;
 		},
-		[
-			{ name: 'airbasket', type: 'multiplayer' },
-		],
+		
+		Object.entries(gamemods)
+			.filter((entry): entry is [string, Exclude<typeof entry[1], { type: 'ui-separator' }>] => entry[1].type !== 'ui-separator')
+			.map(([name, i]) => ({ type: i.type, name }))
 	);
 	
 
