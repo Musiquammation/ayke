@@ -16,6 +16,7 @@ import { GMLavaBall } from "./gamemods/GMLavaBall";
 import { GMCrayzoll } from "./gamemods/GMCrayzoll";
 import { GMCastle } from "./gamemods/GMCastle";
 import { GMRally } from "./gamemods/GMRally";
+import { GMJumpies } from "./gamemods/GMJumpies";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -29,6 +30,7 @@ import bots_lavaBall from "./bots/bots-lavaBall";
 import bots_crayzoll from "./bots/bots-crayzoll";
 import bots_castle from "./bots/bots-castle";
 import bots_rally from "./bots/bots-rally";
+import bots_jumpies from "./bots/bots-jumpies";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
@@ -202,6 +204,25 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_crayzoll
+	},
+
+	jumpies: {
+		type: 'multiplayer',
+		server: GMJumpies.createServ,
+		client: GMJumpies.createClient,
+		dom: GMJumpies.generateClientDom,
+		textures: GMJumpies.TEXTURES,
+		name: "Jumpies",
+		description: "A platformer without platforms: cross the rooms and reach the end of the level first.",
+		tropheesPerPlayer: 0,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_jumpies
 	},
 
 	separator_mobile: {

@@ -1,0 +1,31 @@
+/* Root overlay: fixed on top of the canvas, never intercepts clicks */
+.game-jumpies-root {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+
+	width: 96vw;
+
+	font-family: sans-serif;
+	font-size: 2vh;
+	color: white;
+
+	pointer-events: none;
+}
+
+/* Remaining time at the top center */
+.game-jumpies-time {
+	font-size: 4vh;
+	font-weight: bold;
+}
+
+/* Time left after the first arrival, and rank of the player */
+.game-jumpies-status {
+	margin-top: 0.5vh;
+	opacity: 0.8;
+}

@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package game_jumpies;
+
+message Empty {}
+
+message PlayerState {
+	bool connected = 1;
+	float x = 2;
+	float y = 3;
+	float vx = 4;
+	float vy = 5;
+	float hp = 6;
+	float jumps = 7;
+	int32 finishRank = 8; // negative while the player has not finished
+	float deathCooldown = 9;
+	bool useDefaultDeceleration = 10;
+	int32 dirX = 11;
+	bool fastFall = 12;
+	bool jumpRequested = 13;
+	int32 room = 14; // index in the rooms of the level
+}
+
+// One message per tracker. See commons/gamemods/jumpies/trackers.ts
+message PositionTrackerState {
+	float x = 1;
+	float y = 2;
+}
+
+message SpeedTrackerState {
+	float vx = 1;
+	float vy = 2;
+}
+
+message PlayersInsideTrackerState {
+	repeated int32 ids = 1;
+}
+
+message ActiveTrackerState {
+	bool active = 1;
+}
+
+message UnitsTrackerState {
+	int32 units = 1;
+}
+
+message CooldownEntry {
+	int32 player = 1;
+	float remaining = 2;
+}
+
+message CooldownsTrackerState {
+	repeated CooldownEntry entries = 1;
+}
+
+// Field names are the keys of the trackers. A block only fills the fields of
+// the trackers it uses, and blocks without tracker are not sent at all.
+message BlockState {
+	int32 id = 1;
+	PositionTrackerState position = 2;
+	SpeedTrackerState speed = 3;
+	PlayersInsideTrackerState playersInside = 4;
+	ActiveTrackerState active = 5;
+	UnitsTrackerState healUnits = 6;
+	UnitsTrackerState restoreJumpUnits = 7;
+	CooldownsTrackerState cooldowns = 8;
+}
+
+message State {
+	repeated PlayerState players = 1;
+	repeated BlockState blocks = 2;
+	float time = 3;
+	float finishCooldown = 4; // negative until the first arrival
+	int32 finishCount = 5;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		int32 move = 2;
+		bool fall = 3;
+		Empty jump = 4;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+message StartData {
+	// -1 means random; otherwise zero-based index into LEVELS.
+	int32 choice = 1;
+}
+
+message StartDataClient {
+	// Zero-based index into LEVELS. Everything else about a level is static.
+	int32 level = 1;
+}
