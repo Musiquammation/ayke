@@ -15,6 +15,7 @@ import { GMPopit } from "./gamemods/GMPopit";
 import { GMLavaBall } from "./gamemods/GMLavaBall";
 import { GMCrayzoll } from "./gamemods/GMCrayzoll";
 import { GMCastle } from "./gamemods/GMCastle";
+import { GMRally } from "./gamemods/GMRally";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -31,7 +32,6 @@ import bots_rally from "./bots/bots-rally";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
-import { GMRally } from "./gamemods/GMRally";
 
 
 interface Player {
