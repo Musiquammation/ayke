@@ -55,7 +55,6 @@ interface BotPlayerState {
     finished: boolean;
     lapsCompleted: number;
     checkpoint: number;
-    subCheckpoint: number;
     item: number;
     pendingItem: number;
     itemRollTimer: number;
@@ -110,6 +109,8 @@ interface NavigationGoal {
     x: number;
     y: number;
     kind: GoalKind;
+    /** Expanded checkpoint bounds: the player's center only needs to enter this area. */
+    targetRect?: { left: number; right: number; top: number; bottom: number };
     platformIndex?: number;
     barrierIndex?: number;
 }
@@ -297,8 +298,18 @@ function getNavigationGoal(
     const groundY = groundTop - PLAYER_H / 2;
     const checkpoints = level.checkpoints ?? [];
     const nextCheckpointIndex = player.checkpoint + 1;
-    const checkpointPending = nextCheckpointIndex >= 0 && nextCheckpointIndex < checkpoints.length;
-    const raceTargetX = checkpointPending ? checkpoints[nextCheckpointIndex].x : level.finishX;
+    const nextCheckpoint = nextCheckpointIndex >= 0 ? checkpoints[nextCheckpointIndex] : undefined;
+    // Checkpoints are rectangles, not X-only waypoints. Expand their bounds by
+    // the player's half-size so reaching the target means an actual body overlap.
+    const checkpointTargetRect = nextCheckpoint ? {
+        left: nextCheckpoint.x - PLAYER_W / 2 + 1,
+        right: nextCheckpoint.x + (nextCheckpoint.w ?? 64) + PLAYER_W / 2 - 1,
+        top: nextCheckpoint.y - PLAYER_H / 2 + 1,
+        bottom: nextCheckpoint.y + (nextCheckpoint.h ?? 64) + PLAYER_H / 2 - 1,
+    } : undefined;
+    const raceTargetX = nextCheckpoint
+        ? nextCheckpoint.x + (nextCheckpoint.w ?? 64) / 2
+        : level.finishX;
 
     if (data.lastCheckpoint !== player.checkpoint) {
         data.lastCheckpoint = player.checkpoint;
@@ -367,19 +378,35 @@ function getNavigationGoal(
         };
     }
 
-    // No wall blocks the current race objective: align with the next checkpoint
-    // at running height, or return to the ground lane before the finish line.
+    // No wall blocks the current race objective: enter the next checkpoint's
+    // expanded rectangle, or return to the ground lane before the finish line.
     return {
         x: raceTargetX,
-        y: groundY,
+        y: checkpointTargetRect
+            ? clamp(player.y, checkpointTargetRect.top, checkpointTargetRect.bottom)
+            : groundY,
         kind: "race-target",
+        targetRect: checkpointTargetRect,
     };
 }
 
 function targetDistance(state: SimState, goal: NavigationGoal): number {
+    // For a checkpoint, distance is zero as soon as the player's body overlaps
+    // its rectangle. This also makes vertically offset checkpoints real goals.
+    if (goal.targetRect) {
+        const dx = Math.max(goal.targetRect.left - state.x, 0, state.x - goal.targetRect.right);
+        const dy = Math.max(goal.targetRect.top - state.y, 0, state.y - goal.targetRect.bottom);
+        return Math.hypot(dx * 0.72, dy * 0.9);
+    }
     const dx = (state.x - goal.x) * 0.72;
     const dy = (state.y - goal.y) * 0.9;
     return Math.hypot(dx, dy);
+}
+
+function hasReachedGoal(state: SimState, goal: NavigationGoal): boolean {
+    // A checkpoint goal is complete only on overlap; ordinary navigation
+    // waypoints and the finish retain their small distance tolerance.
+    return targetDistance(state, goal) <= (goal.targetRect ? 0 : 58);
 }
 
 /** Score a simulated state by goal distance, progress, safety, and jump economy. */
@@ -605,7 +632,7 @@ function planFirstJump(
 
     // Already at this waypoint: let the authoritative simulation complete the
     // contact/checkpoint transition instead of issuing another speculative jump.
-    if (targetDistance(initial, goal) <= 58) return false;
+    if (hasReachedGoal(initial, goal)) return false;
 
     let beam: SimState[] = [initial];
 
@@ -625,8 +652,7 @@ function planFirstJump(
                 if (next.y > level.deathY + 180 || next.x < -220) continue;
 
                 const score = scoreState(next, initial, goal, level, rects);
-                const distance = targetDistance(next, goal);
-                if (distance <= 72) {
+                if (hasReachedGoal(next, goal)) {
                     reached.push({ state: next, score });
                     continue;
                 }

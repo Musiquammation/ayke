@@ -70,8 +70,8 @@ const CASTLE_RECT = {
 const VOID_Y = LEVEL_HEIGHT + CELL * 3;
 
 // ---- Match rules -----------------------------------------------------------
-const CASTLE_HP = 60;
-const MATCH_DURATION = 300;          // 5 minutes
+const CASTLE_HP = 30;
+const MATCH_DURATION = 3000;          // 5 minutes
 const TIMER_VISIBLE_SECONDS = 60;    // the clock is only displayed during the last minute
 const NO_OWNER = -1;
 const GRAVITY = 1500;
@@ -104,7 +104,7 @@ const BOT_RUNNING_SPEED = 100;       // speed from which the 'running' animation
 const KILL_CREDIT_WINDOW = 2;
 const BOT_WALL_JUMP_KICK = 260;
 
-const BOT_SPAWN_INTERVAL = 0.7;
+const BOT_SPAWN_INTERVAL = 0.5;
 
 // ---- Element: block --------------------------------------------------------
 const BLOCK_PRICE = 0.5;
