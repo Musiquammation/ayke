@@ -52,7 +52,7 @@ const ITEM_ROLL_TIME = 1.2;
 const BOOST_TIME = 2;
 const BOOST_MULT = 1.6;
 const STAR_TIME = 5;
-const BANANA_SPEED = 360;
+const BANANA_SPEED = 840;
 const BANANA_JUMP = -360;
 const SHELL_SPEED = 820;
 // Red shells always travel in their launch direction. Target distance only
@@ -75,7 +75,9 @@ const SHELL_FRAME_DELAY = 0.09;
 const SPAWN_FRONT_OFFSET = (PLAYER_W + HAZARD_SIZE) / 2 + 8;
 const EXPLOSION_DURATION = 0.42;
 const EXPLOSION_RADIUS = 220; // everyone inside this radius is hit
-const BOMB_SPEED = 320;
+const BOMB_SPEED = 600;
+const BOMB_JUMP = -900;
+const BLUE_SHELL_JUMP = -900;
 
 // Match flow: one predefined map, three laps, a 30-second grace period, and a ten-minute hard limit.
 const RESPAWN_TIME = 1;
@@ -156,7 +158,7 @@ const LEVELS = (function(){
 				{ x: 5, y: 2, w: 1, h: 10, skin: 'box' },
 				{ x: 8, y: 5, w: 1, h: 9, skin: 'box' },
 				{ x: 11, y: -5, w: 1, h: 16, skin: 'box' },
-				{ x: 18, y: 7, w: 1, h: 7, skin: 'box' },
+				{ x: 18, y: 8, w: 1, h: 6, skin: 'box' },
 				{ x: 11, y: 10, w: 5, h: 1, skin: 'box' },
 				{ x: 18, y: -3, w: 1, h: 7, skin: 'box' },
 				{ x: 21, y: -3, w: 1, h: 14, skin: 'box' },
@@ -166,6 +168,7 @@ const LEVELS = (function(){
 				{ x: 35, y: -5, w: 1, h: 15, skin: 'box' },
 				{ x: 46, y: 5, w: 1, h: 9, skin: 'box' },
 				{ x: 36, y: -5, w: 12, h: 1, skin: 'box' },
+				// { x: 6, y: 10, w: 2, h: 2, skin: 'box' },
 			],
 			items: [
 				{x: 2, y: 13},
@@ -198,7 +201,14 @@ const LEVELS = (function(){
 				{x: 55, y: 13},
 			],
 			checkpoints: [
-				{x: 33, y: 7, w: 1, h: 10}
+				{x: 0, y: 10, w: 1, h: 4},
+				{x: 6, y: 10, w: 2, h: 2},
+				{x: 8, y: -6, w: 1, h: 11},
+				{x: 9, y: 9, w: 2, h: 2},
+				{x: 16, y: 10, w: 2, h: 1},
+				{x: 18, y: 4, w: 1, h: 4},
+				{x: 32, y: 13, w: 3, h: 1},
+				{x: 56.5, y: -5, w: 1, h: 19},
 			],
 			subCheckpoints: [],
 		},
@@ -207,8 +217,8 @@ const LEVELS = (function(){
 
 	// Work levels
 	for (const level of LEVELS) {
-		// Platform and checkpoint definitions are both authored in grid units.
-		// Convert every rectangle to world-space center coordinates exactly once.
+		// Platform definitions use grid-space top-left coordinates; checkpoints do too.
+		// Convert to world-space coordinates, keeping checkpoint x/y as the top-left.
 		for (const p of level.platforms) {
 			p.x *= GRID_SIZE;
 			p.y *= GRID_SIZE;
@@ -219,12 +229,10 @@ const LEVELS = (function(){
 		}
 
 		for (const cp of [...level.checkpoints, ...level.subCheckpoints]) {
-			const w = (cp.w ?? 1) * GRID_SIZE;
-			const h = (cp.h ?? 1) * GRID_SIZE;
-			cp.x = cp.x * GRID_SIZE + w / 2;
-			cp.y = cp.y * GRID_SIZE + h / 2;
-			cp.w = w;
-			cp.h = h;
+			cp.x *= GRID_SIZE;
+			cp.y *= GRID_SIZE;
+			cp.w = (cp.w ?? 1) * GRID_SIZE;
+			cp.h = (cp.h ?? 1) * GRID_SIZE;
 		}
 
 		for (const i of level.items) {
@@ -243,6 +251,36 @@ function overlapsCenter(
 ): boolean {
 	return Math.abs(a.x - b.x) * 2 < a.w + b.w &&
 		Math.abs(a.y - b.y) * 2 < a.h + b.h;
+}
+
+/** Player position (center) used when starting or wrapping onto checkpoint 0. */
+function firstCheckpointPosition(level: LevelDef): { x: number; y: number } {
+	const checkpoint = level.checkpoints[0];
+	if (!checkpoint) return { x: level.spawnX, y: level.spawnY };
+	return {
+		x: checkpoint.x + (checkpoint.w ?? GRID_SIZE) / 2,
+		y: checkpoint.y + (checkpoint.h ?? GRID_SIZE) / 2,
+	};
+}
+
+/** Distance from a point to the nearest of a rectangle's four faces. */
+function distanceToCheckpointFace(
+	x: number,
+	y: number,
+	checkpoint: CheckpointDef
+): number {
+	const left = checkpoint.x;
+	const right = checkpoint.x + (checkpoint.w ?? GRID_SIZE);
+	const top = checkpoint.y;
+	const bottom = checkpoint.y + (checkpoint.h ?? GRID_SIZE);
+	const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+	const distances = [
+		Math.hypot(x - left, y - clamp(y, top, bottom)),
+		Math.hypot(x - right, y - clamp(y, top, bottom)),
+		Math.hypot(x - clamp(x, left, right), y - top),
+		Math.hypot(x - clamp(x, left, right), y - bottom),
+	];
+	return Math.min(...distances);
 }
 
 /** Position and velocity of a platform at time t (velocity = derivative). */
@@ -577,7 +615,7 @@ class Player {
 		this.itemRollTimer = 0;
 		this.itemQueued = false;
 		this.respawn = 0;
-		this.checkpoint = -1;
+		this.checkpoint = 0;
 		this.subCheckpoint = -1;
 		this.hit = false;
 		this.lapsCompleted = 0;
@@ -1239,6 +1277,10 @@ class Banana extends Entity {
 abstract class Shell extends Entity {
 	vx = 0;
 	vy = 0;
+	/** Blue shells use this flag while taking the long route to wrap around to x=0. */
+	wrapToStart = false;
+	/** Prevents a second wrap if the target is still left of the shell after it respawns. */
+	wrappedToStart = false;
 	abstract readonly itemKind: number;
 
 	constructor(entityId: number) {
@@ -1251,11 +1293,13 @@ abstract class Shell extends Entity {
 		const state = data.red ?? data.blue ?? data.green ?? {};
 		this.vx = state.vx ?? 0;
 		this.vy = state.vy ?? 0;
+		this.wrapToStart = state.wrapToStart ?? false;
+		this.wrappedToStart = state.wrappedToStart ?? false;
 		this.active = true;
 	}
 
 	save() {
-		const state = { vx: this.vx, vy: this.vy };
+		const state = { vx: this.vx, vy: this.vy, ...(this.itemKind === ITEM_BLUE_SHELL ? { wrapToStart: this.wrapToStart, wrappedToStart: this.wrappedToStart } : {}) };
 		return {
 			id: this.entityId, x: this.x, y: this.y,
 			...(this.itemKind === ITEM_RED_SHELL ? { red: state }
@@ -1274,6 +1318,7 @@ class BlueShell extends Shell { readonly itemKind = ITEM_BLUE_SHELL; }
 class Bomb extends Entity {
 	vx = 0;
 	vy = 0;
+	owner = -1;
 
 	constructor(entityId: number) {
 		super('bomb', entityId, -1, HAZARD_SIZE);
@@ -1284,11 +1329,12 @@ class Bomb extends Entity {
 		this.y = data.y ?? 0;
 		this.vx = data.vx ?? 0;
 		this.vy = data.vy ?? 0;
+		this.owner = data.owner ?? -1;
 		this.active = true;
 	}
 
 	save() {
-		return { id: this.entityId, x: this.x, y: this.y, vx: this.vx, vy: this.vy };
+		return { id: this.entityId, x: this.x, y: this.y, vx: this.vx, vy: this.vy, owner: this.owner };
 	}
 }
 
@@ -1502,6 +1548,8 @@ export class GMRally extends GameMode {
 	finishCount = 0;
 	boxCooldowns: number[] = [];
 	nextEntityId = 1;
+	/** Bit mask: one bit per lap on which a catch-up blue shell was already awarded. */
+	catchUpBlueShellAwardedLapMask = 0;
 
 	// The world is local and deterministic. Only dynamic game state is replicated.
 	private engine: RallyEngine | null = null;
@@ -1550,8 +1598,9 @@ export class GMRally extends GameMode {
 		const game = new GMRally(total, false, true, initialLevelIndex);
 
 		const level = game.currentLevel();
-		for (const [i, p] of game.players.entries()) {
-			p.resetForLevel(level.spawnX, level.spawnY);
+		const start = firstCheckpointPosition(level);
+		for (const p of game.players) {
+			p.resetForLevel(start.x, start.y);
 		}
 		game.boxCooldowns = level.items.map(() => 0);
 		game.syncBlocksFromPlayers(); // handles the case where the engine finished loading first
@@ -1585,7 +1634,8 @@ export class GMRally extends GameMode {
 
 
 		const level = game.currentLevel();
-		game.players.forEach(p => p.resetForLevel(level.spawnX, level.spawnY));
+		const start = firstCheckpointPosition(level);
+		game.players.forEach(p => p.resetForLevel(start.x, start.y));
 		game.boxCooldowns = level.items.map(() => 0);
 		game.syncBlocksFromPlayers();
 		return { game, data: clientData, html: clientData.html, skins: {} };
@@ -1796,21 +1846,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		if (p.y > level.deathY) { this.killPlayer(idx, p, block); return; }
 		// Finished players still respawn if they fall, but can no longer score another lap.
 		if (p.finished) return;
-		this.updateCheckpoint(p, level);
-		const ground = level.platforms.find(platform => platform.skin === 'grass');
-		if (p.checkpoint === level.checkpoints.length - 1 && ground) {
-			// finishX is the right edge of the ground platform and the center of the
-			// rendered finish stripe. Use a small approach zone so the player can
-			// trigger it before walking off the platform edge.
-			const groundTop = ground.y - ground.h / 2;
-			const runningCenterY = groundTop - PLAYER_H / 2;
-			const crossedFinish = p.x + PLAYER_W / 2 >= level.finishX - GRID_SIZE;
-			const onFinishApproach = Math.abs(p.y - runningCenterY) <= GRID_SIZE * 2;
-			if (crossedFinish && onFinishApproach) {
-				this.completeLap(idx, p, block);
-				return;
-			}
-		}
+		if (this.updateCheckpoint(p, level)) this.completeLap(p, block);
 	}
 
 	/**
@@ -1842,29 +1878,56 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		p.starTimer = 0;
 	}
 
-	/** Only the next major checkpoint can be validated, so later ones cannot be skipped. */
-	private updateCheckpoint(p: Player, level: LevelDef) {
+	/** Advance one checkpoint at a time in either direction; entering the last checkpoint completes a lap. */
+	private updateCheckpoint(p: Player, level: LevelDef): boolean {
+		const checkpoints = level.checkpoints;
+		if (checkpoints.length === 0) return false;
 		const playerRect = { x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H };
-		const nextCheckpoint = p.checkpoint + 1;
-		if (nextCheckpoint < level.checkpoints.length) {
-			const cp = level.checkpoints[nextCheckpoint];
-			if (overlapsCenter(playerRect, {
-				x: cp.x, y: cp.y, w: cp.w ?? GRID_SIZE, h: cp.h ?? GRID_SIZE,
-			})) p.checkpoint = nextCheckpoint;
+		const overlapsCheckpoint = (index: number) => {
+			const cp = checkpoints[index];
+			const w = cp.w ?? GRID_SIZE;
+			const h = cp.h ?? GRID_SIZE;
+			return overlapsCenter(playerRect, {
+				x: cp.x + w / 2, y: cp.y + h / 2, w, h,
+			});
+		};
+
+		// Going backwards is always allowed: crossing the preceding checkpoint
+		// lowers progress instead of leaving the player locked at the furthest one.
+		if (p.checkpoint > 0 && overlapsCheckpoint(p.checkpoint - 1)) {
+			p.checkpoint--;
+			// A sub-checkpoint is no longer valid if its prerequisite is now ahead.
+			if (p.subCheckpoint >= 0) {
+				const prerequisite = level.subCheckpoints[p.subCheckpoint]?.afterCheckpoint ?? -1;
+				if (p.checkpoint < prerequisite) p.subCheckpoint = -1;
+			}
+		} else {
+			const nextCheckpoint = p.checkpoint + 1;
+			if (nextCheckpoint < checkpoints.length && overlapsCheckpoint(nextCheckpoint)) {
+				p.checkpoint = nextCheckpoint;
+				// Entering the last checkpoint completes the lap immediately.
+				if (nextCheckpoint === checkpoints.length - 1) {
+					p.subCheckpoint = -1;
+					return true;
+				}
+			}
 		}
 
 		const nextSubCheckpoint = p.subCheckpoint + 1;
 		if (nextSubCheckpoint < level.subCheckpoints.length) {
 			const cp = level.subCheckpoints[nextSubCheckpoint];
 			const prerequisite = cp.afterCheckpoint ?? -1;
+			const w = cp.w ?? GRID_SIZE;
+			const h = cp.h ?? GRID_SIZE;
 			if (p.checkpoint >= prerequisite && overlapsCenter(playerRect, {
-				x: cp.x, y: cp.y, w: cp.w ?? GRID_SIZE, h: cp.h ?? GRID_SIZE,
+				x: cp.x + w / 2, y: cp.y + h / 2, w, h,
 			})) p.subCheckpoint = nextSubCheckpoint;
 		}
+		return false;
 	}
 
-	/** Count the completed lap and teleport only the player's horizontal position. */
-	private completeLap(idx: number, p: Player, block: PlayerBlock) {
+	/** Count a lap when the player enters the last checkpoint and return them to the first. */
+	private completeLap(p: Player, block: PlayerBlock) {
 		const lapIndex = Math.min(p.lapsCompleted, LAP_COUNT - 1);
 		const rank = this.players.reduce(
 			(count, player) => count + (player.lapFinishCounts[lapIndex] >= 0 ? 1 : 0),
@@ -1876,11 +1939,16 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		p.points += RANK_POINTS[rank] ?? 0;
 		this.finishCount++;
 
-		// Reset lap progression, but preserve movement, items, mushroom boost, and star power.
-		const level = this.currentLevel();
-		p.x = level.spawnX;
-		block.x = level.spawnX;
-		p.checkpoint = -1;
+		// A completed lap sends the player back to the first checkpoint.
+		// Checkpoint coordinates are top-left; player/block coordinates are centers.
+		const start = firstCheckpointPosition(this.currentLevel());
+		p.x = block.x = start.x;
+		p.y = block.y = start.y;
+		p.vx = block.velocity.x = 0;
+		p.vy = block.velocity.y = 0;
+		block.direction.dir = 0;
+		p.facing = 1;
+		p.checkpoint = 0;
 		p.subCheckpoint = -1;
 		if (p.lapsCompleted >= LAP_COUNT) {
 			p.finished = true;
@@ -1892,7 +1960,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 
 	/** Item-box collection is triggered by Entity.detectCollision inside the engine. */
-handleEntityContact(entity: Entity, playerIndex: number): void {
+	handleEntityContact(entity: Entity, playerIndex: number): void {
 		if (!this.isAuthoritative || !entity.active) return;
 		const player = this.players[playerIndex];
 		if (!player || player.finished || player.respawn > 0) return;
@@ -1901,7 +1969,19 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			const boxIndex = entity.sourceIndex;
 			if (boxIndex < 0 || boxIndex >= this.boxCooldowns.length || this.boxCooldowns[boxIndex] > 0) return;
 			if (player.item !== ITEM_NONE || player.pendingItem !== ITEM_NONE || player.itemRollTimer > 0) return;
-			player.pendingItem = this.rollItem(playerIndex);
+			const leaderIndex = this.findRaceLeader();
+			const leaderLap = leaderIndex >= 0 ? this.players[leaderIndex].lapsCompleted : -1;
+			const playerLap = player.lapsCompleted;
+			const catchUpShellAvailable = playerLap >= 0 && playerLap < LAP_COUNT &&
+				leaderIndex >= 0 && leaderIndex !== playerIndex && leaderLap > playerLap &&
+				(this.catchUpBlueShellAwardedLapMask & (1 << playerLap)) === 0;
+			if (catchUpShellAvailable) {
+				// Only the first player to open an item box on this lap gets the catch-up shell.
+				this.catchUpBlueShellAwardedLapMask |= 1 << playerLap;
+				player.pendingItem = ITEM_BLUE_SHELL;
+			} else {
+				player.pendingItem = this.rollItem(playerIndex);
+			}
 			player.itemRollTimer = ITEM_ROLL_TIME;
 			this.boxCooldowns[boxIndex] = BOX_RESPAWN;
 			entity.active = false;
@@ -1916,6 +1996,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			this.hitPlayer(playerIndex);
 			this.removeHazard(hazard.entityId);
 		} else if (hazard instanceof Bomb) {
+			if (playerIndex === hazard.owner) return;
 			this.explodeBomb(hazard);
 		} else if (hazard instanceof BlueShell) {
 			// The blue shell only reacts to its target (the race leader) and explodes at once.
@@ -1923,7 +2004,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			this.explodeAt(hazard.x, hazard.y, ITEM_BLUE_SHELL);
 			this.removeHazard(hazard.entityId);
 		} else if (hazard instanceof Shell) {
-			// Shells have no owner: they hit whoever they touch.
+			// A shell cannot immediately rebound into and hit its thrower.
 			this.hitPlayer(playerIndex);
 			this.removeHazard(hazard.entityId);
 		}
@@ -2048,10 +2129,10 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			case ITEM_GREEN_SHELL:
 			case ITEM_RED_SHELL:
 			case ITEM_BLUE_SHELL:
-				this.spawnShell(held, p);
+				this.spawnShell(held, p, idx);
 				break;
 			case ITEM_BOMB:
-				this.spawnBomb(p);
+				this.spawnBomb(p, idx);
 				break;
 			case ITEM_MUSHROOM:
 				p.boostTimer = BOOST_TIME;
@@ -2067,17 +2148,18 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 	}
 
 /** Throw a bomb from in front of the player; it detonates on landing or on any player. */
-	private spawnBomb(player: Player) {
+	private spawnBomb(player: Player, owner: number) {
 		const bomb = new Bomb(this.nextEntityId++);
 		bomb.x = player.x + player.facing * SPAWN_FRONT_OFFSET;
 		bomb.y = player.y;
 		bomb.vx = player.vx + player.facing * BOMB_SPEED;
-		bomb.vy = player.vy + BANANA_JUMP;
+		bomb.vy = player.vy + BOMB_JUMP;
+		bomb.owner = owner;
 		this.addHazard(bomb);
 	}
 
 	/** Shells spawn in front of the player so they do not touch the thrower. */
-	private spawnShell(kind: number, player: Player) {
+	private spawnShell(kind: number, player: Player, owner: number) {
 		const direction = player.facing < 0 ? -1 : 1;
 		const shell: Shell = kind === ITEM_RED_SHELL ? new RedShell(this.nextEntityId++)
 			: kind === ITEM_BLUE_SHELL ? new BlueShell(this.nextEntityId++)
@@ -2085,7 +2167,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		shell.x = player.x + direction * SPAWN_FRONT_OFFSET;
 		shell.y = player.y;
 		shell.vx = (kind === ITEM_BLUE_SHELL ? BLUE_SHELL_SPEED : SHELL_SPEED) * direction;
-		shell.vy = 0;
+		shell.vy = kind === ITEM_BLUE_SHELL ? player.vy - BLUE_SHELL_JUMP : 0;
 		this.addHazard(shell);
 	}
 
@@ -2095,18 +2177,9 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		const progress = (p: Player) => p.checkpoint * 2 + (p.subCheckpoint >= 0 ? 1 : 0);
 		
 		const distanceToNext = (p: Player) => {
-			const next = level.checkpoints[p.checkpoint + 1];
-			if (!next) return Math.abs(level.finishX - p.x);
-			return Math.hypot(next.x - p.x, next.y - p.y);
-		};
-
-		const isWrongWay = (p: Player) => {
-			const next = level.checkpoints[p.checkpoint + 1];
-			const targetX = next ? next.x : level.finishX;
-			const dx = targetX - p.x;
-
-			// Facing is a one-dimensional direction (+1 right, -1 left), not an angle.
-			return dx * p.facing < 0 ? 1 : 0;
+			if (level.checkpoints.length === 0) return Number.POSITIVE_INFINITY;
+			const nextIndex = (p.checkpoint + 1) % level.checkpoints.length;
+			return distanceToCheckpointFace(p.x, p.y, level.checkpoints[nextIndex]);
 		};
 
 		return this.players
@@ -2126,7 +2199,6 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 				return (
 					pb.lapsCompleted - pa.lapsCompleted ||
 					progress(pb) - progress(pa) ||
-					isWrongWay(pa) - isWrongWay(pb) ||
 					distanceToNext(pa) - distanceToNext(pb) ||
 					a - b
 				);
@@ -2150,25 +2222,28 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 /** Detonate a bomb: it is replaced by an Explosion. */
 	private explodeBomb(bomb: Bomb) {
-		this.explodeAt(bomb.x, bomb.y);
+		this.explodeAt(bomb.x, bomb.y, ITEM_BOMB, bomb.owner);
 		this.removeHazard(bomb.entityId);
 	}
 
 	/** Spawn an Explosion; it damages every player (thrower included) whose body is within its radius. */
-	private explodeAt(x: number, y: number, itemKind = ITEM_BOMB) {
+	private explodeAt(x: number, y: number, itemKind = ITEM_BOMB, excludedPlayer = -1) {
 		const explosion = new Explosion(this.nextEntityId++, itemKind);
 		explosion.x = x;
 		explosion.y = y;
 		this.addHazard(explosion);
 		for (const [i, player] of this.players.entries()) {
-			if (player.finished || player.respawn > 0) continue;
+			if (i === excludedPlayer || player.finished || player.respawn > 0) continue;
 			const dx = Math.max(0, Math.abs(player.x - x) - PLAYER_W / 2);
 			const dy = Math.max(0, Math.abs(player.y - y) - PLAYER_H / 2);
-			if (Math.hypot(dx, dy) <= explosion.radius) this.hitPlayer(i);
+			if (Math.hypot(dx, dy) <= explosion.radius) {
+				const strongLaunch = itemKind === ITEM_BLUE_SHELL || itemKind === ITEM_BOMB;
+				this.hitPlayer(i, strongLaunch ? 1050 : HIT_JUMP);
+			}
 		}
 	}
 
-	private hitPlayer(targetIndex: number): boolean {
+	private hitPlayer(targetIndex: number, upwardImpulse = HIT_JUMP): boolean {
 		const target = this.players[targetIndex];
 		// Star power grants temporary damage immunity.
 		if (!target || target.finished || target.hit || target.starTimer > 0) return false;
@@ -2179,7 +2254,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		target.itemQueued = false;
 		// The impulse is opposite the player's running direction.
 		block.velocity.x = -target.facing * HIT_KNOCKBACK;
-		block.velocity.y = -HIT_JUMP;
+		block.velocity.y = -upwardImpulse;
 		block.direction.dir = 0;
 		block.stunned = true;
 		target.vx = block.velocity.x;
@@ -2211,7 +2286,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 	}
 
 	/** Axis-separated platform collision for falling items and rolling shells. */
-	private moveGroundHazard(
+	private moveProjectile(
 		hazard: { x: number; y: number; vx: number; vy: number },
 		dt: number,
 		platforms: Array<{ x: number; y: number; w: number; h: number }>,
@@ -2266,7 +2341,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		for (const banana of this.getBananas()) {
 			banana.arming = Math.max(0, banana.arming - dt);
 			if (!banana.grounded) {
-				this.moveGroundHazard(banana, dt, platforms, false, false);
+				this.moveProjectile(banana, dt, platforms, true, false);
 				if (this.hazardIsSupported(banana, HAZARD_SIZE, platforms)) this.landBanana(banana.entityId);
 				if (banana.x > level.finishX) banana.x = level.spawnX;
 			} else {
@@ -2280,9 +2355,9 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			if (explosion.remaining <= 0) this.removeHazard(explosion.entityId);
 		}
 
-		// Bombs explode only after landing; side-wall contacts merely stop them.
+		// Bombs explode only after landing; side-wall contacts use the shared projectile bounce.
 		for (const bomb of this.getBombs()) {
-			this.moveGroundHazard(bomb, dt, platforms, false, false);
+			this.moveProjectile(bomb, dt, platforms, true, false);
 			if (this.hazardIsSupported(bomb, HAZARD_SIZE, platforms)) this.explodeBomb(bomb);
 		}
 
@@ -2298,9 +2373,19 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 					const desiredVy = (target.y - shell.y) * 2.2;
 					const maxDelta = BLUE_SHELL_VERTICAL_ACCEL * dt;
 					shell.vy += Math.max(-maxDelta, Math.min(maxDelta, desiredVy - shell.vy));
-					shell.vx = Math.sign(target.x - shell.x || 1) * BLUE_SHELL_SPEED;
+					// If the leader is behind the shell, take the long route to the finish,
+					// wrap to x=0, then resume homing from the start of the level.
+					if (!shell.wrapToStart && !shell.wrappedToStart && target.x < shell.x) shell.wrapToStart = true;
+					shell.vx = shell.wrapToStart
+						? BLUE_SHELL_SPEED
+						: Math.sign(target.x - shell.x || 1) * BLUE_SHELL_SPEED;
 				}
 				shell.x += shell.vx * dt;
+				if (shell.wrapToStart && shell.x > level.finishX) {
+					shell.x = level.spawnX;
+					shell.wrapToStart = false;
+					shell.wrappedToStart = true;
+				}
 				shell.y += shell.vy * dt;
 			} else {
 				if (shell.itemKind === ITEM_RED_SHELL) {
@@ -2327,7 +2412,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 					}
 				}
 
-				this.moveGroundHazard(shell, dt, platforms, shell.itemKind === ITEM_GREEN_SHELL, shell.itemKind === ITEM_RED_SHELL);
+				this.moveProjectile(shell, dt, platforms, shell.itemKind === ITEM_GREEN_SHELL, shell.itemKind === ITEM_RED_SHELL);
 				if (shell.itemKind === ITEM_RED_SHELL) {
 					const sign = shell.vx < 0 ? -1 : 1;
 					shell.vx = sign * Math.max(VX_MIN, Math.min(VX_MAX, Math.abs(shell.vx)));
@@ -2344,12 +2429,13 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		const bananas = this.getBananas().filter(banana => banana.active);
 		const bombs = this.getBombs().filter(bomb => bomb.active);
 		const brokenShells = new Set<number>();
+		const brokenBananas = new Set<number>();
 		for (const shell of liveShells) {
-			if (shell.itemKind === ITEM_BLUE_SHELL) continue;
 			const shellRect = { x: shell.x, y: shell.y, w: HAZARD_SIZE, h: HAZARD_SIZE };
 			for (const banana of bananas) {
-				if (!banana.active || !overlapsCenter(shellRect, { x: banana.x, y: banana.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) continue;
+				if (!banana.active || brokenBananas.has(banana.entityId) || !overlapsCenter(shellRect, { x: banana.x, y: banana.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) continue;
 				brokenShells.add(shell.entityId);
+				brokenBananas.add(banana.entityId);
 				break;
 			}
 			if (brokenShells.has(shell.entityId)) continue;
@@ -2375,6 +2461,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			}
 		}
 		for (const id of brokenShells) this.removeHazard(id);
+		for (const id of brokenBananas) this.removeHazard(id);
 	}
 
 	/* ---------------------------- Main loop ---------------------------- */
@@ -2470,12 +2557,38 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		ctx.translate(-cam.x, -cam.y);
 
 		this.drawLevel(ctx, imageLoader, data);
+		this.drawDebugCheckpoints(ctx, playerIdx);
 		this.drawPlayers(ctx, imageLoader);
 		data.drawParticles(ctx);
+
 
 		ctx.restore();
 		data.drawItemRoulette(ctx, this, playerIdx, imageLoader);
 		data.drawRacePosition(ctx, this, playerIdx);
+	}
+
+	private drawDebugCheckpoints(ctx: CanvasRenderingContext2D, playerIdx: number) {
+		if (!window.DEBUG)
+			return;
+
+		const checkpoints = this.currentLevel().checkpoints;
+		const player = this.players[playerIdx];
+		const currentIndex = player?.checkpoint ?? -1;
+		const nextIndex = checkpoints.length > 0 ? (currentIndex + 1) % checkpoints.length : -1;
+
+		checkpoints.forEach((checkpoint, index) => {
+			const isCurrent = index === currentIndex;
+			const isNext = index === nextIndex;
+			ctx.save();
+			ctx.strokeStyle = isCurrent ? "#00e676" : isNext ? "#ffeb3b" : "#f44336";
+			ctx.fillStyle = isCurrent ? "#00e67630" : isNext ? "#ffeb3b30" : "transparent";
+			ctx.lineWidth = isCurrent || isNext ? 5 : 2;
+			const w = checkpoint.w ?? GRID_SIZE;
+			const h = checkpoint.h ?? GRID_SIZE;
+			ctx.fillRect(checkpoint.x, checkpoint.y, w, h);
+			ctx.strokeRect(checkpoint.x, checkpoint.y, w, h);
+			ctx.restore();
+		});
 	}
 
 	/** Platforms, item boxes and finish line. */
@@ -2661,8 +2774,8 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		return {
 			joysticks: {},
 			buttons: {
-				jump: { x: 180, xp: 'left', y: 180, yp: 'bottom', size: 120, color: "#44aaff" },
-				item: { x: 180, xp: 'right', y: 180, yp: 'bottom', size: 120, color: "#ffaa00" },			}
+				jump: { x: 70, xp: 'left', y: 70, yp: 'bottom', size: 70, color: "#44aaff" },
+				item: { x: 70, xp: 'right', y: 70, yp: 'bottom', size: 70, color: "#ffaa00" },			}
 		};
 	}
 
@@ -2699,6 +2812,8 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			bombs: this.getBombs().map(bomb => bomb.save()),
 			explosions: this.getExplosions().map(explosion => explosion.save()),
 			nextEntityId: this.nextEntityId,
+			// Keep the existing serialized field for compatibility; it now stores a lap bit mask.
+			maxCatchUpBlueShellLap: this.catchUpBlueShellAwardedLapMask,
 		};
 		return State.encode(object).finish();
 	}
@@ -2758,6 +2873,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		}
 
 		this.nextEntityId = obj.nextEntityId ?? 1;
+		this.catchUpBlueShellAwardedLapMask = obj.maxCatchUpBlueShellLap ?? 0;
 
 		// Keep local block IDs and static platforms intact; restore bodies and boxes.
 		this.syncBlocksFromPlayers();
@@ -2779,16 +2895,13 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			}
 			const progress = (player: Player) => player.checkpoint * 2 + (player.subCheckpoint >= 0 ? 1 : 0);
 			const distance = (player: Player) => {
-				const next = this.currentLevel().checkpoints[player.checkpoint + 1];
-				return next ? Math.hypot(next.x - player.x, next.y - player.y) : Math.abs(this.currentLevel().finishX - player.x);
-			};
-			const wrongWay = (player: Player) => {
-				const next = this.currentLevel().checkpoints[player.checkpoint + 1];
-				const targetX = next ? next.x : this.currentLevel().finishX;
-				return (targetX - player.x) * player.facing < 0 ? 1 : 0;
+				const checkpoints = this.currentLevel().checkpoints;
+				if (checkpoints.length === 0) return Number.POSITIVE_INFINITY;
+				const nextIndex = (player.checkpoint + 1) % checkpoints.length;
+				return distanceToCheckpointFace(player.x, player.y, checkpoints[nextIndex]);
 			};
 			return a.lapsCompleted === b.lapsCompleted && progress(a) === progress(b) &&
-				wrongWay(a) === wrongWay(b) && Math.abs(distance(a) - distance(b)) < 1e-3;
+				Math.abs(distance(a) - distance(b)) < 1e-3;
 		};
 		for (let i = 0; i + 1 < ranking.length; i++) {
 			if (sameRaceStanding(ranking[i], ranking[i + 1])) playerEqualities.push(i);

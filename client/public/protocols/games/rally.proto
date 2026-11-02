@@ -48,7 +48,6 @@ message BananaState {
 	reserved 4 to 9;
 }
 
-// Shells do not track their owner or target.
 message RedShellState {
 	float vx = 1;
 	float vy = 2;
