@@ -269,7 +269,9 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 	protected override updateModel(model: THREE.Object3D, view: ViewContext) {
 		place(model, this.x, this.y, this.z + PLAYER_HEIGHT / 2);
 
-		model.getObjectByName('pivot')!.rotation.z = yaw(this.facing);
+		// The local gun follows the aim without waiting for the server
+		const facing = this.idx === view.selfIdx ? view.selfFacing ?? this.facing : this.facing;
+		model.getObjectByName('pivot')!.rotation.z = yaw(facing);
 		const gun = model.getObjectByName('gun') as THREE.Mesh;
 		gun.material = solid(WEAPONS[this.weapon].color);
 

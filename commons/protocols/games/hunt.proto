@@ -173,6 +173,7 @@ message QInput {
 		int32 weapon = 5;
 		AimInput useItem = 6;
 		int32 selectItem = 7;
+		float face = 8;            // direction of the gun (radians)
 	}
 }
 

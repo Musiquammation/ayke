@@ -179,7 +179,7 @@
 	font-weight: bold;
 }
 
-/* Item slots; glowing while the selection mode (I) is open */
+/* Item slots; glowing while the item mode (right click held) is on */
 .game-hunt-items.game-hunt-item-mode {
 	box-shadow: 0 0 0 0.3vh #3b82f6, 0 0 2vh #3b82f6;
 }

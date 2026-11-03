@@ -1,5 +1,4 @@
 import {
-	CAMERA_FOLLOW,
 	CAMERA_HEIGHT,
 	CAMERA_LOOK_AHEAD,
 	CAMERA_LOOK_MAX,
@@ -10,7 +9,6 @@ import {
 	CURSOR_SNAP_RADIUS,
 	CURSOR_SPEED_PER_DIST,
 	GUN_HEIGHT,
-	ITEM_MODE_TIMEOUT,
 	ITEM_NAMES,
 	ITEM_NONE,
 	ITEM_SLOTS,
@@ -60,27 +58,11 @@ export function unproject(camX: number, camY: number, gx: number, gy: number, z:
 export class Camera {
 	x = 0;
 	y = 0;
-	private initialized = false;
 
-	/** Smoothly follow a point (instantly on the first call). */
-	follow(x: number, y: number, dt: number) {
-		if (!this.initialized) {
-			this.initialized = true;
-			this.x = x;
-			this.y = y;
-			return;
-		}
-
-		const k = 1 - Math.exp(-CAMERA_FOLLOW * dt);
-		this.x += (x - this.x) * k;
-		this.y += (y - this.y) * k;
-	}
-
-	/** Jump to a point (used after a respawn). */
-	teleport(x: number, y: number) {
+	/** Move the camera to a point (no smoothing). */
+	set(x: number, y: number) {
 		this.x = x;
 		this.y = y;
-		this.initialized = true;
 	}
 }
 
@@ -135,8 +117,17 @@ export class Cursor {
 	 * Find the entity to stick to, then move the indicator toward it (or toward the mouse).
 	 * `mouseX/Y` are ground-plane coordinates.
 	 */
-	update(state: HuntState, selfIdx: number, cam: Camera, mouseX: number, mouseY: number, dt: number) {
-		this.snapped = this.findSnap(state, selfIdx, cam, mouseX, mouseY);
+	update(
+		state: HuntState,
+		selfIdx: number,
+		cam: Camera,
+		mouseX: number,
+		mouseY: number,
+		lock: EntityRef | null,
+		dt: number
+	) {
+		// While locked, the indicator stays on the locked entity
+		this.snapped = lock ? { ...lock } : this.findSnap(state, selfIdx, cam, mouseX, mouseY);
 
 		let tx = mouseX;
 		let ty = mouseY;
@@ -154,32 +145,36 @@ export class Cursor {
 		this.angle += CURSOR_ROTATION * dt;
 	}
 
-	/** Nearest entity whose projected center is close enough to the mouse. */
+	/**
+	 * Entity whose projected center is close enough to the mouse.
+	 * Enemies come first: a box is only picked when no enemy is in range.
+	 */
 	private findSnap(state: HuntState, selfIdx: number, cam: Camera, mx: number, my: number): EntityRef | null {
-		let best: EntityRef | null = null;
-		let bestDist = CURSOR_SNAP_RADIUS;
-
-		const consider = (ref: EntityRef) => {
-			const c = entityCenter(state, ref);
-			if (!c)
-				return;
-			const pr = project(cam.x, cam.y, c.x, c.y, c.z);
-			const d = Math.hypot(pr.x - mx, pr.y - my);
-			if (d < bestDist) {
-				bestDist = d;
-				best = ref;
+		const nearest = (refs: EntityRef[]) => {
+			let best: EntityRef | null = null;
+			let bestDist = CURSOR_SNAP_RADIUS;
+			for (const ref of refs) {
+				const c = entityCenter(state, ref);
+				if (!c)
+					continue;
+				const pr = project(cam.x, cam.y, c.x, c.y, c.z);
+				const d = Math.hypot(pr.x - mx, pr.y - my);
+				if (d < bestDist) {
+					bestDist = d;
+					best = ref;
+				}
 			}
+			return best;
 		};
 
+		const enemies: EntityRef[] = [];
 		for (let i = 0; i < state.players.length; i++) {
 			if (i !== selfIdx)
-				consider({ kind: 'player', idx: i });
+				enemies.push({ kind: 'player', idx: i });
 		}
-		for (let i = 0; i < state.boxes.length; i++) {
-			consider({ kind: 'box', idx: i });
-		}
+		const boxes = state.boxes.map((_, i): EntityRef => ({ kind: 'box', idx: i }));
 
-		return best;
+		return nearest(enemies) ?? nearest(boxes);
 	}
 
 	/** Accelerate toward (tx, ty) with a speed limit and an acceleration depending on the distance. */
@@ -238,9 +233,12 @@ export class Cursor {
 export class ClientData {
 	firstFrame = true;
 
-	// Mouse on the ground plane (updated by evalMouseCoords)
+	// Mouse on the ground plane (updated by evalMouseCoords and after each camera move)
 	mouseX = 0;
 	mouseY = 0;
+	/** Mouse relative to the screen center, in ground units (does not depend on the camera). */
+	mouseOffX = 0;
+	mouseOffY = 0;
 
 	readonly camera = new Camera();
 	readonly cursor = new Cursor();
@@ -251,9 +249,15 @@ export class ClientData {
 	crossX = 0;
 	crossY = 0;
 
-	// Item selection mode (opened with I)
+	/** Item mode, while right click is held: releasing it uses the item, 1-4 / wheel select it. */
 	itemMode = false;
-	itemModeTimer = 0;
+	/** Set by a middle click during item mode: the item is not used on release. */
+	itemCancelled = false;
+
+	/** Direction the local gun points to (toward the aim), null when the aim is on the player. */
+	facing: number | null = null;
+	/** Last facing sent to the server. */
+	lastSentFacing = 0;
 
 	// Last movement sent to the server (to avoid sending the same input twice)
 	lastMoveX = 0;
@@ -264,8 +268,6 @@ export class ClientData {
 
 	/** three.js renderer (created on the first drawn frame). */
 	renderer: HuntRenderer | null = null;
-
-	private wasAlive = false;
 
 	/* ---------- DOM ---------- */
 	readonly html: HTMLDivElement;
@@ -306,7 +308,7 @@ export class ClientData {
 
 		this.itemBar = div("game-hunt-items");
 		const itemKey = div("game-hunt-items-key");
-		itemKey.textContent = "I";
+		itemKey.textContent = "RMB";
 		this.itemBar.appendChild(itemKey);
 		for (let i = 0; i < ITEM_SLOTS; i++) {
 			const el = div("game-hunt-item");
@@ -337,16 +339,10 @@ export class ClientData {
 		const self = state.players[this.playerIdx];
 
 		this.updateLockValidity(state);
-		this.updateCamera(state, self, dt);
-		this.cursor.update(state, this.playerIdx, this.camera, this.mouseX, this.mouseY, dt);
+		this.updateCamera(state, self);
+		this.cursor.update(state, this.playerIdx, this.camera, this.mouseX, this.mouseY, this.lock, dt);
 		this.updateCross(state);
-
-		if (this.itemMode) {
-			this.itemModeTimer -= dt;
-			if (this.itemModeTimer <= 0)
-				this.itemMode = false;
-		}
-
+		this.updateFacing(state, self);
 		this.updateHud(state, self);
 	}
 
@@ -357,29 +353,44 @@ export class ClientData {
 	}
 
 	/**
-	 * Follow the locked target. Otherwise follow the local player, shifted a bit
-	 * toward the target of the indicator. Teleport after a respawn.
+	 * Center the camera on the local player, shifted toward the mouse.
+	 * The shift only depends on where the mouse is on the screen, so the camera
+	 * goes straight to its position (no smoothing, no feedback loop).
+	 * While locked, the camera stays halfway between the player and the target.
 	 */
-	private updateCamera(state: HuntState, self: Player, dt: number) {
-		const alive = self.isAlive();
-		if (alive && !this.wasAlive)
-			this.camera.teleport(self.x, self.y);
-		this.wasAlive = alive;
-
-		if (this.lock) {
-			const c = entityCenter(state, this.lock)!;
-			this.camera.follow(c.x, c.y, dt);
+	private updateCamera(state: HuntState, self: Player) {
+		const target = this.lock ? entityCenter(state, this.lock) : null;
+		if (target) {
+			this.camera.set((self.x + target.x) / 2, (self.y + target.y) / 2);
+			this.setMouseOffset(this.mouseOffX, this.mouseOffY);
 			return;
 		}
 
-		let ox = (this.cursor.x - self.x) * CAMERA_LOOK_AHEAD;
-		let oy = (this.cursor.y - self.y) * CAMERA_LOOK_AHEAD;
+		let ox = this.mouseOffX * CAMERA_LOOK_AHEAD;
+		let oy = this.mouseOffY * CAMERA_LOOK_AHEAD;
 		const len = Math.hypot(ox, oy);
 		if (len > CAMERA_LOOK_MAX) {
 			ox *= CAMERA_LOOK_MAX / len;
 			oy *= CAMERA_LOOK_MAX / len;
 		}
-		this.camera.follow(self.x + ox, self.y + oy, dt);
+		this.camera.set(self.x + ox, self.y + oy);
+		this.setMouseOffset(this.mouseOffX, this.mouseOffY);
+	}
+
+	/** Store the mouse position relative to the screen center, and the matching ground point. */
+	setMouseOffset(offX: number, offY: number) {
+		this.mouseOffX = offX;
+		this.mouseOffY = offY;
+		this.mouseX = this.camera.x + offX;
+		this.mouseY = this.camera.y + offY;
+	}
+
+	/** Point the local gun toward the aim. */
+	private updateFacing(state: HuntState, self: Player) {
+		const aim = this.aimPoint(state);
+		const dx = aim.x - self.x;
+		const dy = aim.y - self.y;
+		this.facing = Math.hypot(dx, dy) < 1 ? null : Math.atan2(dy, dx);
 	}
 
 	/**
@@ -442,17 +453,6 @@ export class ClientData {
 		const z = self.z + GUN_HEIGHT;
 		const at = unproject(cam.x, cam.y, this.mouseX, this.mouseY, z);
 		return { x: at.x, y: at.y, z };
-	}
-
-	/** Open the item selection mode (I), or close it if it is already open. */
-	toggleItemMode() {
-		this.itemMode = !this.itemMode;
-		this.itemModeTimer = ITEM_MODE_TIMEOUT;
-	}
-
-	/** Keep the item selection mode open a bit longer (after a wheel move). */
-	extendItemMode() {
-		this.itemModeTimer = ITEM_MODE_TIMEOUT;
 	}
 
 	/* ---------- HUD ---------- */

@@ -9,6 +9,7 @@ import { ImageLoader } from "../util/ImageLoader";
 import { ClientData } from "./hunt/client";
 import {
 	CAMERA_SCALE,
+	FACING_SEND_THRESHOLD,
 	HEIGHT,
 	ITEM_NONE,
 	ITEM_SLOTS,
@@ -290,6 +291,13 @@ export class GMHunt extends GameMode implements HuntState {
 					useItem(this, this.physics, playerIdx, readAim(input.useItem));
 				break;
 
+			case 'face': {
+				const f = Number(input.face);
+				if (Number.isFinite(f))
+					player.facing = f;
+				break;
+			}
+
 			case 'selectItem': {
 				const s = Number(input.selectItem);
 				if (Number.isInteger(s) && s >= 0 && s < ITEM_SLOTS)
@@ -319,18 +327,42 @@ export class GMHunt extends GameMode implements HuntState {
 		if (keyboard.first('jump'))
 			inputs.push({ action: 'jump', jump: {} });
 
+		this.collectItemMode(mouse, data);
 		this.collectLock(keyboard, data);
 		this.collectSelection(keyboard, mouse, data, self, inputs);
+		this.collectFacing(data, self, inputs);
 
-		// Left click: shoot (holding it keeps shooting, with the weapon cooldown)
+		// Left click: shoot, even in item mode (holding it keeps shooting, with the weapon cooldown)
 		if (mouse.press(0) && canShoot(self))
 			inputs.push({ action: 'shoot', shoot: data.aimPoint(this) });
 
-		// Right click: use the selected item
-		if (mouse.first(2) && self.canAttack() && self.items[self.selectedItem] !== ITEM_NONE)
+		// Releasing right click throws the selected item (unless cancelled with the middle click)
+		if (mouse.killed(2) && !data.itemCancelled && self.canAttack() && self.items[self.selectedItem] !== ITEM_NONE)
 			inputs.push({ action: 'useItem', useItem: data.aimPoint(this) });
 
 		return inputs;
+	}
+
+	/** Right click held = item mode. A middle click cancels it until right click is pressed again. */
+	private collectItemMode(mouse: IMouseController, data: ClientData) {
+		if (mouse.first(2))
+			data.itemCancelled = false;
+		if (mouse.first(1) && mouse.press(2))
+			data.itemCancelled = true;
+		data.itemMode = mouse.press(2) && !data.itemCancelled;
+	}
+
+	/** Send the direction of the gun when it changed enough (so the others see where we aim). */
+	private collectFacing(data: ClientData, self: Player, inputs: Fields[]) {
+		if (data.facing === null || !self.isAlive())
+			return;
+
+		const delta = Math.atan2(Math.sin(data.facing - data.lastSentFacing), Math.cos(data.facing - data.lastSentFacing));
+		if (Math.abs(delta) < FACING_SEND_THRESHOLD)
+			return;
+
+		data.lastSentFacing = data.facing;
+		inputs.push({ action: 'face', face: data.facing });
 	}
 
 	/** ZQSD (the keyboard controller maps physical keys, so it works on AZERTY and QWERTY). */
@@ -358,7 +390,7 @@ export class GMHunt extends GameMode implements HuntState {
 
 	/**
 	 * Weapons: 1, 2, 3 or the wheel.
-	 * Items: I opens the selection mode, then 1-4 or the wheel select the item.
+	 * Items: the same keys (1-4 or the wheel) while right click is held.
 	 */
 	private collectSelection(
 		keyboard: IKeyboardController,
@@ -367,16 +399,12 @@ export class GMHunt extends GameMode implements HuntState {
 		self: Player,
 		inputs: Fields[]
 	) {
-		if (keyboard.first('item'))
-			data.toggleItemMode();
-
 		const wheel = Math.sign(mouse.wheel());
 
 		if (data.itemMode) {
 			for (let i = 0; i < ITEM_SLOTS; i++) {
 				if (keyboard.first(String(i + 1))) {
 					inputs.push({ action: 'selectItem', selectItem: i });
-					data.itemMode = false;
 					return;
 				}
 			}
@@ -384,7 +412,6 @@ export class GMHunt extends GameMode implements HuntState {
 			if (wheel !== 0) {
 				const next = (self.selectedItem + wheel + ITEM_SLOTS) % ITEM_SLOTS;
 				inputs.push({ action: 'selectItem', selectItem: next });
-				data.extendItemMode();
 			}
 			return;
 		}
@@ -482,16 +509,8 @@ export class GMHunt extends GameMode implements HuntState {
 		_clientData: any
 	) {
 		const clientData = _clientData as ClientData;
-		const cam = clientData.camera;
-
-		const ret = {
-			x: (x - WIDTH / 2) / CAMERA_SCALE + cam.x,
-			y: (y - HEIGHT / 2) / CAMERA_SCALE + cam.y,
-		};
-
-		clientData.mouseX = ret.x;
-		clientData.mouseY = ret.y;
-		return ret;
+		clientData.setMouseOffset((x - WIDTH / 2) / CAMERA_SCALE, (y - HEIGHT / 2) / CAMERA_SCALE);
+		return { x: clientData.mouseX, y: clientData.mouseY };
 	}
 
 	override getMobileDesc(): MobileDescriptor | null {

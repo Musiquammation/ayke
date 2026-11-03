@@ -79,6 +79,10 @@ export class HuntRenderer implements ViewContext {
 
 	/* ---------- ViewContext ---------- */
 
+	get selfFacing() {
+		return this.data.facing;
+	}
+
 	color(idx: number) {
 		return this.data.color(idx);
 	}

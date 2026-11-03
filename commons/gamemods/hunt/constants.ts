@@ -18,14 +18,14 @@ export const KILL_FEED_SIZE = 5;
 export const PLAYER_RADIUS = 30;
 export const PLAYER_HEIGHT = 72;
 export const GUN_HEIGHT = 44;          // altitude (relative to the feet) where bullets spawn
-export const PLAYER_SPEED = 380;
+export const PLAYER_SPEED = 680;
 export const STEP_HEIGHT = 12;         // obstacles lower than this are walked over
 export const GROUND_PROBE_RATIO = 0.6; // fraction of the radius used to find what we stand on
 
 // Vertical motion
-export const GRAVITY = 1600;
-export const JUMP_VELOCITY = 560;      // apex ~ 98 units
-export const MAX_FALL_SPEED = 1800;
+export const GRAVITY = 2400;
+export const JUMP_VELOCITY = 690;      // apex ~ 99 units
+export const MAX_FALL_SPEED = 2400;
 
 // Life
 export const MAX_HP = 4000;
@@ -120,7 +120,7 @@ export const ITEM_COLORS: Record<number, string> = {
 
 // Bomb: thrown along an arc, explodes when it lands or touches something
 export const BOMB_MAX_RANGE = 750;
-export const BOMB_FLIGHT_TIME = 0.85;
+export const BOMB_FLIGHT_TIME = 0.7;
 export const BOMB_RADIUS = 12;
 export const EXPLOSION_RADIUS = 220;
 export const EXPLOSION_VERTICAL_REACH = 160;
@@ -130,10 +130,10 @@ export const EXPLOSION_RAYS = 72;          // resolution of the zone hidden by w
 
 // Boomerang: goes out passing on the right, comes back on the left.
 // When it hits something with life, it drags it back to the thrower.
-export const BOOMERANG_REACH = 650;        // max forward distance of the loop (its apex is on the aim)
+export const BOOMERANG_REACH = 1050;       // max forward distance of the loop (its apex is on the aim)
 export const BOOMERANG_MIN_REACH = 200;
-export const BOOMERANG_SIDE = 200;         // lateral distance of the loop
-export const BOOMERANG_TIME = 1.1;         // duration of the whole loop
+export const BOOMERANG_SIDE = 260;         // lateral distance of the loop
+export const BOOMERANG_TIME = 1.5;         // duration of the whole loop
 export const BOOMERANG_RADIUS = 18;
 export const BOOMERANG_DAMAGE = 500;
 export const BOOMERANG_PULL_SPEED = 950;
@@ -145,12 +145,12 @@ export const DASH_DISTANCE = 520;
 export const DASH_TIME = 0.28;
 export const DASH_DAMAGE = 500;
 export const DASH_GRAB_MARGIN = 14;
-export const DASH_LAUNCH_VELOCITY = 720;
+export const DASH_LAUNCH_VELOCITY = 880;
 export const DASH_STUN = 1.3;              // seconds without attacking after the launch
 
 // Super jump: a leap along an arc to the aimed point
 export const SUPER_JUMP_RANGE = 800;
-export const SUPER_JUMP_TIME = 0.9;
+export const SUPER_JUMP_TIME = 0.75;
 export const SUPER_JUMP_MAX_RISE = 160;    // highest surface (above the feet) we aim for
 
 // Previews of the item trajectories
@@ -187,12 +187,11 @@ export const PLAYER_COLOR_NAMES = [
 // A point at altitude z is drawn CAMERA_HEIGHT / (CAMERA_HEIGHT - z) times farther from the camera center.
 export const CAMERA_HEIGHT = 1100;
 export const CAMERA_SCALE = 0.9;      // screen pixels per world unit, at altitude 0
-export const CAMERA_FOLLOW = 8;       // camera smoothing (1/s)
-export const CAMERA_LOOK_AHEAD = 0.3; // fraction of the way toward the target the camera shifts
+export const CAMERA_LOOK_AHEAD = 0.35; // fraction of the way toward the mouse the camera shifts
 export const CAMERA_LOOK_MAX = 320;
 
 // Cursor indicator (four blue triangles)
-export const CURSOR_SNAP_RADIUS = 90;  // ground-plane distance under which the cursor sticks to an entity
+export const CURSOR_SNAP_RADIUS = 240; // ground-plane distance under which the cursor sticks to an entity
 export const CURSOR_BASE_SPEED = 600;  // vmax when the target is very close
 export const CURSOR_SPEED_PER_DIST = 14; // vmax grows with the distance to the target
 export const CURSOR_BASE_ACC = 4000;
@@ -200,14 +199,14 @@ export const CURSOR_ACC_PER_DIST = 120;
 export const CURSOR_ROTATION = 2.2;    // rad/s
 export const CURSOR_COLOR = "#3b82f6";
 
+// The gun direction is sent to the server when it turned by more than this (radians)
+export const FACING_SEND_THRESHOLD = 0.04;
+
 // Lock aim cross: offset from the target. It saturates around LOCK_MAX_OFFSET,
 // then keeps growing very slowly with the mouse distance.
 export const LOCK_MAX_OFFSET = 210;
 export const LOCK_OFFSET_SOFTNESS = 320;
 export const LOCK_FAR_GROWTH = 0.04;
-
-// Item selection mode (after pressing I)
-export const ITEM_MODE_TIMEOUT = 2.5;
 
 // Texture paths (labels are used with the ImageLoader folder 'hunt')
 export const TEXTURES = {

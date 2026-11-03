@@ -125,6 +125,9 @@ export class MouseController implements IMouseController {
 
 	private handleMouseDown = (e: MouseEvent) => {
 		const button = e.button;
+		// Middle click: no autoscroll (games use it as a button)
+		if (button === 1)
+			e.preventDefault();
 		// If the button wasn't already pressed, it's the first time
 		if (!this.presses.has(button)) {
 			this.firsts.add(button);

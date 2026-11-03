@@ -29,6 +29,8 @@ export interface Serializable {
 export interface ViewContext {
 	readonly clock: number;
 	readonly selfIdx: number;
+	/** Direction of the local player's gun, computed on the client (null = use the shared one). */
+	readonly selfFacing: number | null;
 	color(playerIdx: number): string;
 	/** Texture of the 'hunt' image folder, or null while it is missing. */
 	texture(label: string): THREE.Texture | null;

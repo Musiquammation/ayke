@@ -10,7 +10,7 @@ import {
 	PLAYER_RADIUS,
 } from "./constants";
 import type { ClientData } from "./client";
-import { Vec3 } from "./entities";
+import { Entity, Vec3 } from "./entities";
 import { HuntPhysics } from "./physics";
 import { HuntState } from "./simulation";
 import { explosionZone, traceBomb, traceBoomerang, traceDash, traceLeap } from "./trajectories";
@@ -28,6 +28,9 @@ import { explosionZone, traceBomb, traceBoomerang, traceDash, traceLeap } from "
 const LIFT = 1.5;
 /** Number of segments of a circle. */
 const CIRCLE_SEGMENTS = 40;
+/** Super jump preview: radius of the tube following the path in 3D. */
+const JUMP_TUBE_RADIUS = 5;
+const JUMP_TUBE_RADIAL_SEGMENTS = 8;
 
 export class ItemPreview {
 	readonly group = new THREE.Group();
@@ -53,7 +56,8 @@ export class ItemPreview {
 		this.clear();
 
 		const self = state.players[data.playerIdx];
-		if (!physics || !self || !self.canAttack())
+		// Only shown in item mode (right click held)
+		if (!physics || !self || !self.canAttack() || !data.itemMode)
 			return;
 
 		const item = self.items[self.selectedItem];
@@ -87,12 +91,27 @@ export class ItemPreview {
 
 			case ITEM_JUMP: {
 				const points = traceLeap(physics, self, aim);
-				this.ribbon(points, 14, this.fill);
+				this.leap(physics, self, points);
 				const end = points[points.length - 1];
 				this.disc({ x: end.x, y: end.y, z: end.z + LIFT }, PLAYER_RADIUS, this.strong);
 				break;
 			}
 		}
+	}
+
+	/**
+	 * Super jump path: a tube really following the arc in 3D (the perspective camera
+	 * makes it grow and drift outward as it rises), plus its shadow on the ground.
+	 */
+	private leap(physics: HuntPhysics, self: Entity, points: Vec3[]) {
+		const shadow = points.map(p => ({ x: p.x, y: p.y, z: physics.groundHeight(p.x, p.y, p.z, self) + LIFT }));
+		this.ribbon(shadow, 10, this.fill);
+
+		if (points.length < 2)
+			return;
+		const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(p.x, -p.y, p.z + LIFT)));
+		const geometry = new THREE.TubeGeometry(curve, points.length * 2, JUMP_TUBE_RADIUS, JUMP_TUBE_RADIAL_SEGMENTS, false);
+		this.add(new THREE.Mesh(geometry, this.strong));
 	}
 
 	/** Remove (and free) the previous frame's shapes. */
@@ -103,7 +122,7 @@ export class ItemPreview {
 		}
 	}
 
-	private add(obj: THREE.Mesh | THREE.LineLoop) {
+	private add(obj: THREE.Mesh | THREE.Line) {
 		obj.renderOrder = 10;
 		this.group.add(obj);
 	}
