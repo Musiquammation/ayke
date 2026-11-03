@@ -21,8 +21,8 @@ const VIDEO_ONLY_PATH = resolve(DIST, "video-only.webm");
 const FRAMES_DIR = resolve(DIST, ".video-frames");
 const execFileAsync = promisify(execFile);
 
-const CLASS_NAME = "GMAirBasket";
-const MODE_NAME = "airbasket";
+const CLASS_NAME = process.env.VIDEO_CLASS!;
+const MODE_NAME = process.env.VIDEO_GAME!;
 
 // Resolve source files by filesystem path so Vite's configured root does not
 // incorrectly map /commons/... to a nonexistent URL.
@@ -49,12 +49,11 @@ const PROTOCOL_LOADER_MODULE_URL = `/@fs${PROTOCOL_LOADER_MODULE_PATH.replace(/\
 const BROWSER_PROTOCOL_BOOTSTRAP_PATH = resolve(ROOT, "video/.videoProtocolBootstrap.ts");
 const BROWSER_PROTOCOL_BOOTSTRAP_URL = `/@fs${BROWSER_PROTOCOL_BOOTSTRAP_PATH.replace(/\\/g, "/")}`;
 
-const HEIGHT = 1920;
-// const WIDTH = Math.floor(HEIGHT * 9/16);
-const WIDTH = 1080;
-const FPS = 30;
-const SILENT_DURATION = 35;
-const SIMULATING = false; // Interactive browser mode; set false to render video.
+const SIMULATING = Number(process.env.VIDEO_SIMULATING ?? 0); // Interactive browser mode; set false to render video.
+const WIDTH = Number(process.env.VIDEO_WIDTH ?? 1600);
+const HEIGHT = Number(process.env.VIDEO_HEIGHT ?? 900);
+const SILENT_DURATION = Number(process.env.VIDEO_DURATION ?? 35);
+const FPS = Number(process.env.VIDEO_FPS ?? 30);
 
 
 async function main() {
