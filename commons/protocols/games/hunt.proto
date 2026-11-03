@@ -1,0 +1,211 @@
+syntax = "proto3";
+
+package game_hunt;
+
+message Empty {}
+
+
+/* -------------------------------------------------------------------------- */
+/* State                                                                      */
+/* -------------------------------------------------------------------------- */
+
+message PlayerState {
+	bool connected = 1;
+
+	// Position (x, y on the ground plane, z = altitude of the feet) and velocity
+	float x = 2;
+	float y = 3;
+	float z = 4;
+	float vx = 5;              // only used during a super jump
+	float vy = 6;
+	float vz = 7;
+
+	// Movement direction requested by the player (-1, 0 or 1 on each axis)
+	int32 moveX = 8;
+	int32 moveY = 9;
+	bool jumpQueued = 10;
+
+	// Life
+	float hp = 11;
+	float respawn = 12;        // < 0 when alive, otherwise seconds before respawning
+	float sinceCombat = 13;    // seconds since the last damage taken or shot fired
+	float spawnShield = 14;    // invulnerability left after a respawn
+	int32 lastAttacker = 15;   // -1 when nobody hit this player recently
+
+	// Weapons
+	int32 weapon = 16;         // 0, 1 or 2
+	float ammo = 17;           // 0.0 .. MAX_AMMO
+	int32 ammoDrainTo = 18;    // integer the ammo drains to, -1 when not draining
+	float reloadDelay = 19;    // time before the ammo starts going back up
+	float shotCooldown = 20;
+	float facing = 21;         // angle (radians) of the last shot, for drawing
+
+	// Items
+	repeated int32 items = 22; // always ITEM_SLOTS entries, 0 = empty
+	int32 selectedItem = 23;
+	bool leaping = 24;         // super jump in progress
+	float dashTimer = 25;
+	float dashDirX = 26;
+	float dashDirY = 27;
+
+	// Effects suffered
+	int32 draggedBy = 28;      // dashing player dragging us, -1 = none
+	int32 carriedBy = 29;      // player whose boomerang drags us, -1 = none
+	float stunTimer = 30;      // cannot attack while > 0
+
+	// Score
+	int32 kills = 31;
+	int32 deaths = 32;
+	float damageDealt = 33;
+	float lastKillTime = 34;   // game clock when the current kill count was reached
+}
+
+message ProjectileState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float vx = 4;
+	float vy = 5;
+	float vz = 6;
+	int32 owner = 7;
+	int32 weapon = 8;
+	float rangeLeft = 9;
+	float damage = 10;
+}
+
+message BombState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float vx = 4;
+	float vy = 5;
+	float vz = 6;
+	int32 owner = 7;
+}
+
+message BoomerangState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	int32 owner = 4;
+	float originX = 5;         // throw point and direction (the loop is computed from them)
+	float originY = 6;
+	float dirX = 7;
+	float dirY = 8;
+	float u = 9;               // progress along the loop, 0 .. 1
+	int32 catchKind = 10;      // 0 = nothing, 1 = player, 2 = box
+	int32 catchIdx = 11;
+	float pullTime = 12;
+	float reach = 13;          // forward distance of the loop (its apex)
+}
+
+message ExplosionState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float remaining = 4;
+}
+
+// Boxes can be dragged by a boomerang, so their position is sent.
+// The static blocks of the map are never sent.
+message BoxState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float vx = 4;
+	float vy = 5;
+	float vz = 6;
+	float hp = 7;
+	float respawn = 8;         // <= 0 when the box stands, otherwise seconds before respawning
+	int32 breaks = 9;          // how many times this box has been broken (drives the dropped item)
+	int32 carriedBy = 10;      // player whose boomerang drags it, -1 = none
+}
+
+message PickupState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	int32 item = 4;
+	float life = 5;
+}
+
+message KillEvent {
+	int32 killer = 1;          // -1 when nobody gets the credit
+	int32 victim = 2;
+	float remaining = 3;
+}
+
+message State {
+	repeated PlayerState players = 1;
+	repeated BoxState boxes = 2;
+	repeated ProjectileState projectiles = 3;
+	repeated BombState bombs = 4;
+	repeated BoomerangState boomerangs = 5;
+	repeated ExplosionState explosions = 6;
+	repeated PickupState pickups = 7;
+	repeated KillEvent killFeed = 8;
+	float time = 9;            // time left (seconds)
+	bool finished = 10;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Inputs                                                                     */
+/* -------------------------------------------------------------------------- */
+
+message MoveInput {
+	int32 x = 1;
+	int32 y = 2;
+}
+
+message AimInput {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		MoveInput move = 2;
+		Empty jump = 3;
+		AimInput shoot = 4;
+		int32 weapon = 5;
+		AimInput useItem = 6;
+		int32 selectItem = 7;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Start data                                                                 */
+/* -------------------------------------------------------------------------- */
+
+message StartData {
+	int32 color = 1;           // index into the color palette
+}
+
+message StartPlayerInfo {
+	string name = 1;
+	int32 color = 2;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}
