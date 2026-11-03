@@ -49,6 +49,14 @@ message CooldownEntry {
 	float remaining = 2;
 }
 
+message RotationTrackerState {
+	float angle = 1;
+}
+
+message LoopTrackerState {
+	float time = 1;
+}
+
 message CooldownsTrackerState {
 	repeated CooldownEntry entries = 1;
 }
@@ -64,6 +72,9 @@ message BlockState {
 	UnitsTrackerState healUnits = 6;
 	UnitsTrackerState restoreJumpUnits = 7;
 	CooldownsTrackerState cooldowns = 8;
+	RotationTrackerState rotation = 9;
+	LoopTrackerState loop = 10;
+	UnitsTrackerState despawnHp = 11;
 }
 
 message State {

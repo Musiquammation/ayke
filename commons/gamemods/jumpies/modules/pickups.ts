@@ -10,6 +10,7 @@ export class HealModule implements BlockModule {
 
 	constructor(private readonly def: HealDef, block: Block) {
 		this.units = block.track(HealUnitsTracker);
+		this.units.init(block.playerCount);
 	}
 
 	onEnter(player: Player) {
@@ -29,6 +30,7 @@ export class RestoreJumpModule implements BlockModule {
 
 	constructor(private readonly def: RestoreJumpDef, block: Block) {
 		this.units = block.track(RestoreJumpUnitsTracker);
+		this.units.init(block.playerCount);
 	}
 
 	onEnter(player: Player) {

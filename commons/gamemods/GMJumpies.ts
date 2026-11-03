@@ -32,7 +32,8 @@ const PLAYER_COLORS = [
 
 const CURRENT_ROOM_COLOR = "#111";
 const ADJACENT_ROOM_COLOR = "#1a1a1a";
-const FINISHED_ALPHA = 0.35;
+const FINISHED_COLOR = "#888";
+const FINISHED_ALPHA = 0.6;
 
 
 /** Returns the data of the panel where a player chooses a level. */
@@ -84,7 +85,7 @@ export class GMJumpies extends GameMode {
 		super();
 
 		this.level = LEVELS[levelIndex];
-		this.stage = new Stage(this.level);
+		this.stage = new Stage(this.level, total);
 		this.blocks = this.stage.blocks;
 		this.blockList = Object.values(this.blocks);
 
@@ -129,7 +130,7 @@ export class GMJumpies extends GameMode {
 			: readLevelChoice(data);
 
 		const game = new GMJumpies(total, levelIndex);
-		const clientData = new ClientData();
+		const clientData = new ClientData(PLAYER_COLORS);
 		clientData.initBlocks(game.blockList);
 
 		return {
@@ -195,7 +196,7 @@ export class GMJumpies extends GameMode {
 	private movePlayers(dt: number) {
 		for (const player of this.players) {
 			player.frame(dt);
-			if (player.isInGame()) {
+			if (player.connected && player.isAlive()) {
 				player.handleRoom(this.stage);
 			}
 		}
@@ -209,7 +210,7 @@ export class GMJumpies extends GameMode {
 		this.runTimers(dt);
 
 		this.movePlayers(dt);
-		resolvePlayerCollisions(this.players);
+		resolvePlayerCollisions(this.players, dt);
 
 		for (const room of this.stage.rooms) {
 			room.frame(this, dt);
@@ -295,7 +296,10 @@ export class GMJumpies extends GameMode {
 		}
 	}
 
-	/** Draws a player as a square. The current player has a golden border. */
+	/**
+	 * Draws a player as a square. The current player has a golden border.
+	 * Arrived players are grey ghosts.
+	 */
 	private drawPlayer(ctx: CanvasRenderingContext2D, player: Player, isCurrent: boolean) {
 		// A dead player fades out until they respawn.
 		const fading = (player.deathCooldown - RESPAWN_TIME) / (DEATH_TIME - RESPAWN_TIME);
@@ -306,7 +310,9 @@ export class GMJumpies extends GameMode {
 
 		ctx.save();
 		ctx.globalAlpha = player.isFinished() ? FINISHED_ALPHA : opacity;
-		ctx.fillStyle = PLAYER_COLORS[player.id % PLAYER_COLORS.length];
+		ctx.fillStyle = player.isFinished()
+			? FINISHED_COLOR
+			: PLAYER_COLORS[player.id % PLAYER_COLORS.length];
 		ctx.fillRect(x, y, PLAYER_SIZE, PLAYER_SIZE);
 		ctx.strokeStyle = isCurrent ? "#ffd000" : "black";
 		ctx.lineWidth = 5;
@@ -356,7 +362,10 @@ export class GMJumpies extends GameMode {
 		ctx.restore();
 
 		data.drawBars(ctx);
-		data.drawDeathTransition(ctx, this.players[playerIdx].deathCooldown);
+		if (current.isFinished()) {
+			data.drawFinishGlow(ctx);
+		}
+		data.drawDeathTransition(ctx, current.deathCooldown);
 	}
 
 

@@ -1,22 +1,27 @@
 import type { Block } from "../Block";
-import { AccelerationDef, PositionLimiterDef, SpeedDef } from "../defs";
-import { PositionTracker, SpeedTracker } from "../trackers";
+import type { GMJumpies } from "../../GMJumpies";
+import { AccelerationDef, ChaseDef, PositionLimiterDef, RotationDef, SpeedDef } from "../defs";
+import { PositionTracker, RotationTracker, SpeedTracker } from "../trackers";
 import { BlockModule } from "./BlockModule";
 
 /** Moves the block according to its speed. */
 export class SpeedModule implements BlockModule {
 	private readonly speed: SpeedTracker;
 
-	constructor(def: SpeedDef, block: Block) {
+	constructor(private readonly def: SpeedDef, block: Block) {
 		block.track(PositionTracker);
 		this.speed = block.track(SpeedTracker);
-		this.speed.vx = def.vx;
-		this.speed.vy = def.vy;
+		this.reset();
 	}
 
 	frame(block: Block, _game: unknown, dt: number) {
 		block.x += this.speed.vx * dt;
 		block.y += this.speed.vy * dt;
+	}
+
+	reset() {
+		this.speed.vx = this.def.vx;
+		this.speed.vy = this.def.vy;
 	}
 }
 
@@ -59,5 +64,54 @@ export class PositionLimiterModule implements BlockModule {
 
 		block.x = x;
 		block.y = y;
+	}
+}
+
+/** Turns the block at a constant speed. */
+export class RotationModule implements BlockModule {
+	private readonly rotation: RotationTracker;
+
+	constructor(private readonly def: RotationDef, block: Block) {
+		this.rotation = block.track(RotationTracker);
+		this.reset();
+	}
+
+	frame(_block: Block, _game: unknown, dt: number) {
+		const turn = Math.PI * 2;
+		this.rotation.angle = (this.rotation.angle + this.def.speed * dt) % turn;
+	}
+
+	reset() {
+		this.rotation.angle = this.def.start;
+	}
+}
+
+/** Sends the block toward the nearest player in range. It relies on a SpeedModule to really move it. */
+export class ChaseModule implements BlockModule {
+	private readonly speed: SpeedTracker;
+
+	constructor(private readonly def: ChaseDef, block: Block) {
+		this.speed = block.track(SpeedTracker);
+	}
+
+	frame(block: Block, game: GMJumpies) {
+		let target = null;
+		let best = this.def.range;
+		for (const player of game.players) {
+			const distance = Math.hypot(player.x - block.x, player.y - block.y);
+			if (player.isInGame() && distance <= best) {
+				target = player;
+				best = distance;
+			}
+		}
+
+		if (!target || best === 0) {
+			this.speed.vx = 0;
+			this.speed.vy = 0;
+			return;
+		}
+
+		this.speed.vx = (target.x - block.x) / best * this.def.speed;
+		this.speed.vy = (target.y - block.y) / best * this.def.speed;
 	}
 }

@@ -61,6 +61,35 @@ export interface PositionLimiterDef {
 /** Ends the level for the players entering the block. */
 export type FinishLevelDef = Record<string, never>;
 
+/** Turns the block around its center. Angles are in radians. */
+export interface RotationDef {
+	start: number;
+	speed: number; // radians per second
+}
+
+/**
+ * Brings the block back to its initial position, speed, rotation and activity
+ * every `period` seconds. Used for projectiles thrown again and again.
+ */
+export interface LoopDef {
+	period: number;
+}
+
+/** Deactivates the block when a player enters it (a loop can bring it back). */
+export type TouchDespawnDef = Record<string, never>;
+
+/** Moves the block toward the nearest player in range, and stops when nobody is in range. */
+export interface ChaseDef {
+	speed: number;
+	range: number; // distance between the centers
+}
+
+/** Text written on the block. It is only a decoration. */
+export interface TextDef {
+	value: string;
+	size: number; // font size, in world pixels
+}
+
 /** A block has at most one module of each kind. */
 export interface ModulesDef {
 	heal?: HealDef;
@@ -74,6 +103,11 @@ export interface ModulesDef {
 	acceleration?: AccelerationDef;
 	positionLimiter?: PositionLimiterDef;
 	finishLevel?: FinishLevelDef;
+	rotation?: RotationDef;
+	loop?: LoopDef;
+	touchDespawn?: TouchDespawnDef;
+	chase?: ChaseDef;
+	text?: TextDef;
 }
 
 /** What a block becomes when it receives a switch code. Omitted fields do not change. */

@@ -1,43 +1,46 @@
-import { MAX_PLAYER_BOUNCE, PLAYER_BOUNCE, PLAYER_SIZE } from "./constants";
+import { MAX_PLAYER_BOUNCE, PLAYER_BOUNCE, PLAYER_PUSH_SPEED, PLAYER_RESTITUTION, PLAYER_SIZE } from "./constants";
 import type { Player } from "./Player";
 
-/** Computes the speed given to both players, from their relative speed on the axis. */
-function bounceSpeed(relativeSpeed: number) {
-	return Math.min(MAX_PLAYER_BOUNCE, Math.max(PLAYER_BOUNCE, Math.abs(relativeSpeed)));
-}
+type Axis = 'x' | 'y';
 
 /** Direction from a to b. Stacked players are separated according to their order. */
 function axisSign(delta: number) {
 	return delta < 0 ? -1 : 1;
 }
 
-/** Pushes two overlapping players apart on the x axis, with a big bounce. */
-function bounceOnX(a: Player, b: Player, overlap: number) {
-	const sign = axisSign(b.x - a.x);
-	const speed = bounceSpeed(b.vx - a.vx);
+/**
+ * Separates two overlapping players on one axis, and makes them bounce if they
+ * were moving toward each other. The separation is progressive: a player who
+ * respawns on another one slides out instead of being teleported. Like a collision between equal masses, the
+ * shared speed is kept and only the relative speed changes: the bounce only
+ * depends on how hard they hit each other, and stays within bounds.
+ * Returns whether the speeds changed.
+ */
+function bounceOnAxis(a: Player, b: Player, axis: Axis, overlap: number, dt: number) {
+	const v = axis === 'x' ? 'vx' : 'vy';
+	const sign = axisSign(b[axis] - a[axis]);
+	const push = Math.min(overlap, PLAYER_PUSH_SPEED * dt) / 2;
 
-	a.x -= sign * overlap / 2;
-	b.x += sign * overlap / 2;
-	a.vx = -sign * speed;
-	b.vx = sign * speed;
-}
+	a[axis] -= sign * push;
+	b[axis] += sign * push;
 
-/** Pushes two overlapping players apart on the y axis, with a big bounce. */
-function bounceOnY(a: Player, b: Player, overlap: number) {
-	const sign = axisSign(b.y - a.y);
-	const speed = bounceSpeed(b.vy - a.vy);
+	// Players already moving apart only need to be separated.
+	const approach = (a[v] - b[v]) * sign;
+	if (approach <= 0)
+		return false;
 
-	a.y -= sign * overlap / 2;
-	b.y += sign * overlap / 2;
-	a.vy = -sign * speed;
-	b.vy = sign * speed;
+	const mean = (a[v] + b[v]) / 2;
+	const separation = Math.min(MAX_PLAYER_BOUNCE, Math.max(PLAYER_BOUNCE, approach * PLAYER_RESTITUTION));
+	a[v] = mean - sign * separation / 2;
+	b[v] = mean + sign * separation / 2;
+	return true;
 }
 
 /**
  * Resolves the collisions between players, the only solid collisions of the game.
  * Players are separated on the axis where they overlap the least.
  */
-export function resolvePlayerCollisions(players: Player[]) {
+export function resolvePlayerCollisions(players: Player[], dt: number) {
 	for (let i = 0; i < players.length; i++) {
 		const a = players[i];
 		if (!a.isInGame())
@@ -53,15 +56,14 @@ export function resolvePlayerCollisions(players: Player[]) {
 			if (overlapX <= 0 || overlapY <= 0)
 				continue;
 
-			if (overlapX < overlapY) {
-				bounceOnX(a, b, overlapX);
-			} else {
-				bounceOnY(a, b, overlapY);
-			}
+			const axis: Axis = overlapX < overlapY ? 'x' : 'y';
+			const bounced = bounceOnAxis(a, b, axis, axis === 'x' ? overlapX : overlapY, dt);
 
-			// Let both players keep the momentum of the bounce.
-			a.useDefaultDeceleration = false;
-			b.useDefaultDeceleration = false;
+			// A side bounce keeps its momentum instead of being braked at once.
+			if (bounced && axis === 'x') {
+				a.useDefaultDeceleration = false;
+				b.useDefaultDeceleration = false;
+			}
 		}
 	}
 }

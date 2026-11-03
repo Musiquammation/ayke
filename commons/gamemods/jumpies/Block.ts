@@ -5,7 +5,7 @@ import { BlockDef } from "./defs";
 import { BlockModule, createModules } from "./modules";
 import { Switchable } from "./modules/Switchable";
 import type { Player } from "./Player";
-import { ActiveTracker, PlayersInsideTracker, SpeedTracker, Tracker } from "./trackers";
+import { ActiveTracker, PlayersInsideTracker, RotationTracker, SpeedTracker, Tracker } from "./trackers";
 
 type TrackerType<T extends Tracker> = new () => T;
 
@@ -25,10 +25,12 @@ export class Block implements Switchable {
 	private readonly usesCollisions: boolean;
 	private readonly playersInside: PlayersInsideTracker | null;
 	private readonly activeTracker: ActiveTracker | null;
+	private readonly rotation: RotationTracker | null;
 
 	constructor(
 		readonly id: number,
-		readonly def: BlockDef
+		readonly def: BlockDef,
+		readonly playerCount: number // the units of the block depend on it
 	) {
 		this.w = def.w;
 		this.h = def.h;
@@ -41,12 +43,14 @@ export class Block implements Switchable {
 			? this.track(PlayersInsideTracker)
 			: null;
 		this.activeTracker = this.createActiveTracker();
+		this.rotation = this.peek(RotationTracker);
 	}
 
 	/** Only blocks which can be switched on or off need to share their state. */
 	private createActiveTracker() {
 		const states = Object.values(this.def.switchStates ?? {});
-		if (!states.some(state => state.active !== undefined))
+		const switched = states.some(state => state.active !== undefined);
+		if (!switched && !this.peek(ActiveTracker))
 			return null;
 
 		const tracker = this.track(ActiveTracker);
@@ -68,6 +72,11 @@ export class Block implements Switchable {
 	/** Returns the tracker of this type, or null if no module of the block uses it. */
 	peek<T extends Tracker>(type: TrackerType<T>): T | null {
 		return (this.trackers.get(type) as T | undefined) ?? null;
+	}
+
+	/** Angle of the block around its center, in radians. */
+	getAngle() {
+		return this.rotation?.angle ?? 0;
 	}
 
 	isActive() {
@@ -93,7 +102,11 @@ export class Block implements Switchable {
 
 	/** Detects a collision with a player. */
 	private touches(player: Player) {
-		return collisions.RectRect(player.getRect(), this);
+		if (!this.rotation)
+			return collisions.RectRect(player.getRect(), this);
+
+		const rotated = { x: this.x, y: this.y, w: this.w, h: this.h, angle: this.rotation.angle };
+		return collisions.RotatedRectRect(rotated, player.getRect());
 	}
 
 	/** Lists the players who touch the block during this frame. */
@@ -138,6 +151,19 @@ export class Block implements Switchable {
 	onPlayerDeath() {
 		for (const module of this.modules) {
 			module.onPlayerDeath?.(this);
+		}
+	}
+
+	/** Brings the block back to the state of its definition. */
+	reset() {
+		this.x = this.def.x;
+		this.y = this.def.y;
+		if (this.activeTracker) {
+			this.activeTracker.active = this.def.active ?? true;
+		}
+
+		for (const module of this.modules) {
+			module.reset?.(this);
 		}
 	}
 

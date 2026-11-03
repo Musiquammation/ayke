@@ -37,13 +37,13 @@ export class Room {
 	adjacentRooms: Room[] = [];
 	adjacenceRects: AdjacenceRect[] = [];
 
-	constructor(readonly index: number, def: RoomDef) {
+	constructor(readonly index: number, def: RoomDef, playerCount: number) {
 		this.x = def.x;
 		this.y = def.y;
 		this.w = def.w;
 		this.h = def.h;
 		this.blocks = Object.entries(def.blocks).map(
-			([id, block]) => new Block(Number(id), block)
+			([id, block]) => new Block(Number(id), block, playerCount)
 		);
 	}
 

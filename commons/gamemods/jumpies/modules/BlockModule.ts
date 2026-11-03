@@ -19,4 +19,7 @@ export interface BlockModule {
 
 	/** Called when any player of the game dies. */
 	onPlayerDeath?(block: Block): void;
+
+	/** Called when the block goes back to its initial state (see LoopModule). */
+	reset?(block: Block): void;
 }

@@ -14,6 +14,7 @@ import {
 	SPEED_INC,
 	SPEED_SLOW
 } from "./constants";
+import type { Room } from "./Room";
 import type { Stage } from "./Stage";
 
 /**
@@ -72,13 +73,19 @@ export class Player {
 		return this.finishRank >= 0;
 	}
 
-	/** Disconnected, dead and arrived players do not exist for blocks and other players. */
+	/**
+	 * Disconnected, dead and arrived players do not exist for blocks and other players.
+	 * An arrived player keeps moving, only to keep busy until the end of the game.
+	 */
 	isInGame() {
 		return this.connected && this.isAlive() && !this.isFinished();
 	}
 
-	/** Uses a jump, or hit points when no jump is left. */
+	/** Uses a jump, or hit points when no jump is left. Arrived players jump freely. */
 	private consumeJump() {
+		if (this.isFinished())
+			return;
+
 		if (this.jumps > 0) {
 			this.jumps = Math.max(0, this.jumps - 1);
 			return;
@@ -106,9 +113,9 @@ export class Player {
 		this.hp = Math.min(PLAYER_HP, this.hp + gain);
 	}
 
-	/** Removes hit points and kills the player when none is left. */
+	/** Removes hit points and kills the player when none is left. Arrived players are invincible. */
 	hit(damages: number) {
-		if (!this.isAlive())
+		if (!this.isAlive() || this.isFinished())
 			return;
 
 		this.hp -= damages;
@@ -119,7 +126,7 @@ export class Player {
 
 	/** Starts the death of the player and notifies the game. */
 	kill() {
-		if (!this.isAlive())
+		if (!this.isAlive() || this.isFinished())
 			return;
 
 		this.deathCooldown = DEATH_TIME;
@@ -191,9 +198,8 @@ export class Player {
 		if (!this.connected)
 			return;
 
-		// The cooldown keeps running after an arrival to end the death transition.
 		this.reduceCooldown(dt);
-		if (!this.isAlive() || this.isFinished())
+		if (!this.isAlive())
 			return;
 
 		if (this.jumpRequested) {
@@ -218,6 +224,11 @@ export class Player {
 	 * jumps, and a player who touches no room anymore is killed.
 	 */
 	handleRoom(stage: Stage) {
+		if (this.isFinished()) {
+			this.handleRoomAfterFinish(stage);
+			return;
+		}
+
 		const update = stage.update(this.getRect(), this.room);
 		switch (update.code) {
 			case 'new':
@@ -229,6 +240,31 @@ export class Player {
 				this.kill();
 				break;
 		}
+	}
+
+	/**
+	 * An arrived player can still change room, but the borders leading nowhere
+	 * stop them instead of killing them.
+	 */
+	private handleRoomAfterFinish(stage: Stage) {
+		const room = stage.findRoom(this.x, this.y);
+		if (room) {
+			this.room = room.index;
+		} else {
+			this.stayInRoom(stage.rooms[this.room]);
+		}
+	}
+
+	/** Brings the center of the player back in a room, stopping them on the blocked axis. */
+	private stayInRoom(room: Room) {
+		const x = Math.max(room.x, Math.min(room.x + room.w - 1, this.x));
+		const y = Math.max(room.y, Math.min(room.y + room.h - 1, this.y));
+
+		if (x !== this.x) this.vx = 0;
+		if (y !== this.y) this.vy = 0;
+
+		this.x = x;
+		this.y = y;
 	}
 
 	/** Returns the collision box of the player (centered, like every box of the game). */

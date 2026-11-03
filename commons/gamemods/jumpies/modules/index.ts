@@ -2,9 +2,9 @@ import type { Block } from "../Block";
 import { BlockDef } from "../defs";
 import { BlockModule } from "./BlockModule";
 import { ContinousAttackModule, LavaModule, RepeatedAttackModule } from "./hazards";
-import { AccelerationModule, PositionLimiterModule, SpeedModule } from "./movement";
+import { AccelerationModule, ChaseModule, PositionLimiterModule, RotationModule, SpeedModule } from "./movement";
 import { HealModule, RestoreJumpModule } from "./pickups";
-import { BounceModule, FinishLevelModule, SwitchModule } from "./triggers";
+import { BounceModule, FinishLevelModule, LoopModule, SwitchModule, TouchDespawnModule } from "./triggers";
 
 export type { BlockModule };
 
@@ -17,22 +17,26 @@ function getSpeedDef({ modules, switchStates }: BlockDef) {
 		state => state.vx !== undefined || state.vy !== undefined
 	);
 
-	return (modules.acceleration || switchedSpeed) ? { vx: 0, vy: 0 } : null;
+	return (modules.acceleration || modules.chase || switchedSpeed) ? { vx: 0, vy: 0 } : null;
 }
 
 /**
  * Creates the modules of a block.
  * The order is the execution order: movements run in a fixed order
- * (acceleration, then speed, then limiter), whatever the order in the level.
+ * (loop, then chase and acceleration, then speed, then limiter), whatever the
+ * order in the level. A touch despawn comes last, to let the other modules act.
  */
 export function createModules(def: BlockDef, block: Block): BlockModule[] {
 	const list: BlockModule[] = [];
 	const m = def.modules;
 	const speed = getSpeedDef(def);
 
+	if (m.loop) list.push(new LoopModule(m.loop, block));
+	if (m.chase) list.push(new ChaseModule(m.chase, block));
 	if (m.acceleration) list.push(new AccelerationModule(m.acceleration, block));
 	if (speed) list.push(new SpeedModule(speed, block));
 	if (m.positionLimiter) list.push(new PositionLimiterModule(m.positionLimiter, block));
+	if (m.rotation) list.push(new RotationModule(m.rotation, block));
 
 	if (m.lava) list.push(new LavaModule());
 	if (m.repeatedAttack) list.push(new RepeatedAttackModule(m.repeatedAttack, block));
@@ -42,6 +46,7 @@ export function createModules(def: BlockDef, block: Block): BlockModule[] {
 	if (m.bounce) list.push(new BounceModule(m.bounce));
 	if (m.switch) list.push(new SwitchModule(m.switch));
 	if (m.finishLevel) list.push(new FinishLevelModule());
+	if (m.touchDespawn) list.push(new TouchDespawnModule(block));
 
 	return list;
 }

@@ -1,6 +1,5 @@
 import { Fields } from "../../Fields";
 import type { Block } from "./Block";
-import { PICKUP_UNITS } from "./constants";
 
 /**
  * A tracker owns the data of a block which can change during a game.
@@ -85,10 +84,53 @@ export class ActiveTracker implements Tracker {
 	}
 }
 
-/** Tracks the units left in a pickup. Each kind of pickup has its own units. */
+/** Tracks the angle of a turning block. */
+export class RotationTracker implements Tracker {
+	readonly key = 'rotation';
+	angle = 0;
+
+	load(_block: Block): Fields {
+		return { angle: this.angle };
+	}
+
+	save(_block: Block, data: Fields) {
+		this.angle = data.angle;
+	}
+}
+
+/** Tracks the time spent since the last reset of a looping block. */
+export class LoopTracker implements Tracker {
+	readonly key = 'loop';
+	time = 0;
+
+	load(_block: Block): Fields {
+		return { time: this.time };
+	}
+
+	save(_block: Block, data: Fields) {
+		this.time = data.time;
+	}
+}
+
+/**
+ * Tracks the units left in a block. Each kind of units has its own tracker.
+ * A block holds one unit per player: like in JumpyJump, where a single player
+ * used a block once, and got it back by dying.
+ */
 abstract class UnitsTracker implements Tracker {
 	abstract readonly key: string;
-	units = PICKUP_UNITS;
+	max = 0; // comes from the level, so it is never shared
+	units = 0;
+
+	/** Sets the number of units of a full block, and fills it. */
+	init(max: number) {
+		this.max = max;
+		this.fill();
+	}
+
+	fill() {
+		this.units = this.max;
+	}
 
 	/** Takes one unit if possible and tells whether it worked. */
 	take() {
@@ -101,7 +143,7 @@ abstract class UnitsTracker implements Tracker {
 
 	/** Gives back one unit, up to the maximum. */
 	regain() {
-		this.units = Math.min(PICKUP_UNITS, this.units + 1);
+		this.units = Math.min(this.max, this.units + 1);
 	}
 
 	load(_block: Block): Fields {
@@ -119,6 +161,11 @@ export class HealUnitsTracker extends UnitsTracker {
 
 export class RestoreJumpUnitsTracker extends UnitsTracker {
 	readonly key = 'restoreJumpUnits';
+}
+
+/** Hit points of a block which disappears when players touch it. */
+export class DespawnHpTracker extends UnitsTracker {
+	readonly key = 'despawnHp';
 }
 
 /** Tracks the time left before each player can be hit again by a repeated attack. */

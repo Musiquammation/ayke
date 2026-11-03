@@ -1,6 +1,6 @@
 import type { Block } from "../Block";
-import { PICKUP_UNITS } from "../constants";
-import { CooldownsTracker, HealUnitsTracker, RestoreJumpUnitsTracker } from "../trackers";
+import { TextDef } from "../defs";
+import { CooldownsTracker, DespawnHpTracker, HealUnitsTracker, RestoreJumpUnitsTracker } from "../trackers";
 import { ParticleField } from "./ParticleField";
 
 const SPIKE_SIZE = 32;
@@ -9,6 +9,7 @@ const ARROW_SPACING = 30;
 const UNIT_RADIUS = 6;
 const UNIT_GAP = 18;
 const INACTIVE_ALPHA = 0.18;
+const TEXT_PADDING = 5;
 
 /** Client-only drawing of a block, around (0, 0). Created once per block. */
 export interface BlockVisual {
@@ -31,12 +32,12 @@ function glowBlock(ctx: CanvasRenderingContext2D, block: Block, color: string, g
 }
 
 /** Shows the units left in a pickup, as dots above the block. */
-function drawUnits(ctx: CanvasRenderingContext2D, block: Block, units: number, color: string) {
+function drawUnits(ctx: CanvasRenderingContext2D, block: Block, units: number, max: number, color: string) {
 	const y = -block.h / 2 - 16;
-	for (let i = 0; i < PICKUP_UNITS; i++) {
+	for (let i = 0; i < max; i++) {
 		ctx.fillStyle = i < units ? color : "rgba(255, 255, 255, 0.2)";
 		ctx.beginPath();
-		ctx.arc((i - (PICKUP_UNITS - 1) / 2) * UNIT_GAP, y, UNIT_RADIUS, 0, Math.PI * 2);
+		ctx.arc((i - (max - 1) / 2) * UNIT_GAP, y, UNIT_RADIUS, 0, Math.PI * 2);
 		ctx.fill();
 	}
 }
@@ -62,7 +63,8 @@ class HealVisual implements BlockVisual {
 	private pulse = 0;
 
 	draw(ctx: CanvasRenderingContext2D, block: Block, _playerIdx: number, dt: number) {
-		const units = block.peek(HealUnitsTracker)?.units ?? 0;
+		const tracker = block.peek(HealUnitsTracker);
+		const units = tracker?.units ?? 0;
 		const usable = units > 0;
 
 		this.pulse += dt * 2.4;
@@ -71,7 +73,7 @@ class HealVisual implements BlockVisual {
 
 		this.crosses.update(block.w, block.h, dt, usable);
 		this.crosses.draw(ctx);
-		drawUnits(ctx, block, units, "#7dff7d");
+		drawUnits(ctx, block, units, tracker?.max ?? 0, "#7dff7d");
 	}
 }
 
@@ -79,7 +81,8 @@ class RestoreJumpVisual implements BlockVisual {
 	private readonly sparks = new ParticleField('diamond', a => `rgba(255, 235, 120, ${a})`);
 
 	draw(ctx: CanvasRenderingContext2D, block: Block, _playerIdx: number, dt: number) {
-		const units = block.peek(RestoreJumpUnitsTracker)?.units ?? 0;
+		const tracker = block.peek(RestoreJumpUnitsTracker);
+		const units = tracker?.units ?? 0;
 		const usable = units > 0;
 
 		glowBlock(
@@ -90,40 +93,52 @@ class RestoreJumpVisual implements BlockVisual {
 
 		this.sparks.update(block.w, block.h, dt, usable);
 		this.sparks.draw(ctx);
-		drawUnits(ctx, block, units, "#ffe066");
+		drawUnits(ctx, block, units, tracker?.max ?? 0, "#ffe066");
 	}
 }
 
-class RepeatedAttackVisual implements BlockVisual {
-	/** Draws a spike, filled according to how ready the attack is. */
-	private drawSpike(
-		ctx: CanvasRenderingContext2D,
-		baseX: number, baseY: number,
-		nx: number, ny: number,
-		width: number, completion: number
-	) {
-		const tangentX = -ny * width / 2;
-		const tangentY = nx * width / 2;
+type Point = [number, number];
 
-		const trace = (length: number) => {
-			ctx.beginPath();
-			ctx.moveTo(baseX + tangentX, baseY + tangentY);
-			ctx.lineTo(baseX + nx * length, baseY + ny * length);
-			ctx.lineTo(baseX - tangentX, baseY - tangentY);
-			ctx.closePath();
-		};
+/** Point at `ratio` of the way from a to b. */
+function lerpPoint([ax, ay]: Point, [bx, by]: Point, ratio: number): Point {
+	return [ax + (bx - ax) * ratio, ay + (by - ay) * ratio];
+}
 
-		trace(SPIKE_LENGTH);
-		ctx.fillStyle = "#dec5ff";
+/** Traces a closed polygon. */
+function tracePolygon(ctx: CanvasRenderingContext2D, points: Point[]) {
+	ctx.beginPath();
+	ctx.moveTo(...points[0]);
+	for (const point of points.slice(1)) {
+		ctx.lineTo(...point);
+	}
+	ctx.closePath();
+}
+
+/**
+ * Draws a spike, filled from its base toward its tip according to how
+ * ready the attack is (0: just hit, 1: ready).
+ */
+function drawSpike(ctx: CanvasRenderingContext2D, baseL: Point, baseR: Point, tip: Point, completion: number) {
+	// Background
+	tracePolygon(ctx, [baseL, tip, baseR]);
+	ctx.fillStyle = "#dec5ff";
+	ctx.fill();
+
+	// Charged part: the base, cut parallel to it
+	if (completion > 0) {
+		tracePolygon(ctx, [baseL, lerpPoint(baseL, tip, completion), lerpPoint(baseR, tip, completion), baseR]);
+		ctx.fillStyle = "#882dff";
 		ctx.fill();
-
-		if (completion > 0) {
-			trace(SPIKE_LENGTH * completion);
-			ctx.fillStyle = "#882dff";
-			ctx.fill();
-		}
 	}
 
+	// Outline, drawn last to stay visible over the charged part
+	tracePolygon(ctx, [baseL, tip, baseR]);
+	ctx.strokeStyle = "#FFEEAA";
+	ctx.lineWidth = 1.1;
+	ctx.stroke();
+}
+
+class RepeatedAttackVisual implements BlockVisual {
 	/** Places spikes along one side of a square block. */
 	private drawSide(
 		ctx: CanvasRenderingContext2D,
@@ -135,13 +150,21 @@ class RepeatedAttackVisual implements BlockVisual {
 		const count = Math.max(1, Math.ceil(length / SPIKE_SIZE));
 		const width = length / count;
 
+		// Half of the base, along the side
+		const tangentX = -ny * width / 2;
+		const tangentY = nx * width / 2;
+
 		for (let i = 0; i < count; i++) {
 			const along = -length / 2 + (i + 0.5) * width;
-			this.drawSpike(
+			const baseX = nx === 0 ? along : nx * block.w / 2;
+			const baseY = ny === 0 ? along : ny * block.h / 2;
+
+			drawSpike(
 				ctx,
-				nx === 0 ? along : nx * block.w / 2,
-				ny === 0 ? along : ny * block.h / 2,
-				nx, ny, width, completion
+				[baseX + tangentX, baseY + tangentY],
+				[baseX - tangentX, baseY - tangentY],
+				[baseX + nx * SPIKE_LENGTH, baseY + ny * SPIKE_LENGTH],
+				completion
 			);
 		}
 	}
@@ -153,7 +176,6 @@ class RepeatedAttackVisual implements BlockVisual {
 		const completion = remaining === undefined ? 1 : 1 - remaining / duration;
 
 		fillBlock(ctx, block, "#9B59B6");
-
 
 		this.drawSide(ctx, block, 0, -1, completion);
 		this.drawSide(ctx, block, 0, 1, completion);
@@ -238,8 +260,41 @@ class SwitchVisual implements BlockVisual {
 	}
 }
 
-/** Picks the look of the block: the most important module gives its visual. */
-function createModuleVisual({ def: { modules } }: Block): BlockVisual {
+/** Writes a text on a black background, like a sign. */
+class TextVisual implements BlockVisual {
+	constructor(private readonly text: TextDef) {}
+
+	draw(ctx: CanvasRenderingContext2D) {
+		ctx.font = `${this.text.size}px monospace`;
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+
+		const metrics = ctx.measureText(this.text.value);
+		const width = metrics.width + TEXT_PADDING * 2;
+		const height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent + TEXT_PADDING * 2;
+
+		ctx.fillStyle = "black";
+		ctx.fillRect(-width / 2, -height / 2, width, height);
+		ctx.fillStyle = "white";
+		ctx.fillText(this.text.value, 0, 0);
+	}
+}
+
+/** Hit points of a block which disappears when touched, as dots like the units of a pickup. */
+class DespawnHpVisual {
+	draw(ctx: CanvasRenderingContext2D, block: Block) {
+		const tracker = block.peek(DespawnHpTracker);
+		if (tracker) {
+			drawUnits(ctx, block, tracker.units, tracker.max, "#ff5577");
+		}
+	}
+}
+
+/**
+ * Picks the look of the block: the most important module gives its visual.
+ * A block with only a text has no shape, its text is enough.
+ */
+function createModuleVisual({ def: { modules } }: Block): BlockVisual | null {
 	if (modules.finishLevel) return new FinishVisual();
 	if (modules.lava) return new LavaVisual();
 	if (modules.heal) return new HealVisual();
@@ -248,15 +303,21 @@ function createModuleVisual({ def: { modules } }: Block): BlockVisual {
 	if (modules.restoreJump) return new RestoreJumpVisual();
 	if (modules.switch) return new SwitchVisual();
 	if (modules.bounce) return new BounceVisual();
+	if (modules.text) return null;
 	return new DefaultVisual();
 }
 
 /** Client data of a block: everything needed to draw it, and nothing shared. */
 export class BlockClientData {
-	private readonly visual: BlockVisual;
+	private readonly visual: BlockVisual | null;
+	private readonly text: TextVisual | null;
+	private readonly hp: DespawnHpVisual | null;
 
 	constructor(block: Block) {
 		this.visual = createModuleVisual(block);
+		const { text, touchDespawn } = block.def.modules;
+		this.text = text ? new TextVisual(text) : null;
+		this.hp = touchDespawn ? new DespawnHpVisual() : null;
 	}
 
 	/** Draws the block at its position. Inactive blocks are only ghosts. */
@@ -267,7 +328,13 @@ export class BlockClientData {
 			ctx.globalAlpha = INACTIVE_ALPHA;
 		}
 
-		this.visual.draw(ctx, block, playerIdx, dt);
+		ctx.save();
+		ctx.rotate(block.getAngle());
+		this.visual?.draw(ctx, block, playerIdx, dt);
+		ctx.restore();
+
+		this.text?.draw(ctx);
+		this.hp?.draw(ctx, block);
 		ctx.restore();
 	}
 }

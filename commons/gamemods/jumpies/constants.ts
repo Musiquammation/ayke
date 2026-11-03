@@ -21,7 +21,7 @@ export const JUMP_HP_COST = 1;
 export const JUMP_VELOCITY = 1500;
 
 // Vertical movement
-export const GRAVITY = 2400;
+export const GRAVITY = 3240;
 export const FAST_FALL_SPEED = 1200; // extra downward speed while "down" is held
 
 // Horizontal movement
@@ -35,9 +35,8 @@ export const SPEED_SLOW = 1080; // soft braking used above MAX_SPEED or after a 
 export const DEATH_TIME = 1;
 export const RESPAWN_TIME = 0.5;
 
-// Collisions between players
-export const PLAYER_BOUNCE = 1800; // minimal speed given to both players
-export const MAX_PLAYER_BOUNCE = 3000; // keeps chained collisions under control
-
-// Units held by a heal or restoreJump block
-export const PICKUP_UNITS = 3;
+// Collisions between players. Speeds are relative: each player gets half of it.
+export const PLAYER_RESTITUTION = 0.6; // part of the approach speed given back
+export const PLAYER_BOUNCE = 160; // minimal separation speed, so that players do not stick
+export const MAX_PLAYER_BOUNCE = 900; // keeps violent and chained collisions under control
+export const PLAYER_PUSH_SPEED = 600; // overlapping players are pushed apart progressively, at this speed

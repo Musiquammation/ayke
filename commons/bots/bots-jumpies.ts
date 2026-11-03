@@ -38,6 +38,11 @@ function findNearestBounce(room: Room, x: number) {
  * block when it gets low, and jumps if nothing can catch it or to climb.
  */
 const method = runner((game, data, playerIdx) => {
+	console.log(game.time);
+	if (game.time > 599) {
+		return [[], 'success'];
+	}
+
 	const player = game.players[playerIdx];
 	const inputs: Fields[] = [];
 	if (!player.isInGame())

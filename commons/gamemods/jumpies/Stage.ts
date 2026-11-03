@@ -44,8 +44,8 @@ export class Stage {
 	readonly blocks: Record<number, Block> = {};
 	readonly spawnRoom: number;
 
-	constructor(level: LevelDef) {
-		this.rooms = level.rooms.map((def, index) => new Room(index, def));
+	constructor(level: LevelDef, playerCount: number) {
+		this.rooms = level.rooms.map((def, index) => new Room(index, def, playerCount));
 
 		for (const room of this.rooms) {
 			this.fillAdjacentRooms(room);
