@@ -1,5 +1,6 @@
 import {
 	CAMERA_HEIGHT,
+	CAMERA_LOCK_TRANSITION,
 	CAMERA_LOOK_AHEAD,
 	CAMERA_LOOK_MAX,
 	CURSOR_ACC_PER_DIST,
@@ -14,9 +15,6 @@ import {
 	ITEM_SLOTS,
 	ITEM_TEXTURES,
 	KILLS_TO_WIN,
-	LOCK_FAR_GROWTH,
-	LOCK_MAX_OFFSET,
-	LOCK_OFFSET_SOFTNESS,
 	PLAYER_COLORS,
 	TEXTURES,
 	WEAPONS,
@@ -114,8 +112,8 @@ export class Cursor {
 	private initialized = false;
 
 	/**
-	 * Find the entity to stick to, then move the indicator toward it (or toward the mouse).
-	 * `mouseX/Y` are ground-plane coordinates.
+	 * Find the entity to stick to: the indicator is then exactly on it. Otherwise it
+	 * moves toward the mouse. `mouseX/Y` are ground-plane coordinates.
 	 */
 	update(
 		state: HuntState,
@@ -140,7 +138,10 @@ export class Cursor {
 			size = entityRadius(state, this.snapped) * pr.s + 14;
 		}
 
-		this.moveToward(tx, ty, dt);
+		if (this.snapped)
+			this.stickTo(tx, ty);
+		else
+			this.moveToward(tx, ty, dt);
 		this.size += (size - this.size) * (1 - Math.exp(-12 * dt));
 		this.angle += CURSOR_ROTATION * dt;
 	}
@@ -175,6 +176,15 @@ export class Cursor {
 		const boxes = state.boxes.map((_, i): EntityRef => ({ kind: 'box', idx: i }));
 
 		return nearest(enemies) ?? nearest(boxes);
+	}
+
+	/** Place the indicator exactly on (tx, ty), with no speed left. */
+	private stickTo(tx: number, ty: number) {
+		this.initialized = true;
+		this.x = tx;
+		this.y = ty;
+		this.vx = 0;
+		this.vy = 0;
 	}
 
 	/** Accelerate toward (tx, ty) with a speed limit and an acceleration depending on the distance. */
@@ -241,13 +251,19 @@ export class ClientData {
 	mouseOffY = 0;
 
 	readonly camera = new Camera();
+	/** Lock state the camera was placed for last frame (a change starts a transition). */
+	private cameraLocked = false;
+	/** Offset from the wanted camera position, eased to 0 during a lock / unlock transition. */
+	private cameraFromX = 0;
+	private cameraFromY = 0;
+	private cameraTransition = 1; // progress 0..1 (1 = no transition)
 	readonly cursor = new Cursor();
 
 	/** Locked entity while shift is held. */
 	lock: EntityRef | null = null;
-	/** Aim cross (ground-plane coordinates) while locked. */
-	crossX = 0;
-	crossY = 0;
+	/** Last lock sent to the server (LOCK_* kind and index). */
+	lastLockKind = 0;
+	lastLockIdx = 0;
 
 	/** Item mode, while right click is held: releasing it uses the item, 1-4 / wheel select it. */
 	itemMode = false;
@@ -339,9 +355,8 @@ export class ClientData {
 		const self = state.players[this.playerIdx];
 
 		this.updateLockValidity(state);
-		this.updateCamera(state, self);
+		this.updateCamera(state, self, dt);
 		this.cursor.update(state, this.playerIdx, this.camera, this.mouseX, this.mouseY, this.lock, dt);
-		this.updateCross(state);
 		this.updateFacing(state, self);
 		this.updateHud(state, self);
 	}
@@ -357,14 +372,37 @@ export class ClientData {
 	 * The shift only depends on where the mouse is on the screen, so the camera
 	 * goes straight to its position (no smoothing, no feedback loop).
 	 * While locked, the camera stays halfway between the player and the target.
+	 * Locking or unlocking glides from the previous camera to the new one.
 	 */
-	private updateCamera(state: HuntState, self: Player) {
-		const target = this.lock ? entityCenter(state, this.lock) : null;
-		if (target) {
-			this.camera.set((self.x + target.x) / 2, (self.y + target.y) / 2);
-			this.setMouseOffset(this.mouseOffX, this.mouseOffY);
-			return;
+	private updateCamera(state: HuntState, self: Player, dt: number) {
+		const wanted = this.wantedCamera(state, self);
+
+		if (wanted.locked !== this.cameraLocked) {
+			this.cameraLocked = wanted.locked;
+			this.cameraFromX = this.camera.x - wanted.x;
+			this.cameraFromY = this.camera.y - wanted.y;
+			this.cameraTransition = 0;
 		}
+
+		let x = wanted.x;
+		let y = wanted.y;
+		if (this.cameraTransition < 1) {
+			this.cameraTransition = Math.min(1, this.cameraTransition + dt / CAMERA_LOCK_TRANSITION);
+			const t = this.cameraTransition;
+			const left = 1 - t * t * (3 - 2 * t); // smoothstep
+			x += this.cameraFromX * left;
+			y += this.cameraFromY * left;
+		}
+
+		this.camera.set(x, y);
+		this.setMouseOffset(this.mouseOffX, this.mouseOffY);
+	}
+
+	/** Camera position without transition: free (shifted toward the mouse) or locked. */
+	private wantedCamera(state: HuntState, self: Player) {
+		const target = this.lock ? entityCenter(state, this.lock) : null;
+		if (target)
+			return { x: (self.x + target.x) / 2, y: (self.y + target.y) / 2, locked: true };
 
 		let ox = this.mouseOffX * CAMERA_LOOK_AHEAD;
 		let oy = this.mouseOffY * CAMERA_LOOK_AHEAD;
@@ -373,8 +411,7 @@ export class ClientData {
 			ox *= CAMERA_LOOK_MAX / len;
 			oy *= CAMERA_LOOK_MAX / len;
 		}
-		this.camera.set(self.x + ox, self.y + oy);
-		this.setMouseOffset(this.mouseOffX, this.mouseOffY);
+		return { x: self.x + ox, y: self.y + oy, locked: false };
 	}
 
 	/** Store the mouse position relative to the screen center, and the matching ground point. */
@@ -393,31 +430,6 @@ export class ClientData {
 		this.facing = Math.hypot(dx, dy) < 1 ? null : Math.atan2(dy, dx);
 	}
 
-	/**
-	 * Place the aim cross while locked: it starts on the target and moves toward the
-	 * mouse. The offset saturates around LOCK_MAX_OFFSET (so the mouse only nudges it),
-	 * then keeps growing very slowly when the mouse goes far away.
-	 */
-	private updateCross(state: HuntState) {
-		if (!this.lock)
-			return;
-
-		const c = entityCenter(state, this.lock)!;
-		const t = project(this.camera.x, this.camera.y, c.x, c.y, c.z);
-		const dx = this.mouseX - t.x;
-		const dy = this.mouseY - t.y;
-		const d = Math.hypot(dx, dy);
-		if (d < 1e-3) {
-			this.crossX = t.x;
-			this.crossY = t.y;
-			return;
-		}
-
-		const off = LOCK_MAX_OFFSET * Math.tanh(d / LOCK_OFFSET_SOFTNESS) + LOCK_FAR_GROWTH * d;
-		this.crossX = t.x + dx / d * off;
-		this.crossY = t.y + dy / d * off;
-	}
-
 	/** Start a lock on the entity under the indicator (if any). */
 	tryLock() {
 		if (this.cursor.snapped)
@@ -431,23 +443,15 @@ export class ClientData {
 
 	/**
 	 * 3D point the local player is aiming at:
-	 * - locked: the target center shifted by the cross offset
-	 * - indicator on an entity: that entity's center
-	 * - otherwise: the point under the mouse, at the height of the gun (flat shot)
+	 * - locked: the target center
+	 * - otherwise: the point under the mouse, at the height of the gun (flat shot),
+	 *   even when the indicator sticks to an entity
 	 */
 	aimPoint(state: HuntState): AimPoint {
 		const cam = this.camera;
-		if (this.lock) {
-			const c = entityCenter(state, this.lock)!;
-			const at = unproject(cam.x, cam.y, this.crossX, this.crossY, c.z);
-			return { x: at.x, y: at.y, z: c.z };
-		}
-
-		if (this.cursor.snapped) {
-			const c = entityCenter(state, this.cursor.snapped);
-			if (c)
-				return c;
-		}
+		const c = this.lock ? entityCenter(state, this.lock) : null;
+		if (c)
+			return c;
 
 		const self = state.players[this.playerIdx];
 		const z = self.z + GUN_HEIGHT;

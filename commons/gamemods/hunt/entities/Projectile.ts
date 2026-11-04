@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Fields } from "../../../Fields";
-import { WEAPONS } from "../constants";
+import { LOCK_NONE, WEAPONS } from "../constants";
 import { MovingEntity } from "./Entity";
 import { place, solid, unitSphere } from "./models";
 
@@ -13,12 +13,16 @@ export class Projectile extends MovingEntity {
 	weapon = 0;
 	rangeLeft = 0;
 	damage = 0;
+	/** Entity followed by a homing bullet (LOCK_* kind and index). */
+	homingKind = LOCK_NONE;
+	homingIdx = 0;
 
 	override save(): Fields {
 		return {
 			...super.save(),
 			owner: this.owner, weapon: this.weapon,
 			rangeLeft: this.rangeLeft, damage: this.damage,
+			homingKind: this.homingKind, homingIdx: this.homingIdx,
 		};
 	}
 
@@ -28,11 +32,15 @@ export class Projectile extends MovingEntity {
 		this.weapon = obj.weapon ?? 0;
 		this.rangeLeft = obj.rangeLeft ?? 0;
 		this.damage = obj.damage ?? 0;
+		this.homingKind = obj.homingKind ?? LOCK_NONE;
+		this.homingIdx = obj.homingIdx ?? 0;
 	}
 
 	protected override createModel() {
 		// A glowing sphere stretched along its local z axis, which is turned toward the velocity
-		return new THREE.Mesh(unitSphere());
+		const mesh = new THREE.Mesh(unitSphere());
+		mesh.castShadow = true;
+		return mesh;
 	}
 
 	protected override updateModel(model: THREE.Object3D) {

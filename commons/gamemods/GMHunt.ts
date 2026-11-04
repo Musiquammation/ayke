@@ -13,6 +13,9 @@ import {
 	HEIGHT,
 	ITEM_NONE,
 	ITEM_SLOTS,
+	LOCK_BOX,
+	LOCK_NONE,
+	LOCK_PLAYER,
 	MATCH_DURATION,
 	PLAYER_COLORS,
 	TEXTURES,
@@ -304,6 +307,15 @@ export class GMHunt extends GameMode implements HuntState {
 					player.selectedItem = s;
 				break;
 			}
+
+			case 'lock': {
+				const kind = Number(input.lock?.kind);
+				const idx = Number(input.lock?.idx);
+				const valid = (kind === LOCK_PLAYER || kind === LOCK_BOX) && Number.isInteger(idx) && idx >= 0;
+				player.lockKind = valid ? kind : LOCK_NONE;
+				player.lockIdx = valid ? idx : 0;
+				break;
+			}
 		}
 	}
 
@@ -328,7 +340,7 @@ export class GMHunt extends GameMode implements HuntState {
 			inputs.push({ action: 'jump', jump: {} });
 
 		this.collectItemMode(mouse, data);
-		this.collectLock(keyboard, data);
+		this.collectLock(keyboard, data, inputs);
 		this.collectSelection(keyboard, mouse, data, self, inputs);
 		this.collectFacing(data, self, inputs);
 
@@ -377,15 +389,24 @@ export class GMHunt extends GameMode implements HuntState {
 		inputs.push({ action: 'move', move: { x, y } });
 	}
 
-	/** Shift held = lock mode. The lock starts on the entity under the indicator. */
-	private collectLock(keyboard: IKeyboardController, data: ClientData) {
-		if (!keyboard.press('lock')) {
+	/**
+	 * Shift held = lock mode. The lock starts on the entity under the indicator.
+	 * The server is told about it (homing shots, side jumps).
+	 */
+	private collectLock(keyboard: IKeyboardController, data: ClientData, inputs: Fields[]) {
+		if (!keyboard.press('lock'))
 			data.lock = null;
-			return;
-		}
-
-		if (!data.lock)
+		else if (!data.lock)
 			data.tryLock();
+
+		const kind = !data.lock ? LOCK_NONE : data.lock.kind === 'player' ? LOCK_PLAYER : LOCK_BOX;
+		const idx = data.lock?.idx ?? 0;
+		if (kind === data.lastLockKind && idx === data.lastLockIdx)
+			return;
+
+		data.lastLockKind = kind;
+		data.lastLockIdx = idx;
+		inputs.push({ action: 'lock', lock: { kind, idx } });
 	}
 
 	/**

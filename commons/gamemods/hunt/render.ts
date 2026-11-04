@@ -5,12 +5,13 @@ import {
 	CAMERA_HEIGHT,
 	CAMERA_SCALE,
 	CURSOR_COLOR,
+	LOCK_COLOR,
 	HEIGHT,
 	MAX_AMMO,
 	PLAYER_HEIGHT,
 	WIDTH,
 } from "./constants";
-import { ClientData, entityCenter, entityRadius, project } from "./client";
+import { ClientData, project } from "./client";
 import { Block, Entity, Player, ViewContext } from "./entities";
 import { disposeOwned } from "./entities/models";
 import { LEVEL } from "./level";
@@ -234,7 +235,6 @@ export function drawFrame(
 		if (p.isAlive())
 			drawPlayerInfo(oc, p, i);
 	}
-	drawLock(oc);
 	drawCursor(oc);
 
 	ctx.restore();
@@ -302,15 +302,12 @@ function drawAmmo(ctx: CanvasRenderingContext2D, x: number, y: number, ammo: num
 
 /* ---------------------------- Cursor & lock ---------------------------- */
 
-/** Four blue triangles pointing to the center, rotating around it. */
+/** Four triangles pointing to the center, rotating around it (blue, orange while locked). */
 function drawCursor(oc: OverlayContext) {
 	const { ctx, data } = oc;
-	if (data.lock)
-		return; // the lock cross replaces the indicator
-
 	const c = data.cursor;
 	const tri = 13;
-	ctx.fillStyle = CURSOR_COLOR;
+	ctx.fillStyle = data.lock ? LOCK_COLOR : CURSOR_COLOR;
 	ctx.strokeStyle = "rgba(255,255,255,0.8)";
 	ctx.lineWidth = 2;
 
@@ -332,48 +329,6 @@ function drawCursor(oc: OverlayContext) {
 		ctx.fill();
 		ctx.stroke();
 	}
-}
-
-/** Ring on the locked target, a segment to the aim cross and the cross itself. */
-function drawLock(oc: OverlayContext) {
-	const { ctx, data, state } = oc;
-	if (!data.lock)
-		return;
-
-	const ref = data.lock;
-	const c = entityCenter(state, ref);
-	if (!c)
-		return;
-	const t = P(oc, c.x, c.y, c.z);
-
-	// Target ring (rotating dashes)
-	ctx.strokeStyle = CURSOR_COLOR;
-	ctx.lineWidth = 4;
-	ctx.setLineDash([16, 10]);
-	ctx.lineDashOffset = oc.clock * 30;
-	ctx.beginPath();
-	ctx.arc(t.x, t.y, entityRadius(state, ref) * t.s + 18, 0, Math.PI * 2);
-	ctx.stroke();
-	ctx.setLineDash([]);
-
-	// Segment from the target center to the cross
-	ctx.strokeStyle = "rgba(255,255,255,0.7)";
-	ctx.lineWidth = 2;
-	ctx.beginPath();
-	ctx.moveTo(t.x, t.y);
-	ctx.lineTo(data.crossX, data.crossY);
-	ctx.stroke();
-
-	// Small cross
-	const s = 11;
-	ctx.strokeStyle = "#fff";
-	ctx.lineWidth = 4;
-	ctx.beginPath();
-	ctx.moveTo(data.crossX - s, data.crossY - s);
-	ctx.lineTo(data.crossX + s, data.crossY + s);
-	ctx.moveTo(data.crossX + s, data.crossY - s);
-	ctx.lineTo(data.crossX - s, data.crossY + s);
-	ctx.stroke();
 }
 
 /** While the camera follows a locked target, show where the local player is when off screen. */

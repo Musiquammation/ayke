@@ -20,7 +20,7 @@ const STEPS: { text: string; done: (state: HuntState, t: TutorialData) => boolea
 		done: s => s.players[0].ammo < 2.5,
 	},
 	{
-		text: "Hold Shift while the blue indicator is on an enemy to lock it. Move the mouse to shift your aim",
+		text: "Hold Shift while the blue indicator is on an enemy to lock it: your shots go straight at it (jump with Q / D while locked for a fast side jump)",
 		done: (_s, t) => t.elapsed > 8,
 	},
 	{

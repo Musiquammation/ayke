@@ -8,20 +8,22 @@ import {
 	ITEM_JUMP,
 	ITEM_NONE,
 	PLAYER_RADIUS,
+	WEAPONS,
 } from "./constants";
 import type { ClientData } from "./client";
-import { Entity, Vec3 } from "./entities";
+import { Entity, Player, Vec3 } from "./entities";
 import { HuntPhysics } from "./physics";
 import { HuntState } from "./simulation";
-import { explosionZone, traceBomb, traceBoomerang, traceDash, traceLeap } from "./trajectories";
+import { explosionZone, shotSector, traceBomb, traceBoomerang, traceDash, traceLeap, traceShot } from "./trajectories";
 
 /* -------------------------------------------------------------------------- */
-/* Translucent preview of the selected item, computed with the same motion    */
-/* functions as the simulation (so walls cut it exactly like the real thing). */
-/* Three shapes:                                                              */
+/* Translucent preview of the selected item (item mode) or of the weapon      */
+/* (attack mode), computed with the same functions as the simulation (so      */
+/* walls cut it exactly like the real thing). Four shapes:                    */
 /* - a jump path (an arc, followed by a landing zone),                        */
 /* - a straight / curved path on the ground, cut by the first obstacle,       */
-/* - a zone (polygon whose rays are stopped by the walls).                    */
+/* - a zone (polygon whose rays are stopped by the walls),                    */
+/* - an angular sector (scattered shot, rays stopped by the walls).           */
 /* -------------------------------------------------------------------------- */
 
 /** Height added to ground shapes so they do not fight with the ground. */
@@ -46,19 +48,31 @@ export class ItemPreview {
 	private readonly edge = new THREE.LineBasicMaterial({
 		color: "#ffffff", transparent: true, opacity: 0.75, depthTest: false,
 	});
+	// Weapon previews take the color of the weapon
+	private readonly shotFill = new THREE.MeshBasicMaterial({
+		color: "#ffffff", transparent: true, opacity: 0.18,
+		depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+	});
+	private readonly shotEdge = new THREE.LineBasicMaterial({
+		color: "#ffffff", transparent: true, opacity: 0.6, depthTest: false,
+	});
 
 	constructor() {
 		this.group.renderOrder = 10;
 	}
 
-	/** Rebuild the preview of the item selected by the local player. */
+	/** Rebuild the preview of the selected item (item mode) or of the weapon (attack mode). */
 	update(state: HuntState, data: ClientData, physics: HuntPhysics | null) {
 		this.clear();
 
 		const self = state.players[data.playerIdx];
-		// Only shown in item mode (right click held)
-		if (!physics || !self || !self.canAttack() || !data.itemMode)
+		if (!physics || !self || !self.canAttack())
 			return;
+
+		if (!data.itemMode) {
+			this.weapon(state, data, physics, self);
+			return;
+		}
 
 		const item = self.items[self.selectedItem];
 		if (item === ITEM_NONE)
@@ -97,6 +111,53 @@ export class ItemPreview {
 				break;
 			}
 		}
+	}
+
+	/**
+	 * Attack mode: a straight line cut by the first obstacle / opponent (sniper, burst),
+	 * or the angular sector of the pellets (shotgun).
+	 */
+	private weapon(state: HuntState, data: ClientData, physics: HuntPhysics, self: Player) {
+		const def = WEAPONS[self.weapon];
+		this.shotFill.color.set(def.color);
+		this.shotEdge.color.set(def.color);
+
+		const aim = data.aimPoint(state);
+		if (def.count > 1) {
+			const { center, points } = shotSector(physics, self, aim);
+			this.sector(points, { x: center.x, y: center.y, z: center.z + LIFT });
+			return;
+		}
+
+		// Drawn on the ground under the bullet path, so it reads well from the top-down camera
+		const { from, to, hit } = traceShot(physics, self, aim);
+		const z = self.z + LIFT;
+		const start = { x: from.x, y: from.y, z };
+		const end = { x: to.x, y: to.y, z };
+		this.ribbon([start, end], def.radius * 2, this.shotFill);
+		if (hit)
+			this.disc(end, def.radius * 2.5, this.shotFill, this.shotEdge);
+	}
+
+	/** A filled angular sector from `center` to the arc of `arc` points, with its outline. */
+	private sector(arc: { x: number; y: number }[], center: Vec3) {
+		const z = center.z;
+		const pos: number[] = [center.x, -center.y, z];
+		const index: number[] = [];
+		for (const [i, p] of arc.entries()) {
+			pos.push(p.x, -p.y, z);
+			if (i > 0)
+				index.push(0, i, i + 1);
+		}
+
+		const fillGeometry = new THREE.BufferGeometry();
+		fillGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+		fillGeometry.setIndex(index);
+		this.add(new THREE.Mesh(fillGeometry, this.shotFill));
+
+		const lineGeometry = new THREE.BufferGeometry();
+		lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+		this.add(new THREE.LineLoop(lineGeometry, this.shotEdge));
 	}
 
 	/**
@@ -190,7 +251,7 @@ export class ItemPreview {
 	}
 
 	/** A flat disc (landing spot, end of a path). */
-	private disc(center: Vec3, radius: number, material: THREE.Material) {
+	private disc(center: Vec3, radius: number, material: THREE.Material, edge: THREE.Material = this.edge) {
 		const polygon = Array.from({ length: CIRCLE_SEGMENTS }, (_, i) => {
 			const a = i / CIRCLE_SEGMENTS * Math.PI * 2;
 			return { x: center.x + Math.cos(a) * radius, y: center.y + Math.sin(a) * radius };
@@ -203,6 +264,6 @@ export class ItemPreview {
 		const lineGeometry = new THREE.BufferGeometry();
 		lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(
 			polygon.flatMap(p => [p.x, -p.y, center.z]), 3));
-		this.add(new THREE.LineLoop(lineGeometry, this.edge));
+		this.add(new THREE.LineLoop(lineGeometry, edge));
 	}
 }

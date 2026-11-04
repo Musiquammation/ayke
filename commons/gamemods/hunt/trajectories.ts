@@ -19,13 +19,15 @@ import {
 	SUPER_JUMP_MAX_RISE,
 	SUPER_JUMP_RANGE,
 	SUPER_JUMP_TIME,
+	WEAPONS,
 } from "./constants";
 import { Box, Entity, Player, Vec3 } from "./entities";
 import { BodyHit, HuntPhysics } from "./physics";
 
 /* -------------------------------------------------------------------------- */
-/* Motion of the items. The simulation and the client previews call the same  */
-/* functions, so what the preview shows is what the item will do.             */
+/* Motion of the items (and shapes of the shots). The simulation and the      */
+/* client previews call the same functions, so what the preview shows is what */
+/* the item will do.                                                          */
 /* -------------------------------------------------------------------------- */
 
 export interface BallisticBody extends Vec3 {
@@ -281,4 +283,83 @@ export function traceBomb(physics: HuntPhysics, p: Player, aim: Vec3) {
 		points.push({ x: body.x, y: body.y, z: body.z });
 	}
 	return { points, end: end ?? points[points.length - 1] };
+}
+
+
+/* ---------------------------- Weapons ---------------------------- */
+
+/** Length of each shape cast along a bullet path (the casts check the altitude per step). */
+const SHOT_TRACE_STEP = 80;
+/** Rays used to draw the angular sector of a scattered shot. */
+const SECTOR_RAYS = 32;
+
+/** Direction (3D unit vector) of a bullet leaving the gun of `p` toward `target`. */
+function bulletDirection(p: Player, target: Vec3) {
+	const z = p.z + GUN_HEIGHT;
+	const dx = target.x - p.x;
+	const dy = target.y - p.y;
+	const dz = target.z - z;
+	const len = Math.hypot(dx, dy, dz);
+	if (len < 1)
+		return { x: Math.cos(p.facing), y: Math.sin(p.facing), z: 0 };
+	return { x: dx / len, y: dy / len, z: dz / len };
+}
+
+/**
+ * Straight path of a bullet of the current weapon fired toward the aim, cut by the
+ * first obstacle or opponent it would hit (without taking homing into account).
+ */
+export function traceShot(physics: HuntPhysics, p: Player, aim: Vec3) {
+	const def = WEAPONS[p.weapon];
+	const dir = bulletDirection(p, aim);
+	const from = { x: p.x, y: p.y, z: p.z + GUN_HEIGHT };
+	const hittable = (e: Entity) => e instanceof Player && e !== p && e.isTargetable();
+
+	let travelled = 0;
+	let hit = false;
+	while (travelled < def.range) {
+		const step = Math.min(SHOT_TRACE_STEP, def.range - travelled);
+		const h = physics.castBall(
+			from.x + dir.x * travelled, from.y + dir.y * travelled, from.z + dir.z * travelled,
+			dir.x * step, dir.y * step, dir.z * step, def.radius, hittable
+		);
+		if (h) {
+			travelled += step * h.toi;
+			hit = true;
+			break;
+		}
+		travelled += step;
+	}
+
+	const to = {
+		x: from.x + dir.x * travelled,
+		y: from.y + dir.y * travelled,
+		z: from.z + dir.z * travelled,
+	};
+	return { from, to, hit };
+}
+
+/**
+ * Angular sector covered by the pellets of a scattered shot: they land in a disc of
+ * `scatter` radius around the aim, so the sector opens by atan(scatter / distance).
+ * Each ray is stopped by the first obstacle.
+ */
+export function shotSector(physics: HuntPhysics, p: Player, aim: Vec3) {
+	const def = WEAPONS[p.weapon];
+	const center = { x: p.x, y: p.y, z: p.z };
+	const dir = aimDirection(p, aim);
+	const dist = Math.hypot(aim.x - p.x, aim.y - p.y);
+	const half = Math.atan2(def.scatter, Math.max(1, dist));
+	const base = Math.atan2(dir.y, dir.x);
+	const z = p.z + GUN_HEIGHT;
+
+	const points: { x: number; y: number }[] = [];
+	for (let i = 0; i <= SECTOR_RAYS; i++) {
+		const a = base - half + i / SECTOR_RAYS * half * 2;
+		const ux = Math.cos(a);
+		const uy = Math.sin(a);
+		const d = physics.rayDistance(p.x, p.y, z, ux, uy, def.range, p);
+		points.push({ x: p.x + ux * d, y: p.y + uy * d });
+	}
+	return { center, points };
 }

@@ -27,6 +27,10 @@ import {
 	JUMP_VELOCITY,
 	KILL_FEED_SIZE,
 	KILLS_TO_WIN,
+	HOMING_TURN_RATE,
+	LOCK_BOX,
+	LOCK_NONE,
+	LOCK_PLAYER,
 	MATCH_DURATION,
 	MAX_AMMO,
 	PICKUP_RADIUS,
@@ -39,6 +43,7 @@ import {
 	RELOAD_DELAY,
 	RELOAD_RATE,
 	RESPAWN_TIME,
+	SIDE_JUMP_SPEED,
 	STEP_HEIGHT,
 	WEAPONS,
 } from "./constants";
@@ -78,8 +83,6 @@ import {
 
 /** Respawn timer value used to keep a disconnected player off the map forever. */
 const NEVER = 1e9;
-/** Distance between the dropped items of a dead player. */
-const DEATH_DROP_SPREAD = 46;
 /** Golden angle: spreads the pellets of a shot evenly in their disc. */
 const GOLDEN_ANGLE = 2.399963;
 
@@ -160,7 +163,7 @@ function updatePlayer(state: HuntState, physics: HuntPhysics, p: Player, idx: nu
 	updateHorizontalMove(physics, p, dt);
 	if (p.dashTimer > 0)
 		updateDash(state, physics, p, idx, dt);
-	updateVerticalMove(physics, p, dt);
+	updateVerticalMove(state, physics, p, dt);
 	updateRegenAndAmmo(p, dt);
 }
 
@@ -212,10 +215,19 @@ function updateTimers(p: Player, dt: number) {
 	p.stunTimer = Math.max(0, p.stunTimer - dt);
 }
 
+/** Entity a lock (LOCK_* kind and index) points to, or null when it is not on the map. */
+function lockedEntity(state: HuntState, kind: number, idx: number): Player | Box | null {
+	const e = kind === LOCK_PLAYER ? state.players[idx]
+		: kind === LOCK_BOX ? state.boxes[idx]
+		: undefined;
+	return e && e.isTargetable() ? e : null;
+}
+
 /**
  * Move on the ground plane, sliding along obstacles (Rapier shape casts):
- * with ZQSD, or along the leap of a super jump. Players moved by someone else
- * (dash, boomerang) and dashing players do not walk.
+ * with ZQSD, or along the leap of a super
+ * jump or a side jump. Players moved by someone else (dash, boomerang) and dashing
+ * players do not walk.
  */
 function updateHorizontalMove(physics: HuntPhysics, p: Player, dt: number) {
 	const free = physics.resolvePenetration(p);
@@ -226,7 +238,7 @@ function updateHorizontalMove(physics: HuntPhysics, p: Player, dt: number) {
 		return;
 
 	let dx: number, dy: number;
-	if (p.leaping) {
+	if (p.leaping || p.sideJump) {
 		dx = p.vx * dt;
 		dy = p.vy * dt;
 	} else {
@@ -247,8 +259,11 @@ function updateHorizontalMove(physics: HuntPhysics, p: Player, dt: number) {
 	p.y = reached.y;
 }
 
-/** Gravity, jumps and landing on the highest surface under the player. */
-function updateVerticalMove(physics: HuntPhysics, p: Player, dt: number) {
+/**
+ * Gravity, jumps and landing on the highest surface under the player.
+ * Jumping with Q / D while locked makes a fast side jump.
+ */
+function updateVerticalMove(state: HuntState, physics: HuntPhysics, p: Player, dt: number) {
 	if (p.carriedBy >= 0) {
 		p.vz = 0; // hanging on a boomerang
 		p.jumpQueued = false;
@@ -258,13 +273,21 @@ function updateVerticalMove(physics: HuntPhysics, p: Player, dt: number) {
 	const ground = physics.groundHeight(p.x, p.y, p.z);
 	const grounded = p.z <= ground + 0.5 && p.vz <= 0;
 
-	if (p.jumpQueued && grounded && !p.isControlled())
+	if (p.jumpQueued && grounded && !p.isControlled()) {
 		p.vz = JUMP_VELOCITY;
+		const locked = lockedEntity(state, p.lockKind, p.lockIdx);
+		if (p.moveX !== 0 && !p.leaping && locked && locked !== p) {
+			p.sideJump = true;
+			p.vx = p.moveX * SIDE_JUMP_SPEED;
+			p.vy = p.moveY * PLAYER_SPEED;
+		}
+	}
 	p.jumpQueued = false;
 
 	const landed = fall(physics, p, dt, p);
-	if (landed && p.leaping) {
+	if (landed && (p.leaping || p.sideJump)) {
 		p.leaping = false;
+		p.sideJump = false;
 		p.vx = 0;
 		p.vy = 0;
 	}
@@ -313,6 +336,7 @@ export function canShoot(p: Player) {
  * Shoot the current weapon toward a 3D aim point. The first shot starts draining a
  * cartridge; the next ones (while it drains) are free. Every bullet flies in a
  * straight line from the gun to the aim point (pellets to points around it).
+ * Homing weapons fired while locked aim at the target and follow it.
  */
 export function shoot(state: HuntState, idx: number, aim: AimPoint) {
 	const p = state.players[idx];
@@ -327,17 +351,26 @@ export function shoot(state: HuntState, idx: number, aim: AimPoint) {
 	p.sinceCombat = 0;
 	p.spawnShield = 0; // attacking ends the spawn protection
 
+	// Homing weapons fired while locked go to the target (and follow it, see updateProjectiles)
+	const locked = def.homing ? lockedEntity(state, p.lockKind, p.lockIdx) : null;
+	if (locked && locked !== p)
+		aim = locked.center();
+
 	const dir = aimDirection(p, aim);
 	p.facing = Math.atan2(dir.y, dir.x);
 
 	for (let i = 0; i < def.count; i++) {
 		const r = def.count > 1 ? def.scatter * Math.sqrt((i + 0.5) / def.count) : 0;
 		const a = i * GOLDEN_ANGLE + p.facing;
-		spawnBullet(state, p, idx, p.weapon, {
+		const b = spawnBullet(state, p, idx, p.weapon, {
 			x: aim.x + Math.cos(a) * r,
 			y: aim.y + Math.sin(a) * r,
 			z: aim.z,
 		});
+		if (locked && locked !== p) {
+			b.homingKind = p.lockKind;
+			b.homingIdx = p.lockIdx;
+		}
 	}
 }
 
@@ -368,6 +401,42 @@ function spawnBullet(state: HuntState, p: Player, idx: number, weapon: number, t
 	b.rangeLeft = def.range;
 	b.damage = def.damage;
 	state.projectiles.push(b);
+	return b;
+}
+
+/**
+ * Turn a homing bullet toward its target center, by HOMING_TURN_RATE at most
+ * (so a fast side jump can still dodge it). The speed does not change.
+ */
+function steerProjectile(state: HuntState, b: Projectile, dt: number) {
+	const target = lockedEntity(state, b.homingKind, b.homingIdx);
+	if (!target) {
+		b.homingKind = LOCK_NONE; // the target is gone: fly straight
+		return;
+	}
+
+	const speed = Math.hypot(b.vx, b.vy, b.vz);
+	const c = target.center();
+	const tx = c.x - b.x;
+	const ty = c.y - b.y;
+	const tz = c.z - b.z;
+	const dist = Math.hypot(tx, ty, tz);
+	if (speed < 1e-3 || dist < 1e-3)
+		return;
+
+	// Current and wanted directions, then rotate from one to the other (capped angle)
+	const ux = b.vx / speed, uy = b.vy / speed, uz = b.vz / speed;
+	const wx = tx / dist, wy = ty / dist, wz = tz / dist;
+	const angle = Math.acos(Math.max(-1, Math.min(1, ux * wx + uy * wy + uz * wz)));
+	if (angle < 1e-4)
+		return;
+
+	const t = Math.min(1, HOMING_TURN_RATE * dt / angle);
+	const s0 = Math.sin((1 - t) * angle) / Math.sin(angle);
+	const s1 = Math.sin(t * angle) / Math.sin(angle);
+	b.vx = (ux * s0 + wx * s1) * speed;
+	b.vy = (uy * s0 + wy * s1) * speed;
+	b.vz = (uz * s0 + wz * s1) * speed;
 }
 
 /** Players a bullet of `owner` can hit (obstacles and boxes always stop bullets). */
@@ -380,6 +449,9 @@ function updateProjectiles(state: HuntState, physics: HuntPhysics, dt: number) {
 	const kept: Projectile[] = [];
 
 	for (const b of state.projectiles) {
+		if (b.homingKind !== LOCK_NONE)
+			steerProjectile(state, b, dt);
+
 		const dx = b.vx * dt;
 		const dy = b.vy * dt;
 		const dz = b.vz * dt;
@@ -434,11 +506,11 @@ export function damagePlayer(
 	}
 
 	if (victim.hp <= 0)
-		killPlayer(state, physics, victimIdx);
+		killPlayer(state, victimIdx);
 }
 
-/** Remove a player from the map, drop its items and give the kill to its last attacker. */
-function killPlayer(state: HuntState, physics: HuntPhysics, victimIdx: number) {
+/** Remove a player from the map (it keeps its items) and give the kill to its last attacker. */
+function killPlayer(state: HuntState, victimIdx: number) {
 	const victim = state.players[victimIdx];
 	victim.hp = 0;
 	victim.respawn = RESPAWN_TIME;
@@ -446,12 +518,11 @@ function killPlayer(state: HuntState, physics: HuntPhysics, victimIdx: number) {
 	victim.moveX = 0;
 	victim.moveY = 0;
 	victim.leaping = false;
+	victim.sideJump = false;
 	victim.dashTimer = 0;
 	victim.draggedBy = -1;
 	victim.carriedBy = -1;
 	releaseDragged(state, victimIdx, false);
-
-	dropItems(state, physics, victim);
 
 	const killer = victim.lastAttacker;
 	if (killer >= 0 && killer !== victimIdx) {
@@ -463,18 +534,6 @@ function killPlayer(state: HuntState, physics: HuntPhysics, victimIdx: number) {
 	state.killFeed.push(new KillEvent(killer, victimIdx));
 	if (state.killFeed.length > KILL_FEED_SIZE)
 		state.killFeed.shift();
-}
-
-/** Scatter the items of a dead player around its body, so its killer can grab them. */
-function dropItems(state: HuntState, physics: HuntPhysics, p: Player) {
-	const z = physics.groundHeight(p.x, p.y, p.z);
-	const items = p.items.filter(i => i !== ITEM_NONE);
-	for (const [k, item] of items.entries()) {
-		const angle = (k / Math.max(1, items.length)) * Math.PI * 2;
-		const r = items.length > 1 ? DEATH_DROP_SPREAD : 0;
-		state.pickups.push(Pickup.create(p.x + Math.cos(angle) * r, p.y + Math.sin(angle) * r, z, item));
-	}
-	p.items = new Array(ITEM_SLOTS).fill(ITEM_NONE);
 }
 
 /** Hurt a box. A broken box drops an item and comes back later on its slot. */
@@ -544,6 +603,7 @@ export function useItem(state: HuntState, physics: HuntPhysics, idx: number, aim
 			p.dashDirX = dir.x;
 			p.dashDirY = dir.y;
 			p.leaping = false;
+			p.sideJump = false;
 			break;
 
 		case ITEM_JUMP: {
@@ -585,6 +645,7 @@ function updateDash(state: HuntState, physics: HuntPhysics, p: Player, idx: numb
 		if (o.isAlive()) {
 			o.draggedBy = idx;
 			o.leaping = false;
+			o.sideJump = false;
 		}
 	}
 
@@ -719,6 +780,7 @@ function flyBoomerang(state: HuntState, physics: HuntPhysics, b: Boomerang, dt: 
 	target.carriedBy = b.owner;
 	if (target instanceof Player) {
 		target.leaping = false;
+		target.sideJump = false;
 		target.dashTimer = 0;
 		releaseDragged(state, target.idx, false);
 	}

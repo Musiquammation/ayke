@@ -16,7 +16,7 @@ message PlayerState {
 	float x = 2;
 	float y = 3;
 	float z = 4;
-	float vx = 5;              // only used during a super jump
+	float vx = 5;              // only used during a super jump or a side jump
 	float vy = 6;
 	float vz = 7;
 
@@ -58,6 +58,11 @@ message PlayerState {
 	int32 deaths = 32;
 	float damageDealt = 33;
 	float lastKillTime = 34;   // game clock when the current kill count was reached
+
+	// Lock (shift held): homing shots, side jumps
+	int32 lockKind = 35;       // 0 = none, 1 = player, 2 = box
+	int32 lockIdx = 36;
+	bool sideJump = 37;        // lateral jump in progress (vx / vy hold its speed)
 }
 
 message ProjectileState {
@@ -71,6 +76,8 @@ message ProjectileState {
 	int32 weapon = 8;
 	float rangeLeft = 9;
 	float damage = 10;
+	int32 homingKind = 11;     // entity followed by a homing bullet (same values as lockKind)
+	int32 homingIdx = 12;
 }
 
 message BombState {
@@ -158,6 +165,11 @@ message MoveInput {
 	int32 y = 2;
 }
 
+message LockInput {
+	int32 kind = 1;            // 0 = none, 1 = player, 2 = box
+	int32 idx = 2;
+}
+
 message AimInput {
 	float x = 1;
 	float y = 2;
@@ -174,6 +186,7 @@ message QInput {
 		AimInput useItem = 6;
 		int32 selectItem = 7;
 		float face = 8;            // direction of the gun (radians)
+		LockInput lock = 9;
 	}
 }
 

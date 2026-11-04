@@ -18,7 +18,7 @@ export const KILL_FEED_SIZE = 5;
 export const PLAYER_RADIUS = 30;
 export const PLAYER_HEIGHT = 72;
 export const GUN_HEIGHT = 44;          // altitude (relative to the feet) where bullets spawn
-export const PLAYER_SPEED = 680;
+export const PLAYER_SPEED = 520;
 export const STEP_HEIGHT = 12;         // obstacles lower than this are walked over
 export const GROUND_PROBE_RATIO = 0.6; // fraction of the radius used to find what we stand on
 
@@ -26,11 +26,17 @@ export const GROUND_PROBE_RATIO = 0.6; // fraction of the radius used to find wh
 export const GRAVITY = 2400;
 export const JUMP_VELOCITY = 690;      // apex ~ 99 units
 export const MAX_FALL_SPEED = 2400;
+export const SIDE_JUMP_SPEED = 980;    // horizontal speed of a jump with Q / D while locked
+
+// Lock target kinds (Player.lockKind)
+export const LOCK_NONE = 0;
+export const LOCK_PLAYER = 1;
+export const LOCK_BOX = 2;
 
 // Life
 export const MAX_HP = 4000;
 export const REGEN_DELAY = 3;          // no damage taken and no shot for this long -> regen
-export const REGEN_RATE = 0.13 * MAX_HP; // hp per second while regenerating
+export const REGEN_RATE = 0.4 * MAX_HP;  // hp per second while regenerating
 
 /*
  * Cartridges (shared between the three weapons).
@@ -53,6 +59,7 @@ export interface WeaponDef {
 	radius: number;      // bullet radius
 	count: number;       // bullets fired at the same time
 	scatter: number;     // bullets of one shot land in a disc of this radius around the target
+	homing: boolean;     // while locked, bullets go to the target and follow it
 	color: string;
 }
 
@@ -64,25 +71,28 @@ export const WEAPONS: WeaponDef[] = [
 	{ // 1 = long range: one big hit per cartridge
 		name: "Sniper",
 		drain: 0.55, cooldown: 0.6,
-		speed: 2600, range: 1700, damage: 1500, radius: 10,
-		count: 1, scatter: 0,
+		speed: 2600, range: 1700, damage: 1600, radius: 10,
+		count: 1, scatter: 0, homing: true,
 		color: "#7ad7ff",
 	},
 	{ // 2 = mid range: a stream of bullets while the cartridge drains
 		name: "Burst",
 		drain: 0.6, cooldown: 0.09,
-		speed: 1600, range: 900, damage: 230, radius: 7,
-		count: 1, scatter: 0,
+		speed: 1600, range: 900, damage: 420, radius: 7,
+		count: 1, scatter: 0, homing: true,
 		color: "#ffd166",
 	},
 	{ // 3 = short range: a handful of pellets converging on the target
 		name: "Shotgun",
-		drain: 0.45, cooldown: 0.5,
-		speed: 1400, range: 420, damage: 200, radius: 6,
-		count: 8, scatter: 45,
+		drain: 0.45, cooldown: 0.2,
+		speed: 1400, range: 420, damage: 280, radius: 6,
+		count: 8, scatter: 45, homing: false,
 		color: "#ff8c42",
 	},
 ];
+
+// Homing bullets (sniper, burst fired while locked): max turn speed, in radians per second
+export const HOMING_TURN_RATE = 2.5;
 
 // Bots: preferred distance to the target for each weapon
 export const WEAPON_BOT_RANGES = [1100, 600, 250];
@@ -189,6 +199,7 @@ export const CAMERA_HEIGHT = 1100;
 export const CAMERA_SCALE = 0.9;      // screen pixels per world unit, at altitude 0
 export const CAMERA_LOOK_AHEAD = 0.35; // fraction of the way toward the mouse the camera shifts
 export const CAMERA_LOOK_MAX = 320;
+export const CAMERA_LOCK_TRANSITION = 0.35; // seconds to glide between the free and the locked camera
 
 // Cursor indicator (four blue triangles)
 export const CURSOR_SNAP_RADIUS = 240; // ground-plane distance under which the cursor sticks to an entity
@@ -198,15 +209,10 @@ export const CURSOR_BASE_ACC = 4000;
 export const CURSOR_ACC_PER_DIST = 120;
 export const CURSOR_ROTATION = 2.2;    // rad/s
 export const CURSOR_COLOR = "#3b82f6";
+export const LOCK_COLOR = "#f97316";
 
 // The gun direction is sent to the server when it turned by more than this (radians)
 export const FACING_SEND_THRESHOLD = 0.04;
-
-// Lock aim cross: offset from the target. It saturates around LOCK_MAX_OFFSET,
-// then keeps growing very slowly with the mouse distance.
-export const LOCK_MAX_OFFSET = 210;
-export const LOCK_OFFSET_SOFTNESS = 320;
-export const LOCK_FAR_GROWTH = 0.04;
 
 // Texture paths (labels are used with the ImageLoader folder 'hunt')
 export const TEXTURES = {

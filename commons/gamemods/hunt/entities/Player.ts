@@ -6,6 +6,7 @@ import {
 	CURSOR_COLOR,
 	ITEM_NONE,
 	ITEM_SLOTS,
+	LOCK_NONE,
 	MAX_AMMO,
 	MAX_HP,
 	PLAYER_HEIGHT,
@@ -18,8 +19,8 @@ import { Carryable, Damageable, MovingEntity, ViewContext } from "./Entity";
 import { ownedTransparent, place, solid, unitBox, unitCylinder, unitOctahedron, unitRing, unitSphere, yaw } from "./models";
 
 /**
- * A player: a vertical cylinder. vx / vy are only used during a super jump
- * (the walking speed comes from moveX / moveY).
+ * A player: a vertical cylinder. vx / vy are only used during a super jump or a
+ * side jump (the walking speed comes from moveX / moveY).
  */
 export class Player extends MovingEntity implements Damageable, Carryable {
 	readonly maxHp = MAX_HP;
@@ -29,6 +30,11 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 	moveX = 0;
 	moveY = 0;
 	jumpQueued = false;
+
+	// Lock: aims homing weapons, and jumping with Q / D while set makes a side jump
+	lockKind = LOCK_NONE;
+	lockIdx = 0;
+	sideJump = false;
 
 	// Life
 	hp = MAX_HP;
@@ -115,6 +121,7 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 		this.reloadDelay = 0;
 		this.shotCooldown = 0;
 		this.leaping = false;
+		this.sideJump = false;
 		this.dashTimer = 0;
 		this.draggedBy = -1;
 		this.carriedBy = -1;
@@ -142,6 +149,7 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 			...super.save(),
 			connected: this.connected,
 			moveX: this.moveX, moveY: this.moveY, jumpQueued: this.jumpQueued,
+			lockKind: this.lockKind, lockIdx: this.lockIdx, sideJump: this.sideJump,
 			hp: this.hp, respawn: this.respawn, sinceCombat: this.sinceCombat,
 			spawnShield: this.spawnShield, lastAttacker: this.lastAttacker,
 			weapon: this.weapon, ammo: this.ammo, ammoDrainTo: this.ammoDrainTo,
@@ -161,6 +169,9 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 		this.moveX = obj.moveX ?? 0;
 		this.moveY = obj.moveY ?? 0;
 		this.jumpQueued = obj.jumpQueued ?? false;
+		this.lockKind = obj.lockKind ?? LOCK_NONE;
+		this.lockIdx = obj.lockIdx ?? 0;
+		this.sideJump = obj.sideJump ?? false;
 		this.hp = obj.hp ?? 0;
 		this.respawn = obj.respawn ?? 0;
 		this.sinceCombat = obj.sinceCombat ?? 0;
