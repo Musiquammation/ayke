@@ -3,7 +3,7 @@ import Alpine from "alpinejs";
 
 import { gamemods, getGmFactory, getMultiGmFactory, getSoloGmFactory } from "../../../commons/gamemods";
 import { TemplateLoader } from "./TemplateLoader";
-import { sendMessage } from "../messages/sendMessage";
+import { isSocketConnectedToServer, sendMessage } from "../messages/sendMessage";
 import { escapeHTML } from "../../../commons/util/escapeHTML";
 import { deleteGameHandler } from "../handlers/GameHandler";
 import { deleteWaitingPlayHandler, WaitingPlayHandlerUser } from "../handlers/WaitingPlayHandler";
@@ -17,6 +17,7 @@ import { dynamicCssHandler } from "../handlers/DynamicCssHandler";
 import { FinishGame } from "../../../commons/GameMode";
 import { decodeFullMessage } from "../../../commons/util/decodeFullMessage";
 import { CHANGELOGS } from "./changelogs";
+import { STORAGE_KEY_CONNECTION } from "../messages/STORAGE_KEY_CONNECTION";
 
 
 declare global {
@@ -36,7 +37,7 @@ interface SoloGamePanelData {
 }
 
 
-interface PlayResults {
+export interface PlayResults {
 	results: number[][];
 	teamEqualities: number[];
 	playerEqualities: number[];
@@ -47,7 +48,6 @@ interface PlayResults {
 	}[];
 }
 
-const STORAGE_KEY_CONNECTION = "ayke_connectionKey";
 
 /* -------------------------------------------------------------------------------------------
  * URL fragment handling.
@@ -112,27 +112,41 @@ type PanelComponent = (
 	LeaderboardComponent |
 	SoloLeaderboardComponent |
 	ChangelogsComponent |
+	ContactComponent |
+	FriendsComponent |
 	null
 );
+
 
 class MainComponent {
 	private _currentPage = "home";
 	private templateLoader = new TemplateLoader();
-	private loadingContext = "home";
 
-	// Track whether the user is currently authenticated
+	// Duration of each transition phase in milliseconds.
+	private static readonly TRANSITION_DURATION_MS = 800;
+
+	// Track whether the user is currently authenticated.
 	isAuthenticated = false;
 	pseudo: string | null = null;
 
 	panel: PanelComponent = new HomeComponent();
 
+	// Current state of the page transition.
+	private transitionState: 'idle' | 'closing' | 'loading' | 'opening' = 'idle';
+
+	readonly AYKE_ICON_URL = `${window.IMG_ROOT_PATH}/assets/ayke.png`
+
 	constructor() {
 		sendMessage({subscribeConnectedUsersInfo: true});
 	}
 
+
 	private setPanel(panel: PanelComponent) {
 		const h1 = this.panel instanceof HomeComponent;
 		const h2 = panel instanceof HomeComponent;
+		const f1 = this.panel instanceof FriendsComponent;
+		const f2 = panel instanceof FriendsComponent;
+
 		if (h1 && !h2) {
 			sendMessage({subscribeConnectedUsersInfo: false});
 		}
@@ -142,11 +156,14 @@ class MainComponent {
 		if (h2 && !h1) {
 			sendMessage({subscribeConnectedUsersInfo: true});
 		}
+		if (f1 && !f2) {
+			sendMessage({subscribeFriends: false});
+		}
+		if (f2 && !f1) {
+			sendMessage({subscribeFriends: true});
+		}
 	}
 
-	// Test data
-	y0 = 0;
-	y1 = 0;
 
 	get currentPage() {
 		return this._currentPage;
@@ -154,15 +171,6 @@ class MainComponent {
 
 	set currentPage(value: string) {
 		this._currentPage = value;
-	}
-
-	startLoading() {
-		this.loadingContext = this.currentPage;
-		this.currentPage = "loading";
-	}
-
-	stopLoading() {
-		this.currentPage = this.loadingContext;
 	}
 
 	uses(page: string) {
@@ -178,6 +186,7 @@ class MainComponent {
 	openTest() {
 		this.panel = null;
 		this.currentPage = "test";
+
 		// Debug-only page: intentionally not reflected in the URL.
 	}
 
@@ -198,6 +207,7 @@ class MainComponent {
 	 */
 	tryLoginWithKey() {
 		const key = localStorage.getItem(STORAGE_KEY_CONNECTION);
+
 		if (key) {
 			sendMessage({
 				loginWithKey: key
@@ -224,34 +234,157 @@ class MainComponent {
 		this.openHome();
 	}
 
-	async openGamePanel(gamemode: string) {
-		this.currentPage = "loading";
+	get isSocketConnectedToServer() {
+		return isSocketConnectedToServer();
+	}
 
+
+	private randomizeTransitionColor() {
+		const hue = Math.floor(Math.random() * 360);
+
+		document
+			.getElementById("transition-component")
+			?.style.setProperty("--transition-hue", `${hue}`);
+	}
+
+	/**
+	 * Perform a page transition.
+	 *
+	 * The transition first closes the current page, executes the
+	 * provided action, then opens the resulting page.
+	 *
+	 * If the resulting page is "loading", the transition remains
+	 * closed until the loading operation is finished.
+	 */
+	async changePageWithTransition(action: () => void | Promise<void>) {
+		// Prevent overlapping transitions.
+		if (this.transitionState !== 'idle') return;
+		this.randomizeTransitionColor();
+
+
+		// 1. Close the current page and move the transition circle
+		//    toward the center.
+		this.transitionState = 'closing';
+
+		await new Promise(resolve =>
+			setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS)
+		);
+
+		// 2. Change the page.
+		await action();
+
+		// 3. If the resulting page is the loading page, keep the
+		//    transition closed. Otherwise, immediately start opening.
+		if (this.currentPage === 'loading') {
+			this.transitionState = 'loading';
+		} else {
+			this.transitionState = 'opening';
+
+			await new Promise(resolve =>
+				setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS)
+			);
+
+			this.transitionState = 'idle';
+		}
+	}
+
+	async withLoading<T>(
+		action: (panelVisiblePromise: Promise<void>) => Promise<T>
+	): Promise<T> {
+		// Start the timer immediately when withLoading starts.
+		const panelVisiblePromise = new Promise<void>(resolve =>
+			setTimeout(
+				resolve,
+				MainComponent.TRANSITION_DURATION_MS / 2
+			)
+		);
+
+		// Start the loading operation immediately.
+		const actionPromise = Promise.resolve().then(() =>
+			action(panelVisiblePromise)
+		);
+
+		// Start closing the current page.
+		this.randomizeTransitionColor();
+		this.transitionState = 'closing';
+
+		// Wait until the current panel is completely hidden.
+		await new Promise(resolve =>
+			setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS)
+		);
+
+		// The current panel is now hidden.
+		this.transitionState = 'loading';
+
+		// Wait for the loading operation to complete.
+		const result = await actionPromise;
+
+		// Start opening the prepared page, but do not wait for the animation.
+		void (async () => {
+			this.transitionState = 'opening';
+
+			await new Promise(resolve =>
+				setTimeout(resolve, MainComponent.TRANSITION_DURATION_MS)
+			);
+
+			this.transitionState = 'idle';
+		})();
+
+		return result;
+	}
+
+	/**
+	 * Open a game panel.
+	 *
+	 * Game-specific resources are loaded while the loading page
+	 * remains visible.
+	 */
+	async openGamePanel(gamemode: string) {
 		const factory = getGmFactory(gamemode);
-		let unlockedSkins;
-		if (factory.type === 'multiplayer') {
-			if (factory.skins.length === 0) {
-				unlockedSkins = [];
-			} else if (this.pseudo === null) {
-				unlockedSkins = [factory.skins[0]];
-			} else {
-				sendMessage({askSkins: gamemode});
-				unlockedSkins = await waitSkinsResponsePromise();
+		let unlockedSkins: string[] = [];
+		const html = await this.withLoading(async () => {
+			// Retrieve the skins available to the current player.
+			if (factory.type === 'multiplayer') {
+				if (factory.skins.length === 0) {
+					unlockedSkins = [];
+				} else if (this.pseudo === null) {
+					unlockedSkins = [factory.skins[0]];
+				} else {
+					sendMessage({
+						askSkins: gamemode
+					});
+
+					unlockedSkins = await waitSkinsResponsePromise();
+				}
 			}
 
-		}
+			// Load the game template while the loading page is displayed.
+			return await this.templateLoader.load(gamemode);
+		});
 
-		const html = await this.templateLoader.load(gamemode);
+		// Prepare the final page.
 		this.currentPage = "game-panel";
 
-
+		let panel;
 		if (factory.type === 'multiplayer') {
 			const data = factory.dom(unlockedSkins);
-			this.setPanel(new GamePanelComponent(gamemode, data, html));
+
+			panel = new GamePanelComponent(
+				gamemode,
+				data,
+				html
+			);
+			
 		} else {
 			const category = factory.dom();
-			this.setPanel(new SoloGamePanelComponent(gamemode, category, html));
+			panel = new SoloGamePanelComponent(
+				gamemode,
+				category,
+				html
+			);
 		}
+
+		this.setPanel(panel);
 
 		pushUrlStack(this);
 	}
@@ -264,8 +397,10 @@ class MainComponent {
 
 	openPlay() {
 		const panel = this.getWaitPlayPanel();
-		this.panel = panel.createPlay();
+
+		this.setPanel(panel.createPlay());
 		this.currentPage = "play";
+
 		deleteWaitingPlayHandler();
 		pushUrlStack(this);
 	}
@@ -274,20 +409,25 @@ class MainComponent {
 	 * Transition to the play-results page using the current PlayComponent
 	 * context to preserve pseudos and player metadata.
 	 */
-	openPlayResults(results: PlayResults) {
+	async openPlayResults(results: PlayResults) {
+		await deleteGameHandler();
+
 		const playPanel = this.getPanel(PlayComponent);
-		this.panel = playPanel.createPlayResults(results);
+
+		this.setPanel(playPanel.createPlayResults(results));
 		this.currentPage = "play-results";
-		deleteGameHandler();
+
 		pushUrlStack(this);
 	}
 
 	openLocalPlayResults(results: FinishGame) {
 		const playPanel = this.getPanel(LocalPlayComponent);
-		this.panel = playPanel.createPlayResults(results);
-		this.currentPage = "play-results";
-		deleteGameHandler();
-		pushUrlStack(this);
+		return this.withLoading(async panelVisiblePromise => {
+			await panelVisiblePromise;
+			this.setPanel(playPanel.createPlayResults(results));
+			this.currentPage = "play-results";
+			pushUrlStack(this);
+		});
 	}
 
 	openSoloComponent(result: number) {
@@ -296,48 +436,105 @@ class MainComponent {
 		pushUrlStack(this);
 	}
 
-	openLocalInPlay(gamemode: string, startData: Uint8Array) {
+	async openLocalInPlay(
+		gamemode: string,
+		startData: Uint8Array
+	) {
 		this.currentPage = "play";
-		this.setPanel(new LocalPlayComponent(
-			new LocalGameHandler(gamemode, false, startData)
-		));
+
+		const h = new LocalGameHandler(
+			gamemode,
+			false,
+			startData
+		);
+
+		this.setPanel(
+			new LocalPlayComponent(h)
+		);
+
+		await h.start();
 		pushUrlStack(this);
 	}
 
-	openVsBotsInPlay(gamemode: string, startData: Uint8Array) {
+	async openVsBotsInPlay(
+		gamemode: string,
+		startData: Uint8Array
+	) {
 		this.currentPage = "play";
-		this.setPanel(new LocalPlayComponent(
-			new LocalGameHandler(gamemode, true, startData)
-		));
+
+		const h = new LocalGameHandler(
+			gamemode,
+			true,
+			startData
+		);
+		this.setPanel(
+			new LocalPlayComponent(h)
+		);
+
+		await h.start();
+
 		pushUrlStack(this);
 	}
 
-	openSoloPlayComponent(gamemodeId: string, game: SoloGameMode, category: string) {
-		this.setPanel(new SoloPlayComponent(gamemodeId, game, category));
+	openSoloPlayComponent(
+		gamemodeId: string,
+		game: SoloGameMode,
+		category: string
+	) {
+		this.setPanel(
+			new SoloPlayComponent(
+				gamemodeId,
+				game,
+				category
+			)
+		);
+
 		this.currentPage = "play";
 		pushUrlStack(this);
 	}
 
 	openLeaderboard() {
 		const panel = new LeaderboardComponent();
-		this.panel = panel;
+
+		this.setPanel(panel);
 		this.currentPage = "leaderboard";
+
 		panel.fetchLeaderboard();
 		pushUrlStack(this);
 	}
 
 	openSoloLeaderboard() {
 		const panel = new SoloLeaderboardComponent();
-		this.panel = panel;
+
+		this.setPanel(panel);
 		this.currentPage = "solo-leaderboard";
+
 		panel.fetchRecords();
 		pushUrlStack(this);
 	}
 
 	openChangelog() {
 		const panel = new ChangelogsComponent();
-		this.panel = panel;
+
+		this.setPanel(panel);
 		this.currentPage = "changelog";
+
+		pushUrlStack(this);
+	}
+
+	openContact() {
+		const panel = new ContactComponent();
+
+		this.setPanel(panel);
+		this.currentPage = "contact";
+
+		pushUrlStack(this);
+	}
+
+	openFriends() {
+		const panel = new FriendsComponent();
+		this.setPanel(panel);
+		this.currentPage = "friends";
 		pushUrlStack(this);
 	}
 
@@ -381,8 +578,10 @@ class MainComponent {
 		return this.getPanel(HomeComponent);
 	}
 
+	getFriendsPanel() {
+		return this.getPanel(FriendsComponent);
+	}
 }
-
 
 interface CollectibleItem {
 	id: number,
@@ -393,6 +592,13 @@ interface CollectibleItem {
 }
 
 class GamePanelComponent {
+	// --- Current game panel view ---
+	panelView: "main" | "tutorial" | "options" = "main";
+
+	// --- Explanation slides ---
+	currentExplanationSlide = -1;
+	private explanationPointerStartX: number | null = null;
+
 	// --- Trophy road state ---
 	trophees = 0;
 	bestTrophees = 0;
@@ -401,8 +607,8 @@ class GamePanelComponent {
 
 	// --- Trophy Road Layout Configuration ---
 	readonly pixelsPerTrophy;
-	readonly paddingStart = 60;     // Initial padding (px) before 0 trophies
-	readonly paddingEnd = 120;      // Extra padding (px) extending past the last collectible
+	readonly paddingStart = 60;
+	readonly paddingEnd = 120;
 
 	constructor(
 		public readonly gamemode: string,
@@ -416,12 +622,121 @@ class GamePanelComponent {
 		return this.gamemode === gamemode;
 	}
 
+	// Returns the number of explanation slides available for this game mode.
+	get explanationSlides() {
+		return getMultiGmFactory(this.gamemode).explainationSlides;
+	}
+
+	// Opens the appropriate How To Play screen.
+	// Preloads all explanation slide images before opening the tutorial.
+	private async loadExplanationSlides() {
+		if (this.explanationSlides === null) return;
+
+		const promises = this.explanationSlides.map(filename => {
+			const src =
+				`${window.IMG_ROOT_PATH}/assets/games/` +
+				`${this.gamemode}/explainationSlides/${filename}`;
+
+			return new Promise<void>((resolve, reject) => {
+				const image = new Image();
+
+				image.onload = () => resolve();
+				image.onerror = () => reject(
+					new Error(`Failed to load explanation slide: ${src}`)
+				);
+
+				image.src = src;
+			});
+		});
+
+		await Promise.all(promises);
+	}
+
+	// Opens the appropriate How To Play screen.
+	async howToPlay() {
+		if (!this.explanationSlides) {
+			await this.tutorial();
+			return;
+		}
+
+		// Keep the current menu hidden while the explanation images load.
+		await dom.withLoading(async () => {
+			await this.loadExplanationSlides();
+
+			// Only open the tutorial after every image has been loaded.
+			this.currentExplanationSlide = 0;
+		});
+
+		this.panelView = "tutorial";
+	}
+
+	// Opens the game options.
+	openOptions() {
+		this.panelView = "options";
+	}
+
+	// Returns to the main game panel.
+	goBackToMain() {
+		this.panelView = "main";
+	}
+
+	// Returns the path of the current explanation slide.
+	get explanationSlideSrc() {
+		if (this.explanationSlides === null) {return null;}
+		return `${window.IMG_ROOT_PATH}/assets/games/${this.gamemode}/explainationSlides/${this.explanationSlides[this.currentExplanationSlide]}`;
+	}
+
+	// Moves to the previous explanation slide.
+	previousExplanationSlide() {
+		if (this.currentExplanationSlide <= 0) return;
+
+		this.currentExplanationSlide--;
+	}
+
+	// Moves to the next explanation slide.
+	nextExplanationSlide() {
+		if (this.explanationSlides === null)
+			return 0;
+
+		if (this.currentExplanationSlide >= this.explanationSlides.length - 1) return;
+
+		this.currentExplanationSlide++;
+	}
+
+	// Starts tracking a possible swipe.
+	startExplanationSwipe(event: PointerEvent) {
+		this.explanationPointerStartX = event.clientX;
+	}
+
+	// Handles the end of a possible swipe.
+	endExplanationSwipe(event: PointerEvent) {
+		if (this.explanationPointerStartX === null) return;
+
+		const deltaX = event.clientX - this.explanationPointerStartX;
+		this.explanationPointerStartX = null;
+
+		// Ignore small movements.
+		if (Math.abs(deltaX) < 40) return;
+
+		if (deltaX < 0) {
+			this.nextExplanationSlide();
+		} else {
+			this.previousExplanationSlide();
+		}
+	}
+
+
 	async play() {
+		if (!isSocketConnectedToServer()) {
+			alert("You are not connected to the server. You can play against bots instead.");
+			throw "You are not connected to the server. You can play against bots instead.";
+		}
+
 		const factory = getMultiGmFactory(this.gamemode);
-		dom.startLoading();
-		await imageLoader.load(factory.textures, this.gamemode);
-		await dynamicCssHandler.load(this.gamemode);
-		dom.stopLoading();
+		await dom.withLoading(async () => {
+			await imageLoader.load(factory.textures, this.gamemode);
+			await dynamicCssHandler.load(this.gamemode);
+		});
 
 		dom.openWaitPlayPanel(this.gamemode);
 
@@ -431,28 +746,41 @@ class GamePanelComponent {
 				data: this.data.produce()
 			}
 		});
+
 	}
 
 	async tutorial() {
 		const factory = getMultiGmFactory(this.gamemode);
 
-		dom.startLoading();
-		await imageLoader.load(factory.textures, this.gamemode);
-		await dynamicCssHandler.load(this.gamemode);
-		dom.stopLoading();
+		await dom.withLoading(async panelVisiblePromise => {
+			await imageLoader.load(factory.textures, this.gamemode);
+			await dynamicCssHandler.load(this.gamemode);
+			await panelVisiblePromise;
+			await dom.openLocalInPlay(this.gamemode, this.data.produce());
+		});
 
-		dom.openLocalInPlay(this.gamemode, this.data.produce());
 	}
 
 	async againstBots() {
 		const factory = getMultiGmFactory(this.gamemode);
 
-		dom.startLoading();
-		await imageLoader.load(factory.textures, this.gamemode);
-		await dynamicCssHandler.load(this.gamemode);
-		dom.stopLoading();
+		await dom.withLoading(async panelVisiblePromise => {
+			await imageLoader.load(factory.textures, this.gamemode);
+			await dynamicCssHandler.load(this.gamemode);
+			await panelVisiblePromise;
+			await dom.openVsBotsInPlay(this.gamemode, this.data.produce());
+		});
 
-		dom.openVsBotsInPlay(this.gamemode, this.data.produce());
+	}
+
+	getImageSrc(gamemode: string) {
+		const ext = getGmFactory(gamemode).iconExtension;
+		return `${window.IMG_ROOT_PATH}/assets/games/${gamemode}/icon.${ext}`;
+	}
+
+	get hasCollectibles() {
+		const factory = getMultiGmFactory(this.gamemode);
+		return factory.collectibles !== null;
 	}
 
 	// Called by x-init when the trophy road mounts (only if authenticated).
@@ -514,6 +842,10 @@ class GamePanelComponent {
 
 	get gamemodeName() {
 		return getGmFactory(this.gamemode).name;
+	}
+
+	get gamemodeDescription() {
+		return marked.parseInline(getGmFactory(this.gamemode).description);
 	}
 
 	// Highest trophy threshold on the road
@@ -608,18 +940,16 @@ class SoloGamePanelComponent {
 
 	async play() {
 		const factory = getSoloGmFactory(this.gamemode);
-		dom.startLoading();
-		await imageLoader.load(factory.textures);
-		await dynamicCssHandler.load(this.gamemode);
-		dom.stopLoading();
-		dom.openSoloPlayComponent(
-			this.gamemode,
-			factory.create(),
-			this.data.produce()
-		)
+		await dom.withLoading(async () => {
+			await imageLoader.load(factory.textures);
+			await dynamicCssHandler.load(this.gamemode);
+			dom.openSoloPlayComponent(
+				this.gamemode,
+				factory.create(),
+				this.data.produce()
+			);
+		});
 	}
-
-
 }
 
 class WaitPlayPanelComponent {
@@ -683,7 +1013,8 @@ class WaitPlayPanelComponent {
 		this.logs.push(msg);
 	}
 
-	private onAllowBotsChange() {
+	private toggleAllowBotsChange() {
+		this.allowBots = !this.allowBots;
 		sendMessage({
 			allowBotsOrder: this.allowBots
 		});
@@ -723,7 +1054,6 @@ class SoloPlayComponent {
 
 	constructor(gamemodeId: string, game: SoloGameMode, category: string) {
 		this.game = new SoloGameHandler(gamemodeId, game, category);
-		this.game.start();
 	}
 }
 
@@ -1011,6 +1341,11 @@ class HomeComponent {
 	}
 
 	setConnectedUsersInfo(info: ConnectedUsersInfo) {
+		const t = document.getElementById("sub-home-main-title")!;
+		
+		t.classList.remove("hidden");
+		t.children[0].textContent = String(info.total ?? "No");
+
 		for (const _span of document.querySelectorAll(".connectedUsersIndicator")) {
 			const span = _span as HTMLElement;
 			const k = info.gamemods[span.dataset.key as string];
@@ -1029,13 +1364,11 @@ class LocalPlayComponent {
 
 	private text = "";
 
-	constructor(public readonly game: LocalGameHandler) {
-		dom.startLoading();
-		game.start().finally(() => dom.stopLoading());
-	}
+	constructor(public readonly game: LocalGameHandler) {}
 
 	setText(text: string) {
-		this.text = text;
+		console.log(text);
+		this.text = escapeHTML(text).replaceAll('\n', "<br>");
 	}
 
 	createPlayResults(finish: FinishGame) {
@@ -1288,7 +1621,86 @@ class ChangelogsComponent {
 	showLine(line: string) {
 		return marked.parseInline(line);
 	}
+}
 
+class ContactComponent {
+	static readonly fragmentName = "contact";
+
+	saveFragment(): Record<string, string> {
+		return {};
+	}
+
+	static openFragment(_: Record<string, string>) {
+		const panel = new ContactComponent();
+		return panel;
+	}
+}
+
+interface FriendEntry {
+	pseudo: string;
+	online: boolean;
+	lastDisconnectedAt?: string;
+	notificationsEnabled: boolean;
+}
+
+interface FriendRequestEntry {
+	pseudo: string;
+	createdAt: string;
+}
+
+class FriendsComponent {
+	static readonly fragmentName = "friends";
+
+	friends: FriendEntry[] = [];
+	requests: FriendRequestEntry[] = [];
+	requestPseudo = "";
+	message = "";
+	newFriendNotificationsEnabled = true;
+
+	constructor() {}
+
+	saveFragment(): Record<string, string> { return {}; }
+
+	static openFragment(_: Record<string, string>) {
+		return new FriendsComponent();
+	}
+
+	sendRequest() {
+		const pseudo = this.requestPseudo.trim();
+		if (!pseudo) return;
+		this.message = "";
+		sendMessage({ sendFriendRequest: { pseudo } });
+		this.requestPseudo = "";
+	}
+
+	respond(request: FriendRequestEntry, accept: boolean) {
+		sendMessage({ respondFriendRequest: { pseudo: request.pseudo, accept } });
+	}
+
+	setFriendNotification(friend: FriendEntry) {
+		friend.notificationsEnabled = !friend.notificationsEnabled;
+		sendMessage({ setFriendNotification: {
+			pseudo: friend.pseudo,
+			enabled: friend.notificationsEnabled
+		} });
+	}
+
+	removeFriend(friend: FriendEntry) {
+		sendMessage({ deleteFriend: { pseudo: friend.pseudo } });
+	}
+
+	setNewFriendNotifications() {
+		this.newFriendNotificationsEnabled = !this.newFriendNotificationsEnabled;
+		sendMessage({ setNewFriendNotifications: {
+			enabled: this.newFriendNotificationsEnabled
+		} });
+	}
+
+	formatLastDisconnected(value?: string) {
+		return value
+			? new Date(value.endsWith("Z") ? value : `${value}Z`).toLocaleString()
+			: "Never";
+	}
 }
 
 
@@ -1315,12 +1727,17 @@ registerFragment(SigninComponent.fragmentName, "signin", SigninComponent.openFra
 registerFragment(SoloPlayResultComponent.fragmentName, "play-solo-results", SoloPlayResultComponent.openFragment);
 registerFragment(LeaderboardComponent.fragmentName, "leaderboard", LeaderboardComponent.openFragment);
 registerFragment(SoloLeaderboardComponent.fragmentName, "solo-leaderboard", SoloLeaderboardComponent.openFragment);
+registerFragment(ChangelogsComponent.fragmentName, "changelog", ChangelogsComponent.openFragment);
+registerFragment(ContactComponent.fragmentName, "contact", ContactComponent.openFragment);
+registerFragment(FriendsComponent.fragmentName, "friends", FriendsComponent.openFragment);
 
 /** One entry of the in-memory navigation stack (for panels that can't be serialized). */
 interface StackEntry {
 	page: string;
 	panel: Panel;
 }
+
+
 
 class UrlFragmentManager {
 	/** Non-serializable panels kept alive so we can navigate back/forward to them. */
@@ -1469,13 +1886,13 @@ _internalDom = dom;
 
 export function initDom() {
 	document.addEventListener("alpine:init", () => {
-		Alpine.data("main", () => dom);
+		// Remplacer : Alpine.data("main", () => dom);
+		Alpine.data("main", () => Object.create(dom));
 	});
 
 	window.Alpine = Alpine;
 	window.dom = dom;
 
 	Alpine.start();
-
 	urlFragmentManager.init();
 }

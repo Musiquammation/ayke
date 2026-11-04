@@ -376,7 +376,7 @@ class Camera {
 	x = 0;
 	y = 0;
 
-	static readonly SCALE = 0.8;
+	SCALE = 0.8;
 	static readonly DURATION = 0.3;
 
 	// Transition state variables
@@ -486,24 +486,81 @@ class Camera {
 	}
 }
 
+
+interface DeathFx {
+	x: number;
+	y: number;
+	nx: number;
+	ny: number;
+	start: number;
+	team: 'red' | 'blue';
+}
+
+interface BucketFx {
+	x: number;
+	y: number;
+	start: number;
+	team: 'red' | 'blue';
+}
+
+interface BallFx {
+	x: number;
+	y: number;
+	start: number;
+	type: 'grab' | 'throw';
+	team: 'red' | 'blue';
+}
+
+interface ScreenShake {
+	start: number;
+	duration: number;
+	amplitude: number;
+}
+
 class ClientData {
 	firstFrame = true;
 	mouseX = 0;
 	mouseY = 0;
 	skins: string[] = [];
 
+	private clientWasDead = true;
+	private deathTime = performance.now();
+	private lastDirs: Record<number, boolean> = {};
+	private youOpacity = 1;
+
+	// Previous game state used to detect client-side events.
+	private prevAlive: number[] = [];
+	private prevGrabber = -1;
+	private prevBucketTeams: (('red' | 'blue') | null)[] = [];
+
+	// Client-only visual effects.
+	private deathFx: DeathFx[] = [];
+	private bucketFx: BucketFx[] = [];
+	private ballFx: BallFx[] = [];
+	private screenShakes: ScreenShake[] = [];
+
 	readonly html: HTMLDivElement;
 
 	readonly time: HTMLDivElement;
 	readonly period: HTMLDivElement;
-	
+
 	readonly redScore: HTMLDivElement;
 	readonly blueScore: HTMLDivElement;
 
 	readonly camera = new Camera();
 
-	private clientWasDead = true;
-	private lastDirs: Record<number, boolean> = {};
+	static readonly YOU_AFTER_DEATH = 5000;
+	static readonly YOU_NEAR_MATE_DISTANCE = 600;
+	static readonly FADE_SPEED = 0.08;
+
+	static readonly DEATH_FX_MS = 1000;
+	static readonly BUCKET_FX_MS = 650;
+	static readonly BALL_FX_MS = 350;
+
+	static readonly DEATH_SHAKE_MS = 350;
+	static readonly BUCKET_SHAKE_MS = 250;
+	static readonly BALL_SHAKE_MS = 120;
+
 
 	constructor() {
 		this.html = document.createElement("div");
@@ -544,8 +601,8 @@ class ClientData {
 		return `${minutes}:${seconds.padStart(4, "0")}`;
 	}
 
-	update(game: GMAirBasket, playerIdx: number) {
-		this.time.innerText = 
+	update(game: GMAirBasket, playerIdx: number, dt: number) {
+		this.time.innerText =
 			ClientData.showTime(game.time);
 
 		this.period.innerText =
@@ -557,16 +614,90 @@ class ClientData {
 		this.blueScore.innerText =
 			String(game.blueScore).padStart(2, "0");
 
+		// Detect visual events before updating the previous state.
+		this.detectPlayerDeaths(game, playerIdx);
+		this.detectBucketScores(game);
+		this.detectBallEvents(game);
 
 		// Player
 		const player = game.players[playerIdx];
+
 		if (this.clientWasDead && player.alive < 0) {
-			this.camera.teleport(player.x, player.y)
+			this.camera.teleport(player.x, player.y);
+			this.deathTime = performance.now();
 		}
+
 		this.clientWasDead = (player.alive >= 0);
 
-		this.camera.update(player.x, player.y, 1/60);
+		this.camera.update(player.x, player.y, dt);
+
+		// Keep previous states for the next frame.
+		this.prevGrabber = game.ball.grabber;
+
+		for (const [idx, bucket] of game.buckets.entries()) {
+			this.prevBucketTeams[idx] = bucket.team;
+		}
+
+		for (const [idx, p] of game.players.entries()) {
+			this.prevAlive[idx] = p.alive;
+		}
 	}
+
+	getYouAlpha(
+		game: GMAirBasket,
+		playerIdx: number
+	): number {
+		const player = game.players[playerIdx];
+
+		let shouldShow = false;
+
+		// Show after 5 seconds of death
+		if (
+			player.alive < 0 &&
+			performance.now() - this.deathTime <= ClientData.YOU_AFTER_DEATH
+		) {
+			shouldShow = true;
+		}
+
+		// Show when close to a teammate
+		for (let i = 0; i < game.players.length; i++) {
+			if (i === playerIdx) {
+				continue;
+			}
+
+			const mate = game.players[i];
+
+			if (mate.team !== player.team || mate.alive >= 0) {
+				continue;
+			}
+
+			const dx = mate.x - player.x;
+			const dy = mate.y - player.y;
+
+			if (
+				dx * dx + dy * dy <=
+				ClientData.YOU_NEAR_MATE_DISTANCE *
+				ClientData.YOU_NEAR_MATE_DISTANCE
+			) {
+				shouldShow = true;
+				break;
+			}
+		}
+
+		if (shouldShow) {
+			this.youOpacity = Math.min(1, this.youOpacity + ClientData.FADE_SPEED);
+		} else {
+			this.youOpacity = Math.max(0, this.youOpacity - ClientData.FADE_SPEED);
+		}
+
+		return ClientData.animateOpacity(this.youOpacity);
+	}
+
+	static animateOpacity(x: number): number {
+		const k = 5;
+		return (1 - Math.exp(-k * x)) / (1 - Math.exp(-k));
+	}
+
 
 	getPlayerTextureCode(
 		grabbing: boolean,
@@ -604,6 +735,499 @@ class ClientData {
 
 
 		return [first, second, third];
+	}
+
+	private detectPlayerDeaths(game: GMAirBasket, playerIdx: number) {
+		for (const [idx, player] of game.players.entries()) {
+			const previousAlive = this.prevAlive[idx] ?? -1;
+
+			// A transition from alive to dead means the player just died.
+			if (previousAlive < 0 && player.alive >= 0) {
+				this.spawnDeathFx(player, idx === playerIdx);
+			}
+		}
+	}
+
+	private detectBucketScores(game: GMAirBasket) {
+		for (const [idx, bucket] of game.buckets.entries()) {
+			const previousTeam = this.prevBucketTeams[idx] ?? null;
+
+			// A bucket going from neutral to a team means a point was scored.
+			if (previousTeam === null && bucket.team !== null) {
+				this.spawnBucketFx(bucket);
+			}
+		}
+	}
+
+	private spawnBucketFx(bucket: Bucket) {
+		this.bucketFx.push({
+			x: bucket.x,
+			y: bucket.y,
+			start: performance.now(),
+			team: bucket.team!
+		});
+
+		this.addShake(
+			ClientData.BUCKET_SHAKE_MS,
+			18
+		);
+	}
+
+	private spawnDeathFx(player: Player, me: boolean) {
+		const rx = Math.abs(player.x) / (5*WIDTH);
+		const ry = Math.abs(player.y) / (3*HEIGHT);
+
+		let nx = 0;
+		let ny = 0;
+
+		// Estimate which border the player crossed.
+		if (rx >= ry) {
+			nx = player.x < 0 ? -1 : 1;
+		} else {
+			ny = player.y < 0 ? -1 : 1;
+		}
+
+		this.deathFx.push({
+			x: player.x,
+			y: player.y,
+			nx,
+			ny,
+			start: performance.now(),
+			team: player.team
+		});
+
+		if (me) {
+			this.addShake(
+				ClientData.DEATH_SHAKE_MS,
+				35
+			);
+		}
+	}
+
+	private detectBallEvents(game: GMAirBasket) {
+		const currentGrabber = game.ball.grabber;
+
+		// Ball changed from free -> grabbed.
+		if (this.prevGrabber < 0 && currentGrabber >= 0) {
+			const player = game.players[currentGrabber];
+
+			this.ballFx.push({
+				x: player.x,
+				y: player.y,
+				start: performance.now(),
+				type: 'grab',
+				team: player.team
+			});
+		}
+
+		// Ball changed from grabbed -> free.
+		if (this.prevGrabber >= 0 && currentGrabber < 0) {
+			const player = game.players[this.prevGrabber];
+
+			this.ballFx.push({
+				x: player.x,
+				y: player.y,
+				start: performance.now(),
+				type: 'throw',
+				team: player.team
+			});
+		}
+	}
+
+	private addShake(duration: number, amplitude: number) {
+		this.screenShakes.push({
+			start: performance.now(),
+			duration,
+			amplitude
+		});
+	}
+
+	getShake() {
+		const now = performance.now();
+
+		this.screenShakes = this.screenShakes.filter(
+			shake => now - shake.start < shake.duration
+		);
+
+		let amplitude = 0;
+
+		for (const shake of this.screenShakes) {
+			const age = now - shake.start;
+			const progress = age / shake.duration;
+
+			// Strong at the beginning, then smoothly fades out.
+			const strength = 1 - progress;
+
+			amplitude = Math.max(
+				amplitude,
+				shake.amplitude * strength
+			);
+		}
+
+		return {
+			x: (Math.random() * 2 - 1) * amplitude,
+			y: (Math.random() * 2 - 1) * amplitude
+		};
+	}
+
+	drawDeathFx(ctx: CanvasRenderingContext2D) {
+		const now = performance.now();
+
+		this.deathFx = this.deathFx.filter(
+			fx => now - fx.start < ClientData.DEATH_FX_MS
+		);
+
+		for (const fx of this.deathFx) {
+			const t =
+				(now - fx.start) / ClientData.DEATH_FX_MS;
+
+			const fade = 1 - t;
+
+			const color =
+				fx.team === 'red'
+					? '#ff4f99'
+					: '#4f99ff';
+
+			ctx.save();
+
+			ctx.translate(fx.x, fx.y);
+
+			// Beam pointing from the border towards the inside.
+			ctx.save();
+
+			ctx.rotate(
+				Math.atan2(-fx.ny, -fx.nx)
+			);
+
+			const beamLength =
+				1000 * Math.min(1, t * 4);
+
+			const beamWidth =
+				160 * fade;
+
+			const gradient =
+				ctx.createLinearGradient(
+					0,
+					0,
+					beamLength,
+					0
+				);
+
+			gradient.addColorStop(
+				0,
+				`rgba(255,255,255,${0.9 * fade})`
+			);
+
+			gradient.addColorStop(
+				1,
+				"rgba(255,255,255,0)"
+			);
+
+			ctx.fillStyle = gradient;
+
+			ctx.fillRect(
+				0,
+				-beamWidth / 2,
+				beamLength,
+				beamWidth
+			);
+
+			ctx.restore();
+
+			// Expanding ring.
+			ctx.globalAlpha = fade;
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 30 * fade;
+
+			ctx.beginPath();
+
+			ctx.arc(
+				0,
+				0,
+				40 + 450 * (1 - fade * fade),
+				0,
+				Math.PI * 2
+			);
+
+			ctx.stroke();
+
+			// Radial impact lines.
+			ctx.strokeStyle = "white";
+			ctx.lineWidth = 10 * fade;
+
+			for (let i = 0; i < 12; i++) {
+				const angle =
+					i * Math.PI / 6 + t * 0.6;
+
+				const r0 =
+					60 + 250 * t;
+
+				const r1 =
+					r0 + 140 * fade;
+
+				ctx.beginPath();
+
+				ctx.moveTo(
+					Math.cos(angle) * r0,
+					Math.sin(angle) * r0
+				);
+
+				ctx.lineTo(
+					Math.cos(angle) * r1,
+					Math.sin(angle) * r1
+				);
+
+				ctx.stroke();
+			}
+
+			// Central KO star.
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 8;
+
+			ClientData.drawStar(
+				ctx,
+				90 * (1 + t),
+				40 * (1 + t),
+				t * Math.PI * 2
+			);
+
+			ctx.fill();
+			ctx.stroke();
+
+			ctx.restore();
+		}
+	}
+
+	private static drawStar(
+		ctx: CanvasRenderingContext2D,
+		outer: number,
+		inner: number,
+		rotation: number
+	) {
+		ctx.beginPath();
+
+		for (let i = 0; i < 10; i++) {
+			const radius =
+				i % 2 === 0
+					? outer
+					: inner;
+
+			const angle =
+				rotation +
+				i * Math.PI / 5 -
+				Math.PI / 2;
+
+			const x = Math.cos(angle) * radius;
+			const y = Math.sin(angle) * radius;
+
+			if (i === 0) {
+				ctx.moveTo(x, y);
+			} else {
+				ctx.lineTo(x, y);
+			}
+		}
+
+		ctx.closePath();
+	}
+
+	drawBucketFx(ctx: CanvasRenderingContext2D) {
+		const now = performance.now();
+
+		this.bucketFx = this.bucketFx.filter(
+			fx => now - fx.start < ClientData.BUCKET_FX_MS
+		);
+
+		for (const fx of this.bucketFx) {
+			const t =
+				(now - fx.start) / ClientData.BUCKET_FX_MS;
+
+			const fade = 1 - t;
+
+			const color =
+				fx.team === 'red'
+					? '#ff4f99'
+					: '#4f99ff';
+
+			ctx.save();
+
+			ctx.translate(fx.x, fx.y);
+
+			// Expanding impact ring.
+			ctx.globalAlpha = fade;
+
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 20 * fade;
+
+			ctx.beginPath();
+
+			ctx.arc(
+				0,
+				0,
+				50 + 250 * t,
+				0,
+				Math.PI * 2
+			);
+
+			ctx.stroke();
+
+			// White flash in the center.
+			ctx.fillStyle = "white";
+
+			ctx.globalAlpha =
+				Math.max(0, 1 - t * 3);
+
+			ctx.beginPath();
+
+			ctx.arc(
+				0,
+				0,
+				70 * (1 - t),
+				0,
+				Math.PI * 2
+			);
+
+			ctx.fill();
+
+			// Radial scoring particles.
+			ctx.globalAlpha = fade;
+
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 10 * fade;
+
+			for (let i = 0; i < 12; i++) {
+				const angle =
+					i * Math.PI / 6;
+
+				const r0 =
+					80 + 100 * t;
+
+				const r1 =
+					r0 + 100 * fade;
+
+				ctx.beginPath();
+
+				ctx.moveTo(
+					Math.cos(angle) * r0,
+					Math.sin(angle) * r0
+				);
+
+				ctx.lineTo(
+					Math.cos(angle) * r1,
+					Math.sin(angle) * r1
+				);
+
+				ctx.stroke();
+			}
+
+			ctx.restore();
+		}
+	}
+
+	drawBallFx(ctx: CanvasRenderingContext2D) {
+		const now = performance.now();
+
+		this.ballFx = this.ballFx.filter(
+			fx => now - fx.start < ClientData.BALL_FX_MS
+		);
+
+		for (const fx of this.ballFx) {
+			const t =
+				(now - fx.start) / ClientData.BALL_FX_MS;
+
+			const fade = 1 - t;
+
+			const color =
+				fx.team === 'red'
+					? '#ff4f99'
+					: '#4f99ff';
+
+			ctx.save();
+
+			ctx.translate(fx.x, fx.y);
+
+			ctx.globalAlpha = fade;
+
+			if (fx.type === 'grab') {
+				// Contracting ring: visually pulls the ball into the player.
+				ctx.strokeStyle = "white";
+				ctx.lineWidth = 12 * fade;
+
+				ctx.beginPath();
+
+				ctx.arc(
+					0,
+					0,
+					180 * (1 - t),
+					0,
+					Math.PI * 2
+				);
+
+				ctx.stroke();
+
+				ctx.strokeStyle = color;
+				ctx.lineWidth = 8 * fade;
+
+				ctx.beginPath();
+
+				ctx.arc(
+					0,
+					0,
+					130 * (1 - t),
+					0,
+					Math.PI * 2
+				);
+
+				ctx.stroke();
+			} else {
+				// Expanding ring: visually pushes the ball away from the player.
+				ctx.strokeStyle = color;
+				ctx.lineWidth = 14 * fade;
+
+				ctx.beginPath();
+
+				ctx.arc(
+					0,
+					0,
+					30 + 180 * t,
+					0,
+					Math.PI * 2
+				);
+
+				ctx.stroke();
+
+				// Small radial burst.
+				ctx.strokeStyle = "white";
+				ctx.lineWidth = 7 * fade;
+
+				for (let i = 0; i < 8; i++) {
+					const angle =
+						i * Math.PI / 4;
+
+					const r0 =
+						50 + 70 * t;
+
+					const r1 =
+						r0 + 70 * fade;
+
+					ctx.beginPath();
+
+					ctx.moveTo(
+						Math.cos(angle) * r0,
+						Math.sin(angle) * r0
+					);
+
+					ctx.lineTo(
+						Math.cos(angle) * r1,
+						Math.sin(angle) * r1
+					);
+
+					ctx.stroke();
+				}
+			}
+
+			ctx.restore();
+		}
 	}
 }
 
@@ -728,7 +1352,7 @@ function generateClientDom(unlockedSkins: string[]) {
 			return this.unlockedSkins.includes(skin);
 		},
 
-		getIconPath
+		getIconPath: GameMode.getSkinIconPath
 	};
 }
 
@@ -790,7 +1414,7 @@ function applyCollisions(players: Player[]) {
 	}
 }
 
-function getVectorToReachTarget(
+export function getVectorToReachTarget(
 	X: number,
 	Y: number,
 	N: number,
@@ -990,13 +1614,6 @@ function drawPlayerToTarget(
 	drawCurve();
 }
 
-function getTexturePath(id: string) {
-	return `/assets/games/airbasket/skins/${id}/grid.png`
-}
-
-function getIconPath(id: string) {
-	return window.IMG_ROOT_PATH + `/assets/games/airbasket/skins/${id}/icon.png`
-}
 
 
 export class GMAirBasket extends GameMode {
@@ -1180,7 +1797,7 @@ export class GMAirBasket extends GameMode {
 
 		console.log(skinSet);
 		const skins = Object.fromEntries(
-			[...skinSet].map(key => ['skin-' + key, getTexturePath(key)])
+			[...skinSet].map(key => ['skin-' + key, GameMode.getSkinTexturePath(key)])
 		);
 
 
@@ -1210,8 +1827,16 @@ export class GMAirBasket extends GameMode {
 		'bucket-mid': "/assets/games/airbasket/bucket-mid.png",
 		'bucket-red': "/assets/games/airbasket/bucket-red.png",
 		'sky': "/assets/games/airbasket/sky.png",
-		'skin-joe': getTexturePath('joe')
+		'skin-joe': GameMode.getSkinTexturePath('joe')
 	};
+
+	static readonly EXPLAINATION_SLIDES = [
+		"0.gif",
+		"1.png",
+		"2.png",
+		"3.png",
+		"4.png"
+	];
 
 
 	override init(): void {
@@ -1297,6 +1922,8 @@ export class GMAirBasket extends GameMode {
 	}
 
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
+		this.internalFrameTick++;
+
 		// Time
 		this.time -= dt;
 		if (this.time <= 0) {
@@ -1747,7 +2374,9 @@ export class GMAirBasket extends GameMode {
 		ctx: CanvasRenderingContext2D,
 		playerIdx: number,
 		_data: any,
-		_imageLoader: ImageLoader
+		_imageLoader: ImageLoader,
+		addCamZ: number,
+		dt: number
 	) {
 		const imageLoader = _imageLoader.getFolder('airbasket');
 
@@ -1776,17 +2405,34 @@ export class GMAirBasket extends GameMode {
 		}
 
 
-		data.update(this, playerIdx);
+		data.update(this, playerIdx, dt);
 
 		ctx.fillStyle = "#333";
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
 		// Center the camera on the current player
-		const cameraCoords = data.camera.getCoords();
-		ctx.save();
-		ctx.translate(WIDTH / 2, HEIGHT / 2);
-		ctx.scale(Camera.SCALE, Camera.SCALE);
-		ctx.translate(-cameraCoords.x, -cameraCoords.y);
+		{
+			const cameraCoords = data.camera.getCoords();
+			const shake = data.getShake();
+
+			ctx.save();
+
+			ctx.translate(
+				WIDTH / 2 + shake.x,
+				HEIGHT / 2 + shake.y
+			);
+
+			
+			const scale =
+				data.camera.SCALE * (1 - addCamZ * 0.3);
+
+			ctx.scale(scale, scale);
+
+			ctx.translate(
+				-cameraCoords.x,
+				-cameraCoords.y
+			);
+		}
 
 		// Background
 		for (let y = 0; y < 3; y++) {
@@ -1815,17 +2461,6 @@ export class GMAirBasket extends GameMode {
 
 		// Draw players
 		for (const [idx, p] of this.players.entries()) {
-			if (idx === playerIdx) {
-				ctx.fillStyle = "#0f0";
-				const r = 1.3;
-				ctx.fillRect(
-					p.x - r*Player.WIDTH/2,
-					p.y - r*Player.HEIGHT/2,
-					r*Player.WIDTH,
-					r*Player.HEIGHT
-				);
-			}
-
 			ctx.fillStyle = p.team;
 
 			let [tx, ty, dir] = data.getPlayerTextureCode(
@@ -1877,6 +2512,40 @@ export class GMAirBasket extends GameMode {
 				);
 			}
 
+			ctx.restore();
+		}
+
+		const youAlpha = data.getYouAlpha(this, playerIdx);
+
+		if (youAlpha > 0) {
+			const p = this.players[playerIdx];
+
+			ctx.save();
+
+			ctx.globalAlpha = youAlpha;
+
+			ctx.font = "bold 50px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "bottom";
+
+			ctx.fillStyle = "white";
+			ctx.strokeStyle = "#333";
+			ctx.lineWidth = 8;
+
+			const labelY =
+				p.y - Player.HEIGHT / 2 - 12;
+
+			ctx.strokeText(
+				"You",
+				p.x,
+				labelY
+			);
+
+			ctx.fillText(
+				"You",
+				p.x,
+				labelY
+			);
 
 			ctx.restore();
 		}
@@ -1913,6 +2582,12 @@ export class GMAirBasket extends GameMode {
 				color
 			);
 		}
+
+
+		// Draw gameplay effects on top of the world.
+		data.drawBallFx(ctx);
+		data.drawBucketFx(ctx);
+		data.drawDeathFx(ctx);
 
 		ctx.restore();
 
@@ -1985,8 +2660,8 @@ export class GMAirBasket extends GameMode {
 		const cameraCoords = clientData.camera.getCoords();
 
 		const ret = {
-			x: (x - WIDTH / 2) / Camera.SCALE + cameraCoords.x,
-			y: (y - HEIGHT / 2) / Camera.SCALE + cameraCoords.y
+			x: (x - WIDTH / 2) / clientData.camera.SCALE + cameraCoords.x,
+			y: (y - HEIGHT / 2) / clientData.camera.SCALE + cameraCoords.y
 		};
 
 		clientData.mouseX = ret.x;

@@ -12,7 +12,7 @@ export interface IMouseController {
 }
 
 export interface IMobileController {
-	getDigits(): {x: number, y: number, id: number}[];
+	getDigits(): {x: number, y: number, x0: number, y0: number, id: number}[];
 	getJoystick(joy: string): {x: number, y: number};
 	first(button: number | string): boolean;
 	press(button: number | string): boolean;

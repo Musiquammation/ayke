@@ -1,6 +1,8 @@
 import { ActionNode } from "./Bot";
 import { Collectible } from "./Collectible";
 import { GameMode, MultiplayerClientEntry } from "./GameMode";
+import { SoloGameMode } from "./SoloGameMode";
+
 import { GMAirBasket } from "./gamemods/GMAirBasket";
 import { GMRoarsOnGlass } from "./gamemods/GMRoarsOnGlass";
 import { GMSuperTicTacToe } from "./gamemods/GMSuperTicTacToe";
@@ -8,10 +10,11 @@ import { GMTest } from "./gamemods/GMTest";
 import { GMTestSolo } from "./gamemods/GMTestSolo";
 import { GMTurrets } from "./gamemods/GMTurrets";
 import { GMWoodSword } from "./gamemods/GMWoodSword";
-import { SoloGameMode } from "./SoloGameMode";
 import { GMMoveArmy } from "./gamemods/GMMoveArmy";
 import { GMPopit } from "./gamemods/GMPopit";
 import { GMLavaBall } from "./gamemods/GMLavaBall";
+import { GMCrayzoll } from "./gamemods/GMCrayzoll";
+import { GMCastle } from "./gamemods/GMCastle";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -22,9 +25,13 @@ import bots_woodSword from "./bots/bots-woodSword";
 import bots_moveArmy from "./bots/bots-moveArmy";
 import bots_popit from "./bots/bots-popit";
 import bots_lavaBall from "./bots/bots-lavaBall";
+import bots_crayzoll from "./bots/bots-crayzoll";
+import bots_castle from "./bots/bots-castle";
+import bots_rally from "./bots/bots-rally";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
+import { GMRally } from "./gamemods/GMRally";
 
 
 interface Player {
@@ -41,22 +48,30 @@ interface MultiplayerFactory {
 		total: number,
 		hasSkin: (gamemode: string, skinId: string, user: string) => Promise<boolean>
 	): Promise<{ game: GameMode, data: Uint8Array }>,
-	client(entry: MultiplayerClientEntry, total: number, playerIdx: number): {
+	client(
+		entry: MultiplayerClientEntry,
+		total: number,
+		playerIdx: number,
+		playLocally: boolean
+	): {
 		game: GameMode,
 		data: any,
 		html: HTMLDivElement | null,
-		skins: { [key: string]: string },
+		skins: { [key: string]: string }
 	},
 	dom(unlockedSkins: string[]): {produce: ()=>Uint8Array},
 	textures: { [key: string]: string },
 	name: string,
+	description: string,
 	tropheesPerPlayer: number,
 	skins: string[],
 	collectibles: Collectible[] | null;
+	explainationSlides: string[] | null;
 	computerOnly: boolean,
 	iconExtension: string,
 	defaultPlayerCount: number,
 	tropheeRoalPixelsPerTrophy: number,
+	protoFields?: readonly string[],
 	nodes: {
 		root: ActionNode<GameMode, any>,
 		data: (()=>any)
@@ -66,8 +81,10 @@ interface MultiplayerFactory {
 interface SoloFactory {
 	type: 'solo';
 	name: string;
+	description: string;
 	computerOnly: boolean;
 	textures: { [key: string]: string },
+	explainationSlides: string[] | null;
 	categories: string[],
 	minFirst: boolean,
 	iconExtension: string,
@@ -98,6 +115,8 @@ export const gamemods: Record<
 		dom: GMTest.generateClientDom,
 		textures: GMTest.TEXTURES,
 		name: "Test",
+		description: "A test game mode.",
+		explainationSlides: null,
 		computerOnly: false,
 		tropheesPerPlayer: 2,
 		skins: [],
@@ -115,7 +134,9 @@ export const gamemods: Record<
 		dom: GMAirBasket.generateClientDom,
 		textures: GMAirBasket.TEXTURES,
 		name: "Air Basket",
+		description: "Throw the ball into the basket and score more points than your opponents.",
 		tropheesPerPlayer: 20,
+		explainationSlides: GMAirBasket.EXPLAINATION_SLIDES,
 		computerOnly: true,
 		skins: GMAirBasket.SKINS_IDS,
 		collectibles: collectibles_airbasket,
@@ -125,21 +146,62 @@ export const gamemods: Record<
 		nodes: bots_airbasket
 	},
 
-	turrets: {
+	castle: {
 		type: 'multiplayer',
-		server: GMTurrets.createServ,
-		client: GMTurrets.createClient,
-		dom: GMTurrets.generateClientDom,
-		textures: GMTurrets.TEXTURES,
-		name: "Turrets",
-		tropheesPerPlayer: 20,
+		server: GMCastle.createServ,
+		client: GMCastle.createClient,
+		dom: GMCastle.generateClientDom,
+		textures: GMCastle.TEXTURES,
+		name: "Castle",
+		description: "Place blocks to stop heroes from reaching the castle, and kill as many as possible.",
+		tropheesPerPlayer: 25,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
 		tropheeRoalPixelsPerTrophy: 3.5,
-		iconExtension: 'svg',
+		iconExtension: 'png',
+		defaultPlayerCount: 2,
+		protoFields: GMCastle.PROTO_FIELDS as readonly string[],
+		nodes: bots_castle
+	},
+
+	rally: {
+		type: 'multiplayer',
+		server: GMRally.createServ,
+		client: GMRally.createClient,
+		dom: GMRally.generateClientDom,
+		textures: GMRally.TEXTURES,
+		name: "Rally",
+		description: "Jump and use items to finish the race first",
+		tropheesPerPlayer: 15,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 8,
+		nodes: bots_rally
+	},
+
+	crayzoll: {
+		type: 'multiplayer',
+		server: GMCrayzoll.createServ,
+		client: GMCrayzoll.createClient,
+		dom: GMCrayzoll.generateClientDom,
+		textures: GMCrayzoll.TEXTURES,
+		name: "Crayzoll",
+		description: "Eject your opponents by throwing the ball at them, collect gems to boost your throw speed, and stay on the screen!",
+		tropheesPerPlayer: 0,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
 		defaultPlayerCount: 4,
-		nodes: bots_turrets
+		nodes: bots_crayzoll
 	},
 
 	separator_mobile: {
@@ -153,8 +215,10 @@ export const gamemods: Record<
 		client: GMSuperTicTacToe.createClient,
 		dom: GMSuperTicTacToe.generateClientDom,
 		textures: GMSuperTicTacToe.TEXTURES,
-		name: "Super tic tac toe",
+		name: "Super Tic Tac Toe",
+		description: "Your move determines the board your opponent must play in next. Win 3 boards in a row to win.",
 		tropheesPerPlayer: 3,
+		explainationSlides: GMSuperTicTacToe.EXPLAINATION_SLIDES,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -171,8 +235,10 @@ export const gamemods: Record<
 		client: GMRoarsOnGlass.createClient,
 		dom: GMRoarsOnGlass.generateClientDom,
 		textures: GMRoarsOnGlass.TEXTURES,
-		name: "Roars on glass",
+		name: "Roars on Glass",
+		description: "Stay on the glass and don't fall! Roar to push your opponents off.",
 		tropheesPerPlayer: 3,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -189,7 +255,9 @@ export const gamemods: Record<
 		dom: GMWoodSword.generateClientDom,
 		textures: GMWoodSword.TEXTURES,
 		name: "Wood Sword",
+		description: "Throw all your on the log",
 		tropheesPerPlayer: 3,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -205,8 +273,10 @@ export const gamemods: Record<
 		client: GMPopit.createClient,
 		dom: GMPopit.generateClientDom,
 		textures: GMPopit.TEXTURES,
-		name: "Pop it",
+		name: "Pop It",
+		description: "",
 		tropheesPerPlayer: 3,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -215,15 +285,17 @@ export const gamemods: Record<
 		defaultPlayerCount: 2,
 		nodes: bots_popit
 	},
-	
+
 	lavaBall: {
 		type: 'multiplayer',
 		server: GMLavaBall.createServ,
 		client: GMLavaBall.createClient,
 		dom: GMLavaBall.generateClientDom,
 		textures: GMLavaBall.TEXTURES,
-		name: "Lava ball",
+		name: "Lava Ball",
+		description: "",
 		tropheesPerPlayer: 3,
+		explainationSlides: null,
 		computerOnly: false,
 		skins: [],
 		collectibles: null,
@@ -238,14 +310,36 @@ export const gamemods: Record<
 		category: "Coming soon..."
 	},
 
+	turrets: {
+		type: 'multiplayer',
+		server: GMTurrets.createServ,
+		client: GMTurrets.createClient,
+		dom: GMTurrets.generateClientDom,
+		textures: GMTurrets.TEXTURES,
+		name: "Turrets",
+		description: "Build and defend your turret while trying to destroy your opponents using items.",
+		tropheesPerPlayer: 20,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'svg',
+		defaultPlayerCount: 4,
+		nodes: bots_turrets
+	},
+
+
 	moveArmy: {
 		type: 'multiplayer',
 		server: GMMoveArmy.createServ,
 		client: GMMoveArmy.createClient,
 		dom: GMMoveArmy.generateClientDom,
 		textures: GMMoveArmy.TEXTURES,
-		name: "Move army",
+		name: "Move Army",
+		description: "Command your army, destroy enemy towers, and lead your team to victory.",
 		tropheesPerPlayer: 0,
+		explainationSlides: null,
 		computerOnly: true,
 		skins: [],
 		collectibles: null,
@@ -263,6 +357,8 @@ export const gamemods: Record<
 	testSolo: {
 		type: 'solo',
 		name: "Test Solo",
+		description: "A test solo game mode.",
+		explainationSlides: null,
 		computerOnly: false,
 		dom: GMTestSolo.generateClientDom,
 		textures: GMTestSolo.TEXTURES,

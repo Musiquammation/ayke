@@ -2,7 +2,7 @@ import "dotenv/config";
 import { FinishGame, GameMode } from "../commons/GameMode";
 import { Connection } from "./Connection";
 import { Fields } from "../commons/Fields";
-import { gamemods, getGmFactory, getMultiGmFactory } from "../commons/gamemods";
+import { getMultiGmFactory } from "../commons/gamemods";
 import { getProtocol } from "../commons/protocolLoader";
 import { pushSortedArrays } from "../commons/util/mergeSortedArrays";
 import { minBy } from "../commons/util/minBy";
@@ -13,7 +13,6 @@ import { evalWonTrophees } from "./evalWonTrophees";
 import { database } from "./Database";
 import { getLogger } from "../commons/ILogger";
 import { Bot, generateBot } from "../commons/Bot";
-import Prando from "prando";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -69,16 +68,20 @@ export class Room {
 	private latestUser: number = 0;
 	private botsInstant: number = 0;
 	private readonly inputs = new Array<Fields>();
+	private readonly useDefaultNetworkBehavior: boolean;
+	private simulationTime = 0;
 	private finished = false;
-	private readonly prando = new Prando(performance.now());
 
 	constructor(
+		public readonly gameIdentifier: number,
 		public readonly gamemodeId: string,
 		public readonly gamemode: GameMode,
 		players: PlayerInput[],
 		bots: number,
 		private onfinish: ()=>void
 	) {
+		this.useDefaultNetworkBehavior = gamemode.useDefaultNetworkBehavior();
+
 		const factory = getMultiGmFactory(gamemodeId);
 		this.bots = gamemode.getBotIds(bots).map(
 			(i, index) => generateBot(factory.nodes, i, players.length + index)
@@ -96,16 +99,20 @@ export class Room {
 		this.gamemode.init();
 		this.latestData = this.gamemode.save();
 
+		const now = performance.now();
+		const initialTimestamp = this.useDefaultNetworkBehavior
+			? this.players[this.latestUser].lastClientDate
+			: now;
 		const gdata = getProtocol(this.gamemodeId, 'multiplayer').get().ServerMessage.encode({
-			timestamp: this.players[this.latestUser].lastClientDate,
+			timestamp: initialTimestamp,
 			state: this.latestData,
 			inputs: [],
 		}).finish();
 
-		const now = performance.now();
 		for (const p of this.players) {
 			p.init(now);
 		}
+		this.simulationTime = now;
 
 		for (const [playerIdx, p] of this.players.entries()) {
 			p.connection?.sendMessage({startGame: {
@@ -141,6 +148,7 @@ export class Room {
 
 		this.finished = true;
 		this.onfinish();
+		logger.info(`Finished game #${this.gameIdentifier} (by deconnection)`);
 
 		for (const p of this.players) {
 			if (p.connection) {
@@ -165,8 +173,11 @@ export class Room {
 
 		logger.debug(`Handle playerIdx=${playerIdx}, latestUser=${this.latestUser}`);
 
+		if (!this.useDefaultNetworkBehavior) {
+			return this.handleAuthoritativeInputs(data, playerIdx, ServerMessage);
+		}
 
-		// Add player inputs
+		// Add player inputs for the legacy lockstep/replay behavior.
 		pushSortedArrays(
 			this.inputs,
 			data.inputs.map((i: any) => ({...i, player: playerIdx})),
@@ -215,7 +226,7 @@ export class Room {
 				lastDate,
 				nextDate,
 				this.inputs as EmulationInput[],
-				() => this.prando.next(),
+				Math.random,
 				preprocess,
 				f => {finish = f;}
 			);
@@ -250,6 +261,53 @@ export class Room {
 				this.runBots(),
 				compareInputs
 			);
+		}
+
+		return this.produceGData(ServerMessage);
+	}
+
+	/**
+	 * Advances the single authoritative game instance, then applies the inputs
+	 * from this packet immediately. This path must never restore a saved state.
+	 */
+	private async handleAuthoritativeInputs(
+		data: any,
+		playerIdx: number,
+		ServerMessage: protobuf.Type
+	): Promise<Uint8Array | null> {
+		const now = performance.now();
+		let finish: FinishGame | null = null;
+
+		// Advance the authoritative simulation to packet receipt time. Bots are
+		// processed in this same game instance, so no snapshot/restore is needed.
+		this.gamemode.emulate(
+			this.simulationTime,
+			now,
+			[],
+			Math.random,
+			timestamp => this.preprocessBots([], timestamp),
+			f => { finish = f; }
+		);
+		this.simulationTime = now;
+
+		if (finish) {
+			await this.finish(finish);
+			return null;
+		}
+
+		// Unlike the default behavior, there is no client-side prediction to
+		// reconcile: apply every received input directly to the server's game.
+		for (const input of data.inputs) {
+			this.gamemode.runInput(playerIdx, input);
+		}
+
+		this.latestData = this.gamemode.save();
+
+		// Keep the existing response rate limit without delaying input processing.
+		const pingCooldown = MIN_PING - this.players[playerIdx].getRuntimePing();
+		if (pingCooldown > 0) {
+			await sleepTime(pingCooldown);
+			this.players[playerIdx].lastServerDate = performance.now();
 		}
 
 		return this.produceGData(ServerMessage);
@@ -303,14 +361,18 @@ export class Room {
 	}
 
 	private produceGData(ServerMessage: protobuf.Type) {
+		const inputs = this.useDefaultNetworkBehavior
+			? this.inputs.map((data: any) => ({data, player: data.player}))
+			: [];
+		const timestamp = this.useDefaultNetworkBehavior
+			? this.players[this.latestUser].lastClientDate
+			: this.simulationTime;
+
 		return ServerMessage.encode({
-			timestamp: this.players[this.latestUser].lastClientDate,
+			timestamp,
 			state: this.latestData,
-			inputs: this.inputs.map((data: any) => ({
-				data,
-				player: data.player
-			}))
-		}).finish()
+			inputs
+		}).finish();
 	}
 
 	private async finish(finish: FinishGame) {
@@ -319,6 +381,7 @@ export class Room {
 
 		this.finished = true;
 		this.onfinish();
+		logger.info(`Finished game #${this.gameIdentifier}`);
 
 
 
@@ -345,16 +408,17 @@ export class Room {
 			const db = await database;
 			const deltas: {
 				player: string;
+				cid: number | undefined;
 				delta: number;
 			}[] = [];
 			for (const [idx, won] of trophees.entries()) {
 				const p = this.players[idx];
 				if (p.pseudo) {
-					deltas.push({player: p.pseudo, delta: won});
+					deltas.push({player: p.pseudo, cid: p.connection?.getConnectionId(), delta: won});
 				}
 			}
 
-			logger.info(`Give trophees in ${this.gamemodeId} with ${JSON.stringify(deltas)}`);
+			logger.info(`Give trophees in '${this.gamemodeId}' with ${JSON.stringify(deltas)}`);
 
 			const scores: number[] = Array.from({
 				length: this.players.length
@@ -424,7 +488,12 @@ export class Room {
 class RoomHandler {
 	private readonly rooms: Room[] = [];
 
-	async append(gamemode: string, total: number, players: PlayerInput[]) {
+	async append(
+		gameIdentifier: number,
+		gamemode: string,
+		total: number,
+		players: PlayerInput[]
+	) {
 		const factory = getMultiGmFactory(gamemode);
 
 		// Check players are'nt in a room
@@ -444,6 +513,7 @@ class RoomHandler {
 			(gm, skinId, user) => db.hasSkin(gm, skinId, user)
 		);
 		const room = new Room(
+			gameIdentifier,
 			gamemode,
 			created.game,
 			players,
@@ -488,7 +558,3 @@ function compareInputs(a: Fields, b: Fields) {
 }
 
 function getLastDate(player: Player) {return player.lastClientDate;}
-
-function inspectMessage(i: any): any {
-	throw new Error("Function not implemented.");
-}

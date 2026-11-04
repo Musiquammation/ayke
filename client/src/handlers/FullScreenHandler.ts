@@ -37,6 +37,7 @@ class FullScreenHandler {
 
 	async closeFull(): Promise<void> {
 		const imobile = await getMobile();
+		
 		if (imobile) {
 			await imobile.setScreenOrientation('portrait');
 		}

@@ -1,0 +1,31 @@
+<div x-data="data">
+	<style>
+		.rally-map-vote__select {
+			width: 100%;
+			padding: 10px 12px;
+			border: 1px solid #555;
+			border-radius: 8px;
+			background: #222;
+			color: white;
+			font: inherit;
+			cursor: pointer;
+		}
+	</style>
+	<div class="rally-map-vote">
+		<p class="rally-map-vote__title">Vote for the map</p>
+		<select
+			class="rally-map-vote__select"
+			x-model.number="mapChoice"
+			aria-label="Choose the next map"
+		>
+			<option value="-1">Random</option>
+			<template x-for="(map, index) in maps" :key="map">
+				<option :value="index" x-text="map"></option>
+			</template>
+		</select>
+		<p
+			class="rally-map-vote__status"
+			x-text="mapChoice < 0 ? 'Selected: Random' : 'Selected: ' + maps[mapChoice]"
+		></p>
+	</div>
+</div>
