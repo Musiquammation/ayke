@@ -1,20 +1,21 @@
 import * as THREE from 'three';
 import {
 	BOMB_RADIUS,
-	BOOMERANG_RADIUS,
+	ICE_ZONE_RADIUS,
 	ITEM_BOMB,
-	ITEM_BOOMERANG,
-	ITEM_DASH,
+	ITEM_ICE_BOMB,
 	ITEM_JUMP,
 	ITEM_NONE,
+	ITEM_SHELLS,
 	PLAYER_RADIUS,
+	SHELL_RADIUS,
 	WEAPONS,
 } from "./constants";
 import type { ClientData } from "./client";
 import { Entity, Player, Vec3 } from "./entities";
 import { HuntPhysics } from "./physics";
 import { HuntState } from "./simulation";
-import { explosionZone, shotSector, traceBomb, traceBoomerang, traceDash, traceLeap, traceShot } from "./trajectories";
+import { explosionZone, shotSector, traceBomb, traceLeap, traceShells, traceShot } from "./trajectories";
 
 /* -------------------------------------------------------------------------- */
 /* Translucent preview of the selected item (item mode) or of the weapon      */
@@ -87,19 +88,20 @@ export class ItemPreview {
 				break;
 			}
 
-			case ITEM_BOOMERANG: {
-				const { points, hit } = traceBoomerang(physics, self, aim);
-				this.ribbon(points, BOOMERANG_RADIUS * 2, this.fill);
-				if (hit)
-					this.disc(points[points.length - 1], BOOMERANG_RADIUS * 1.6, this.strong);
+			case ITEM_ICE_BOMB: {
+				const { points, end } = traceBomb(physics, self, aim);
+				this.ribbon(points, BOMB_RADIUS * 1.6, this.fill);
+				this.disc({ x: end.x, y: end.y, z: end.z + LIFT }, ICE_ZONE_RADIUS, this.fill);
 				break;
 			}
 
-			case ITEM_DASH: {
-				const { from, to } = traceDash(physics, self, aim);
+			case ITEM_SHELLS: {
 				const lift = (v: Vec3) => ({ x: v.x, y: v.y, z: v.z + LIFT });
-				this.ribbon([lift(from), lift(to)], PLAYER_RADIUS * 2, this.fill);
-				this.disc(lift(to), PLAYER_RADIUS, this.strong);
+				for (const { points, hit } of traceShells(physics, self, aim)) {
+					this.ribbon(points.map(lift), SHELL_RADIUS * 2, this.fill);
+					if (hit)
+						this.disc(lift(points[points.length - 1]), SHELL_RADIUS * 1.6, this.strong);
+				}
 				break;
 			}
 

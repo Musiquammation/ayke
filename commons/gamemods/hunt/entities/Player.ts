@@ -15,14 +15,14 @@ import {
 	WEAPON_LONG,
 	WEAPONS,
 } from "../constants";
-import { Carryable, Damageable, MovingEntity, ViewContext } from "./Entity";
+import { Damageable, MovingEntity, ViewContext } from "./Entity";
 import { ownedTransparent, place, solid, unitBox, unitCylinder, unitOctahedron, unitRing, unitSphere, yaw } from "./models";
 
 /**
- * A player: a vertical cylinder. vx / vy are only used during a super jump or a
- * side jump (the walking speed comes from moveX / moveY).
+ * A player: a vertical cylinder. vx / vy are only used during a super jump, a
+ * side jump or a knockback (the walking speed comes from moveX / moveY).
  */
-export class Player extends MovingEntity implements Damageable, Carryable {
+export class Player extends MovingEntity implements Damageable {
 	readonly maxHp = MAX_HP;
 	connected = true;
 
@@ -57,14 +57,10 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 	items: number[] = new Array(ITEM_SLOTS).fill(ITEM_NONE);
 	selectedItem = 0;
 	leaping = false;
-	dashTimer = 0;
-	dashDirX = 1;
-	dashDirY = 0;
 
 	// Effects suffered
-	draggedBy = -1;   // index of the dashing player dragging us
-	carriedBy = -1;   // index of the player whose boomerang drags us
-	stunTimer = 0;    // cannot attack while > 0
+	launched = false; // thrown by a blast or a shell: no control and no attack until landing
+	slowTimer = 0;    // slowed by an ice zone while > 0
 
 	// Score
 	kills = 0;
@@ -81,14 +77,9 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 		return this.respawn < 0;
 	}
 
-	/** True when the player is moved by someone else (dash, boomerang). */
-	isControlled() {
-		return this.draggedBy >= 0 || this.carriedBy >= 0;
-	}
-
 	/** True when the player may shoot or use an item. */
 	canAttack() {
-		return this.isAlive() && this.stunTimer <= 0 && !this.isControlled() && this.dashTimer <= 0;
+		return this.isAlive() && !this.launched;
 	}
 
 	isTargetable() {
@@ -122,10 +113,8 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 		this.shotCooldown = 0;
 		this.leaping = false;
 		this.sideJump = false;
-		this.dashTimer = 0;
-		this.draggedBy = -1;
-		this.carriedBy = -1;
-		this.stunTimer = 0;
+		this.launched = false;
+		this.slowTimer = 0;
 		this.jumpQueued = false;
 	}
 
@@ -155,9 +144,7 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 			weapon: this.weapon, ammo: this.ammo, ammoDrainTo: this.ammoDrainTo,
 			reloadDelay: this.reloadDelay, shotCooldown: this.shotCooldown, facing: this.facing,
 			items: this.items, selectedItem: this.selectedItem,
-			leaping: this.leaping, dashTimer: this.dashTimer,
-			dashDirX: this.dashDirX, dashDirY: this.dashDirY,
-			draggedBy: this.draggedBy, carriedBy: this.carriedBy, stunTimer: this.stunTimer,
+			leaping: this.leaping, launched: this.launched, slowTimer: this.slowTimer,
 			kills: this.kills, deaths: this.deaths,
 			damageDealt: this.damageDealt, lastKillTime: this.lastKillTime,
 		};
@@ -187,12 +174,8 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 		this.items = Array.from({ length: ITEM_SLOTS }, (_, i) => items[i] ?? ITEM_NONE);
 		this.selectedItem = obj.selectedItem ?? 0;
 		this.leaping = obj.leaping ?? false;
-		this.dashTimer = obj.dashTimer ?? 0;
-		this.dashDirX = obj.dashDirX ?? 1;
-		this.dashDirY = obj.dashDirY ?? 0;
-		this.draggedBy = obj.draggedBy ?? -1;
-		this.carriedBy = obj.carriedBy ?? -1;
-		this.stunTimer = obj.stunTimer ?? 0;
+		this.launched = obj.launched ?? false;
+		this.slowTimer = obj.slowTimer ?? 0;
 		this.kills = obj.kills ?? 0;
 		this.deaths = obj.deaths ?? 0;
 		this.damageDealt = obj.damageDealt ?? 0;
@@ -274,6 +257,13 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 		}
 		group.add(stars);
 
+		// Slowed by ice: a frosty ring around the feet
+		const frost = new THREE.Mesh(unitRing(), ownedTransparent("#bae6fd", 0.85));
+		frost.name = 'frost';
+		frost.scale.setScalar(PLAYER_RADIUS + 10);
+		frost.position.z = -PLAYER_HEIGHT / 2 + 2;
+		group.add(frost);
+
 		return group;
 	}
 
@@ -289,14 +279,18 @@ export class Player extends MovingEntity implements Damageable, Carryable {
 		model.getObjectByName('bubble')!.visible = this.spawnShield > 0;
 
 		const stars = model.getObjectByName('stars')!;
-		stars.visible = this.stunTimer > 0;
+		stars.visible = this.launched;
 		stars.rotation.z = view.clock * 5;
 
-		// Lean forward while dashing
+		const frost = model.getObjectByName('frost')!;
+		frost.visible = this.slowTimer > 0;
+		frost.rotation.z = view.clock * 1.5;
+
+		// Tumble backward while thrown
 		model.rotation.set(0, 0, 0);
-		if (this.dashTimer > 0) {
-			model.rotation.x = this.dashDirY * 0.35;
-			model.rotation.y = this.dashDirX * 0.35;
+		if (this.launched) {
+			model.rotation.x = -this.vy * 0.0006;
+			model.rotation.y = -this.vx * 0.0006;
 		}
 	}
 }

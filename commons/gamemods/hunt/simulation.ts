@@ -1,29 +1,24 @@
 import {
-	BOOMERANG_DAMAGE,
-	BOOMERANG_PULL_MAX_TIME,
-	BOOMERANG_PULL_SPEED,
-	BOOMERANG_RADIUS,
-	BOOMERANG_RELEASE_GAP,
-	BOX_HEIGHT,
+	BOMB_ICE,
 	BOX_HP,
+	BOX_HEIGHT,
 	BOX_RESPAWN,
-	DASH_DAMAGE,
-	DASH_DISTANCE,
-	DASH_GRAB_MARGIN,
-	DASH_LAUNCH_VELOCITY,
-	DASH_STUN,
-	DASH_TIME,
 	EXPLOSION_DAMAGE,
+	EXPLOSION_KNOCKBACK_SPEED,
+	EXPLOSION_KNOCKBACK_VZ,
 	EXPLOSION_RADIUS,
 	EXPLOSION_VERTICAL_REACH,
 	GUN_HEIGHT,
+	ICE_SLOW_FACTOR,
+	ICE_SLOW_LINGER,
+	ICE_ZONE_RADIUS,
+	ICE_ZONE_VERTICAL_REACH,
 	ITEM_BOMB,
-	ITEM_BOOMERANG,
-	ITEM_DASH,
+	ITEM_ICE_BOMB,
 	ITEM_JUMP,
-	ITEM_KINDS,
+	ITEM_DROP_WEIGHTS,
 	ITEM_NONE,
-	ITEM_SLOTS,
+	ITEM_SHELLS,
 	JUMP_VELOCITY,
 	KILL_FEED_SIZE,
 	KILLS_TO_WIN,
@@ -35,7 +30,6 @@ import {
 	MAX_AMMO,
 	PICKUP_RADIUS,
 	PICKUP_VERTICAL_REACH,
-	PLAYER_HEIGHT,
 	PLAYER_RADIUS,
 	PLAYER_SPEED,
 	REGEN_DELAY,
@@ -43,21 +37,25 @@ import {
 	RELOAD_DELAY,
 	RELOAD_RATE,
 	RESPAWN_TIME,
+	SHELL_DAMAGE,
+	SHELL_KNOCKBACK_SPEED,
+	SHELL_KNOCKBACK_VZ,
+	SHELL_RADIUS,
 	SIDE_JUMP_SPEED,
 	STEP_HEIGHT,
 	WEAPONS,
 } from "./constants";
-import { spansOverlap } from "./collision";
 import {
 	Bomb,
-	Boomerang,
 	Box,
 	Entity,
 	Explosion,
+	IceZone,
 	KillEvent,
 	Pickup,
 	Player,
 	Projectile,
+	Shell,
 	Vec3,
 } from "./entities";
 import { LEVEL } from "./level";
@@ -65,15 +63,11 @@ import { HuntPhysics } from "./physics";
 import {
 	aimDirection,
 	bombLaunch,
-	boomerangCatches,
-	boomerangPoint,
-	boomerangProgress,
-	boomerangThrow,
 	fall,
-	isCatch,
 	leapLaunch,
+	shellLaunch,
 	stepBomb,
-	stepLeap,
+	stepShell,
 } from "./trajectories";
 
 /* -------------------------------------------------------------------------- */
@@ -94,8 +88,9 @@ export interface HuntState {
 	readonly boxes: Box[];
 	projectiles: Projectile[];
 	bombs: Bomb[];
-	boomerangs: Boomerang[];
+	shells: Shell[];
 	explosions: Explosion[];
+	iceZones: IceZone[];
 	pickups: Pickup[];
 	killFeed: KillEvent[];
 	time: number;
@@ -125,16 +120,17 @@ export function stepWorld(state: HuntState, physics: HuntPhysics, dt: number) {
 
 	// Players only collide with obstacles and boxes, so one sync before moving is enough
 	physics.sync();
-	for (const [idx, p] of state.players.entries()) {
-		updatePlayer(state, physics, p, idx, dt);
+	for (const p of state.players) {
+		updatePlayer(state, physics, p, dt);
 	}
 
 	// Bullets must see where the players are now
 	physics.sync();
 	updateProjectiles(state, physics, dt);
 	updateBombs(state, physics, dt);
-	updateBoomerangs(state, physics, dt);
+	updateShells(state, physics, dt);
 	updateExplosions(state, dt);
+	updateIceZones(state, dt);
 	updateBoxes(state, physics, dt);
 	updatePickups(state, dt);
 	updateKillFeed(state, dt);
@@ -146,11 +142,10 @@ export function stepWorld(state: HuntState, physics: HuntPhysics, dt: number) {
 
 /* ---------------------------- Players ---------------------------- */
 
-/** Timers, respawn, movement, jump, dash, regen and ammo of one player. */
-function updatePlayer(state: HuntState, physics: HuntPhysics, p: Player, idx: number, dt: number) {
+/** Timers, respawn, movement, jump, regen and ammo of one player. */
+function updatePlayer(state: HuntState, physics: HuntPhysics, p: Player, dt: number) {
 	if (!p.connected && p.isAlive()) {
 		p.respawn = NEVER; // a disconnected player leaves the map (no kill credited)
-		releaseDragged(state, idx, false);
 		return;
 	}
 
@@ -161,8 +156,6 @@ function updatePlayer(state: HuntState, physics: HuntPhysics, p: Player, idx: nu
 
 	updateTimers(p, dt);
 	updateHorizontalMove(physics, p, dt);
-	if (p.dashTimer > 0)
-		updateDash(state, physics, p, idx, dt);
 	updateVerticalMove(state, physics, p, dt);
 	updateRegenAndAmmo(p, dt);
 }
@@ -212,7 +205,11 @@ function chooseSpawn(state: HuntState, physics: HuntPhysics, self: Player) {
 function updateTimers(p: Player, dt: number) {
 	p.shotCooldown = Math.max(0, p.shotCooldown - dt);
 	p.spawnShield = Math.max(0, p.spawnShield - dt);
-	p.stunTimer = Math.max(0, p.stunTimer - dt);
+}
+
+/** Walking speed multiplier (slowed by the ice). */
+function speedFactor(p: Player) {
+	return p.slowTimer > 0 ? ICE_SLOW_FACTOR : 1;
 }
 
 /** Entity a lock (LOCK_* kind and index) points to, or null when it is not on the map. */
@@ -225,20 +222,15 @@ function lockedEntity(state: HuntState, kind: number, idx: number): Player | Box
 
 /**
  * Move on the ground plane, sliding along obstacles (Rapier shape casts):
- * with ZQSD, or along the leap of a super
- * jump or a side jump. Players moved by someone else (dash, boomerang) and dashing
- * players do not walk.
+ * with ZQSD, or along the arc of a super jump, a side jump or a knockback.
  */
 function updateHorizontalMove(physics: HuntPhysics, p: Player, dt: number) {
 	const free = physics.resolvePenetration(p);
 	p.x = free.x;
 	p.y = free.y;
 
-	if (p.isControlled() || p.dashTimer > 0)
-		return;
-
 	let dx: number, dy: number;
-	if (p.leaping || p.sideJump) {
+	if (p.leaping || p.sideJump || p.launched) {
 		dx = p.vx * dt;
 		dy = p.vy * dt;
 	} else {
@@ -250,8 +242,9 @@ function updateHorizontalMove(physics: HuntPhysics, p: Player, dt: number) {
 		const len = Math.hypot(mx, my);
 		mx /= len;
 		my /= len;
-		dx = mx * PLAYER_SPEED * dt;
-		dy = my * PLAYER_SPEED * dt;
+		const speed = PLAYER_SPEED * speedFactor(p);
+		dx = mx * speed * dt;
+		dy = my * speed * dt;
 	}
 
 	const reached = physics.movePlayer(p, dx, dy, p);
@@ -261,33 +254,28 @@ function updateHorizontalMove(physics: HuntPhysics, p: Player, dt: number) {
 
 /**
  * Gravity, jumps and landing on the highest surface under the player.
- * Jumping with Q / D while locked makes a fast side jump.
+ * Jumping with Q / D while locked makes a fast side jump. Landing ends a knockback.
  */
 function updateVerticalMove(state: HuntState, physics: HuntPhysics, p: Player, dt: number) {
-	if (p.carriedBy >= 0) {
-		p.vz = 0; // hanging on a boomerang
-		p.jumpQueued = false;
-		return;
-	}
-
 	const ground = physics.groundHeight(p.x, p.y, p.z);
 	const grounded = p.z <= ground + 0.5 && p.vz <= 0;
 
-	if (p.jumpQueued && grounded && !p.isControlled()) {
+	if (p.jumpQueued && grounded && !p.launched) {
 		p.vz = JUMP_VELOCITY;
 		const locked = lockedEntity(state, p.lockKind, p.lockIdx);
 		if (p.moveX !== 0 && !p.leaping && locked && locked !== p) {
 			p.sideJump = true;
-			p.vx = p.moveX * SIDE_JUMP_SPEED;
-			p.vy = p.moveY * PLAYER_SPEED;
+			p.vx = p.moveX * SIDE_JUMP_SPEED * speedFactor(p);
+			p.vy = p.moveY * PLAYER_SPEED * speedFactor(p);
 		}
 	}
 	p.jumpQueued = false;
 
 	const landed = fall(physics, p, dt, p);
-	if (landed && (p.leaping || p.sideJump)) {
+	if (landed && (p.leaping || p.sideJump || p.launched)) {
 		p.leaping = false;
 		p.sideJump = false;
+		p.launched = false;
 		p.vx = 0;
 		p.vy = 0;
 	}
@@ -519,10 +507,8 @@ function killPlayer(state: HuntState, victimIdx: number) {
 	victim.moveY = 0;
 	victim.leaping = false;
 	victim.sideJump = false;
-	victim.dashTimer = 0;
-	victim.draggedBy = -1;
-	victim.carriedBy = -1;
-	releaseDragged(state, victimIdx, false);
+	victim.launched = false;
+	victim.slowTimer = 0;
 
 	const killer = victim.lastAttacker;
 	if (killer >= 0 && killer !== victimIdx) {
@@ -548,15 +534,29 @@ function damageBox(state: HuntState, box: Box, amount: number) {
 	box.hp = 0;
 	box.respawn = BOX_RESPAWN;
 	box.breaks++;
-	box.carriedBy = -1;
 
 	const idx = state.boxes.indexOf(box);
 	state.pickups.push(Pickup.create(box.x, box.y, box.z, boxDrop(idx, box.breaks)));
 }
 
-/** Item dropped by a box: varies with the box and the number of times it broke (deterministic). */
+/**
+ * Item dropped by a box, drawn with ITEM_DROP_WEIGHTS. Deterministic: a hash of the
+ * box and of the number of times it broke stands for the random number.
+ */
 function boxDrop(idx: number, breaks: number) {
-	return ITEM_KINDS[(idx * 5 + breaks * 3 + idx * breaks) % ITEM_KINDS.length];
+	let h = Math.imul(idx + 1, 0x9e3779b1) ^ Math.imul(breaks + 1, 0x85ebca77);
+	h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+	h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+	h = (h ^ (h >>> 15)) >>> 0;
+
+	const total = ITEM_DROP_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
+	let roll = h % total;
+	for (const [item, weight] of ITEM_DROP_WEIGHTS) {
+		if (roll < weight)
+			return item;
+		roll -= weight;
+	}
+	return ITEM_DROP_WEIGHTS[0][0];
 }
 
 
@@ -579,31 +579,19 @@ export function useItem(state: HuntState, physics: HuntPhysics, idx: number, aim
 	p.facing = Math.atan2(dir.y, dir.x);
 
 	switch (item) {
-		case ITEM_BOMB: {
+		case ITEM_BOMB:
+		case ITEM_ICE_BOMB: {
 			const b = new Bomb();
 			Object.assign(b, bombLaunch(physics, p, aim));
 			b.owner = idx;
+			b.kind = item === ITEM_ICE_BOMB ? BOMB_ICE : b.kind;
 			state.bombs.push(b);
 			break;
 		}
 
-		case ITEM_BOOMERANG: {
-			const b = new Boomerang();
-			Object.assign(b, boomerangThrow(p, aim));
-			b.owner = idx;
-			b.x = p.x;
-			b.y = p.y;
-			b.z = p.z + GUN_HEIGHT;
-			state.boomerangs.push(b);
-			break;
-		}
-
-		case ITEM_DASH:
-			p.dashTimer = DASH_TIME;
-			p.dashDirX = dir.x;
-			p.dashDirY = dir.y;
-			p.leaping = false;
-			p.sideJump = false;
+		case ITEM_SHELLS:
+			for (const body of shellLaunch(p, aim))
+				state.shells.push(Object.assign(new Shell(), body));
 			break;
 
 		case ITEM_JUMP: {
@@ -618,87 +606,48 @@ export function useItem(state: HuntState, physics: HuntPhysics, idx: number, aim
 }
 
 
-/* ---------------------------- Dash ---------------------------- */
+/* ---------------------------- Knockback ---------------------------- */
 
 /**
- * Move a dashing player straight ahead. Opponents it touches take damage and are
- * dragged in front of it; when the dash ends they are thrown up and stunned.
+ * Throw a player along (dirX, dirY) (a unit vector): it flies up and cannot act
+ * until it lands. Players protected by their spawn shield are not moved.
  */
-function updateDash(state: HuntState, physics: HuntPhysics, p: Player, idx: number, dt: number) {
-	const step = Math.min(dt, p.dashTimer);
-	const speed = DASH_DISTANCE / DASH_TIME;
-	const moved = physics.movePlayer(p, p.dashDirX * speed * step, p.dashDirY * speed * step, p);
-	p.x = moved.x;
-	p.y = moved.y;
-	p.dashTimer -= dt;
+function launchPlayer(p: Player, dirX: number, dirY: number, speed: number, vz: number) {
+	if (!p.isAlive() || p.spawnShield > 0)
+		return;
 
-	const grab = PLAYER_RADIUS * 2 + DASH_GRAB_MARGIN;
-	for (const [i, o] of state.players.entries()) {
-		if (i === idx || !o.isAlive() || o.isControlled() || o.spawnShield > 0)
-			continue;
-		if (Math.hypot(o.x - p.x, o.y - p.y) > grab)
-			continue;
-		if (!spansOverlap(o.z, o.z + PLAYER_HEIGHT, p.z, p.z + PLAYER_HEIGHT))
-			continue;
-
-		damagePlayer(state, physics, i, DASH_DAMAGE, idx);
-		if (o.isAlive()) {
-			o.draggedBy = idx;
-			o.leaping = false;
-			o.sideJump = false;
-		}
-	}
-
-	// Keep the dragged players in front of the dasher
-	const ahead = PLAYER_RADIUS * 2 + 4;
-	for (const o of state.players) {
-		if (o.draggedBy !== idx)
-			continue;
-		const tx = p.x + p.dashDirX * ahead;
-		const ty = p.y + p.dashDirY * ahead;
-		const reached = physics.movePlayer(o, tx - o.x, ty - o.y, o);
-		o.x = reached.x;
-		o.y = reached.y;
-	}
-
-	if (p.dashTimer <= 0) {
-		p.dashTimer = 0;
-		releaseDragged(state, idx, true);
-	}
-}
-
-/** Free the players dragged by a dasher (thrown up and stunned when `launch`). */
-function releaseDragged(state: HuntState, idx: number, launch: boolean) {
-	for (const o of state.players) {
-		if (o.draggedBy !== idx)
-			continue;
-		o.draggedBy = -1;
-		if (launch) {
-			o.vz = DASH_LAUNCH_VELOCITY;
-			o.stunTimer = DASH_STUN;
-		}
-	}
+	p.launched = true;
+	p.leaping = false;
+	p.sideJump = false;
+	p.vx = dirX * speed;
+	p.vy = dirY * speed;
+	p.vz = vz;
 }
 
 
 /* ---------------------------- Bombs & explosions ---------------------------- */
 
-/** Move bombs along their arc and explode them when they touch something or land. */
+/**
+ * Move bombs along their arc. When they touch something or land, they explode
+ * (or leave an ice zone for an ice bomb).
+ */
 function updateBombs(state: HuntState, physics: HuntPhysics, dt: number) {
 	const kept: Bomb[] = [];
 	for (const b of state.bombs) {
 		const at = stepBomb(physics, b, b.owner, dt);
-		if (at)
-			explode(state, physics, at, b.owner);
-		else
+		if (!at)
 			kept.push(b);
+		else if (b.kind === BOMB_ICE)
+			state.iceZones.push(IceZone.create(at.x, at.y, at.z));
+		else
+			explode(state, physics, at, b.owner);
 	}
 	state.bombs = kept;
 }
 
 /**
- * Damage every player (but the thrower) and every box in the blast.
- * Obstacles protect what is behind them (same rays as `explosionZone`).
+ * Damage every player (the thrower too) and every box in the blast, and throw the
+ * players backward. Obstacles protect what is behind them (same rays as `explosionZone`).
  */
 function explode(state: HuntState, physics: HuntPhysics, at: Vec3, owner: number) {
 	const e = new Explosion();
@@ -709,13 +658,19 @@ function explode(state: HuntState, physics: HuntPhysics, at: Vec3, owner: number
 
 	const rayZ = at.z + STEP_HEIGHT;
 	for (const [i, p] of state.players.entries()) {
-		if (i === owner || !p.isAlive())
+		if (!p.isAlive())
 			continue;
 		const d = Math.hypot(p.x - at.x, p.y - at.y);
 		if (d > EXPLOSION_RADIUS + PLAYER_RADIUS || Math.abs(p.z - at.z) > EXPLOSION_VERTICAL_REACH)
 			continue;
-		if (physics.lineOfSight(at.x, at.y, p.x, p.y, rayZ))
-			damagePlayer(state, physics, i, EXPLOSION_DAMAGE, owner);
+		if (!physics.lineOfSight(at.x, at.y, p.x, p.y, rayZ))
+			continue;
+
+		damagePlayer(state, physics, i, EXPLOSION_DAMAGE, owner);
+		// Away from the blast (backward from the facing when right on it)
+		const ux = d > 1 ? (p.x - at.x) / d : -Math.cos(p.facing);
+		const uy = d > 1 ? (p.y - at.y) / d : -Math.sin(p.facing);
+		launchPlayer(p, ux, uy, EXPLOSION_KNOCKBACK_SPEED, EXPLOSION_KNOCKBACK_VZ);
 	}
 
 	for (const box of state.boxes) {
@@ -737,116 +692,83 @@ function updateExplosions(state: HuntState, dt: number) {
 }
 
 
-/* ---------------------------- Boomerangs ---------------------------- */
+/** Melt ice zones, and slow the players standing in one (the slow lingers after leaving). */
+function updateIceZones(state: HuntState, dt: number) {
+	for (const z of state.iceZones)
+		z.remaining -= dt;
+	state.iceZones = state.iceZones.filter(z => z.remaining > 0);
 
-/** Fly boomerangs along their loop, or drag their catch back to their owner. */
-function updateBoomerangs(state: HuntState, physics: HuntPhysics, dt: number) {
-	state.boomerangs = state.boomerangs.filter(b =>
-		b.isPulling() ? pullBoomerang(state, physics, b, dt) : flyBoomerang(state, physics, b, dt)
-	);
+	for (const p of state.players) {
+		if (!p.isAlive())
+			continue;
+		const inside = state.iceZones.some(z =>
+			Math.abs(p.z - z.z) <= ICE_ZONE_VERTICAL_REACH &&
+			Math.hypot(p.x - z.x, p.y - z.y) <= ICE_ZONE_RADIUS
+		);
+		p.slowTimer = inside ? ICE_SLOW_LINGER : Math.max(0, p.slowTimer - dt);
+	}
 }
 
-/** Advance a free boomerang. Returns false when it is gone (back in hand, or broken on a wall). */
-function flyBoomerang(state: HuntState, physics: HuntPhysics, b: Boomerang, dt: number) {
-	const owner = state.players[b.owner];
-	if (!owner?.isAlive())
-		return false;
 
-	b.u = boomerangProgress(b.u, dt);
-	const next = boomerangPoint(b, b.u, owner.x, owner.y);
-	const dx = next.x - b.x;
-	const dy = next.y - b.y;
-	const hit = physics.castBall(b.x, b.y, b.z, dx, dy, 0, BOOMERANG_RADIUS, boomerangCatches(b.owner));
+/* ---------------------------- Shells ---------------------------- */
 
-	if (!hit) {
-		b.x = next.x;
-		b.y = next.y;
-		return b.u < 1;
+/**
+ * Slide the shells. A shell touching a player hurts it and throws it up (stunned
+ * until it lands); two armed shells touching each other both break.
+ */
+function updateShells(state: HuntState, physics: HuntPhysics, dt: number) {
+	const moved: Shell[] = [];
+	for (const s of state.shells) {
+		s.life -= dt;
+		if (s.life <= 0)
+			continue;
+
+		const result = stepShell(physics, s, dt);
+		if (result === 'broken')
+			continue;
+		if (result) {
+			hitByShell(state, physics, result, s);
+			continue;
+		}
+		moved.push(s);
 	}
 
-	b.x += dx * hit.toi;
-	b.y += dy * hit.toi;
-	if (!isCatch(hit))
-		return false; // a wall: the boomerang falls
-
-	const target = hit.entity as Player | Box;
-	damageEntity(state, physics, target, BOOMERANG_DAMAGE, b.owner);
-	if (!target.isTargetable())
-		return false; // killed or broken by the hit
-
-	b.catchKind = target instanceof Player ? 'player' : 'box';
-	b.catchIdx = target instanceof Player ? target.idx : state.boxes.indexOf(target);
-	b.pullTime = 0;
-	target.carriedBy = b.owner;
-	if (target instanceof Player) {
-		target.leaping = false;
-		target.sideJump = false;
-		target.dashTimer = 0;
-		releaseDragged(state, target.idx, false);
+	const broken = new Set<Shell>();
+	for (let i = 0; i < moved.length; i++) {
+		const a = moved[i];
+		for (let j = i + 1; j < moved.length; j++) {
+			const b = moved[j];
+			if (!a.isArmed() || !b.isArmed())
+				continue;
+			if (Math.abs(a.z - b.z) < SHELL_RADIUS * 2 && Math.hypot(a.x - b.x, a.y - b.y) < SHELL_RADIUS * 2) {
+				broken.add(a);
+				broken.add(b);
+			}
+		}
 	}
-	return true;
+
+	state.shells = moved.filter(s => !broken.has(s));
 }
 
-/** Drag the catch of a boomerang toward its owner. Returns false once it is released. */
-function pullBoomerang(state: HuntState, physics: HuntPhysics, b: Boomerang, dt: number) {
-	const owner = state.players[b.owner];
-	const target: Player | Box | undefined = b.catchKind === 'player'
-		? state.players[b.catchIdx]
-		: state.boxes[b.catchIdx];
-	if (!target)
-		return false;
-
-	const release = () => {
-		if (target.carriedBy === b.owner)
-			target.carriedBy = -1;
-		return false;
-	};
-
-	b.pullTime += dt;
-	if (!owner?.isAlive() || !target.isTargetable() || target.carriedBy !== b.owner || b.pullTime > BOOMERANG_PULL_MAX_TIME)
-		return release();
-
-	const dx = owner.x - target.x;
-	const dy = owner.y - target.y;
-	const dist = Math.hypot(dx, dy);
-	const stop = PLAYER_RADIUS + target.hitRadius() + BOOMERANG_RELEASE_GAP;
-	if (dist <= stop)
-		return release();
-
-	const step = Math.min(BOOMERANG_PULL_SPEED * dt, dist - stop);
-	const mx = dx / dist * step;
-	const my = dy / dist * step;
-	const reached = target instanceof Player
-		? physics.movePlayer(target, mx, my, target)
-		: physics.moveEntity(target, mx, my, BOX_HEIGHT);
-	const progress = Math.hypot(reached.x - target.x, reached.y - target.y);
-	target.x = reached.x;
-	target.y = reached.y;
-	target.vz = 0;
-
-	const c = target.center();
-	b.x = c.x;
-	b.y = c.y;
-	b.z = c.z;
-
-	// Stuck behind a wall: let go
-	if (step > 1 && progress < step * 0.1)
-		return release();
-	return true;
+/** A shell touched a player: damage, then thrown along the shell's motion. */
+function hitByShell(state: HuntState, physics: HuntPhysics, p: Player, s: Shell) {
+	damagePlayer(state, physics, p.idx, SHELL_DAMAGE, s.owner);
+	const speed = Math.hypot(s.vx, s.vy);
+	if (speed > 1e-3)
+		launchPlayer(p, s.vx / speed, s.vy / speed, SHELL_KNOCKBACK_SPEED, SHELL_KNOCKBACK_VZ);
 }
 
 
 /* ---------------------------- Boxes & pickups ---------------------------- */
 
 /**
- * Standing boxes fall when they are not held (a boomerang can drop them anywhere).
+ * Standing boxes fall onto what is under them.
  * Broken boxes come back on their slot once their timer is over and nobody is in the way.
  */
 function updateBoxes(state: HuntState, physics: HuntPhysics, dt: number) {
 	for (const box of state.boxes) {
 		if (box.isStanding()) {
-			if (box.carriedBy < 0)
-				fall(physics, box, dt, box);
+			fall(physics, box, dt, box);
 			continue;
 		}
 

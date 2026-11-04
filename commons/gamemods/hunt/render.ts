@@ -189,11 +189,12 @@ export class HuntRenderer implements ViewContext {
 function* allEntities(state: HuntState, blocks: Block[]): Generator<Entity> {
 	yield* blocks;
 	yield* state.boxes;
+	yield* state.iceZones;
 	yield* state.pickups;
 	yield* state.players;
 	yield* state.projectiles;
 	yield* state.bombs;
-	yield* state.boomerangs;
+	yield* state.shells;
 	yield* state.explosions;
 }
 

@@ -24,7 +24,7 @@ const STEPS: { text: string; done: (state: HuntState, t: TutorialData) => boolea
 		done: (_s, t) => t.elapsed > 8,
 	},
 	{
-		text: "Break a box to get an item (bomb, boomerang, dash, super jump). Hold right click to see its path, release it to use the item (1-4 or wheel select it while right click is held, middle click cancels)",
+		text: "Break a box to get an item (bomb, ice bomb, shells, super jump). Hold right click to see its path, release it to use the item (1-4 or wheel select it while right click is held, middle click cancels)",
 		done: s => s.players[0].items.some(i => i !== ITEM_NONE) || s.players[0].kills > 0,
 	},
 	{

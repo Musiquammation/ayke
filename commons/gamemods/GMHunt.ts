@@ -26,14 +26,15 @@ import {
 import {
 	Block,
 	Bomb,
-	Boomerang,
 	Box,
 	Explosion,
+	IceZone,
 	KillEvent,
 	loadEntities,
 	Pickup,
 	Player,
 	Projectile,
+	Shell,
 } from "./hunt/entities";
 import { LEVEL } from "./hunt/level";
 import { ensureRapier, HuntPhysics, isRapierReady } from "./hunt/physics";
@@ -130,8 +131,9 @@ export class GMHunt extends GameMode implements HuntState {
 	readonly boxes: Box[];
 	projectiles: Projectile[] = [];
 	bombs: Bomb[] = [];
-	boomerangs: Boomerang[] = [];
+	shells: Shell[] = [];
 	explosions: Explosion[] = [];
+	iceZones: IceZone[] = [];
 	pickups: Pickup[] = [];
 	killFeed: KillEvent[] = [];
 	time = MATCH_DURATION;
@@ -485,8 +487,9 @@ export class GMHunt extends GameMode implements HuntState {
 			boxes: this.boxes.map(b => b.save()),
 			projectiles: this.projectiles.map(b => b.save()),
 			bombs: this.bombs.map(b => b.save()),
-			boomerangs: this.boomerangs.map(b => b.save()),
+			shells: this.shells.map(s => s.save()),
 			explosions: this.explosions.map(e => e.save()),
+			iceZones: this.iceZones.map(z => z.save()),
 			pickups: this.pickups.map(p => p.save()),
 			killFeed: this.killFeed.map(k => k.save()),
 			time: this.time,
@@ -510,8 +513,9 @@ export class GMHunt extends GameMode implements HuntState {
 		// Lists are loaded in place, so the entities keep their three.js model
 		loadEntities(this.projectiles, obj.projectiles, () => new Projectile());
 		loadEntities(this.bombs, obj.bombs, () => new Bomb());
-		loadEntities(this.boomerangs, obj.boomerangs, () => new Boomerang());
+		loadEntities(this.shells, obj.shells, () => new Shell());
 		loadEntities(this.explosions, obj.explosions, () => new Explosion());
+		loadEntities(this.iceZones, obj.iceZones, () => new IceZone());
 		loadEntities(this.pickups, obj.pickups, () => new Pickup());
 		loadEntities(this.killFeed, obj.killFeed, () => new KillEvent());
 		this.time = obj.time ?? MATCH_DURATION;

@@ -4,21 +4,17 @@ import { Fields } from "../../../Fields";
 import { ALL, GROUP_STATIC, groups, Span } from "../collision";
 import { BOX_HEIGHT, BOX_HP, BOX_SIZE } from "../constants";
 import { BoxSlotDef } from "../level";
-import { Carryable, Damageable, MovingEntity, ViewContext } from "./Entity";
+import { Damageable, MovingEntity, ViewContext } from "./Entity";
 import { place, solid, unitBox } from "./models";
 
 const BOX_COLOR = "#d4a373";
 
-/**
- * A breakable box. It (re)spawns on its slot of the level, but a boomerang can drag it
- * around, so unlike the static blocks its position is part of the shared state.
- */
-export class Box extends MovingEntity implements Damageable, Carryable {
+/** A breakable box. It (re)spawns on its slot of the level. */
+export class Box extends MovingEntity implements Damageable {
 	readonly maxHp = BOX_HP;
 	hp = BOX_HP;
 	respawn = 0;
 	breaks = 0;
-	carriedBy = -1;
 
 	constructor(readonly slot: BoxSlotDef) {
 		super();
@@ -36,7 +32,6 @@ export class Box extends MovingEntity implements Damageable, Carryable {
 		this.y = this.slot.cy;
 		this.z = this.slot.base;
 		this.vz = 0;
-		this.carriedBy = -1;
 	}
 
 	isTargetable() {
@@ -54,7 +49,7 @@ export class Box extends MovingEntity implements Damageable, Carryable {
 	override save(): Fields {
 		return {
 			...super.save(),
-			hp: this.hp, respawn: this.respawn, breaks: this.breaks, carriedBy: this.carriedBy,
+			hp: this.hp, respawn: this.respawn, breaks: this.breaks,
 		};
 	}
 
@@ -63,7 +58,6 @@ export class Box extends MovingEntity implements Damageable, Carryable {
 		this.hp = obj.hp ?? BOX_HP;
 		this.respawn = obj.respawn ?? 0;
 		this.breaks = obj.breaks ?? 0;
-		this.carriedBy = obj.carriedBy ?? -1;
 	}
 
 	/* ---------- Physics ---------- */

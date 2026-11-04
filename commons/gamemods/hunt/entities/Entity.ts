@@ -36,7 +36,7 @@ export interface ViewContext {
 	texture(label: string): THREE.Texture | null;
 }
 
-/** Something with life: it can be shot, blown up and caught by a boomerang. */
+/** Something with life: it can be shot and blown up. */
 export interface Damageable {
 	hp: number;
 	readonly maxHp: number;
@@ -46,13 +46,6 @@ export interface Damageable {
 	center(): Vec3;
 	/** Radius on the ground plane, used by the cursor and the explosions. */
 	hitRadius(): number;
-}
-
-/** Something a boomerang can drag back to its thrower. */
-export interface Carryable extends Vec3 {
-	/** Index of the player whose boomerang holds it, -1 when free. */
-	carriedBy: number;
-	vz: number;
 }
 
 

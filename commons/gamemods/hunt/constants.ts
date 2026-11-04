@@ -84,9 +84,9 @@ export const WEAPONS: WeaponDef[] = [
 	},
 	{ // 3 = short range: a handful of pellets converging on the target
 		name: "Shotgun",
-		drain: 0.45, cooldown: 0.2,
-		speed: 1400, range: 420, damage: 280, radius: 6,
-		count: 8, scatter: 45, homing: false,
+		drain: 0.45, cooldown: 0.44,
+		speed: 1400, range: 420, damage: 280, radius: 9,
+		count: 12, scatter: 45, homing: false,
 		color: "#ff8c42",
 	},
 ];
@@ -101,35 +101,46 @@ export const WEAPON_BOT_RANGES = [1100, 600, 250];
 export const ITEM_SLOTS = 4;
 export const ITEM_NONE = 0;
 export const ITEM_BOMB = 1;
-export const ITEM_BOOMERANG = 2;
-export const ITEM_DASH = 3;
+export const ITEM_ICE_BOMB = 2;
+export const ITEM_SHELLS = 3;
 export const ITEM_JUMP = 4;
-export const ITEM_KINDS = [ITEM_BOMB, ITEM_BOOMERANG, ITEM_DASH, ITEM_JUMP];
+// Drop chances of the boxes: every item has the same weight, the explosive bomb counts twice
+export const ITEM_DROP_WEIGHTS: [item: number, weight: number][] = [
+	[ITEM_BOMB, 2],
+	[ITEM_ICE_BOMB, 1],
+	[ITEM_SHELLS, 1],
+	[ITEM_JUMP, 1],
+];
 
 export const ITEM_NAMES: Record<number, string> = {
 	[ITEM_BOMB]: "Bomb",
-	[ITEM_BOOMERANG]: "Boomerang",
-	[ITEM_DASH]: "Dash",
+	[ITEM_ICE_BOMB]: "Ice bomb",
+	[ITEM_SHELLS]: "Shells",
 	[ITEM_JUMP]: "Super jump",
 };
 
 export const ITEM_TEXTURES: Record<number, string> = {
 	[ITEM_BOMB]: 'item-bomb',
-	[ITEM_BOOMERANG]: 'item-boomerang',
-	[ITEM_DASH]: 'item-dash',
+	[ITEM_ICE_BOMB]: 'item-ice-bomb',
+	[ITEM_SHELLS]: 'item-shells',
 	[ITEM_JUMP]: 'item-jump',
 };
 
 // Colors of the item models (and fallback when a texture is missing)
 export const ITEM_COLORS: Record<number, string> = {
 	[ITEM_BOMB]: "#a3a3a3",
-	[ITEM_BOOMERANG]: "#f59e0b",
-	[ITEM_DASH]: "#60a5fa",
+	[ITEM_ICE_BOMB]: "#7dd3fc",
+	[ITEM_SHELLS]: "#22c55e",
 	[ITEM_JUMP]: "#f472b6",
 };
 
-// Bomb: thrown along an arc, explodes when it lands or touches something
-export const BOMB_MAX_RANGE = 750;
+// Bomb kinds (Bomb.kind)
+export const BOMB_FIRE = 0;
+export const BOMB_ICE = 1;
+
+// Bomb: thrown along an arc, explodes when it lands or touches something.
+// The ice bomb follows the same arc but leaves an ice zone instead.
+export const BOMB_MAX_RANGE = 1200;
 export const BOMB_FLIGHT_TIME = 0.7;
 export const BOMB_RADIUS = 12;
 export const EXPLOSION_RADIUS = 220;
@@ -137,37 +148,41 @@ export const EXPLOSION_VERTICAL_REACH = 160;
 export const EXPLOSION_DAMAGE = 1800;
 export const EXPLOSION_DURATION = 0.45;
 export const EXPLOSION_RAYS = 72;          // resolution of the zone hidden by walls
+// Players caught in a blast (the thrower too) are thrown backward, stunned until they land
+export const EXPLOSION_KNOCKBACK_SPEED = 560;
+export const EXPLOSION_KNOCKBACK_VZ = 760;
 
-// Boomerang: goes out passing on the right, comes back on the left.
-// When it hits something with life, it drags it back to the thrower.
-export const BOOMERANG_REACH = 1050;       // max forward distance of the loop (its apex is on the aim)
-export const BOOMERANG_MIN_REACH = 200;
-export const BOOMERANG_SIDE = 260;         // lateral distance of the loop
-export const BOOMERANG_TIME = 1.5;         // duration of the whole loop
-export const BOOMERANG_RADIUS = 18;
-export const BOOMERANG_DAMAGE = 500;
-export const BOOMERANG_PULL_SPEED = 950;
-export const BOOMERANG_PULL_MAX_TIME = 2;  // the catch is released after this long
-export const BOOMERANG_RELEASE_GAP = 20;   // released when this close to the thrower
+// Ice zone: players standing in it are slowed, and stay slowed a bit after leaving it
+export const ICE_ZONE_RADIUS = 210;
+export const ICE_ZONE_DURATION = 6;
+export const ICE_ZONE_VERTICAL_REACH = 40;
+export const ICE_SLOW_FACTOR = 0.45;       // speed multiplier while slowed
+export const ICE_SLOW_LINGER = 2;          // seconds the slow lasts after leaving the zone
 
-// Dash: players touched are dragged along, then thrown up and stunned
-export const DASH_DISTANCE = 520;
-export const DASH_TIME = 0.28;
-export const DASH_DAMAGE = 500;
-export const DASH_GRAB_MARGIN = 14;
-export const DASH_LAUNCH_VELOCITY = 880;
-export const DASH_STUN = 1.3;              // seconds without attacking after the launch
+// Shells: three of them, sliding on the ground and bouncing on walls.
+// A shell touching a player throws it up and stuns it until it lands; two shells touching break.
+export const SHELL_COUNT = 3;
+export const SHELL_SPREAD = 0.28;          // angle (radians) between two shells
+export const SHELL_SPEED = 950;
+export const SHELL_RADIUS = 26;
+export const SHELL_MAX_BOUNCES = 12;
+export const SHELL_LIFE = 10;              // seconds before a shell vanishes anyway
+export const SHELL_ARM_TIME = 0.25;        // the thrower and the other shells are ignored this long
+export const SHELL_DAMAGE = MAX_HP / 2;
+export const SHELL_KNOCKBACK_SPEED = 420;
+export const SHELL_KNOCKBACK_VZ = 820;
+export const SHELL_PREVIEW_LENGTH = 1400;  // distance covered by the preview of each shell
 
 // Super jump: a leap along an arc to the aimed point
-export const SUPER_JUMP_RANGE = 800;
-export const SUPER_JUMP_TIME = 0.75;
+export const SUPER_JUMP_RANGE = 1150;
+export const SUPER_JUMP_TIME = 0.95;
 export const SUPER_JUMP_MAX_RISE = 160;    // highest surface (above the feet) we aim for
 
 // Previews of the item trajectories
 export const PREVIEW_STEP = 1 / 60;
 export const PREVIEW_MAX_STEPS = 240;
 
-// Breakable boxes (they can be dragged by a boomerang, so they move)
+// Breakable boxes
 export const BOX_HP = 1500;
 export const BOX_RESPAWN = 20;
 export const BOX_SIZE = 70;
@@ -219,8 +234,8 @@ export const TEXTURES = {
 	'ground': "/assets/games/hunt/ground.png",
 	'box': "/assets/games/hunt/box.png",
 	'item-bomb': "/assets/games/hunt/items/bomb.png",
-	'item-boomerang': "/assets/games/hunt/items/boomerang.png",
-	'item-dash': "/assets/games/hunt/items/dash.png",
+	'item-ice-bomb': "/assets/games/hunt/items/ice-bomb.png",
+	'item-shells': "/assets/games/hunt/items/shells.png",
 	'item-jump': "/assets/games/hunt/items/jump.png",
 	'weapon-long': "/assets/games/hunt/weapons/long.png",
 	'weapon-mid': "/assets/games/hunt/weapons/mid.png",

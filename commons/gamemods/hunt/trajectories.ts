@@ -2,12 +2,6 @@ import {
 	BOMB_FLIGHT_TIME,
 	BOMB_MAX_RANGE,
 	BOMB_RADIUS,
-	BOOMERANG_MIN_REACH,
-	BOOMERANG_REACH,
-	BOOMERANG_RADIUS,
-	BOOMERANG_SIDE,
-	BOOMERANG_TIME,
-	DASH_DISTANCE,
 	EXPLOSION_RADIUS,
 	EXPLOSION_RAYS,
 	GRAVITY,
@@ -15,14 +9,21 @@ import {
 	MAX_FALL_SPEED,
 	PREVIEW_MAX_STEPS,
 	PREVIEW_STEP,
+	SHELL_ARM_TIME,
+	SHELL_COUNT,
+	SHELL_MAX_BOUNCES,
+	SHELL_PREVIEW_LENGTH,
+	SHELL_RADIUS,
+	SHELL_SPEED,
+	SHELL_SPREAD,
 	STEP_HEIGHT,
 	SUPER_JUMP_MAX_RISE,
 	SUPER_JUMP_RANGE,
 	SUPER_JUMP_TIME,
 	WEAPONS,
 } from "./constants";
-import { Box, Entity, Player, Vec3 } from "./entities";
-import { BodyHit, HuntPhysics } from "./physics";
+import { Entity, Player, Vec3 } from "./entities";
+import { HuntPhysics } from "./physics";
 
 /* -------------------------------------------------------------------------- */
 /* Motion of the items (and shapes of the shots). The simulation and the      */
@@ -90,7 +91,7 @@ export function bombLaunch(physics: HuntPhysics, p: Player, aim: Vec3): Ballisti
 	};
 }
 
-/** Players a bomb thrown by `owner` explodes on. */
+/** Players a bomb thrown by `owner` explodes on (it cannot touch its thrower in flight). */
 function bombTouches(owner: number) {
 	return (e: Entity) => e instanceof Player && e.idx !== owner && e.isTargetable();
 }
@@ -142,98 +143,95 @@ export function explosionZone(physics: HuntPhysics, x: number, y: number, z: num
 }
 
 
-/* ---------------------------- Boomerang ---------------------------- */
+/* ---------------------------- Shells ---------------------------- */
 
-export interface BoomerangThrow {
-	originX: number;
-	originY: number;
-	dirX: number;
-	dirY: number;
-	reach: number;
+/** A shell: slides on the ground and bounces on the walls. */
+export interface ShellBody extends BallisticBody {
+	owner: number;
+	bounces: number;
+	armTime: number;
 }
 
-/** Throw parameters of a boomerang: the apex of its loop is on the aimed point (range limited). */
-export function boomerangThrow(p: Player, aim: Vec3): BoomerangThrow {
+/** Gap kept between a bouncing shell and the wall it bounced on. */
+const SHELL_SKIN = 1;
+
+/** Initial states of the shells thrown by `p`, fanned out around the aim direction. */
+export function shellLaunch(p: Player, aim: Vec3): ShellBody[] {
 	const dir = aimDirection(p, aim);
-	const dist = Math.hypot(aim.x - p.x, aim.y - p.y);
-	return {
-		originX: p.x,
-		originY: p.y,
-		dirX: dir.x,
-		dirY: dir.y,
-		reach: Math.max(BOOMERANG_MIN_REACH, Math.min(BOOMERANG_REACH, dist)),
-	};
+	const base = Math.atan2(dir.y, dir.x);
+	return Array.from({ length: SHELL_COUNT }, (_, i) => {
+		const a = base + (i - (SHELL_COUNT - 1) / 2) * SHELL_SPREAD;
+		return {
+			x: p.x, y: p.y, z: p.z,
+			vx: Math.cos(a) * SHELL_SPEED,
+			vy: Math.sin(a) * SHELL_SPEED,
+			vz: 0,
+			owner: p.idx,
+			bounces: 0,
+			armTime: SHELL_ARM_TIME,
+		};
+	});
+}
+
+/** Players a shell touches: anybody, its thrower only once it is armed. */
+function shellTouches(s: ShellBody) {
+	return (e: Entity) => e instanceof Player && e.isTargetable() && (s.armTime <= 0 || e.idx !== s.owner);
 }
 
 /**
- * Point of a boomerang loop at the progress u (0 .. 1).
- * It goes out passing on the right of the throw direction and comes back on the
- * left. The loop is anchored on the throw point at first, then more and more on
- * the owner (anchorX, anchorY), so it comes back to the owner even if it moved.
+ * Move a shell by dt (z is the altitude of its bottom): it slides, bounces on the
+ * walls and falls from the edges. Returns the player it touched, 'broken' once it
+ * bounced more than SHELL_MAX_BOUNCES times, or null while it keeps sliding.
  */
-export function boomerangPoint(t: BoomerangThrow, u: number, anchorX: number, anchorY: number) {
-	const w = u * u;
-	const ax = t.originX + (anchorX - t.originX) * w;
-	const ay = t.originY + (anchorY - t.originY) * w;
-	const forward = t.reach * Math.sin(Math.PI * u);
-	const side = BOOMERANG_SIDE * Math.sin(Math.PI * 2 * u);
-	// Right of (dirX, dirY) on the screen (y down) is (-dirY, dirX)
-	return {
-		x: ax + t.dirX * forward - t.dirY * side,
-		y: ay + t.dirY * forward + t.dirX * side,
-	};
-}
+export function stepShell(physics: HuntPhysics, s: ShellBody, dt: number): Player | 'broken' | null {
+	s.armTime = Math.max(0, s.armTime - dt);
+	const dx = s.vx * dt;
+	const dy = s.vy * dt;
+	// Like a walking body, obstacles lower than STEP_HEIGHT are ignored
+	const z = s.z + STEP_HEIGHT + SHELL_RADIUS;
 
-/** Entities a boomerang thrown by `owner` catches (on top of the boxes, which always stop it). */
-export function boomerangCatches(owner: number) {
-	return (e: Entity) => e instanceof Player && e.idx !== owner && e.isTargetable();
-}
+	const hit = physics.castBall(s.x, s.y, z, dx, dy, 0, SHELL_RADIUS, shellTouches(s));
+	if (!hit) {
+		s.x += dx;
+		s.y += dy;
+	} else {
+		const len = Math.hypot(dx, dy);
+		const advance = len > 0 ? Math.max(0, hit.toi * len - SHELL_SKIN) / len : 0;
+		s.x += dx * advance;
+		s.y += dy * advance;
+		if (hit.entity instanceof Player)
+			return hit.entity;
 
-/** True when a boomerang hit is a catch (something with life) rather than a wall. */
-export function isCatch(hit: BodyHit) {
-	return hit.entity instanceof Player || hit.entity instanceof Box;
-}
-
-/** Flight time of the boomerang between two progress values. */
-export function boomerangProgress(u: number, dt: number) {
-	return Math.min(1, u + dt / BOOMERANG_TIME);
-}
-
-/**
- * Path of a boomerang thrown right now (the owner is supposed not to move).
- * Stops at the first thing it touches.
- */
-export function traceBoomerang(physics: HuntPhysics, p: Player, aim: Vec3) {
-	const t = boomerangThrow(p, aim);
-	const z = p.z + GUN_HEIGHT;
-	const accept = boomerangCatches(p.idx);
-	const points: Vec3[] = [{ x: p.x, y: p.y, z }];
-	let hit: BodyHit | null = null;
-
-	let u = 0;
-	for (let i = 0; i < PREVIEW_MAX_STEPS && u < 1 && !hit; i++) {
-		const prev = points[points.length - 1];
-		u = boomerangProgress(u, PREVIEW_STEP);
-		const next = boomerangPoint(t, u, p.x, p.y);
-		hit = physics.castBall(prev.x, prev.y, z, next.x - prev.x, next.y - prev.y, 0, BOOMERANG_RADIUS, accept);
-		const k = hit ? hit.toi : 1;
-		points.push({ x: prev.x + (next.x - prev.x) * k, y: prev.y + (next.y - prev.y) * k, z });
+		// Bounce: mirror the velocity on the wall
+		const into = s.vx * hit.nx + s.vy * hit.ny;
+		if (into < 0) {
+			s.vx -= 2 * into * hit.nx;
+			s.vy -= 2 * into * hit.ny;
+		}
+		s.x += hit.nx * SHELL_SKIN;
+		s.y += hit.ny * SHELL_SKIN;
+		if (++s.bounces > SHELL_MAX_BOUNCES)
+			return 'broken';
 	}
 
-	return { points, hit };
+	fall(physics, s, dt, null);
+	return null;
 }
 
-
-/* ---------------------------- Dash ---------------------------- */
-
-/** Straight path of a dash started right now, cut by the first obstacle. */
-export function traceDash(physics: HuntPhysics, p: Player, aim: Vec3) {
-	const dir = aimDirection(p, aim);
-	const end = physics.movePlayer(p, dir.x * DASH_DISTANCE, dir.y * DASH_DISTANCE, p);
-	return {
-		from: { x: p.x, y: p.y, z: p.z },
-		to: { x: end.x, y: end.y, z: p.z },
-	};
+/** Paths of the shells thrown right now (cut after SHELL_PREVIEW_LENGTH, or where they stop). */
+export function traceShells(physics: HuntPhysics, p: Player, aim: Vec3) {
+	return shellLaunch(p, aim).map(s => {
+		const points: Vec3[] = [{ x: s.x, y: s.y, z: s.z }];
+		let travelled = 0;
+		let end: Player | 'broken' | null = null;
+		for (let i = 0; i < PREVIEW_MAX_STEPS * 2 && travelled < SHELL_PREVIEW_LENGTH && !end; i++) {
+			const prev = points[points.length - 1];
+			end = stepShell(physics, s, PREVIEW_STEP);
+			travelled += Math.hypot(s.x - prev.x, s.y - prev.y);
+			points.push({ x: s.x, y: s.y, z: s.z });
+		}
+		return { points, hit: end instanceof Player };
+	});
 }
 
 

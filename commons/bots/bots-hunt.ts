@@ -3,13 +3,12 @@ import { botActionNodeHelper, describeBot } from "../Bot";
 import { GMHunt } from "../gamemods/GMHunt";
 import {
 	BOMB_MAX_RANGE,
-	BOOMERANG_REACH,
-	DASH_DISTANCE,
+	EXPLOSION_RADIUS,
 	ITEM_BOMB,
-	ITEM_BOOMERANG,
-	ITEM_DASH,
+	ITEM_ICE_BOMB,
 	ITEM_JUMP,
 	ITEM_NONE,
+	ITEM_SHELLS,
 	PLAYER_HEIGHT,
 	WEAPON_BOT_RANGES,
 	WEAPONS,
@@ -24,6 +23,7 @@ import { canShoot } from "../gamemods/hunt/simulation";
 const STRAFE_PERIOD = 2.2;   // seconds before changing strafe direction
 const STUCK_DISTANCE = 4;    // moved less than this in a frame while walking = stuck
 const LEAP_MIN_DISTANCE = 950; // super jump toward targets farther than this
+const SHELL_BOT_RANGE = 700;   // shells thrown at targets closer than this
 
 class Data {
 	lastX = 0;
@@ -71,9 +71,10 @@ function axis(v: number) {
 /** True when using this item now would be useful against a target at this distance. */
 function itemInRange(item: number, dist: number) {
 	switch (item) {
-		case ITEM_BOMB: return dist < BOMB_MAX_RANGE * 0.95;
-		case ITEM_BOOMERANG: return dist < BOOMERANG_REACH * 0.9;
-		case ITEM_DASH: return dist < DASH_DISTANCE * 0.8;
+		// Not too close: the blast also hits the thrower
+		case ITEM_BOMB: return dist < BOMB_MAX_RANGE * 0.95 && dist > EXPLOSION_RADIUS * 1.3;
+		case ITEM_ICE_BOMB: return dist < BOMB_MAX_RANGE * 0.95;
+		case ITEM_SHELLS: return dist < SHELL_BOT_RANGE;
 		case ITEM_JUMP: return dist > LEAP_MIN_DISTANCE;
 		default: return false;
 	}
@@ -148,7 +149,7 @@ const fight = runner((game, data, playerIdx) => {
 		inputs.push({ action: 'selectItem', selectItem: firstItem });
 	} else if (self.canAttack() && itemInRange(item, dist)) {
 		const feet = { x: target.x, y: target.y, z: target.z };
-		inputs.push({ action: 'useItem', useItem: item === ITEM_BOMB || item === ITEM_JUMP ? feet : aim });
+		inputs.push({ action: 'useItem', useItem: item === ITEM_SHELLS ? aim : feet });
 	}
 
 	return [inputs, 'success'];

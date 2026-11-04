@@ -22,6 +22,9 @@ const SKIN = 0.5;
 export interface BodyHit {
 	entity: Entity;
 	toi: number;
+	/** Outward normal of what was hit, on the ground plane. */
+	nx: number;
+	ny: number;
 }
 
 let rapierReady: Promise<void> | null = null;
@@ -285,7 +288,12 @@ export class HuntPhysics {
 
 		if (!hit)
 			return null;
-		return { entity: this.owners.get(hit.collider.handle)!, toi: hit.time_of_impact };
+		return {
+			entity: this.owners.get(hit.collider.handle)!,
+			toi: hit.time_of_impact,
+			nx: hit.normal1.x,
+			ny: hit.normal1.y,
+		};
 	}
 
 	/**
