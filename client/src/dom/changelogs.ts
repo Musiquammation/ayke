@@ -8,6 +8,15 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.4",
+		date: 1793804400000, // Wed. 4 nov 2026 at 4:00 PM
+		title: "Minor fixes",
+		lines: [
+			"Jumpies was not implemented",
+			"<ust>Rally:</ust> Client was not simulating"
+		]
+	},
+	{
 		version: "1.5.3",
 		date: 1793797200000, // Wed. 4 nov 2026 at 1:00 PM
 		title: "Jumpies, smarter bots and Rally/Castle improvements",
