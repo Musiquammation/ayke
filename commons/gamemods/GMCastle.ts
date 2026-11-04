@@ -128,7 +128,7 @@ const ARCHER_PRICE = 3;
 const ARCHER_HP = 25;
 const ARCHER_ROWS = 2;
 const ARCHER_RANGE = 450;
-const ARCHER_COOLDOWN = 0.9 / 3.5;
+const ARCHER_COOLDOWN = 0.9 / 3.5 * 1.5;
 const ARCHER_MUZZLE_OFFSET = 10;     // distance of the muzzle below the tower top
 const ARROW_SPEED = 600;
 const ARROW_LIFETIME = 2.5;
@@ -265,6 +265,8 @@ const GRID_BG_MAX_ALPHA = 0.35;
 const GRID_LINE_MAX_ALPHA = 0.8;
 const PREVIEW_ALPHA = 0.7;
 const PREVIEW_OUTLINE_WIDTH = 3;
+const CARD_SELECTED_OUTLINE_WIDTH = 8;
+const CARD_SELECTED_TINT = 'rgba(255, 213, 79, 0.25)';
 const PREVIEW_LABEL_OFFSET_Y = 18;
 
 // ---- Distant SVG background --------------------------------------------------
@@ -534,6 +536,13 @@ namespace botsApi {
 	const MAX_BANS = 12;
 	/** Duration of the scripted escape manoeuvre when no alternative edge exists. */
 	const ESCAPE_TIME = 0.7;
+	/** Fireball dodging: look-ahead duration, simulation step and safety margin around each ball (px). */
+	const DODGE_HORIZON = 0.6;
+	const DODGE_STEP = 1 / 30;
+	const DODGE_MARGIN = 4;
+	/** Fire bars farther than this from the bot are ignored (bar reach + bot travel over the horizon). */
+	const DODGE_RANGE = FIREBAR_BALLS * FIREBAR_BALL_SPACING + FIREBAR_BALL_RADIUS
+		+ (BOT_JUMP_SPEED + BOT_RUN_SPEED) * DODGE_HORIZON;
 
 	// Cell classes
 	const FREE = 0;
@@ -1129,7 +1138,14 @@ namespace botsApi {
 		updateStuck(bot, data, dt);
 
 		const trace: Trace = { why: '', gap: NaN };
-		const input = data.escapeTimer > 0 ? escape(bot, data, dt, trace) : decide(nav, bot, dt, trace);
+		const planned = data.escapeTimer > 0 ? escape(bot, data, dt, trace) : decide(nav, bot, dt, trace);
+		const input = dodgeFireballs(game, bot, planned, trace);
+		if (input !== planned) {
+			// Waiting for a fire bar to pass is not being stuck.
+			data.checkX = bot.x;
+			data.checkY = bot.y;
+			data.checkTimer = STUCK_TIME;
+		}
 
 		if (DEBUG) {
 			const key = `${trace.why}|${input.dir}|${input.jump}`;
@@ -1198,6 +1214,85 @@ namespace botsApi {
 		if (jump && !grounded) data.jumpCooldown = Math.max(WALL_JUMP_COOLDOWN, BOT_JUMP_COOLDOWN);
 		trace.why = `ESCAPE dir=${dir}`;
 		return { dir, jump, glueFloor: false, grounded };
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* Fireball dodging                                                        */
+	/* ---------------------------------------------------------------------- */
+
+	/**
+	 * Earliest time (s) at which the bot, driven by (dir, jump), touches a fireball
+	 * within DODGE_HORIZON; Infinity when it stays safe. The bot motion is a simple
+	 * ballistic model (walls ignored; a grounded bot never sinks below its floor).
+	 */
+	function timeToFireball(bars: FireBarElement[], bot: Bot, dir: Dir, jump: boolean, grounded: boolean): number {
+		let x = bot.x;
+		let y = bot.y;
+		let vx = bot.velocity.x;
+		let vy = jump && grounded ? -BOT_JUMP_SPEED : grounded ? 0 : bot.velocity.y;
+		const floorY = bot.y;
+		const target = dir * BOT_RUN_SPEED;
+		const r = FIREBAR_BALL_RADIUS + DODGE_MARGIN;
+
+		for (let t = 0; t <= DODGE_HORIZON; t += DODGE_STEP) {
+			for (const bar of bars) {
+				const angle = bar.angle + FIREBAR_ROTATION_SPEED * t;
+				const cos = Math.cos(angle);
+				const sin = Math.sin(angle);
+				for (let i = 1; i <= FIREBAR_BALLS; i++) {
+					const bx = bar.x + cos * i * FIREBAR_BALL_SPACING;
+					const by = bar.y + sin * i * FIREBAR_BALL_SPACING;
+					const cx = Math.max(x - H, Math.min(bx, x + H));
+					const cy = Math.max(y - H, Math.min(by, y + H));
+					if (norm2(bx - cx, by - cy) <= r * r) return t;
+				}
+			}
+
+			const dv = BOT_ACCELERATION * DODGE_STEP;
+			vx = vx < target ? Math.min(target, vx + dv) : Math.max(target, vx - dv);
+			vy += GRAVITY * DODGE_STEP;
+			x += vx * DODGE_STEP;
+			y += vy * DODGE_STEP;
+			if (grounded && y > floorY) { y = floorY; vy = 0; }
+		}
+		return Infinity;
+	}
+
+	/**
+	 * Keeps the planned input unless it leads into a fireball soon; otherwise picks the
+	 * first safe alternative (wait, jump, back off), or the one that delays the hit most.
+	 */
+	function dodgeFireballs(game: GMCastle, bot: Bot, planned: BotInput, trace: Trace): BotInput {
+		const bars: FireBarElement[] = [];
+		for (const el of game.storage.elements.values()) {
+			if (el instanceof FireBarElement && norm2(el.x - bot.x, el.y - bot.y) <= DODGE_RANGE * DODGE_RANGE) bars.push(el);
+		}
+		if (bars.length === 0) return planned;
+
+		const grounded = planned.grounded;
+		const plannedHit = timeToFireball(bars, bot, planned.dir, planned.jump, grounded);
+		if (plannedHit === Infinity) return planned;
+
+		const back = (-planned.dir || -(sgn(CASTLE_RECT.x - bot.x) || 1)) as Dir;
+		const forward = (planned.dir || -back) as Dir;
+		const options: { dir: Dir; jump: boolean }[] = [{ dir: 0, jump: false }];
+		if (grounded) options.push({ dir: forward, jump: true }, { dir: 0, jump: true });
+		options.push({ dir: back, jump: false });
+		if (grounded) options.push({ dir: back, jump: true });
+
+		let best: BotInput = planned;
+		let bestHit = plannedHit;
+		for (const o of options) {
+			if (o.dir === planned.dir && o.jump === planned.jump) continue;
+			const hit = timeToFireball(bars, bot, o.dir, o.jump, grounded);
+			if (hit > bestHit) {
+				bestHit = hit;
+				best = { dir: o.dir, jump: o.jump, glueFloor: false, grounded };
+				if (hit === Infinity) break;
+			}
+		}
+		if (best !== planned) trace.why += ` | DODGE fireball (dir=${best.dir} jump=${best.jump})`;
+		return best;
 	}
 
 	/** True when the bot is pressed against a wall in direction d. */
@@ -2038,12 +2133,13 @@ class ThwompElement extends PlacedElement {
 		return false;
 	}
 
-	/** Crushes bots while slamming; stops on the first solid thing below. */
+	/** Crushes the bots under it while slamming; stops on the first solid thing below. */
 	override detectCollision(_id: BlockId, other: Entry, side: Side, engine: Engine): void {
 		if (this.phase !== THWOMP_PHASE_SLAM) return;
 
+		// Only the bottom face is deadly: bots touching the sides or standing on top survive.
 		if (other.block instanceof Bot) {
-			engine.getGame().killBot(other.block, this.owner);
+			if (side === 'floor') engine.getGame().killBot(other.block, this.owner);
 		} else if (other.block instanceof PlacedElement && side === 'floor') {
 			this.land();
 		}
@@ -3874,8 +3970,12 @@ export class GMCastle extends GameMode {
 
 			ctx.fillStyle = COLOR_CARD_BG;
 			ctx.fillRect(r.x, r.y, r.w, r.h);
+			if (selected) {
+				ctx.fillStyle = CARD_SELECTED_TINT;
+				ctx.fillRect(r.x, r.y, r.w, r.h);
+			}
 			ctx.strokeStyle = selected ? COLOR_CARD_SELECTED : COLOR_FALLBACK_OUTLINE;
-			ctx.lineWidth = selected ? PREVIEW_OUTLINE_WIDTH : 1;
+			ctx.lineWidth = selected ? CARD_SELECTED_OUTLINE_WIDTH : 1;
 			ctx.strokeRect(r.x, r.y, r.w, r.h);
 			ctx.lineWidth = 1;
 
@@ -3928,7 +4028,7 @@ export class GMCastle extends GameMode {
 					ctx.fillStyle = selected ? COLOR_CARD_SELECTED : COLOR_CARD_BG;
 					ctx.fillRect(r.x, r.y, r.w, r.h);
 					ctx.strokeStyle = selected ? COLOR_CARD_SELECTED : COLOR_FALLBACK_OUTLINE;
-					ctx.lineWidth = selected ? 2 : 1;
+					ctx.lineWidth = selected ? CARD_SELECTED_OUTLINE_WIDTH / 2 : 1;
 					ctx.strokeRect(r.x, r.y, r.w, r.h);
 					ctx.lineWidth = 1;
 					ctx.fillStyle = COLOR_CARD_TEXT;
