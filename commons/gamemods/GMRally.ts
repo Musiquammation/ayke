@@ -1696,25 +1696,27 @@ export class GMRally extends GameMode {
 	nextEntityId = 1;
 	/** Leader lap from which the next non-leader opening an item box gets a blue shell. */
 	blueShellPunishmentLap = 1;
+	/** Replicated PRNG state for item rolls, so client prediction draws the same item as the server. */
+	itemSeed = 0;
 
 	// The world is local and deterministic. Only dynamic game state is replicated.
+	// Every peer runs the full simulation: multiplayer clients predict from the last
+	// server snapshot and are corrected by the next one.
 	private engine: RallyEngine | null = null;
 	private readonly storage: RallyStorage = { skins: [] };
 	private readonly isClient: boolean;
-	private readonly isAuthoritative: boolean;
 	private worldBuilt = false;
 	private playerIds: number[] = [];
 	private worldIds: number[] = [];
 	private itemBoxEntityIds: platformEngine.BlockId[] = [];
-	private currentRng: GameRandomGenerator | null = null;
 	private enemyColorRuleRegistered = false;
 
-	private constructor(total: number, isClient: boolean, isAuthoritative: boolean, initialLevelIndex = 0) {
+	private constructor(total: number, isClient: boolean, initialLevelIndex = 0) {
 		super();
 		this.levelIndex = normalizeLevelIndex(initialLevelIndex);
 		this.boxCooldowns = this.currentLevel().items.map(() => 0);
+		this.itemSeed = Math.floor(Math.random() * 0x100000000) >>> 0;
 		this.isClient = isClient;
-		this.isAuthoritative = isAuthoritative;
 		this.players = Array.from({ length: total }, () => new Player());
 
 		platformEngine.createPlatformerEngine<RallyEngineData>(
@@ -1742,7 +1744,7 @@ export class GMRally extends GameMode {
 		const initialLevelIndex = chosenVote >= 0 && chosenVote < LEVELS.length
 			? chosenVote
 			: Math.floor(Math.random() * LEVELS.length);
-		const game = new GMRally(total, false, true, initialLevelIndex);
+		const game = new GMRally(total, false, initialLevelIndex);
 
 		const level = game.currentLevel();
 		const start = firstCheckpointPosition(level);
@@ -1775,8 +1777,8 @@ export class GMRally extends GameMode {
 				? localVote
 				: Math.floor(Math.random() * LEVELS.length);
 		}
-		// Solo/tutorial clients are authoritative locally; multiplayer clients are not.
-		const game = new GMRally(total, true, origin === 'client', initialLevelIndex);
+		// Multiplayer clients receive itemSeed with the first server snapshot.
+		const game = new GMRally(total, true, initialLevelIndex);
 		const clientData = new ClientData();
 
 
@@ -1920,7 +1922,7 @@ private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T
 
 	beforePlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		const p = this.players[idx];
-		if (this.isAuthoritative && p.pendingItem !== ITEM_NONE) {
+		if (p.pendingItem !== ITEM_NONE) {
 			p.itemRollTimer = Math.max(0, p.itemRollTimer - dt);
 			if (p.itemRollTimer <= 0) {
 				p.item = p.pendingItem;
@@ -1930,7 +1932,7 @@ private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T
 
 		if (p.itemQueued) {
 			p.itemQueued = false;
-			if (this.isAuthoritative && p.respawn <= 0 && !p.finished && !p.hit && p.itemRollTimer <= 0) {
+			if (p.respawn <= 0 && !p.finished && !p.hit && p.itemRollTimer <= 0) {
 				this.useItem(idx, block);
 			}
 		}
@@ -1968,7 +1970,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			block.velocity.y = 0;
 			p.vx = 0;
 			p.vy = 0;
-			if (this.isAuthoritative) p.respawn = Math.max(0, p.respawn - dt);
+			p.respawn = Math.max(0, p.respawn - dt);
 			return;
 		}
 
@@ -1986,8 +1988,6 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			p.vx = 0;
 			p.vy = 0;
 		}
-
-		if (!this.isAuthoritative) return;
 
 		const level = this.currentLevel();
 		if (p.y > level.deathY) { this.killPlayer(idx, p, block); return; }
@@ -2109,7 +2109,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 	/** Item-box collection is triggered by Entity.detectCollision inside the engine. */
 	handleEntityContact(entity: Entity, playerIndex: number): void {
-		if (!this.isAuthoritative || !entity.active) return;
+		if (!entity.active) return;
 		const player = this.players[playerIndex];
 		if (!player || player.finished || player.respawn > 0) return;
 
@@ -2243,7 +2243,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		] as [number, number]);
 
 		const total = weights.reduce((sum, [, weight]) => sum + weight, 0);
-		const r = (this.currentRng ? this.currentRng() : Math.random()) * total;
+		const r = this.nextItemRandom() * total;
 
 		let cumulative = 0;
 
@@ -2253,6 +2253,15 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		}
 
 		return ITEM_MUSHROOM;
+	}
+
+	/** Mulberry32 step over the replicated seed: identical on the server and on predicting clients. */
+	private nextItemRandom(): number {
+		this.itemSeed = (this.itemSeed + 0x6D2B79F5) >>> 0;
+		let t = this.itemSeed;
+		t = Math.imul(t ^ (t >>> 15), t | 1);
+		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+		return ((t ^ (t >>> 14)) >>> 0) / 0x100000000;
 	}
 
 	private useItem(idx: number, _block: PlayerBlock) {
@@ -2568,7 +2577,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			liveShells.push(shell);
 		}
 
-		// Hazards interact with each other in the authoritative simulation:
+		// Hazards interact with each other:
 		// bananas break red/green shells, while bombs bounce shells away without
 		// detonating. Blue shells keep their special behavior and are excluded.
 		const bananas = this.getBananas().filter(banana => banana.active);
@@ -2611,11 +2620,9 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 	/* ---------------------------- Main loop ---------------------------- */
 
-	override run(dt: number, produceFinish: boolean, rng: GameRandomGenerator | null): FinishGame | null {
+	override run(dt: number, produceFinish: boolean, _rng: GameRandomGenerator | null): FinishGame | null {
 		if (!this.engine) return null;
-		this.currentRng = rng;
 		if (this.phase === PHASE_RACING) this.runRacing(dt);
-		this.currentRng = null;
 
 		if (produceFinish && this.phase === PHASE_DONE) return this.produceFinish();
 		return null;
@@ -2626,7 +2633,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		this.boxCooldowns = this.boxCooldowns.map(c => Math.max(0, c - dt));
 		this.syncEntityBlocks();
 		this.engine!.update(dt);
-		if (this.isAuthoritative) this.updateHazards(dt);
+		this.updateHazards(dt);
 		this.syncEntityBlocks();
 
 		// `intermission` stores the absolute race-clock deadline after the first finish.
@@ -2997,6 +3004,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			explosions: this.getExplosions().map(explosion => explosion.save()),
 			nextEntityId: this.nextEntityId,
 			blueShellPunishmentLap: this.blueShellPunishmentLap,
+			itemSeed: this.itemSeed,
 		};
 		return State.encode(object).finish();
 	}
@@ -3057,6 +3065,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 		this.nextEntityId = obj.nextEntityId ?? 1;
 		this.blueShellPunishmentLap = obj.blueShellPunishmentLap ?? 1;
+		this.itemSeed = (obj.itemSeed ?? this.itemSeed) >>> 0;
 
 		// Keep local block IDs and static platforms intact; restore bodies and boxes.
 		this.syncBlocksFromPlayers();
