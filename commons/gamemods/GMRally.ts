@@ -138,6 +138,8 @@ interface CheckpointDef {
 	h?: number;
 	/** A sub-checkpoint is only enabled after this main checkpoint has been passed. */
 	afterCheckpoint?: number;
+	/** Respawn point after a death, relative to (x, y). Defaults to (x, y) itself. */
+	spawn?: { dx: number; dy: number };
 }
 
 interface LevelDef {
@@ -241,6 +243,7 @@ const LEVELS = (function(){
 			cp.y *= GRID_SIZE;
 			cp.w = (cp.w ?? 1) * GRID_SIZE;
 			cp.h = (cp.h ?? 1) * GRID_SIZE;
+			if (cp.spawn) cp.spawn = { dx: cp.spawn.dx * GRID_SIZE, dy: cp.spawn.dy * GRID_SIZE };
 		}
 
 		for (const i of level.items) {
@@ -268,6 +271,14 @@ function firstCheckpointPosition(level: LevelDef): { x: number; y: number } {
 	return {
 		x: checkpoint.x + (checkpoint.w ?? GRID_SIZE) / 2,
 		y: checkpoint.y + (checkpoint.h ?? GRID_SIZE) / 2,
+	};
+}
+
+/** Player position (center) used when respawning on a checkpoint after a death. */
+function checkpointRespawnPosition(checkpoint: CheckpointDef): { x: number; y: number } {
+	return {
+		x: checkpoint.x + (checkpoint.spawn?.dx ?? 0),
+		y: checkpoint.y + (checkpoint.spawn?.dy ?? 0),
 	};
 }
 
@@ -1864,9 +1875,10 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 	 */
 	private killPlayer(_idx: number, p: Player, block: PlayerBlock) {
 		const level = this.currentLevel();
-		const point = p.subCheckpoint >= 0
+		const checkpoint = p.subCheckpoint >= 0
 			? level.subCheckpoints[p.subCheckpoint]
-			: p.checkpoint >= 0 ? level.checkpoints[p.checkpoint] : { x: level.spawnX, y: level.spawnY };
+			: p.checkpoint >= 0 ? level.checkpoints[p.checkpoint] : undefined;
+		const point = checkpoint ? checkpointRespawnPosition(checkpoint) : { x: level.spawnX, y: level.spawnY };
 		block.x = point.x;
 		block.y = point.y;
 		block.velocity.x = 0;
@@ -2595,6 +2607,22 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			ctx.strokeRect(checkpoint.x, checkpoint.y, w, h);
 			ctx.restore();
 		});
+
+		// Respawn points: a cross where a player reappears after a death.
+		for (const checkpoint of [...checkpoints, ...this.currentLevel().subCheckpoints]) {
+			if (!checkpoint.spawn) continue;
+			const { x, y } = checkpointRespawnPosition(checkpoint);
+			ctx.save();
+			ctx.strokeStyle = "#2196f3";
+			ctx.lineWidth = 4;
+			ctx.beginPath();
+			ctx.moveTo(x - 12, y - 12);
+			ctx.lineTo(x + 12, y + 12);
+			ctx.moveTo(x + 12, y - 12);
+			ctx.lineTo(x - 12, y + 12);
+			ctx.stroke();
+			ctx.restore();
+		}
 	}
 
 	/** Platforms, item boxes and finish line. */
