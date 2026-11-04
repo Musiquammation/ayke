@@ -1,0 +1,27 @@
+<div x-data="data">
+	<style>
+		.jumpies-map-vote__select {
+			width: 100%;
+			padding: 10px 12px;
+			border: 1px solid #555;
+			border-radius: 8px;
+			background: #222;
+			color: white;
+			font: inherit;
+			cursor: pointer;
+		}
+	</style>
+	<div class="jumpies-map-vote">
+		<p class="jumpies-map-vote__title">Vote for the map</p>
+		<select
+			class="jumpies-map-vote__select"
+			x-model.number="mapChoice"
+			aria-label="Choose the map"
+		>
+			<option value="-1">Random</option>
+			<template x-for="(map, index) in maps" :key="map">
+				<option :value="index" x-text="map"></option>
+			</template>
+		</select>
+	</div>
+</div>
