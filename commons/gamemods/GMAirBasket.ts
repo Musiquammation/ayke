@@ -1414,7 +1414,7 @@ function applyCollisions(players: Player[]) {
 	}
 }
 
-function getVectorToReachTarget(
+export function getVectorToReachTarget(
 	X: number,
 	Y: number,
 	N: number,
@@ -1922,6 +1922,8 @@ export class GMAirBasket extends GameMode {
 	}
 
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
+		this.internalFrameTick++;
+
 		// Time
 		this.time -= dt;
 		if (this.time <= 0) {
