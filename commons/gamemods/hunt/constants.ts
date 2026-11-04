@@ -140,7 +140,7 @@ export const BOMB_ICE = 1;
 
 // Bomb: thrown along an arc, explodes when it lands or touches something.
 // The ice bomb follows the same arc but leaves an ice zone instead.
-export const BOMB_MAX_RANGE = 1200;
+export const BOMB_MAX_RANGE = 1300;
 export const BOMB_FLIGHT_TIME = 0.7;
 export const BOMB_RADIUS = 12;
 export const EXPLOSION_RADIUS = 220;
