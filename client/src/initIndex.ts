@@ -25,7 +25,7 @@ export default function() {
 		
 		Object.entries(gamemods)
 			.filter((entry): entry is [string, Exclude<typeof entry[1], { type: 'ui-separator' }>] => entry[1].type !== 'ui-separator')
-			.map(([name, i]) => ({ type: i.type, name }))
+			.map(([name, i]) => ({ type: i.type, name, protoFields: 'protoFields' in i ? i.protoFields : undefined }))
 	);
 	
 

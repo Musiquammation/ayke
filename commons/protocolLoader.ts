@@ -164,8 +164,12 @@ export function getProtocol<const T extends readonly string[]>(
 				: {};
 
 
+			// A concurrent load() may have finished first: keep its extra fields.
+			const previous = loadedProtocols.get(name);
+
 			if (type === 'multiplayer') {
 				loadedProtocols.set(name, {
+					...previous,
 					ServerMessage: root.lookupType(
 						`${namespace}.ServerMessage`,
 					),
@@ -184,6 +188,7 @@ export function getProtocol<const T extends readonly string[]>(
 				});
 			} else {
 				loadedProtocols.set(name, {
+					...previous,
 					Input: root.lookupType(`${namespace}.Input`),
 					...additionalTypes,
 				});
