@@ -222,6 +222,128 @@ const LEVELS = (function(){
 			],
 			subCheckpoints: [],
 		},
+
+		({
+			name: "Chamois",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 168*GRID_SIZE,
+			deathY: 1024,
+			platforms: [
+				{ x: 0, y: 16, w: 55, h: 5, skin: 'grass' },
+				{ x: 1, y: 15, w: 1, h: 1, skin: 'box' },
+				{ x: 10, y: 13, w: 3, h: 1, skin: 'box' },
+				{ x: 17, y: 11, w: 10, h: 1, skin: 'box' },
+				{ x: 26, y: 10, w: 1, h: 1, skin: 'box' },
+				{ x: 26, y: 11, w: 1, h: 1, skin: 'box' },
+				{ x: 30, y: 9, w: 1, h: 7, skin: 'box' },
+				{ x: 36, y: 13, w: 2, h: 1, skin: 'box' },
+				{ x: 38, y: 12, w: 5, h: 1, skin: 'box' },
+				{ x: 45, y: 15, w: 2, h: 1, skin: 'box' },
+				{ x: 49, y: 6, w: 1, h: 8, skin: 'box' },
+				{ x: 47, y: 6, w: 1, h: 2, skin: 'box' },
+				{ x: 46, y: 6, w: 1, h: 1, skin: 'box' },
+				{ x: 44, y: 9, w: 3 , h: 1, skin: 'mud', mud: 30 },
+				{ x: 47, y: 10, w: 2 , h: 1, skin: 'box' },
+				{ x: 47, y: 13, w: 1 , h: 3, skin: 'box' },
+				{ x: 55, y: 6, w: 2, h: 15, skin: 'grass' },
+				{ x: 65, y: 16, w: 35, h: 5, skin: 'grass' },
+				{ x: 66, y: 0, w: 1, h: 14, skin: 'box' },
+				{ x: 78, y: 13, w: 1, h: 1, skin: 'box' },
+				{ x: 82, y: 10, w: 1, h: 1, skin: 'box' },
+				{ x: 86, y: 7, w: 1, h: 1, skin: 'box' },
+				{ x: 94, y: 10, w: 1, h: 3, skin: 'box' },
+				{ x: 99, y: 8, w: 7, h: 1, skin: 'mud', mud: 80 },
+				{ x: 109, y: 14, w: 3, h: 1, skin: 'box'},
+				{ x: 114, y: 12, w: 6, h: 1, skin: 'box'},
+				{ x: 114, y: 11, w: 1, h: 1, skin: 'box'},
+				{ x: 119, y: 11, w: 1, h: 1, skin: 'box'},
+				{ x: 124, y: 12, w: 2, h: 1, skin: 'box'},
+				{ x: 132, y: 12, w: 2, h: 1, skin: 'box'},
+				{ x: 140, y: 12, w: 2, h: 1, skin: 'box'},
+				{ x: 143, y: 22, w: 25, h: 5, skin: 'grass'},
+			],
+			items: [
+				{x: 9, y: 15},
+				{x: 11, y: 15},
+				{x: 13, y: 15},
+				{x: 14, y: 15},
+
+				{x: 17, y: 10},
+				{x: 19, y: 10},
+				{x: 18, y: 7},
+				{x: 21, y: 10},
+				{x: 23, y: 10},
+				{x: 26, y: 15},
+				{x: 26, y: 14},
+
+				{x: 31, y: 15},
+				{x: 31, y: 14},
+				{x: 31, y: 13},
+				{x: 31, y: 12},
+
+				{x: 39, y: 15},
+				{x: 41, y: 15},
+				{x: 43, y: 15},
+
+
+				{x: 47, y: 11},
+				{x: 48, y: 15},
+				{x: 52, y: 15},
+				{x: 53, y: 14},
+				{x: 54, y: 15},
+				{x: 54, y: 13},
+				{x: 54, y: 10},
+				{x: 54, y: 7},
+
+				...Array.from({ length: 11 }, (_, i) => ({
+					x: 67 + 2 * i,
+					y: 15
+				})),
+
+				{x: 78, y: 12},
+				{x: 80, y: 10},
+				{x: 82, y: 9},
+				{x: 84, y: 7},
+				{x: 86, y: 6},
+				{x: 93, y: 8},
+				{x: 94, y: 9},
+				{x: 102, y: 7},
+				{x: 103, y: 7},
+				{x: 104, y: 7},
+				{x: 105, y: 7},
+				{x: 106, y: 7},
+				{x: 110, y: 13},
+
+				{x: 115, y: 11},
+				{x: 116, y: 11},
+				{x: 117, y: 11},
+				{x: 118, y: 11},
+
+				{x: 124, y: 11},
+				{x: 125, y: 11},
+				{x: 127, y: 9},
+				{x: 130, y: 9},
+
+				{x: 132, y: 11},
+				{x: 133, y: 11},
+				{x: 135, y: 9},
+				{x: 138, y: 9},
+
+				{x: 140, y: 11},
+				{x: 141, y: 11},
+			],
+			checkpoints: [
+				{ x: 0, y: 12, w: 1, h: 4 },
+				{ x: 30, y: 0, w: 1, h: 9  },
+				{ x: 46, y: 5, w: 11, h: 1  },
+				{ x: 66, y: 14, w: 1, h: 2  },
+				{ x: 99, y: 0, w: 1, h: 8, spawn: {dx: 0, dy: 7} },
+				{ x: 167.5, y: 3, w: 1, h: 19 },
+			],
+			subCheckpoints: [],
+		})
+
 	];
 
 
@@ -250,6 +372,11 @@ const LEVELS = (function(){
 			i.x = GRID_SIZE * (i.x + .5);
 			i.y = GRID_SIZE * (i.y + .5);
 		}
+
+		// deathY is in world pixels: keep it below the lowest platform so standing on
+		// low ground never counts as falling in the void.
+		const lowestBottom = Math.max(...level.platforms.map(p => p.y + p.h / 2));
+		level.deathY = Math.max(level.deathY, lowestBottom + 4 * GRID_SIZE);
 	}
 
 	return LEVELS;
@@ -2638,8 +2765,10 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			const height = image.naturalHeight || (finish as HTMLCanvasElement).height || 0;
 			const sourceTileSize = Math.min(width, height);
 			const destinationTileSize = 64;
-			const top = -300;
 			const flagHeight = 1200;
+			// The flag stands on the ground: its foot is the bottom of the last checkpoint.
+			const lastCheckpoint = level.checkpoints[level.checkpoints.length - 1];
+			const top = (lastCheckpoint ? lastCheckpoint.y + (lastCheckpoint.h ?? GRID_SIZE) : 900) - flagHeight;
 			if (sourceTileSize > 0) {
 				for (let offset = 0; offset < flagHeight; offset += destinationTileSize) {
 					const drawHeight = Math.min(destinationTileSize, flagHeight - offset);
