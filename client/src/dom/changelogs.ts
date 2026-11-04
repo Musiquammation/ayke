@@ -8,6 +8,22 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.3",
+		date: 1793797200000, // Wed. 4 nov 2026 at 1:00 PM
+		title: "Jumpies, smarter bots and Rally/Castle improvements",
+		lines: [
+			"<ust>New gamemode:</ust> jumpies, a platformer without platforms: cross the rooms and reach the finish first",
+			"<ust>AirBasket:</ust> bots anticipate the ball, pass progressively and no longer leave the arena with it",
+			"<ust>Rally:</ust> new level *Chamois*",
+			"<ust>Rally:</ust> enemies shown in red, respawn on checkpoints, catch-up blue shell",
+			"<ust>Castle:</ust> thwomps only kill from below and stop on the ground",
+			"<ust>Castle:</ust> smarter bots that dodge fireballs, rebalanced archers, destroy penalty",
+			"<ust>Castle:</ust> seamless background and bigger card highlight",
+			"Fix Castle blocks missing on the client in online games",
+			"Fix server protocol loading for all gamemods",
+		]
+	},
+	{
 		version: "1.5.2",
 		date: 1792224000000, // Sat. 17 oct 2026 at 10:00 AM
 		title: "Adding Castle and Rally gamemods",
