@@ -223,7 +223,7 @@ const LEVELS = (function(){
 			subCheckpoints: [],
 		},
 
-		({
+		{
 			name: "Chamois",
 			spawnX: 0,
 			spawnY: 0,
@@ -238,7 +238,7 @@ const LEVELS = (function(){
 				{ x: 26, y: 11, w: 1, h: 1, skin: 'box' },
 				{ x: 30, y: 9, w: 1, h: 7, skin: 'box' },
 				{ x: 36, y: 13, w: 2, h: 1, skin: 'box' },
-				{ x: 38, y: 12, w: 5, h: 1, skin: 'box' },
+				{ x: 38, y: 11, w: 5, h: 1, skin: 'box' },
 				{ x: 45, y: 15, w: 2, h: 1, skin: 'box' },
 				{ x: 49, y: 6, w: 1, h: 8, skin: 'box' },
 				{ x: 47, y: 6, w: 1, h: 2, skin: 'box' },
@@ -248,12 +248,13 @@ const LEVELS = (function(){
 				{ x: 47, y: 13, w: 1 , h: 3, skin: 'box' },
 				{ x: 55, y: 6, w: 2, h: 15, skin: 'grass' },
 				{ x: 65, y: 16, w: 35, h: 5, skin: 'grass' },
+				{ x: 72, y: 14, w: 2, h: 1, skin: 'box' },
 				{ x: 66, y: 0, w: 1, h: 14, skin: 'box' },
 				{ x: 78, y: 13, w: 1, h: 1, skin: 'box' },
-				{ x: 82, y: 10, w: 1, h: 1, skin: 'box' },
-				{ x: 86, y: 7, w: 1, h: 1, skin: 'box' },
-				{ x: 94, y: 10, w: 1, h: 3, skin: 'box' },
-				{ x: 99, y: 8, w: 7, h: 1, skin: 'mud', mud: 80 },
+				{ x: 82, y: 11, w: 3, h: 1, skin: 'box' },
+				{ x: 85, y: 9, w: 3, h: 1, skin: 'box' },
+				{ x: 94, y: 12, w: 2, h: 3, skin: 'box' },
+				{ x: 99, y: 10, w: 7, h: 1, skin: 'mud', mud: 80 },
 				{ x: 109, y: 14, w: 3, h: 1, skin: 'box'},
 				{ x: 114, y: 12, w: 6, h: 1, skin: 'box'},
 				{ x: 114, y: 11, w: 1, h: 1, skin: 'box'},
@@ -308,11 +309,11 @@ const LEVELS = (function(){
 				{x: 86, y: 6},
 				{x: 93, y: 8},
 				{x: 94, y: 9},
-				{x: 102, y: 7},
-				{x: 103, y: 7},
-				{x: 104, y: 7},
-				{x: 105, y: 7},
-				{x: 106, y: 7},
+				{x: 102, y: 9},
+				{x: 103, y: 9},
+				{x: 104, y: 9},
+				{x: 105, y: 9},
+				{x: 106, y: 9},
 				{x: 110, y: 13},
 
 				{x: 115, y: 11},
@@ -338,11 +339,11 @@ const LEVELS = (function(){
 				{ x: 30, y: 0, w: 1, h: 9  },
 				{ x: 46, y: 5, w: 11, h: 1  },
 				{ x: 66, y: 14, w: 1, h: 2  },
-				{ x: 99, y: 0, w: 1, h: 8, spawn: {dx: 0, dy: 7} },
+				{ x: 99, y: 2, w: 1, h: 8, spawn: {dx: 0, dy: 7} },
 				{ x: 167.5, y: 3, w: 1, h: 19 },
 			],
 			subCheckpoints: [],
-		})
+		}
 
 	];
 
