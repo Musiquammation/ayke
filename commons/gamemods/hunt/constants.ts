@@ -64,7 +64,7 @@ export const WEAPONS: WeaponDef[] = [
 	{ // 1 = long range: one big hit per shot
 		name: "Sniper",
 		cooldown: 0.6,
-		speed: 2600, range: 1700, damage: 1600, radius: 10,
+		speed: 2600, range: 1700, damage: 6720, radius: 10,
 		count: 1, spread: 0, homing: true, push: 0,
 		color: "#7ad7ff",
 		startAmmo: 3, respawnAmmo: 8, maxAmmo: 15, pickupAmmo: 3,
