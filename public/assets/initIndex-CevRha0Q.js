@@ -39183,7 +39183,7 @@ var LEVELS$1 = (function() {
 			},
 			{
 				x: 38,
-				y: 12,
+				y: 11,
 				w: 5,
 				h: 1,
 				skin: "box"
@@ -39253,6 +39253,13 @@ var LEVELS$1 = (function() {
 				skin: "grass"
 			},
 			{
+				x: 72,
+				y: 14,
+				w: 2,
+				h: 1,
+				skin: "box"
+			},
+			{
 				x: 66,
 				y: 0,
 				w: 1,
@@ -39268,28 +39275,28 @@ var LEVELS$1 = (function() {
 			},
 			{
 				x: 82,
-				y: 10,
-				w: 1,
+				y: 11,
+				w: 3,
 				h: 1,
 				skin: "box"
 			},
 			{
-				x: 86,
-				y: 7,
-				w: 1,
+				x: 85,
+				y: 9,
+				w: 3,
 				h: 1,
 				skin: "box"
 			},
 			{
 				x: 94,
-				y: 10,
-				w: 1,
+				y: 12,
+				w: 2,
 				h: 3,
 				skin: "box"
 			},
 			{
 				x: 99,
-				y: 8,
+				y: 10,
 				w: 7,
 				h: 1,
 				skin: "mud",
@@ -39491,23 +39498,23 @@ var LEVELS$1 = (function() {
 			},
 			{
 				x: 102,
-				y: 7
+				y: 9
 			},
 			{
 				x: 103,
-				y: 7
+				y: 9
 			},
 			{
 				x: 104,
-				y: 7
+				y: 9
 			},
 			{
 				x: 105,
-				y: 7
+				y: 9
 			},
 			{
 				x: 106,
-				y: 7
+				y: 9
 			},
 			{
 				x: 110,
@@ -39597,7 +39604,7 @@ var LEVELS$1 = (function() {
 			},
 			{
 				x: 99,
-				y: 0,
+				y: 2,
 				w: 1,
 				h: 8,
 				spawn: {
@@ -40146,7 +40153,17 @@ var Camera$1 = class Camera$1 {
 		};
 	}
 };
+function ordinalSuffix(rank) {
+	if (rank % 100 >= 11 && rank % 100 <= 13) return "th";
+	switch (rank % 10) {
+		case 1: return "st";
+		case 2: return "nd";
+		case 3: return "rd";
+		default: return "th";
+	}
+}
 var ClientData$1 = class {
+	names;
 	firstFrame = true;
 	html;
 	laps;
@@ -40165,7 +40182,9 @@ var ClientData$1 = class {
 	lastStarTimers = [];
 	boostParticleTimers = [];
 	particles = [];
-	constructor() {
+	/** One entry per player; null for anonymous players. */
+	constructor(names = []) {
+		this.names = names;
 		this.html = document.createElement("div");
 		this.html.classList.add("game-rally-root");
 		this.html.style.pointerEvents = "none";
@@ -40183,10 +40202,48 @@ var ClientData$1 = class {
 		this.laps.style.textShadow = "2px 2px 4px #000";
 		this.html.append(this.laps);
 	}
+	/**
+	* Temporary standings, top-right: shown as soon as a first player has
+	* finished the race, and filled in as the others cross the line.
+	*/
+	drawFinishStandings(ctx, game, playerIdx) {
+		const finishers = game.players.map((p, index) => ({
+			index,
+			rank: p.finalRanking >= 0 ? p.finalRanking : p.finishRank,
+			finished: p.finished || p.finalRanking >= 0
+		})).filter((f) => f.finished && f.rank >= 0).sort((a, b) => a.rank - b.rank);
+		if (finishers.length === 0) return;
+		const rowHeight = 46;
+		ctx.save();
+		ctx.font = "bold 32px Arial, sans-serif";
+		ctx.textBaseline = "middle";
+		ctx.lineJoin = "round";
+		ctx.lineWidth = 5;
+		ctx.strokeStyle = "#000";
+		finishers.forEach((f, row) => {
+			const position = f.rank + 1;
+			const name = this.names[f.index] ?? "Anonymous";
+			const label = `${position}${ordinalSuffix(position)} : `;
+			const rowY = 214 + rowHeight * (row + .5);
+			ctx.textAlign = "left";
+			ctx.fillStyle = position === 1 ? "#FFD700" : position === 2 ? "#ECEFF1" : position === 3 ? "#FFAB40" : "#80DEEA";
+			ctx.strokeText(label, 1974, rowY);
+			ctx.fillText(label, 1974, rowY);
+			const labelWidth = ctx.measureText(label).width;
+			const maxNameWidth = 384 - labelWidth;
+			let shown = name;
+			while (shown.length > 1 && ctx.measureText(shown).width > maxNameWidth) shown = shown.slice(0, -1);
+			if (shown !== name) shown = shown.slice(0, -1) + "…";
+			ctx.fillStyle = f.index === playerIdx ? "#FFF59D" : "#FFFFFF";
+			ctx.strokeText(shown, 1974 + labelWidth, rowY);
+			ctx.fillText(shown, 1974 + labelWidth, rowY);
+		});
+		ctx.restore();
+	}
 	drawRacePosition(ctx, game, playerIdx) {
 		const rank = game.getRaceRanking().indexOf(playerIdx) + 1;
 		if (rank <= 0) return;
-		const suffix = rank % 100 >= 11 && rank % 100 <= 13 ? "th" : rank % 10 === 1 ? "st" : rank % 10 === 2 ? "nd" : rank % 10 === 3 ? "rd" : "th";
+		const suffix = ordinalSuffix(rank);
 		ctx.save();
 		const numberFont = "black 120px 'Arial Black', Impact, sans-serif";
 		const suffixFont = "bold 50px 'Arial Black', Impact, sans-serif";
@@ -40779,7 +40836,7 @@ var GMRally = class GMRally extends GameMode {
 			data: StartDataClient.encode({ selectedLevel: game.levelIndex + 1 }).finish()
 		};
 	}
-	static createClient({ data, origin }, total, _playerIdx) {
+	static createClient({ data, origin }, total, _playerIdx, _playLocally, names) {
 		const { StartDataClient } = protocols$1.get();
 		let initialLevelIndex = 0;
 		if (origin === "server") {
@@ -40791,7 +40848,7 @@ var GMRally = class GMRally extends GameMode {
 			initialLevelIndex = localVote >= 0 && localVote < LEVELS$1.length ? localVote : Math.floor(Math.random() * LEVELS$1.length);
 		}
 		const game = new GMRally(total, true, initialLevelIndex);
-		const clientData = new ClientData$1();
+		const clientData = new ClientData$1(names);
 		const level = game.currentLevel();
 		const start = firstCheckpointPosition(level);
 		game.players.forEach((p) => p.resetForLevel(start.x, start.y));
@@ -41608,6 +41665,7 @@ var GMRally = class GMRally extends GameMode {
 		ctx.restore();
 		data.drawItemRoulette(ctx, this, playerIdx, imageLoader);
 		data.drawRacePosition(ctx, this, playerIdx);
+		data.drawFinishStandings(ctx, this, playerIdx);
 	}
 	drawDebugCheckpoints(ctx, playerIdx) {
 		if (!window.DEBUG) return;
@@ -50062,14 +50120,14 @@ var _gameHandler = null;
 function getGameHandler() {
 	return _gameHandler;
 }
-async function setGameHandler(gamemode, playerIdx, startData, total) {
+async function setGameHandler(gamemode, playerIdx, startData, total, names) {
 	const factory = getMultiGmFactory(gamemode);
 	const protocols = getProtocol(gamemode, "multiplayer");
 	await protocols.load();
 	const { game, data, html, skins } = factory.client({
 		data: startData,
 		origin: "server"
-	}, total, playerIdx, false);
+	}, total, playerIdx, false, names);
 	await imageLoader.load(skins, gamemode);
 	const gameHtml = document.getElementById("game-html");
 	gameHtml.innerHTML = "";
@@ -50193,7 +50251,7 @@ var runners = {
 		else console.warn("Received gdata while ghandler is null");
 	},
 	async startGame(d) {
-		const gdata = (await setGameHandler(d.gamemode, d.playerIdx, d.startData, d.total)).receive(d.gdata);
+		const gdata = (await setGameHandler(d.gamemode, d.playerIdx, d.startData, d.total, (d.names ?? []).map((n) => n.name ?? null))).receive(d.gdata);
 		console.log("playerIdx", d.playerIdx);
 		sendMessage({ gdata });
 	},
@@ -50419,6 +50477,19 @@ function escapeHTML(str) {
 	})[char]);
 }
 //#endregion
+//#region commons/playerNames.ts
+/**
+* Builds the names array given to the game modes at game start.
+*
+* Human players come first (their pseudo, or null when anonymous),
+* then bots fill the remaining slots up to `total`: "Bot 1", "Bot 2", ...
+*/
+function getPlayerNames(humanPseudos, total) {
+	const names = humanPseudos.slice(0, total);
+	for (let i = 1; names.length < total; i++) names.push(`Bot ${i}`);
+	return names;
+}
+//#endregion
 //#region client/src/handlers/LocalGameHandler.ts
 var ctx$1 = document.getElementById("play-canvas").getContext("2d");
 var LocalGameHandler = class LocalGameHandler {
@@ -50443,7 +50514,7 @@ var LocalGameHandler = class LocalGameHandler {
 		const { game, data, html, skins } = factory.client({
 			data: startData,
 			origin: "client"
-		}, this.playerCount, 0, true);
+		}, this.playerCount, 0, true, getPlayerNames([dom.pseudo], this.playerCount));
 		const gameHtml = document.getElementById("game-html");
 		gameHtml.innerHTML = "";
 		if (html) gameHtml.appendChild(html);
@@ -50840,6 +50911,22 @@ var dynamicCssHandler = new DynamicCssHandler();
 //#endregion
 //#region client/src/dom/changelogs.ts
 var CHANGELOGS = [
+	{
+		version: "1.5.6",
+		date: 1793898e6,
+		title: "Player names and Rally standings",
+		lines: [
+			"Player names are now shown at game start (bots are named *Bot N*)",
+			"<ust>Rally:</ust> temporary finish standings shown top-right as soon as the first player finishes",
+			"<ust>Rally:</ust> fix level *Chamois*"
+		]
+	},
+	{
+		version: "1.5.5",
+		date: 17938044e5,
+		title: "",
+		lines: ["Jumpies was not implemented", "<ust>Rally:</ust> Client was not simulating"]
+	},
 	{
 		version: "1.5.4",
 		date: 17938044e5,
