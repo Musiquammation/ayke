@@ -16,7 +16,9 @@ import {
 	ITEM_BOMB,
 	ITEM_ICE_BOMB,
 	ITEM_JUMP,
-	ITEM_DROP_WEIGHTS,
+	AMMO_DROP_CYCLE,
+	AMMO_PICKUP_SPREAD,
+	ITEM_DROP_CYCLE,
 	ITEM_NONE,
 	ITEM_SHELLS,
 	JUMP_VELOCITY,
@@ -27,15 +29,14 @@ import {
 	LOCK_NONE,
 	LOCK_PLAYER,
 	MATCH_DURATION,
-	MAX_AMMO,
+	PUSH_DECAY,
+	PUSH_MAX_SPEED,
 	PICKUP_RADIUS,
 	PICKUP_VERTICAL_REACH,
 	PLAYER_RADIUS,
 	PLAYER_SPEED,
 	REGEN_DELAY,
 	REGEN_RATE,
-	RELOAD_DELAY,
-	RELOAD_RATE,
 	RESPAWN_TIME,
 	SHELL_DAMAGE,
 	SHELL_KNOCKBACK_SPEED,
@@ -95,6 +96,8 @@ export interface HuntState {
 	killFeed: KillEvent[];
 	time: number;
 	finished: boolean;
+	/** Items dropped so far by the boxes (position in ITEM_DROP_CYCLE). */
+	drops: number;
 }
 
 
@@ -105,6 +108,7 @@ export function initialSpawn(state: HuntState) {
 	for (const [i, p] of state.players.entries()) {
 		const s = LEVEL.spawns[i % LEVEL.spawns.length];
 		p.spawnAt(s.x, s.y, 0);
+		p.ammo = WEAPONS.map(w => w.startAmmo);
 	}
 }
 
@@ -142,7 +146,7 @@ export function stepWorld(state: HuntState, physics: HuntPhysics, dt: number) {
 
 /* ---------------------------- Players ---------------------------- */
 
-/** Timers, respawn, movement, jump, regen and ammo of one player. */
+/** Timers, respawn, movement, jump and regen of one player. */
 function updatePlayer(state: HuntState, physics: HuntPhysics, p: Player, dt: number) {
 	if (!p.connected && p.isAlive()) {
 		p.respawn = NEVER; // a disconnected player leaves the map (no kill credited)
@@ -157,7 +161,7 @@ function updatePlayer(state: HuntState, physics: HuntPhysics, p: Player, dt: num
 	updateTimers(p, dt);
 	updateHorizontalMove(physics, p, dt);
 	updateVerticalMove(state, physics, p, dt);
-	updateRegenAndAmmo(p, dt);
+	updateRegen(p, dt);
 }
 
 /** Count down the respawn timer, then put the player back on the safest spawn point. */
@@ -171,6 +175,9 @@ function updateRespawn(state: HuntState, physics: HuntPhysics, p: Player, dt: nu
 
 	const s = chooseSpawn(state, physics, p);
 	p.spawnAt(s.x, s.y, physics.groundHeight(s.x, s.y, 0));
+	// Dying keeps the ammo left, plus a small refill
+	for (const [w, def] of WEAPONS.entries())
+		p.giveAmmo(w, def.respawnAmmo);
 }
 
 /**
@@ -205,6 +212,14 @@ function chooseSpawn(state: HuntState, physics: HuntPhysics, self: Player) {
 function updateTimers(p: Player, dt: number) {
 	p.shotCooldown = Math.max(0, p.shotCooldown - dt);
 	p.spawnShield = Math.max(0, p.spawnShield - dt);
+
+	const fade = Math.exp(-PUSH_DECAY * dt);
+	p.pushX *= fade;
+	p.pushY *= fade;
+	if (Math.hypot(p.pushX, p.pushY) < 5) {
+		p.pushX = 0;
+		p.pushY = 0;
+	}
 }
 
 /** Walking speed multiplier (slowed by the ice). */
@@ -234,17 +249,17 @@ function updateHorizontalMove(physics: HuntPhysics, p: Player, dt: number) {
 		dx = p.vx * dt;
 		dy = p.vy * dt;
 	} else {
-		let mx = p.moveX;
-		let my = p.moveY;
-		if (mx === 0 && my === 0)
+		// Walking, plus the shotgun push (the player keeps control)
+		dx = p.pushX * dt;
+		dy = p.pushY * dt;
+		const len = Math.hypot(p.moveX, p.moveY);
+		if (len > 0) {
+			const speed = PLAYER_SPEED * speedFactor(p);
+			dx += p.moveX / len * speed * dt;
+			dy += p.moveY / len * speed * dt;
+		}
+		if (dx === 0 && dy === 0)
 			return;
-
-		const len = Math.hypot(mx, my);
-		mx /= len;
-		my /= len;
-		const speed = PLAYER_SPEED * speedFactor(p);
-		dx = mx * speed * dt;
-		dy = my * speed * dt;
 	}
 
 	const reached = physics.movePlayer(p, dx, dy, p);
@@ -281,35 +296,11 @@ function updateVerticalMove(state: HuntState, physics: HuntPhysics, p: Player, d
 	}
 }
 
-/**
- * Regenerate life when out of combat.
- * Ammo: a cartridge being used drains down to the next integer; otherwise the ammo
- * stays blocked for RELOAD_DELAY, then goes back up quickly.
- */
-function updateRegenAndAmmo(p: Player, dt: number) {
+/** Regenerate life when out of combat. */
+function updateRegen(p: Player, dt: number) {
 	p.sinceCombat += dt;
 	if (p.sinceCombat >= REGEN_DELAY)
 		p.hp = Math.min(p.maxHp, p.hp + REGEN_RATE * dt);
-
-	if (p.ammoDrainTo >= 0) {
-		p.ammo -= dt / WEAPONS[p.weapon].drain;
-		if (p.ammo <= p.ammoDrainTo) {
-			p.ammo = p.ammoDrainTo;
-			p.ammoDrainTo = -1;
-			p.reloadDelay = RELOAD_DELAY;
-		}
-		return;
-	}
-
-	if (p.ammo >= MAX_AMMO)
-		return;
-
-	if (p.reloadDelay > 0) {
-		p.reloadDelay -= dt;
-		return;
-	}
-
-	p.ammo = Math.min(MAX_AMMO, p.ammo + RELOAD_RATE * dt);
 }
 
 
@@ -317,12 +308,11 @@ function updateRegenAndAmmo(p: Player, dt: number) {
 
 /** True when the player can shoot right now (used by inputs, bots and the client). */
 export function canShoot(p: Player) {
-	return p.canAttack() && p.shotCooldown <= 0 && (p.ammoDrainTo >= 0 || p.ammo > 1e-3);
+	return p.canAttack() && p.shotCooldown <= 0 && p.ammo[p.weapon] > 0;
 }
 
 /**
- * Shoot the current weapon toward a 3D aim point. The first shot starts draining a
- * cartridge; the next ones (while it drains) are free. Every bullet flies in a
+ * Shoot the current weapon toward a 3D aim point, using one of its ammo. Every bullet flies in a
  * straight line from the gun to the aim point (pellets to points around it).
  * Homing weapons fired while locked aim at the target and follow it.
  */
@@ -332,9 +322,7 @@ export function shoot(state: HuntState, idx: number, aim: AimPoint) {
 		return;
 
 	const def = WEAPONS[p.weapon];
-	if (p.ammoDrainTo < 0)
-		p.ammoDrainTo = Math.max(0, Math.ceil(p.ammo - 1e-3) - 1);
-
+	p.ammo[p.weapon]--;
 	p.shotCooldown = def.cooldown;
 	p.sinceCombat = 0;
 	p.spawnShield = 0; // attacking ends the spawn protection
@@ -347,14 +335,19 @@ export function shoot(state: HuntState, idx: number, aim: AimPoint) {
 	const dir = aimDirection(p, aim);
 	p.facing = Math.atan2(dir.y, dir.x);
 
+	// Pellets spread in a cone of constant angle around the aim: yaw and pitch offsets
+	// spread evenly in a disc of `spread` radius (radians), whatever the aim distance
+	const reach = Math.max(PLAYER_RADIUS * 2, Math.hypot(aim.x - p.x, aim.y - p.y));
 	for (let i = 0; i < def.count; i++) {
-		const r = def.count > 1 ? def.scatter * Math.sqrt((i + 0.5) / def.count) : 0;
-		const a = i * GOLDEN_ANGLE + p.facing;
-		const b = spawnBullet(state, p, idx, p.weapon, {
-			x: aim.x + Math.cos(a) * r,
-			y: aim.y + Math.sin(a) * r,
-			z: aim.z,
-		});
+		const r = def.count > 1 ? def.spread * Math.sqrt((i + 0.5) / def.count) : 0;
+		const a = i * GOLDEN_ANGLE;
+		const yaw = p.facing + Math.cos(a) * r;
+		const target = r === 0 ? aim : {
+			x: p.x + Math.cos(yaw) * reach,
+			y: p.y + Math.sin(yaw) * reach,
+			z: aim.z + Math.tan(Math.sin(a) * r) * reach,
+		};
+		const b = spawnBullet(state, p, idx, p.weapon, target);
 		if (locked && locked !== p) {
 			b.homingKind = p.lockKind;
 			b.homingIdx = p.lockIdx;
@@ -447,6 +440,8 @@ function updateProjectiles(state: HuntState, physics: HuntPhysics, dt: number) {
 
 		const hit = physics.castBall(b.x, b.y, b.z, dx, dy, dz, radius, hittablePlayers(b.owner));
 		if (hit) {
+			if (hit.entity instanceof Player)
+				pushPlayer(hit.entity, b.vx, b.vy, WEAPONS[b.weapon].push);
 			damageEntity(state, physics, hit.entity, b.damage, b.owner);
 			continue; // the bullet is consumed
 		}
@@ -460,6 +455,25 @@ function updateProjectiles(state: HuntState, physics: HuntPhysics, dt: number) {
 	}
 
 	state.projectiles = kept;
+}
+
+
+/**
+ * Push a player along (dirX, dirY) without stunning it: the speed is added to its
+ * walking speed and fades out. The total push speed is capped.
+ */
+function pushPlayer(p: Player, dirX: number, dirY: number, speed: number) {
+	const len = Math.hypot(dirX, dirY);
+	if (speed <= 0 || len < 1e-3 || !p.isAlive() || p.spawnShield > 0)
+		return;
+
+	p.pushX += dirX / len * speed;
+	p.pushY += dirY / len * speed;
+	const total = Math.hypot(p.pushX, p.pushY);
+	if (total > PUSH_MAX_SPEED) {
+		p.pushX *= PUSH_MAX_SPEED / total;
+		p.pushY *= PUSH_MAX_SPEED / total;
+	}
 }
 
 
@@ -509,6 +523,8 @@ function killPlayer(state: HuntState, victimIdx: number) {
 	victim.sideJump = false;
 	victim.launched = false;
 	victim.slowTimer = 0;
+	victim.pushX = 0;
+	victim.pushY = 0;
 
 	const killer = victim.lastAttacker;
 	if (killer >= 0 && killer !== victimIdx) {
@@ -522,7 +538,7 @@ function killPlayer(state: HuntState, victimIdx: number) {
 		state.killFeed.shift();
 }
 
-/** Hurt a box. A broken box drops an item and comes back later on its slot. */
+/** Hurt a box. A broken box drops an item and some ammo, and comes back later on its slot. */
 function damageBox(state: HuntState, box: Box, amount: number) {
 	if (!box.isStanding())
 		return;
@@ -535,28 +551,19 @@ function damageBox(state: HuntState, box: Box, amount: number) {
 	box.respawn = BOX_RESPAWN;
 	box.breaks++;
 
-	const idx = state.boxes.indexOf(box);
-	state.pickups.push(Pickup.create(box.x, box.y, box.z, boxDrop(idx, box.breaks)));
-}
-
-/**
- * Item dropped by a box, drawn with ITEM_DROP_WEIGHTS. Deterministic: a hash of the
- * box and of the number of times it broke stands for the random number.
- */
-function boxDrop(idx: number, breaks: number) {
-	let h = Math.imul(idx + 1, 0x9e3779b1) ^ Math.imul(breaks + 1, 0x85ebca77);
-	h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
-	h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
-	h = (h ^ (h >>> 15)) >>> 0;
-
-	const total = ITEM_DROP_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
-	let roll = h % total;
-	for (const [item, weight] of ITEM_DROP_WEIGHTS) {
-		if (roll < weight)
-			return item;
-		roll -= weight;
+	// One item and some ammo pickups around it, both following their cycles
+	const breakIdx = state.drops++;
+	const item = ITEM_DROP_CYCLE[breakIdx % ITEM_DROP_CYCLE.length];
+	state.pickups.push(Pickup.create(box.x, box.y, box.z, item));
+	const ammo = AMMO_DROP_CYCLE[breakIdx % AMMO_DROP_CYCLE.length];
+	for (const [k, weapon] of ammo.entries()) {
+		const a = (k + 0.5) / ammo.length * Math.PI * 2;
+		state.pickups.push(Pickup.createAmmo(
+			box.x + Math.cos(a) * AMMO_PICKUP_SPREAD,
+			box.y + Math.sin(a) * AMMO_PICKUP_SPREAD,
+			box.z, weapon,
+		));
 	}
-	return ITEM_DROP_WEIGHTS[0][0];
 }
 
 
@@ -617,6 +624,8 @@ function launchPlayer(p: Player, dirX: number, dirY: number, speed: number, vz: 
 		return;
 
 	p.launched = true;
+	p.pushX = 0;
+	p.pushY = 0;
 	p.leaping = false;
 	p.sideJump = false;
 	p.vx = dirX * speed;
@@ -789,7 +798,10 @@ function updateBoxes(state: HuntState, physics: HuntPhysics, dt: number) {
 	}
 }
 
-/** Players walking on an item grab it (if they have a free slot). Old items disappear. */
+/**
+ * Players walking on a pickup grab it: an item if they have a free slot, ammo if
+ * that weapon is not full. Old pickups disappear.
+ */
 function updatePickups(state: HuntState, dt: number) {
 	const kept: Pickup[] = [];
 	const reach = PICKUP_RADIUS + PLAYER_RADIUS;
@@ -800,12 +812,14 @@ function updatePickups(state: HuntState, dt: number) {
 			continue;
 
 		const taker = state.players.find(p =>
-			p.isAlive() && p.hasFreeSlot() &&
+			p.isAlive() && (pickup.isAmmo() ? p.canTakeAmmo(pickup.ammoWeapon) : p.hasFreeSlot()) &&
 			Math.abs(p.z - pickup.z) <= PICKUP_VERTICAL_REACH &&
 			Math.hypot(p.x - pickup.x, p.y - pickup.y) <= reach
 		);
 
-		if (taker)
+		if (taker && pickup.isAmmo())
+			taker.giveAmmo(pickup.ammoWeapon, pickup.ammoAmount);
+		else if (taker)
 			taker.giveItem(pickup.item);
 		else
 			kept.push(pickup);

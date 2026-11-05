@@ -7,7 +7,6 @@ import {
 	ITEM_NONE,
 	ITEM_SLOTS,
 	LOCK_NONE,
-	MAX_AMMO,
 	MAX_HP,
 	PLAYER_HEIGHT,
 	PLAYER_RADIUS,
@@ -45,11 +44,8 @@ export class Player extends MovingEntity implements Damageable {
 
 	// Weapons
 	weapon = WEAPON_LONG;
-	ammo = MAX_AMMO;
-	/** Integer the ammo is draining to, -1 when no cartridge is being drained. */
-	ammoDrainTo = -1;
-	/** Time left before the ammo starts going back up. */
-	reloadDelay = 0;
+	/** Ammo of each weapon (one ammo = one shot). */
+	ammo: number[] = WEAPONS.map(w => w.startAmmo);
 	shotCooldown = 0;
 	facing = 0;
 
@@ -61,6 +57,8 @@ export class Player extends MovingEntity implements Damageable {
 	// Effects suffered
 	launched = false; // thrown by a blast or a shell: no control and no attack until landing
 	slowTimer = 0;    // slowed by an ice zone while > 0
+	pushX = 0;        // shotgun push: added to the walking speed, fades out
+	pushY = 0;
 
 	// Score
 	kills = 0;
@@ -94,7 +92,7 @@ export class Player extends MovingEntity implements Damageable {
 		return PLAYER_RADIUS;
 	}
 
-	/** Put the player back on the map at the given point, with full life and ammo. */
+	/** Put the player back on the map at the given point, with full life (the ammo is kept). */
 	spawnAt(x: number, y: number, z: number) {
 		this.x = x;
 		this.y = y;
@@ -107,15 +105,24 @@ export class Player extends MovingEntity implements Damageable {
 		this.sinceCombat = 0;
 		this.spawnShield = SPAWN_SHIELD_TIME;
 		this.lastAttacker = -1;
-		this.ammo = MAX_AMMO;
-		this.ammoDrainTo = -1;
-		this.reloadDelay = 0;
 		this.shotCooldown = 0;
 		this.leaping = false;
 		this.sideJump = false;
 		this.launched = false;
 		this.slowTimer = 0;
+		this.pushX = 0;
+		this.pushY = 0;
 		this.jumpQueued = false;
+	}
+
+	/** True when picking ammo of this weapon is useful. */
+	canTakeAmmo(weapon: number) {
+		return this.ammo[weapon] < WEAPONS[weapon].maxAmmo;
+	}
+
+	/** Add ammo to a weapon, up to its maximum. */
+	giveAmmo(weapon: number, amount: number) {
+		this.ammo[weapon] = Math.min(WEAPONS[weapon].maxAmmo, this.ammo[weapon] + amount);
 	}
 
 	/** Add an item in the first free slot. Returns false when the inventory is full. */
@@ -141,10 +148,11 @@ export class Player extends MovingEntity implements Damageable {
 			lockKind: this.lockKind, lockIdx: this.lockIdx, sideJump: this.sideJump,
 			hp: this.hp, respawn: this.respawn, sinceCombat: this.sinceCombat,
 			spawnShield: this.spawnShield, lastAttacker: this.lastAttacker,
-			weapon: this.weapon, ammo: this.ammo, ammoDrainTo: this.ammoDrainTo,
-			reloadDelay: this.reloadDelay, shotCooldown: this.shotCooldown, facing: this.facing,
+			weapon: this.weapon, ammo: this.ammo,
+			shotCooldown: this.shotCooldown, facing: this.facing,
 			items: this.items, selectedItem: this.selectedItem,
 			leaping: this.leaping, launched: this.launched, slowTimer: this.slowTimer,
+			pushX: this.pushX, pushY: this.pushY,
 			kills: this.kills, deaths: this.deaths,
 			damageDealt: this.damageDealt, lastKillTime: this.lastKillTime,
 		};
@@ -165,9 +173,8 @@ export class Player extends MovingEntity implements Damageable {
 		this.spawnShield = obj.spawnShield ?? 0;
 		this.lastAttacker = obj.lastAttacker ?? -1;
 		this.weapon = obj.weapon ?? WEAPON_LONG;
-		this.ammo = obj.ammo ?? 0;
-		this.ammoDrainTo = obj.ammoDrainTo ?? -1;
-		this.reloadDelay = obj.reloadDelay ?? 0;
+		const ammo: number[] = obj.ammo ?? [];
+		this.ammo = WEAPONS.map((_, i) => ammo[i] ?? 0);
 		this.shotCooldown = obj.shotCooldown ?? 0;
 		this.facing = obj.facing ?? 0;
 		const items: number[] = obj.items ?? [];
@@ -176,6 +183,8 @@ export class Player extends MovingEntity implements Damageable {
 		this.leaping = obj.leaping ?? false;
 		this.launched = obj.launched ?? false;
 		this.slowTimer = obj.slowTimer ?? 0;
+		this.pushX = obj.pushX ?? 0;
+		this.pushY = obj.pushY ?? 0;
 		this.kills = obj.kills ?? 0;
 		this.deaths = obj.deaths ?? 0;
 		this.damageDealt = obj.damageDealt ?? 0;

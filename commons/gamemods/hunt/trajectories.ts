@@ -338,16 +338,14 @@ export function traceShot(physics: HuntPhysics, p: Player, aim: Vec3) {
 }
 
 /**
- * Angular sector covered by the pellets of a scattered shot: they land in a disc of
- * `scatter` radius around the aim, so the sector opens by atan(scatter / distance).
- * Each ray is stopped by the first obstacle.
+ * Angular sector covered by the pellets of a scattered shot: a constant half-angle
+ * (`spread`) around the aim. Each ray is stopped by the first obstacle.
  */
 export function shotSector(physics: HuntPhysics, p: Player, aim: Vec3) {
 	const def = WEAPONS[p.weapon];
 	const center = { x: p.x, y: p.y, z: p.z };
 	const dir = aimDirection(p, aim);
-	const dist = Math.hypot(aim.x - p.x, aim.y - p.y);
-	const half = Math.atan2(def.scatter, Math.max(1, dist));
+	const half = def.spread;
 	const base = Math.atan2(dir.y, dir.x);
 	const z = p.z + GUN_HEIGHT;
 

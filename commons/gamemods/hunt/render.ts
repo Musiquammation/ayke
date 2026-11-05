@@ -7,7 +7,6 @@ import {
 	CURSOR_COLOR,
 	LOCK_COLOR,
 	HEIGHT,
-	MAX_AMMO,
 	PLAYER_HEIGHT,
 	WIDTH,
 } from "./constants";
@@ -258,7 +257,7 @@ function drawBoxBars(oc: OverlayContext) {
 	}
 }
 
-/** Life bar, ammo (local player only) and name above a player. */
+/** Life bar and name above a player. */
 function drawPlayerInfo(oc: OverlayContext, p: Player, idx: number) {
 	const { ctx, data } = oc;
 	const isSelf = idx === data.playerIdx;
@@ -267,8 +266,6 @@ function drawPlayerInfo(oc: OverlayContext, p: Player, idx: number) {
 
 	const barY = head.y - r - 22;
 	drawBar(ctx, head.x, barY, 80, 10, p.hp / p.maxHp, isSelf ? "#4ade80" : "#ef4444");
-	if (isSelf)
-		drawAmmo(ctx, head.x, barY + 13, p.ammo, p.ammoDrainTo >= 0);
 
 	ctx.fillStyle = "#fff";
 	ctx.font = "bold 20px sans-serif";
@@ -284,22 +281,6 @@ function drawBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
 	ctx.fillStyle = color;
 	ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, ratio)), h);
 }
-
-/** Cartridge segments (the partial one is draining or reloading). */
-function drawAmmo(ctx: CanvasRenderingContext2D, x: number, y: number, ammo: number, draining: boolean) {
-	const w = 80;
-	const gap = 4;
-	const seg = (w - gap * (MAX_AMMO - 1)) / MAX_AMMO;
-	for (let i = 0; i < MAX_AMMO; i++) {
-		const sx = x - w / 2 + i * (seg + gap);
-		const fill = Math.max(0, Math.min(1, ammo - i));
-		ctx.fillStyle = "rgba(0,0,0,0.6)";
-		ctx.fillRect(sx, y, seg, 7);
-		ctx.fillStyle = fill >= 1 ? "#fb923c" : draining ? "#fde68a" : "rgba(251,146,60,0.45)";
-		ctx.fillRect(sx, y, seg * fill, 7);
-	}
-}
-
 
 /* ---------------------------- Cursor & lock ---------------------------- */
 

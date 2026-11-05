@@ -34,9 +34,7 @@ message PlayerState {
 
 	// Weapons
 	int32 weapon = 16;         // 0, 1 or 2
-	float ammo = 17;           // 0.0 .. MAX_AMMO
-	int32 ammoDrainTo = 18;    // integer the ammo drains to, -1 when not draining
-	float reloadDelay = 19;    // time before the ammo starts going back up
+	reserved 17 to 19;         // old cartridge fields (ammo, ammoDrainTo, reloadDelay)
 	float shotCooldown = 20;
 	float facing = 21;         // angle (radians) of the last shot, for drawing
 
@@ -60,6 +58,9 @@ message PlayerState {
 	// Effects suffered
 	bool launched = 38;        // thrown by a blast or a shell: stunned until landing (vx / vy hold its speed)
 	float slowTimer = 39;      // slowed by an ice zone while > 0
+	float pushX = 40;          // shotgun push (added to the walking speed, fades out)
+	float pushY = 41;
+	repeated int32 ammo = 42;  // ammo of each weapon (one ammo = one shot)
 }
 
 message ProjectileState {
@@ -133,8 +134,10 @@ message PickupState {
 	float x = 1;
 	float y = 2;
 	float z = 3;
-	int32 item = 4;
+	int32 item = 4;            // 0 for an ammo pickup
 	float life = 5;
+	int32 ammoWeapon = 6;      // weapon of an ammo pickup, -1 for an item
+	int32 ammoAmount = 7;
 }
 
 message KillEvent {
@@ -156,6 +159,7 @@ message State {
 	bool finished = 10;
 	repeated ShellState shells = 11;
 	repeated IceZoneState iceZones = 12;
+	uint32 drops = 13;         // items dropped so far (position in ITEM_DROP_CYCLE)
 }
 
 

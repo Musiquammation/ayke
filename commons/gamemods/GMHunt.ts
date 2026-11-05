@@ -138,6 +138,7 @@ export class GMHunt extends GameMode implements HuntState {
 	killFeed: KillEvent[] = [];
 	time = MATCH_DURATION;
 	finished = false;
+	drops = 0;
 
 	/** Static pieces of the map: never sent (they come from the level definition). */
 	private readonly blocks: Block[];
@@ -494,6 +495,7 @@ export class GMHunt extends GameMode implements HuntState {
 			killFeed: this.killFeed.map(k => k.save()),
 			time: this.time,
 			finished: this.finished,
+			drops: this.drops,
 		};
 
 		return State.encode(object).finish();
@@ -520,6 +522,7 @@ export class GMHunt extends GameMode implements HuntState {
 		loadEntities(this.killFeed, obj.killFeed, () => new KillEvent());
 		this.time = obj.time ?? MATCH_DURATION;
 		this.finished = obj.finished ?? false;
+		this.drops = obj.drops ?? 0;
 	}
 
 	override getSize() {

@@ -154,6 +154,16 @@
 	background: rgba(255, 255, 255, 0.16);
 }
 
+.game-hunt-weapon-ammo {
+	font-size: 2.6vh;
+	font-weight: bold;
+	line-height: 1;
+}
+
+.game-hunt-weapon.game-hunt-empty .game-hunt-weapon-ammo {
+	color: #ef4444;
+}
+
 .game-hunt-weapon-name {
 	font-size: 1.5vh;
 	font-weight: bold;

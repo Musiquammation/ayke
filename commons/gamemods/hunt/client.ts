@@ -293,6 +293,7 @@ export class ClientData {
 	private readonly feedEl: HTMLDivElement;
 	private readonly respawnEl: HTMLDivElement;
 	private readonly weaponEls: HTMLDivElement[] = [];
+	private readonly ammoEls: HTMLDivElement[] = [];
 	private readonly itemEls: HTMLDivElement[] = [];
 	private readonly itemBar: HTMLDivElement;
 	private readonly cache = new Map<string, string>();
@@ -314,9 +315,11 @@ export class ClientData {
 			const el = div("game-hunt-weapon");
 			const key = div("game-hunt-key");
 			key.textContent = String(i + 1);
+			const ammo = div("game-hunt-weapon-ammo");
 			const name = div("game-hunt-weapon-name");
 			name.textContent = w.name;
-			el.append(key, name);
+			el.append(key, ammo, name);
+			this.ammoEls.push(ammo);
 			el.style.borderColor = w.color;
 			weaponBar.appendChild(el);
 			this.weaponEls.push(el);
@@ -508,8 +511,11 @@ export class ClientData {
 	}
 
 	private updateWeapons(self: Player) {
-		for (const [i, el] of this.weaponEls.entries())
+		for (const [i, el] of this.weaponEls.entries()) {
 			el.classList.toggle('game-hunt-selected', i === self.weapon);
+			el.classList.toggle('game-hunt-empty', self.ammo[i] <= 0);
+			this.set(`ammo${i}`, this.ammoEls[i], String(self.ammo[i]));
+		}
 	}
 
 	private updateItems(self: Player) {

@@ -1,4 +1,4 @@
-import { ITEM_NONE } from "./constants";
+import { ITEM_NONE, WEAPONS } from "./constants";
 import { HuntState } from "./simulation";
 
 /* -------------------------------------------------------------------------- */
@@ -16,15 +16,15 @@ const STEPS: { text: string; done: (state: HuntState, t: TutorialData) => boolea
 		done: s => s.players[0].z > 20,
 	},
 	{
-		text: "Hold left click to shoot. Each click uses a cartridge, which reloads when you stop. Switch weapons with 1, 2, 3 or the wheel",
-		done: s => s.players[0].ammo < 2.5,
+		text: "Hold left click to shoot. Every weapon has its own ammo (shown above its name). Switch weapons with 1, 2, 3 or the wheel",
+		done: s => s.players[0].ammo.some((a, i) => a < WEAPONS[i].startAmmo),
 	},
 	{
 		text: "Hold Shift while the blue indicator is on an enemy to lock it: your shots go straight at it (jump with Q / D while locked for a fast side jump)",
 		done: (_s, t) => t.elapsed > 8,
 	},
 	{
-		text: "Break a box to get an item (bomb, ice bomb, shells, super jump). Hold right click to see its path, release it to use the item (1-4 or wheel select it while right click is held, middle click cancels)",
+		text: "Break a box to get an item (bomb, ice bomb, shells, super jump) and ammo: walk on them to pick them up. Hold right click to see its path, release it to use the item (1-4 or wheel select it while right click is held, middle click cancels)",
 		done: s => s.players[0].items.some(i => i !== ITEM_NONE) || s.players[0].kills > 0,
 	},
 	{
