@@ -13,6 +13,7 @@ import { evalWonTrophees } from "./evalWonTrophees";
 import { database } from "./Database";
 import { getLogger } from "../commons/ILogger";
 import { Bot, generateBot } from "../commons/Bot";
+import { getPlayerNames } from "../commons/playerNames";
 
 const MIN_PING = Number(process.env.MIN_PING ?? 10);
 
@@ -114,6 +115,12 @@ export class Room {
 		}
 		this.simulationTime = now;
 
+		const names = getPlayerNames(
+			this.players.map(p => p.pseudo),
+			total
+		);
+		const encodedNames = names.map(name => (name === null ? {} : {name}));
+
 		for (const [playerIdx, p] of this.players.entries()) {
 			p.connection?.sendMessage({startGame: {
 				playerIdx,
@@ -121,6 +128,7 @@ export class Room {
 				gamemode: this.gamemodeId,
 				startData,
 				gdata,
+				names: encodedNames,
 			}});
 		}
 

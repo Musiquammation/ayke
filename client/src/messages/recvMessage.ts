@@ -22,7 +22,8 @@ const runners: Record<string, (data: any) => void> = {
 			d.gamemode,
 			d.playerIdx,
 			d.startData,
-			d.total
+			d.total,
+			(d.names ?? []).map((n: {name?: string | null}) => n.name ?? null)
 		);
 		const gdata = ghandler.receive(d.gdata);
 		console.log("playerIdx", d.playerIdx);

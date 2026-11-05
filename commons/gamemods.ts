@@ -54,7 +54,13 @@ interface MultiplayerFactory {
 		entry: MultiplayerClientEntry,
 		total: number,
 		playerIdx: number,
-		playLocally: boolean
+		playLocally: boolean,
+		/**
+		 * One entry per player (length = total), indexed like playerIdx.
+		 * Humans have their pseudo, anonymous players have null,
+		 * bots are named "Bot 1", "Bot 2", ...
+		 */
+		names: (string | null)[]
 	): {
 		game: GameMode,
 		data: any,
