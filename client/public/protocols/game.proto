@@ -158,6 +158,12 @@ message StartGameServer {
 	string gamemode = 3;
 	bytes startData = 4;
 	bytes gdata = 5;
+	repeated PlayerName names = 6;
+}
+
+// Wrapper so anonymous players can be sent as an absent name (null on the client).
+message PlayerName {
+	optional string name = 1;
 }
 
 message Error {

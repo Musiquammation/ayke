@@ -223,7 +223,7 @@ const LEVELS = (function(){
 			subCheckpoints: [],
 		},
 
-		({
+		{
 			name: "Chamois",
 			spawnX: 0,
 			spawnY: 0,
@@ -238,7 +238,7 @@ const LEVELS = (function(){
 				{ x: 26, y: 11, w: 1, h: 1, skin: 'box' },
 				{ x: 30, y: 9, w: 1, h: 7, skin: 'box' },
 				{ x: 36, y: 13, w: 2, h: 1, skin: 'box' },
-				{ x: 38, y: 12, w: 5, h: 1, skin: 'box' },
+				{ x: 38, y: 11, w: 5, h: 1, skin: 'box' },
 				{ x: 45, y: 15, w: 2, h: 1, skin: 'box' },
 				{ x: 49, y: 6, w: 1, h: 8, skin: 'box' },
 				{ x: 47, y: 6, w: 1, h: 2, skin: 'box' },
@@ -248,12 +248,13 @@ const LEVELS = (function(){
 				{ x: 47, y: 13, w: 1 , h: 3, skin: 'box' },
 				{ x: 55, y: 6, w: 2, h: 15, skin: 'grass' },
 				{ x: 65, y: 16, w: 35, h: 5, skin: 'grass' },
+				{ x: 72, y: 14, w: 2, h: 1, skin: 'box' },
 				{ x: 66, y: 0, w: 1, h: 14, skin: 'box' },
 				{ x: 78, y: 13, w: 1, h: 1, skin: 'box' },
-				{ x: 82, y: 10, w: 1, h: 1, skin: 'box' },
-				{ x: 86, y: 7, w: 1, h: 1, skin: 'box' },
-				{ x: 94, y: 10, w: 1, h: 3, skin: 'box' },
-				{ x: 99, y: 8, w: 7, h: 1, skin: 'mud', mud: 80 },
+				{ x: 82, y: 11, w: 3, h: 1, skin: 'box' },
+				{ x: 85, y: 9, w: 3, h: 1, skin: 'box' },
+				{ x: 94, y: 12, w: 2, h: 3, skin: 'box' },
+				{ x: 99, y: 10, w: 7, h: 1, skin: 'mud', mud: 80 },
 				{ x: 109, y: 14, w: 3, h: 1, skin: 'box'},
 				{ x: 114, y: 12, w: 6, h: 1, skin: 'box'},
 				{ x: 114, y: 11, w: 1, h: 1, skin: 'box'},
@@ -308,11 +309,11 @@ const LEVELS = (function(){
 				{x: 86, y: 6},
 				{x: 93, y: 8},
 				{x: 94, y: 9},
-				{x: 102, y: 7},
-				{x: 103, y: 7},
-				{x: 104, y: 7},
-				{x: 105, y: 7},
-				{x: 106, y: 7},
+				{x: 102, y: 9},
+				{x: 103, y: 9},
+				{x: 104, y: 9},
+				{x: 105, y: 9},
+				{x: 106, y: 9},
 				{x: 110, y: 13},
 
 				{x: 115, y: 11},
@@ -338,11 +339,11 @@ const LEVELS = (function(){
 				{ x: 30, y: 0, w: 1, h: 9  },
 				{ x: 46, y: 5, w: 11, h: 1  },
 				{ x: 66, y: 14, w: 1, h: 2  },
-				{ x: 99, y: 0, w: 1, h: 8, spawn: {dx: 0, dy: 7} },
+				{ x: 99, y: 2, w: 1, h: 8, spawn: {dx: 0, dy: 7} },
 				{ x: 167.5, y: 3, w: 1, h: 19 },
 			],
 			subCheckpoints: [],
-		})
+		}
 
 	];
 
@@ -940,6 +941,16 @@ class Camera {
 	getCoords() { return { x: this.x, y: this.y }; }
 }
 
+function ordinalSuffix(rank: number) {
+	if (rank % 100 >= 11 && rank % 100 <= 13) return "th";
+	switch (rank % 10) {
+		case 1: return "st";
+		case 2: return "nd";
+		case 3: return "rd";
+		default: return "th";
+	}
+}
+
 class ClientData {
 	firstFrame = true;
 	readonly html: HTMLDivElement;
@@ -960,7 +971,8 @@ class ClientData {
 	private readonly boostParticleTimers: number[] = [];
 	private particles: Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; color: string }> = [];
 
-	constructor() {
+	/** One entry per player; null for anonymous players. */
+	constructor(readonly names: (string | null)[] = []) {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-rally-root");
 		this.html.style.pointerEvents = "none";
@@ -981,6 +993,57 @@ class ClientData {
 		this.html.append(this.laps);
 	}
 
+	/**
+	 * Temporary standings, top-right: shown as soon as a first player has
+	 * finished the race, and filled in as the others cross the line.
+	 */
+	drawFinishStandings(ctx: CanvasRenderingContext2D, game: GMRally, playerIdx: number) {
+		const finishers = game.players
+			.map((p, index) => ({ index, rank: p.finalRanking >= 0 ? p.finalRanking : p.finishRank, finished: p.finished || p.finalRanking >= 0 }))
+			.filter(f => f.finished && f.rank >= 0)
+			.sort((a, b) => a.rank - b.rank);
+		if (finishers.length === 0) return;
+
+		const rowHeight = 46;
+		const padding = 14;
+		const width = 420;
+		const x = WIDTH - 24 - width;
+		const y = 200; // Below the item roulette box.
+
+		ctx.save();
+		ctx.font = "bold 32px Arial, sans-serif";
+		ctx.textBaseline = "middle";
+		ctx.lineJoin = "round";
+		ctx.lineWidth = 5;
+		ctx.strokeStyle = "#000";
+
+		finishers.forEach((f, row) => {
+			const position = f.rank + 1;
+			const name = this.names[f.index] ?? "Anonymous";
+			const label = `${position}${ordinalSuffix(position)} : `;
+			const rowY = y + padding + rowHeight * (row + 0.5);
+
+			ctx.textAlign = "left";
+			ctx.fillStyle = position === 1 ? "#FFD700" : position === 2 ? "#ECEFF1" : position === 3 ? "#FFAB40" : "#80DEEA";
+			ctx.strokeText(label, x + 18, rowY);
+			ctx.fillText(label, x + 18, rowY);
+
+			const labelWidth = ctx.measureText(label).width;
+			const maxNameWidth = width - 36 - labelWidth;
+			let shown = name;
+			while (shown.length > 1 && ctx.measureText(shown).width > maxNameWidth) {
+				shown = shown.slice(0, -1);
+			}
+			if (shown !== name) shown = shown.slice(0, -1) + "…";
+
+			ctx.fillStyle = f.index === playerIdx ? "#FFF59D" : "#FFFFFF";
+			ctx.strokeText(shown, x + 18 + labelWidth, rowY);
+			ctx.fillText(shown, x + 18 + labelWidth, rowY);
+		});
+
+		ctx.restore();
+	}
+
 	drawRacePosition(ctx: CanvasRenderingContext2D, game: GMRally, playerIdx: number) {
 		const ranking = game.getRaceRanking();
 		const rank = ranking.indexOf(playerIdx) + 1;
@@ -989,15 +1052,7 @@ class ClientData {
 		if (rank <= 0) return;
 
 		// Determine ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
-		const suffix = rank % 100 >= 11 && rank % 100 <= 13
-			? "th"
-			: rank % 10 === 1
-				? "st"
-				: rank % 10 === 2
-					? "nd"
-					: rank % 10 === 3
-						? "rd"
-						: "th";
+		const suffix = ordinalSuffix(rank);
 
 		ctx.save();
 
@@ -1763,7 +1818,9 @@ export class GMRally extends GameMode {
 	static createClient(
 		{ data, origin }: MultiplayerClientEntry,
 		total: number,
-		_playerIdx: number
+		_playerIdx: number,
+		_playLocally: boolean,
+		names: (string | null)[]
 	) {
 		const { StartDataClient } = protocols.get();
 		let initialLevelIndex = 0;
@@ -1779,7 +1836,7 @@ export class GMRally extends GameMode {
 		}
 		// Multiplayer clients receive itemSeed with the first server snapshot.
 		const game = new GMRally(total, true, initialLevelIndex);
-		const clientData = new ClientData();
+		const clientData = new ClientData(names);
 
 
 		const level = game.currentLevel();
@@ -2717,6 +2774,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		ctx.restore();
 		data.drawItemRoulette(ctx, this, playerIdx, imageLoader);
 		data.drawRacePosition(ctx, this, playerIdx);
+		data.drawFinishStandings(ctx, this, playerIdx);
 	}
 
 	private drawDebugCheckpoints(ctx: CanvasRenderingContext2D, playerIdx: number) {
