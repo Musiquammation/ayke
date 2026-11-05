@@ -8,6 +8,25 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.6",
+		date: 1793898000000, // Thu. 5 nov 2026 at 6:00 PM
+		title: "Player names and Rally standings",
+		lines: [
+			"Player names are now shown at game start (bots are named *Bot N*)",
+			"<ust>Rally:</ust> temporary finish standings shown top-right as soon as the first player finishes",
+			"<ust>Rally:</ust> fix level *Chamois*",
+		]
+	},
+	{
+		version: "1.5.5",
+		date: 1793804400000,
+		title: "",
+		lines: [
+			"Jumpies was not implemented",
+			"<ust>Rally:</ust> Client was not simulating"
+		]
+	},
+	{
 		version: "1.5.4",
 		date: 1793804400000, // Wed. 4 nov 2026 at 4:00 PM
 		title: "Minor fixes",
