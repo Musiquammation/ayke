@@ -79,17 +79,17 @@ export const WEAPONS: WeaponDef[] = [
 	},
 	{ // 3 = short range: a handful of pellets converging on the target
 		name: "Shotgun",
-		cooldown: 0.44,
+		cooldown: 0.26,
 		speed: 1400, range: 420, damage: 280, radius: 9,
-		count: 12, spread: 0.14, homing: false, push: 110,
+		count: 12, spread: 0.14, homing: false, push: 240,
 		color: "#ff8c42",
 		startAmmo: 6, respawnAmmo: 3, maxAmmo: 30, pickupAmmo: 6,
 	},
 ];
 
 // Push of the shotgun: added to the walking speed, it fades out quickly and never stuns
-export const PUSH_MAX_SPEED = 1100;
-export const PUSH_DECAY = 5;           // the push speed is multiplied by exp(-PUSH_DECAY * dt)
+export const PUSH_MAX_SPEED = 2600;
+export const PUSH_DECAY = 4.5;           // the push speed is multiplied by exp(-PUSH_DECAY * dt)
 
 // Homing bullets (sniper, burst fired while locked): max turn speed, in radians per second
 export const HOMING_TURN_RATE = 2.5;
@@ -156,38 +156,38 @@ export const BOMB_ICE = 1;
 export const BOMB_MAX_RANGE = 1300;
 export const BOMB_FLIGHT_TIME = 0.7;
 export const BOMB_RADIUS = 12;
-export const EXPLOSION_RADIUS = 396;
+export const EXPLOSION_RADIUS = 460;
 export const EXPLOSION_VERTICAL_REACH = 160;
-export const EXPLOSION_DAMAGE = 1800;
+export const EXPLOSION_DAMAGE = 3600;
 export const EXPLOSION_DURATION = 0.45;
 export const EXPLOSION_RAYS = 72;          // resolution of the zone hidden by walls
 // Players caught in a blast (the thrower too) are thrown backward, stunned until they land
-export const EXPLOSION_KNOCKBACK_SPEED = 560;
+export const EXPLOSION_KNOCKBACK_SPEED = 720;
 export const EXPLOSION_KNOCKBACK_VZ = 760;
 
 // Ice zone: players standing in it are slowed, and stay slowed a bit after leaving it
-export const ICE_ZONE_RADIUS = 280;
-export const ICE_ZONE_DURATION = 8;
+export const ICE_ZONE_RADIUS = 360;
+export const ICE_ZONE_DURATION = 11;
 export const ICE_ZONE_VERTICAL_REACH = 40;
-export const ICE_SLOW_FACTOR = 0.3;        // speed multiplier while slowed
-export const ICE_SLOW_LINGER = 3;          // seconds the slow lasts after leaving the zone
+export const ICE_SLOW_FACTOR = 0.2;        // speed multiplier while slowed
+export const ICE_SLOW_LINGER = 4.5;          // seconds the slow lasts after leaving the zone
 
-// Shells: three of them, sliding on the ground and bouncing on walls.
+// Shells: four of them, sliding on the ground and bouncing on walls.
 // A shell touching a player throws it up and stuns it until it lands; two shells touching break.
-export const SHELL_COUNT = 3;
-export const SHELL_SPREAD = 0.28;          // angle (radians) between two shells
-export const SHELL_SPEED = 950;
+export const SHELL_COUNT = 4;
+export const SHELL_SPREAD = 0.24;          // angle (radians) between two shells
+export const SHELL_SPEED = 1150;
 export const SHELL_RADIUS = 26;
 export const SHELL_MAX_BOUNCES = 12;
-export const SHELL_LIFE = 10;              // seconds before a shell vanishes anyway
+export const SHELL_LIFE = 13;              // seconds before a shell vanishes anyway
 export const SHELL_ARM_TIME = 0.25;        // the thrower and the other shells are ignored this long
-export const SHELL_DAMAGE = MAX_HP / 2;
-export const SHELL_KNOCKBACK_SPEED = 420;
+export const SHELL_DAMAGE = MAX_HP * 0.6;
+export const SHELL_KNOCKBACK_SPEED = 540;
 export const SHELL_KNOCKBACK_VZ = 820;
 export const SHELL_PREVIEW_LENGTH = 1400;  // distance covered by the preview of each shell
 
 // Super jump: a leap along an arc to the aimed point
-export const SUPER_JUMP_RANGE = 1150;
+export const SUPER_JUMP_RANGE = 1500;
 export const SUPER_JUMP_TIME = 0.95;
 export const SUPER_JUMP_MAX_RISE = 160;    // highest surface (above the feet) we aim for
 
