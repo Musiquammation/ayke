@@ -376,7 +376,7 @@ class Camera {
 	x = 0;
 	y = 0;
 
-	static readonly SCALE = 0.8;
+	SCALE = 0.8;
 	static readonly DURATION = 0.3;
 
 	// Transition state variables
@@ -601,7 +601,7 @@ class ClientData {
 		return `${minutes}:${seconds.padStart(4, "0")}`;
 	}
 
-	update(game: GMAirBasket, playerIdx: number) {
+	update(game: GMAirBasket, playerIdx: number, dt: number) {
 		this.time.innerText =
 			ClientData.showTime(game.time);
 
@@ -629,7 +629,7 @@ class ClientData {
 
 		this.clientWasDead = (player.alive >= 0);
 
-		this.camera.update(player.x, player.y, 1 / 60);
+		this.camera.update(player.x, player.y, dt);
 
 		// Keep previous states for the next frame.
 		this.prevGrabber = game.ball.grabber;
@@ -1414,7 +1414,7 @@ function applyCollisions(players: Player[]) {
 	}
 }
 
-function getVectorToReachTarget(
+export function getVectorToReachTarget(
 	X: number,
 	Y: number,
 	N: number,
@@ -1922,6 +1922,8 @@ export class GMAirBasket extends GameMode {
 	}
 
 	override run(dt: number, produceFinish: boolean): FinishGame | null {
+		this.internalFrameTick++;
+
 		// Time
 		this.time -= dt;
 		if (this.time <= 0) {
@@ -2403,7 +2405,7 @@ export class GMAirBasket extends GameMode {
 		}
 
 
-		data.update(this, playerIdx);
+		data.update(this, playerIdx, dt);
 
 		ctx.fillStyle = "#333";
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -2420,8 +2422,9 @@ export class GMAirBasket extends GameMode {
 				HEIGHT / 2 + shake.y
 			);
 
+			
 			const scale =
-				Camera.SCALE * (1 - addCamZ * 0.3);
+				data.camera.SCALE * (1 - addCamZ * 0.3);
 
 			ctx.scale(scale, scale);
 
@@ -2657,8 +2660,8 @@ export class GMAirBasket extends GameMode {
 		const cameraCoords = clientData.camera.getCoords();
 
 		const ret = {
-			x: (x - WIDTH / 2) / Camera.SCALE + cameraCoords.x,
-			y: (y - HEIGHT / 2) / Camera.SCALE + cameraCoords.y
+			x: (x - WIDTH / 2) / clientData.camera.SCALE + cameraCoords.x,
+			y: (y - HEIGHT / 2) / clientData.camera.SCALE + cameraCoords.y
 		};
 
 		clientData.mouseX = ret.x;

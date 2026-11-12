@@ -57,6 +57,10 @@ const CASTLE_COLS = 5;
 const CASTLE_ROWS = 5;
 const CASTLE_COL = LEVEL_COLS - CASTLE_COLS;
 const BUILD_MAX_COL = CASTLE_COL;
+/** Fire bars sweep a wide area: they must stay further from the spawn and the castle. */
+const FIREBAR_BUILD_MARGIN_COLS = 4;
+const FIREBAR_BUILD_MIN_COL = BUILD_MIN_COL + FIREBAR_BUILD_MARGIN_COLS;
+const FIREBAR_BUILD_MAX_COL = BUILD_MAX_COL - FIREBAR_BUILD_MARGIN_COLS;
 
 /** Axis-aligned rectangle of the castle. x/y are the CENTER, like all engine rectangles. */
 const CASTLE_RECT = {
@@ -70,8 +74,8 @@ const CASTLE_RECT = {
 const VOID_Y = LEVEL_HEIGHT + CELL * 3;
 
 // ---- Match rules -----------------------------------------------------------
-const CASTLE_HP = 60;
-const MATCH_DURATION = 300;          // 5 minutes
+const CASTLE_HP = 30;
+const MATCH_DURATION = 3000;          // 5 minutes
 const TIMER_VISIBLE_SECONDS = 60;    // the clock is only displayed during the last minute
 const NO_OWNER = -1;
 const GRAVITY = 1500;
@@ -80,8 +84,8 @@ const GRAVITY = 1500;
 const ELIXIR_MAX = 10;
 const ELIXIR_START = 5;
 const ELIXIR_REGEN_PER_SECOND = 0.6;
-/** Removing an enemy element costs (1 + hp / maxHp) * price. */
-const REMOVAL_BASE_FACTOR = 1;
+/** Removing an enemy element costs price * (hp / maxHp + DESTROY_PENALITY). */
+const DESTROY_PENALITY = 0.1;
 
 // ---- Bots (waves) ----------------------------------------------------------
 const BOT_SIZE = 30;
@@ -104,7 +108,7 @@ const BOT_RUNNING_SPEED = 100;       // speed from which the 'running' animation
 const KILL_CREDIT_WINDOW = 2;
 const BOT_WALL_JUMP_KICK = 260;
 
-const BOT_SPAWN_INTERVAL = 0.7;
+const BOT_SPAWN_INTERVAL = 0.5;
 
 // ---- Element: block --------------------------------------------------------
 const BLOCK_PRICE = 0.5;
@@ -124,7 +128,7 @@ const ARCHER_PRICE = 3;
 const ARCHER_HP = 25;
 const ARCHER_ROWS = 2;
 const ARCHER_RANGE = 450;
-const ARCHER_COOLDOWN = 0.9;
+const ARCHER_COOLDOWN = 0.9 / 3.5 * 1.5;
 const ARCHER_MUZZLE_OFFSET = 10;     // distance of the muzzle below the tower top
 const ARROW_SPEED = 600;
 const ARROW_LIFETIME = 2.5;
@@ -261,6 +265,8 @@ const GRID_BG_MAX_ALPHA = 0.35;
 const GRID_LINE_MAX_ALPHA = 0.8;
 const PREVIEW_ALPHA = 0.7;
 const PREVIEW_OUTLINE_WIDTH = 3;
+const CARD_SELECTED_OUTLINE_WIDTH = 8;
+const CARD_SELECTED_TINT = 'rgba(255, 213, 79, 0.25)';
 const PREVIEW_LABEL_OFFSET_Y = 18;
 
 // ---- Distant SVG background --------------------------------------------------
@@ -523,6 +529,20 @@ namespace botsApi {
 	/** Average horizontal speed during the rising phase of a wall jump (kick -> run speed). */
 	const WALL_JUMP_VX = (BOT_WALL_JUMP_KICK + BOT_RUN_SPEED) / 2;
 	const WALL_JUMP_COOLDOWN = 1 / BOT_WALL_JUMP_MAX_REPEAT_PER_SECOND;
+	/** Stuck detection: the bot must move at least STUCK_DIST px every STUCK_TIME seconds. */
+	const STUCK_TIME = 1.0;
+	const STUCK_DIST = CELL * 0.75;
+	/** Once too many edges are banned for a bot, the bans are forgotten (the map probably moved). */
+	const MAX_BANS = 12;
+	/** Duration of the scripted escape manoeuvre when no alternative edge exists. */
+	const ESCAPE_TIME = 0.7;
+	/** Fireball dodging: look-ahead duration, simulation step and safety margin around each ball (px). */
+	const DODGE_HORIZON = 0.6;
+	const DODGE_STEP = 1 / 30;
+	const DODGE_MARGIN = 4;
+	/** Fire bars farther than this from the bot are ignored (bar reach + bot travel over the horizon). */
+	const DODGE_RANGE = FIREBAR_BALLS * FIREBAR_BALL_SPACING + FIREBAR_BALL_RADIUS
+		+ (BOT_JUMP_SPEED + BOT_RUN_SPEED) * DODGE_HORIZON;
 
 	// Cell classes
 	const FREE = 0;
@@ -643,6 +663,8 @@ namespace botsApi {
 		goalId = 0;
 		/** next[node] = edge to follow to reach the castle (null = no path). */
 		next: (Edge | null)[] = [];
+		/** dist[node] = cost to reach the castle (Infinity = unreachable). */
+		dist = new Float64Array(0);
 
 		constructor(game: GMCastle, readonly version: number) {
 			const t0 = Date.now();
@@ -988,6 +1010,36 @@ namespace botsApi {
 					if (nd < dist[from]) { dist[from] = nd; this.next[from] = edge; }
 				}
 			}
+			this.dist = dist;
+		}
+
+		/** Best edge out of a node, skipping the ones this bot found impassable. */
+		bestEdge(node: NavNode, banned: Set<string>): Edge | null {
+			const next = this.next[node.id];
+			if (banned.size === 0 || !next || !banned.has(edgeKey(node.id, next))) return next;
+			let best: Edge | null = null;
+			let bestCost = Infinity;
+			for (const e of node.edges) {
+				if (banned.has(edgeKey(node.id, e))) continue;
+				const c = e.cost + this.dist[e.to];
+				if (c < bestCost) { bestCost = c; best = e; }
+			}
+			return best;
+		}
+
+		/** Floor closest to (x, y) on the bot row or the row below (bot standing on an edge / moving block). */
+		nearestFloor(x: number, y: number): FloorNode | null {
+			let best: FloorNode | null = null;
+			let bestD = Infinity;
+			const row = Math.floor(y / CELL);
+			for (const r of [row, row + 1]) {
+				for (const f of this.floorsByRow[r] ?? []) {
+					if (Math.abs(f.y - y) > CELL) continue;
+					const d = x < f.xl ? f.xl - x : x > f.xr ? x - f.xr : 0;
+					if (d < bestD) { bestD = d; best = f; }
+				}
+			}
+			return bestD <= CELL * 2 ? best : null;
 		}
 	}
 
@@ -1022,10 +1074,25 @@ namespace botsApi {
 	/* ---------------------------------------------------------------------- */
 
 	type BotEdgeState = Pick<Edge, 'kind' | 'takeoffX' | 'dirUp' | 'dirDown'>;
+	const edgeKey = (from: number, e: Edge) => `${from}:${e.to}:${e.kind}:${e.takeoffX}:${e.dirUp}:${e.dirDown}`;
+
 	export class Data {
 		/** Active navigation edge; essential while a bot is airborne. */
 		edge: BotEdgeState | null = null;
+		/** Key of the last edge chosen from a node: banned when the bot gets stuck on it. */
+		edgeKey = '';
 		jumpCooldown = 0;
+		/** Edges this bot failed to follow, valid for one map version. */
+		banned = new Set<string>();
+		bannedVersion = -1;
+		/** Stuck detection checkpoint. */
+		checkX = NaN;
+		checkY = NaN;
+		checkTimer = STUCK_TIME;
+		/** Scripted escape when no alternative path exists. */
+		escapeTimer = 0;
+		escapeDir: Dir = 1;
+		escapeCount = 0;
 		logTimer = 0;
 		/** Debug-only decision key; deliberately not part of authoritative state. */
 		debugKey = '';
@@ -1043,7 +1110,8 @@ namespace botsApi {
 
 	/** No path / bot outside the graph: run toward the castle and jump in front of a wall. */
 	function fallback(bot: Bot, grounded: boolean): Omit<BotInput, 'grounded'> {
-		return { dir: 1, jump: grounded && bot.walker.onRight(), glueFloor: false };
+		const dir = sgn(CASTLE_RECT.x - bot.x) || 1;
+		return { dir, jump: grounded && blocked(bot, dir), glueFloor: false };
 	}
 
 	/* ---------------------------------------------------------------------- */
@@ -1063,8 +1131,21 @@ namespace botsApi {
 		data.jumpCooldown = Math.max(0, data.jumpCooldown - dt);
 		data.logTimer -= dt;
 
+		if (data.bannedVersion !== nav.version) {
+			data.banned.clear();
+			data.bannedVersion = nav.version;
+		}
+		updateStuck(bot, data, dt);
+
 		const trace: Trace = { why: '', gap: NaN };
-		const input = decide(nav, bot, dt, trace);
+		const planned = data.escapeTimer > 0 ? escape(bot, data, dt, trace) : decide(nav, bot, dt, trace);
+		const input = dodgeFireballs(game, bot, planned, trace);
+		if (input !== planned) {
+			// Waiting for a fire bar to pass is not being stuck.
+			data.checkX = bot.x;
+			data.checkY = bot.y;
+			data.checkTimer = STUCK_TIME;
+		}
 
 		if (DEBUG) {
 			const key = `${trace.why}|${input.dir}|${input.jump}`;
@@ -1078,13 +1159,154 @@ namespace botsApi {
 		return input;
 	}
 
+	/**
+	 * Every STUCK_TIME seconds, checks that the bot actually moved. If not, the edge it was
+	 * following is banned for this bot (an alternative is then chosen), or, when nothing
+	 * was being followed, a short escape manoeuvre is started.
+	 */
+	function updateStuck(bot: Bot, data: Data, dt: number) {
+		if (Number.isNaN(data.checkX)) { data.checkX = bot.x; data.checkY = bot.y; }
+		data.checkTimer -= dt;
+		if (data.checkTimer > 0) return;
+
+		const moved = Math.hypot(bot.x - data.checkX, bot.y - data.checkY);
+		data.checkTimer = STUCK_TIME;
+		data.checkX = bot.x;
+		data.checkY = bot.y;
+		if (moved >= STUCK_DIST) {
+			data.escapeCount = 0;
+			return;
+		}
+
+		if (data.banned.size >= MAX_BANS) data.banned.clear();
+		if (data.edgeKey && !data.banned.has(data.edgeKey)) {
+			data.banned.add(data.edgeKey);
+			data.edgeKey = '';
+			// A single ban usually suffices; escape too if the bot keeps failing.
+			if (++data.escapeCount < 2) return;
+		}
+		startEscape(bot, data);
+	}
+
+	function startEscape(bot: Bot, data: Data) {
+		data.escapeCount++;
+		// Deterministic pseudo-random direction, biased toward the castle.
+		const h = hash01(bot.x * 7 + data.escapeCount, bot.y * 13 + data.banned.size);
+		data.escapeDir = h < 0.65 ? 1 : -1;
+		data.escapeTimer = ESCAPE_TIME;
+		data.edge = null;
+		data.edgeKey = '';
+	}
+
+	/** Escape manoeuvre: run in one direction, jumping whenever possible (floor or wall). */
+	function escape(bot: Bot, data: Data, dt: number, trace: Trace): BotInput {
+		data.escapeTimer -= dt;
+		const w = bot.walker;
+		const grounded = w.onFloor();
+		let dir = data.escapeDir;
+		// Blocked by a wall while grounded: try the other way next time.
+		if (grounded && (dir > 0 ? w.onRight() : w.onLeft()) && data.escapeTimer < ESCAPE_TIME / 2) {
+			data.escapeDir = -dir as Dir;
+			dir = data.escapeDir;
+		}
+		const onWall = w.onLeft() || w.onRight();
+		const jump = (grounded || onWall) && data.jumpCooldown <= 0;
+		if (jump && !grounded) data.jumpCooldown = Math.max(WALL_JUMP_COOLDOWN, BOT_JUMP_COOLDOWN);
+		trace.why = `ESCAPE dir=${dir}`;
+		return { dir, jump, glueFloor: false, grounded };
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* Fireball dodging                                                        */
+	/* ---------------------------------------------------------------------- */
+
+	/**
+	 * Earliest time (s) at which the bot, driven by (dir, jump), touches a fireball
+	 * within DODGE_HORIZON; Infinity when it stays safe. The bot motion is a simple
+	 * ballistic model (walls ignored; a grounded bot never sinks below its floor).
+	 */
+	function timeToFireball(bars: FireBarElement[], bot: Bot, dir: Dir, jump: boolean, grounded: boolean): number {
+		let x = bot.x;
+		let y = bot.y;
+		let vx = bot.velocity.x;
+		let vy = jump && grounded ? -BOT_JUMP_SPEED : grounded ? 0 : bot.velocity.y;
+		const floorY = bot.y;
+		const target = dir * BOT_RUN_SPEED;
+		const r = FIREBAR_BALL_RADIUS + DODGE_MARGIN;
+
+		for (let t = 0; t <= DODGE_HORIZON; t += DODGE_STEP) {
+			for (const bar of bars) {
+				const angle = bar.angle + FIREBAR_ROTATION_SPEED * t;
+				const cos = Math.cos(angle);
+				const sin = Math.sin(angle);
+				for (let i = 1; i <= FIREBAR_BALLS; i++) {
+					const bx = bar.x + cos * i * FIREBAR_BALL_SPACING;
+					const by = bar.y + sin * i * FIREBAR_BALL_SPACING;
+					const cx = Math.max(x - H, Math.min(bx, x + H));
+					const cy = Math.max(y - H, Math.min(by, y + H));
+					if (norm2(bx - cx, by - cy) <= r * r) return t;
+				}
+			}
+
+			const dv = BOT_ACCELERATION * DODGE_STEP;
+			vx = vx < target ? Math.min(target, vx + dv) : Math.max(target, vx - dv);
+			vy += GRAVITY * DODGE_STEP;
+			x += vx * DODGE_STEP;
+			y += vy * DODGE_STEP;
+			if (grounded && y > floorY) { y = floorY; vy = 0; }
+		}
+		return Infinity;
+	}
+
+	/**
+	 * Keeps the planned input unless it leads into a fireball soon; otherwise picks the
+	 * first safe alternative (wait, jump, back off), or the one that delays the hit most.
+	 */
+	function dodgeFireballs(game: GMCastle, bot: Bot, planned: BotInput, trace: Trace): BotInput {
+		const bars: FireBarElement[] = [];
+		for (const el of game.storage.elements.values()) {
+			if (el instanceof FireBarElement && norm2(el.x - bot.x, el.y - bot.y) <= DODGE_RANGE * DODGE_RANGE) bars.push(el);
+		}
+		if (bars.length === 0) return planned;
+
+		const grounded = planned.grounded;
+		const plannedHit = timeToFireball(bars, bot, planned.dir, planned.jump, grounded);
+		if (plannedHit === Infinity) return planned;
+
+		const back = (-planned.dir || -(sgn(CASTLE_RECT.x - bot.x) || 1)) as Dir;
+		const forward = (planned.dir || -back) as Dir;
+		const options: { dir: Dir; jump: boolean }[] = [{ dir: 0, jump: false }];
+		if (grounded) options.push({ dir: forward, jump: true }, { dir: 0, jump: true });
+		options.push({ dir: back, jump: false });
+		if (grounded) options.push({ dir: back, jump: true });
+
+		let best: BotInput = planned;
+		let bestHit = plannedHit;
+		for (const o of options) {
+			if (o.dir === planned.dir && o.jump === planned.jump) continue;
+			const hit = timeToFireball(bars, bot, o.dir, o.jump, grounded);
+			if (hit > bestHit) {
+				bestHit = hit;
+				best = { dir: o.dir, jump: o.jump, glueFloor: false, grounded };
+				if (hit === Infinity) break;
+			}
+		}
+		if (best !== planned) trace.why += ` | DODGE fireball (dir=${best.dir} jump=${best.jump})`;
+		return best;
+	}
+
+	/** True when the bot is pressed against a wall in direction d. */
+	function blocked(bot: Bot, d: number): boolean {
+		return d > 0 ? bot.walker.onRight() : d < 0 ? bot.walker.onLeft() : false;
+	}
+
 	function decide(nav: NavMap, bot: Bot, dt: number, trace: Trace): BotInput {
 		const data = bot.botData;
 		const walker = bot.walker;
 
 		// walker.onFloor() is not sufficient because the bot can float ~2 px above the floor; also inspect the geometry.
 		const row = Math.floor(bot.y / CELL);
-		const node = nav.floorAt(row, bot.x, 2);
+		const node = nav.floorAt(row, bot.x, 2) ?? (walker.onFloor() ? nav.nearestFloor(bot.x, bot.y) : null);
 		trace.gap = node ? node.y - bot.y : NaN;
 		const grounded = walker.onFloor()
 			|| (node !== null && Math.abs(trace.gap) <= GROUND_TOL && Math.abs(bot.velocity.y) <= GROUND_VY);
@@ -1098,18 +1320,22 @@ namespace botsApi {
 		if (grounded) {
 			if (!node) {
 				data.edge = null;
+				data.edgeKey = '';
 				return out(`GROUND no floor node (row=${row} x=${r1(bot.x)}; floors on row: ${
 					nav.floorsByRow[row]?.map(f => `[${r1(f.xl)}..${r1(f.xr)}]`).join(' ') || 'none'}) -> fallback`, fallback(bot, grounded));
 			}
-			const edge = nav.next[node.id];
+			const edge = nav.bestEdge(node, data.banned);
 			data.edge = edge;
+			data.edgeKey = edge ? edgeKey(node.id, edge) : '';
 			if (!edge) return out(`GROUND floor#${node.id} has NO PATH -> fallback`, fallback(bot, grounded));
 
 			if (edge.kind === 'walk') {
-				return out(`GROUND floor#${node.id} walk to castle`, { dir: sgn(edge.takeoffX - bot.x) || 1, jump: false, glueFloor: false });
+				const d = sgn(edge.takeoffX - bot.x) || 1;
+				return out(`GROUND floor#${node.id} walk to castle`, { dir: d, jump: blocked(bot, d), glueFloor: false });
 			}
 			if (edge.kind === 'drop') {
-				return out(`GROUND floor#${node.id} walk to the ${edge.dirUp > 0 ? 'right' : 'left'} end and drop`, { dir: edge.dirUp, jump: false, glueFloor: false });
+				// Something unexpected (moving block) in the way: hop over it.
+				return out(`GROUND floor#${node.id} walk to the ${edge.dirUp > 0 ? 'right' : 'left'} end and drop`, { dir: edge.dirUp, jump: blocked(bot, edge.dirUp), glueFloor: false });
 			}
 
 			// jump: move to the takeoff point, then jump
@@ -1125,7 +1351,8 @@ namespace botsApi {
 				return out(`GROUND floor#${node.id} JUMP ${blockedAhead ? 'against the wall' : 'overshoot'} x=${r1(bot.x)} (takeoff ${r1(edge.takeoffX)})`,
 					{ dir: edge.dirUp, jump: true, glueFloor: false });
 			}
-			return out(`GROUND floor#${node.id} going to takeoff x=${r1(edge.takeoffX)} (dx=${r1(dx)})`, { dir: sgn(dx), jump: false, glueFloor: false });
+			// Takeoff point behind an unexpected wall: jump here rather than pushing forever.
+			return out(`GROUND floor#${node.id} going to takeoff x=${r1(edge.takeoffX)} (dx=${r1(dx)})`, { dir: sgn(dx), jump: blocked(bot, sgn(dx)), glueFloor: false });
 		}
 
 		/* ---- attached to a wall (mid-air): jump, release, or slide ---- */
@@ -1136,9 +1363,10 @@ namespace botsApi {
 			const col = Math.floor(bot.x / CELL);
 			const bucket = Math.floor(bot.y / BUCKET);
 			const wnode = nav.wallAt(side, col, bucket);
-			const edge = wnode ? nav.next[wnode.id] : null;
-			if (edge) {
+			const edge = wnode ? nav.bestEdge(wnode, data.banned) : null;
+			if (edge && wnode) {
 				data.edge = edge;
+				data.edgeKey = edgeKey(wnode.id, edge);
 				if (edge.kind === 'wallJump' && data.jumpCooldown <= 0) {
 					data.jumpCooldown = Math.max(WALL_JUMP_COOLDOWN, BOT_JUMP_COOLDOWN);
 					return out(`WALL side=${side} col=${col} bucket=${bucket} WALL-JUMP`, { dir: edge.dirUp, jump: true, glueFloor: true });
@@ -1157,7 +1385,7 @@ namespace botsApi {
 			const up = bot.velocity.y < 0;
 			return out(`AIR following ${e.kind} (${up ? 'rising' : 'falling'})`, { dir: up ? e.dirUp : e.dirDown, jump: false, glueFloor: false });
 		}
-		return out('AIR no edge', { dir: sgn(bot.velocity.x) || 1, jump: false, glueFloor: false });
+		return out('AIR no edge', { dir: sgn(CASTLE_RECT.x - bot.x) || 1, jump: false, glueFloor: false });
 	}
 }
 
@@ -1843,10 +2071,17 @@ class ThwompElement extends PlacedElement {
 				if (this.hasBotBelow(engine.getGame())) this.phase = THWOMP_PHASE_SLAM;
 				break;
 
-			case THWOMP_PHASE_SLAM:
-				this.forced.y = THWOMP_SLAM_SPEED;
-				if (this.y - home >= THWOMP_MAX_DROP) this.land();
+			case THWOMP_PHASE_SLAM: {
+				// Never sink below the first solid thing (floor included) under the thwomp.
+				const maxY = Math.min(home + THWOMP_MAX_DROP, this.groundY(engine.getGame()));
+				if (this.y + THWOMP_SLAM_SPEED * dt >= maxY) {
+					this.y = maxY;
+					this.land();
+				} else {
+					this.forced.y = THWOMP_SLAM_SPEED;
+				}
 				break;
+			}
 
 			case THWOMP_PHASE_REST:
 				this.forced.y = 0;
@@ -1873,6 +2108,19 @@ class ThwompElement extends PlacedElement {
 		this.forced.y = 0;
 	}
 
+	/** Highest center Y reachable before touching a solid cell (or the floor) below. */
+	private groundY(game: GMCastle): number {
+		const half = (THWOMP_CELLS * CELL) / 2;
+		const startRow = Math.max(this.row + THWOMP_CELLS, Math.floor((this.y + half) / CELL));
+		for (let r = startRow; r < FLOOR_ROW; r++) {
+			for (let c = this.col; c < this.col + THWOMP_CELLS; c++) {
+				const el = game.elementAtCell(c, r);
+				if (el && el !== this) return r * CELL - half;
+			}
+		}
+		return FLOOR_TOP_Y - half;
+	}
+
 	/** True when a bot stands in the trigger zone below the thwomp. */
 	private hasBotBelow(game: GMCastle): boolean {
 		for (const bot of game.storage.bots.values()) {
@@ -1885,12 +2133,13 @@ class ThwompElement extends PlacedElement {
 		return false;
 	}
 
-	/** Crushes bots while slamming; stops on the first solid thing below. */
+	/** Crushes the bots under it while slamming; stops on the first solid thing below. */
 	override detectCollision(_id: BlockId, other: Entry, side: Side, engine: Engine): void {
 		if (this.phase !== THWOMP_PHASE_SLAM) return;
 
+		// Only the bottom face is deadly: bots touching the sides or standing on top survive.
 		if (other.block instanceof Bot) {
-			engine.getGame().killBot(other.block, this.owner);
+			if (side === 'floor') engine.getGame().killBot(other.block, this.owner);
 		} else if (other.block instanceof PlacedElement && side === 'floor') {
 			this.land();
 		}
@@ -1944,6 +2193,16 @@ const TYPE_TRAMPOLINE = 2;
 const TYPE_ARCHER = 3;
 const TYPE_FIREBAR = 4;
 const TYPE_THWOMP = 5;
+
+/** Left build limit (inclusive column) for an element type. */
+function buildMinCol(typeIdx: number): number {
+	return typeIdx === TYPE_FIREBAR ? FIREBAR_BUILD_MIN_COL : BUILD_MIN_COL;
+}
+
+/** Right build limit (exclusive column) for an element type. */
+function buildMaxCol(typeIdx: number): number {
+	return typeIdx === TYPE_FIREBAR ? FIREBAR_BUILD_MAX_COL : BUILD_MAX_COL;
+}
 const TYPE_RAMP = 6;
 const TYPE_FLOOR = 7;
 
@@ -3087,9 +3346,9 @@ export class GMCastle extends GameMode {
 		return entity instanceof PlacedElement ? entity : null;
 	}
 
-	/** Cost to delete an opponent's element: (1 + hp / maxHp) * price. */
+	/** Cost to delete an opponent's element: price * (hp / maxHp + DESTROY_PENALITY). */
 	private removalCost(el: ElementView): number {
-		return (REMOVAL_BASE_FACTOR + el.hp / el.getMaxHp()) * el.getSpec().price;
+		return el.getSpec().price * (el.hp / el.getMaxHp() + DESTROY_PENALITY);
 	}
 
 	/**
@@ -3105,7 +3364,7 @@ export class GMCastle extends GameMode {
 		if (!def || !player) return { status: 'invalid', cost: 0, replace: null };
 
 		const { cols, rows, price } = def.SPEC;
-		if (col < BUILD_MIN_COL || col + cols > BUILD_MAX_COL || row < 0 || row + rows > LEVEL_ROWS) {
+		if (col < buildMinCol(typeIdx) || col + cols > buildMaxCol(typeIdx) || row < 0 || row + rows > LEVEL_ROWS) {
 			return { status: 'outOfZone', cost: price, replace: null };
 		}
 
@@ -3154,7 +3413,7 @@ export class GMCastle extends GameMode {
 		if (element.owner === NO_OWNER) return { status: 'neutral', cost: 0 };
 
 		const own = this.players[element.owner]?.team === player.team;
-		const cost = own ? 0 : (1 + element.hp / element.getMaxHp()) * element.getSpec().price;
+		const cost = own ? 0 : this.removalCost(element);
 		if (player.elixir < cost) return { status: 'noElixir', cost };
 		return { status: 'ok', cost };
 	}
@@ -3536,8 +3795,12 @@ export class GMCastle extends GameMode {
 
 			ctx.save();
 			ctx.globalAlpha = layer.opacity;
-			for (let x = firstX; x <= lastX; x += tileW) {
-				ctx.drawImage(image, x, centerY - tileH, tileW, tileH);
+			// Snap to whole pixels and overlap by 1px so no hairline seam appears between tiles.
+			const top = Math.round(centerY - tileH);
+			const h = Math.round(tileH);
+			for (let i = 0, x0 = firstX; x0 <= lastX; x0 = firstX + ++i * tileW) {
+				const x = Math.floor(x0);
+				ctx.drawImage(image, x, top, Math.ceil(firstX + (i + 1) * tileW) - x + 1, h);
 			}
 			ctx.restore();
 		}
@@ -3550,8 +3813,9 @@ export class GMCastle extends GameMode {
 		// While building, darken the columns where nothing can be placed
 		if (data.drag) {
 			ctx.fillStyle = COLOR_FORBIDDEN_ZONE;
-			ctx.fillRect(0, 0, BUILD_MIN_COL * CELL, LEVEL_HEIGHT);
-			ctx.fillRect(BUILD_MAX_COL * CELL, 0, (LEVEL_COLS - BUILD_MAX_COL) * CELL, LEVEL_HEIGHT);
+			ctx.fillRect(0, 0, buildMinCol(data.drag.tool) * CELL, LEVEL_HEIGHT);
+			const maxCol = buildMaxCol(data.drag.tool);
+			ctx.fillRect(maxCol * CELL, 0, (LEVEL_COLS - maxCol) * CELL, LEVEL_HEIGHT);
 		}
 
 		// Spawn portal
@@ -3706,8 +3970,12 @@ export class GMCastle extends GameMode {
 
 			ctx.fillStyle = COLOR_CARD_BG;
 			ctx.fillRect(r.x, r.y, r.w, r.h);
+			if (selected) {
+				ctx.fillStyle = CARD_SELECTED_TINT;
+				ctx.fillRect(r.x, r.y, r.w, r.h);
+			}
 			ctx.strokeStyle = selected ? COLOR_CARD_SELECTED : COLOR_FALLBACK_OUTLINE;
-			ctx.lineWidth = selected ? PREVIEW_OUTLINE_WIDTH : 1;
+			ctx.lineWidth = selected ? CARD_SELECTED_OUTLINE_WIDTH : 1;
 			ctx.strokeRect(r.x, r.y, r.w, r.h);
 			ctx.lineWidth = 1;
 
@@ -3760,7 +4028,7 @@ export class GMCastle extends GameMode {
 					ctx.fillStyle = selected ? COLOR_CARD_SELECTED : COLOR_CARD_BG;
 					ctx.fillRect(r.x, r.y, r.w, r.h);
 					ctx.strokeStyle = selected ? COLOR_CARD_SELECTED : COLOR_FALLBACK_OUTLINE;
-					ctx.lineWidth = selected ? 2 : 1;
+					ctx.lineWidth = selected ? CARD_SELECTED_OUTLINE_WIDTH / 2 : 1;
 					ctx.strokeRect(r.x, r.y, r.w, r.h);
 					ctx.lineWidth = 1;
 					ctx.fillStyle = COLOR_CARD_TEXT;

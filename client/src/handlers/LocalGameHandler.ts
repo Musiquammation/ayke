@@ -11,6 +11,7 @@ import { deleteGameHandler } from "./GameHandler";
 import { fullScreenHandler } from "./FullScreenHandler";
 import { Bot, generateBot } from "../../../commons/Bot";
 import { getMobile } from "../getMobile";
+import { getPlayerNames } from "../../../commons/playerNames";
 
 const canvas = document.getElementById("play-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -50,7 +51,8 @@ export class LocalGameHandler {
 			{data: startData, origin: 'client'},
 			this.playerCount,
 			0,
-			true // Enable the local authoritative engine for modes with custom network behavior.
+			true, // Enable the local authoritative engine for modes with custom network behavior.
+			getPlayerNames([dom.pseudo], this.playerCount)
 		);
 		const gameHtml = document.getElementById("game-html")!;
 		gameHtml.innerHTML = "";

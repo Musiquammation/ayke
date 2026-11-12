@@ -1,5 +1,4 @@
 import * as protobuf from 'protobufjs';
-import { gamemods } from './gamemods';
 
 // Type alias for the loader function
 type ProtocolLoaderFn = (name: string) => Promise<protobuf.Root>;
@@ -18,6 +17,12 @@ export interface SoloProtocolTypes {
 	Input: protobuf.Type;
 }
 
+interface ProtocolConfig {
+    name: string;
+    type: 'multiplayer' | 'solo';
+    protoFields?: readonly string[];
+}
+
 // Internal state
 let protocolLoader: ProtocolLoaderFn | null = null;
 // The cache now stores the resolved types directly for maximum performance on get()
@@ -27,26 +32,35 @@ const loadedProtocols = new Map<string, ProtocolTypes | SoloProtocolTypes>();
  * Initializes the protocol loader mechanism.
  * @param loader A function that asynchronously fetches and returns a protobuf.Root
  */
-export function initProtocols(loader: ProtocolLoaderFn): void {
+export async function initProtocols(
+	loader: ProtocolLoaderFn,
+	gamemods: readonly ProtocolConfig[],
+): Promise<void> {
 	protocolLoader = loader;
 
-	for (const name in gamemods) {
-		const type = gamemods[name].type;
-		if (type === 'multiplayer') {
-			const fields = gamemods[name].protoFields;
-			if (fields) {
-				getProtocol(name, type, fields).load();
-			} else {
-				getProtocol(name, type).load();
-			}
+	const loads: Promise<void>[] = [];
+
+	for (const g of gamemods) {
+		if (
+			g.type !== "multiplayer" &&
+			g.type !== "solo"
+		) {
+			continue;
 		}
 
-		if (type === 'solo') {
-			getProtocol(name, type).load();
+		if (g.type === "multiplayer" && g.protoFields) {
+			loads.push(
+				getProtocol(g.name, g.type, g.protoFields).load(),
+			);
+		} else {
+			loads.push(
+				getProtocol(g.name, g.type).load(),
+			);
 		}
 	}
-}
 
+	await Promise.all(loads);
+}
 
 
 
@@ -150,8 +164,12 @@ export function getProtocol<const T extends readonly string[]>(
 				: {};
 
 
+			// A concurrent load() may have finished first: keep its extra fields.
+			const previous = loadedProtocols.get(name);
+
 			if (type === 'multiplayer') {
 				loadedProtocols.set(name, {
+					...previous,
 					ServerMessage: root.lookupType(
 						`${namespace}.ServerMessage`,
 					),
@@ -170,6 +188,7 @@ export function getProtocol<const T extends readonly string[]>(
 				});
 			} else {
 				loadedProtocols.set(name, {
+					...previous,
 					Input: root.lookupType(`${namespace}.Input`),
 					...additionalTypes,
 				});

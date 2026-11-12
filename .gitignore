@@ -5,3 +5,5 @@ dist/
 client/dist/
 android/app/upload-keystore.jks
 android/app/keystore.properties
+video/.videoProtocolBootstrap.ts
+.claude/

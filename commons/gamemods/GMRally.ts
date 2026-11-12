@@ -7,6 +7,7 @@ import { decodeFullMessage } from "../util/decodeFullMessage";
 import { GameRandomGenerator } from "../util/GameRandomGenerator";
 import { ImageLoader, ImageLoaderFolder } from "../util/ImageLoader";
 import { platformEngine } from "../util/platformEngine";
+import * as gfx from "./rally/rallyGraphics";
 
 const protocols = getProtocol('rally', 'multiplayer');
 
@@ -24,8 +25,17 @@ const WIDTH = 2400;
 const HEIGHT = 1350;
 const GRAVITY = 1800;
 const GRID_SIZE = 64; // World geometry and terrain tiles use this grid.
+/** Rows of ground the camera may show below the lowest ground surface. */
+const CAMERA_GROUND_DEPTH = 8;
 const PLAYER_W = 48;
 const PLAYER_H = 64;
+
+// ImageLoader palette used to distinguish opponents from the local player.
+const ENEMY_PLAYER_COLOR_ID = 1;
+const ENEMY_PLAYER_COLOR_RULES = [
+	{ prev: '#7f90aa', next: '#d94b4b' }, // light blue-grey -> bright red
+	{ prev: '#585974', next: '#8f2438' }, // dark blue-grey -> deep red
+];
 
 // Running
 const RUN_SPEED = 420;
@@ -48,11 +58,11 @@ const WALLJUMP_BOOST_TIME = 0.35;   // how long WALLJUMP_VELOCITY replaces RUN_S
 // collected, and are handed to the player after ITEM_ROLL_TIME.
 const BOX_RESPAWN = 6;
 const BOX_SIZE = 56;
-const ITEM_ROLL_TIME = 1.2;
+const ITEM_ROLL_TIME = 1.0;
 const BOOST_TIME = 2;
 const BOOST_MULT = 1.6;
 const STAR_TIME = 5;
-const BANANA_SPEED = 360;
+const BANANA_SPEED = 840;
 const BANANA_JUMP = -360;
 const SHELL_SPEED = 820;
 // Red shells always travel in their launch direction. Target distance only
@@ -62,7 +72,8 @@ const VX_MAX = SHELL_SPEED * 1.35;
 const RED_SHELL_ACCEL = 760;
 const SHELL_JUMP_VELOCITY = 560;
 const BLUE_SHELL_SPEED = SHELL_SPEED * 1.08;
-const BLUE_SHELL_VERTICAL_ACCEL = 3200; // Accelerate strongly toward the desired vertical velocity; do not clamp it.
+const BLUE_SHELL_VERTICAL_ACCEL = 8000; // Accelerate strongly toward the desired vertical velocity.
+const BLUE_SHELL_VY_MAX = 1500; // Same limit as the fall speed of ground hazards.
 const HAZARD_SIZE = 30;
 const HIT_KNOCKBACK = 560;
 const HIT_JUMP = 640;
@@ -75,7 +86,9 @@ const SHELL_FRAME_DELAY = 0.09;
 const SPAWN_FRONT_OFFSET = (PLAYER_W + HAZARD_SIZE) / 2 + 8;
 const EXPLOSION_DURATION = 0.42;
 const EXPLOSION_RADIUS = 220; // everyone inside this radius is hit
-const BOMB_SPEED = 320;
+const BOMB_SPEED = 600;
+const BOMB_JUMP = -900;
+const BLUE_SHELL_JUMP = -900;
 
 // Match flow: one predefined map, three laps, a 30-second grace period, and a ten-minute hard limit.
 const RESPAWN_TIME = 1;
@@ -128,6 +141,8 @@ interface CheckpointDef {
 	h?: number;
 	/** A sub-checkpoint is only enabled after this main checkpoint has been passed. */
 	afterCheckpoint?: number;
+	/** Respawn point after a death, relative to (x, y). Defaults to (x, y) itself. */
+	spawn?: { dx: number; dy: number };
 }
 
 interface LevelDef {
@@ -136,6 +151,8 @@ interface LevelDef {
 	spawnY: number;
 	finishX: number;
 	deathY: number;
+	/** Lowest world y the bottom edge of the camera view may reach (computed). */
+	cameraBottom?: number;
 	platforms: PlatformDef[];
 	items: { x: number; y: number }[];
 	checkpoints: CheckpointDef[];
@@ -152,11 +169,11 @@ const LEVELS = (function(){
 			finishX: 57*GRID_SIZE,
 			deathY: 1024,
 			platforms: [
-				{ x: 0, y: 14, w: 57, h: 2, skin: 'grass' },
+				{ x: 0, y: 14, w: 57, h: 16, skin: 'grass' },
 				{ x: 5, y: 2, w: 1, h: 10, skin: 'box' },
 				{ x: 8, y: 5, w: 1, h: 9, skin: 'box' },
 				{ x: 11, y: -5, w: 1, h: 16, skin: 'box' },
-				{ x: 18, y: 7, w: 1, h: 7, skin: 'box' },
+				{ x: 18, y: 8, w: 1, h: 6, skin: 'box' },
 				{ x: 11, y: 10, w: 5, h: 1, skin: 'box' },
 				{ x: 18, y: -3, w: 1, h: 7, skin: 'box' },
 				{ x: 21, y: -3, w: 1, h: 14, skin: 'box' },
@@ -166,6 +183,7 @@ const LEVELS = (function(){
 				{ x: 35, y: -5, w: 1, h: 15, skin: 'box' },
 				{ x: 46, y: 5, w: 1, h: 9, skin: 'box' },
 				{ x: 36, y: -5, w: 12, h: 1, skin: 'box' },
+				// { x: 6, y: 10, w: 2, h: 2, skin: 'box' },
 			],
 			items: [
 				{x: 2, y: 13},
@@ -198,17 +216,147 @@ const LEVELS = (function(){
 				{x: 55, y: 13},
 			],
 			checkpoints: [
-				{x: 33, y: 7, w: 1, h: 10}
+				{x: 0, y: 10, w: 1, h: 4},
+				{x: 6, y: 10, w: 2, h: 2},
+				{x: 8, y: -6, w: 1, h: 11},
+				{x: 9, y: 9, w: 2, h: 2},
+				{x: 16, y: 10, w: 2, h: 1},
+				{x: 18, y: 4, w: 1, h: 4},
+				{x: 32, y: 13, w: 3, h: 1},
+				{x: 56.5, y: -5, w: 1, h: 19},
 			],
 			subCheckpoints: [],
 		},
+
+		{
+			name: "Chamois",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 168*GRID_SIZE,
+			deathY: 1024,
+			platforms: [
+				{ x: 0, y: 16, w: 55, h: 22, skin: 'grass' },
+				{ x: 1, y: 15, w: 1, h: 1, skin: 'box' },
+				{ x: 10, y: 13, w: 3, h: 1, skin: 'box' },
+				{ x: 17, y: 11, w: 10, h: 1, skin: 'box' },
+				{ x: 26, y: 10, w: 1, h: 1, skin: 'box' },
+				{ x: 26, y: 11, w: 1, h: 1, skin: 'box' },
+				{ x: 30, y: 9, w: 1, h: 7, skin: 'box' },
+				{ x: 36, y: 13, w: 2, h: 1, skin: 'box' },
+				{ x: 38, y: 11, w: 5, h: 1, skin: 'box' },
+				{ x: 45, y: 15, w: 2, h: 1, skin: 'box' },
+				{ x: 49, y: 6, w: 1, h: 8, skin: 'box' },
+				{ x: 47, y: 6, w: 1, h: 2, skin: 'box' },
+				{ x: 46, y: 6, w: 1, h: 1, skin: 'box' },
+				{ x: 44, y: 9, w: 3 , h: 1, skin: 'mud', mud: 30 },
+				{ x: 47, y: 10, w: 2 , h: 1, skin: 'box' },
+				{ x: 47, y: 13, w: 1 , h: 3, skin: 'box' },
+				{ x: 55, y: 6, w: 2, h: 32, skin: 'grass' },
+				{ x: 65, y: 16, w: 35, h: 22, skin: 'grass' },
+				{ x: 72, y: 14, w: 2, h: 1, skin: 'box' },
+				{ x: 66, y: 0, w: 1, h: 14, skin: 'box' },
+				{ x: 78, y: 13, w: 1, h: 1, skin: 'box' },
+				{ x: 82, y: 11, w: 3, h: 1, skin: 'box' },
+				{ x: 85, y: 9, w: 3, h: 1, skin: 'box' },
+				{ x: 94, y: 12, w: 2, h: 3, skin: 'box' },
+				{ x: 99, y: 10, w: 7, h: 1, skin: 'mud', mud: 80 },
+				{ x: 109, y: 14, w: 3, h: 1, skin: 'box'},
+				{ x: 114, y: 12, w: 6, h: 1, skin: 'box'},
+				{ x: 114, y: 11, w: 1, h: 1, skin: 'box'},
+				{ x: 119, y: 11, w: 1, h: 1, skin: 'box'},
+				{ x: 124, y: 12, w: 2, h: 1, skin: 'box'},
+				{ x: 132, y: 12, w: 2, h: 1, skin: 'box'},
+				{ x: 140, y: 12, w: 2, h: 1, skin: 'box'},
+				{ x: 143, y: 22, w: 25, h: 16, skin: 'grass'},
+			],
+			items: [
+				{x: 9, y: 15},
+				{x: 11, y: 15},
+				{x: 13, y: 15},
+				{x: 14, y: 15},
+
+				{x: 17, y: 10},
+				{x: 19, y: 10},
+				{x: 18, y: 7},
+				{x: 21, y: 10},
+				{x: 23, y: 10},
+				{x: 26, y: 15},
+				{x: 26, y: 14},
+
+				{x: 31, y: 15},
+				{x: 31, y: 14},
+				{x: 31, y: 13},
+				{x: 31, y: 12},
+
+				{x: 39, y: 15},
+				{x: 41, y: 15},
+				{x: 43, y: 15},
+
+
+				{x: 47, y: 11},
+				{x: 48, y: 15},
+				{x: 52, y: 15},
+				{x: 53, y: 14},
+				{x: 54, y: 15},
+				{x: 54, y: 13},
+				{x: 54, y: 10},
+				{x: 54, y: 7},
+
+				...Array.from({ length: 11 }, (_, i) => ({
+					x: 67 + 2 * i,
+					y: 15
+				})),
+
+				{x: 78, y: 12},
+				{x: 80, y: 10},
+				{x: 82, y: 9},
+				{x: 84, y: 7},
+				{x: 86, y: 6},
+				{x: 93, y: 8},
+				{x: 94, y: 9},
+				{x: 102, y: 9},
+				{x: 103, y: 9},
+				{x: 104, y: 9},
+				{x: 105, y: 9},
+				{x: 106, y: 9},
+				{x: 110, y: 13},
+
+				{x: 115, y: 11},
+				{x: 116, y: 11},
+				{x: 117, y: 11},
+				{x: 118, y: 11},
+
+				{x: 124, y: 11},
+				{x: 125, y: 11},
+				{x: 127, y: 9},
+				{x: 130, y: 9},
+
+				{x: 132, y: 11},
+				{x: 133, y: 11},
+				{x: 135, y: 9},
+				{x: 138, y: 9},
+
+				{x: 140, y: 11},
+				{x: 141, y: 11},
+			],
+			checkpoints: [
+				{ x: 0, y: 12, w: 1, h: 4 },
+				{ x: 30, y: 0, w: 1, h: 9  },
+				{ x: 46, y: 5, w: 11, h: 1  },
+				{ x: 66, y: 14, w: 1, h: 2  },
+				{ x: 99, y: 2, w: 1, h: 8, spawn: {dx: 0, dy: 7} },
+				{ x: 167.5, y: 3, w: 1, h: 19 },
+			],
+			subCheckpoints: [],
+		}
+
 	];
 
 
 	// Work levels
 	for (const level of LEVELS) {
-		// Platform and checkpoint definitions are both authored in grid units.
-		// Convert every rectangle to world-space center coordinates exactly once.
+		// Platform definitions use grid-space top-left coordinates; checkpoints do too.
+		// Convert to world-space coordinates, keeping checkpoint x/y as the top-left.
 		for (const p of level.platforms) {
 			p.x *= GRID_SIZE;
 			p.y *= GRID_SIZE;
@@ -219,18 +367,26 @@ const LEVELS = (function(){
 		}
 
 		for (const cp of [...level.checkpoints, ...level.subCheckpoints]) {
-			const w = (cp.w ?? 1) * GRID_SIZE;
-			const h = (cp.h ?? 1) * GRID_SIZE;
-			cp.x = cp.x * GRID_SIZE + w / 2;
-			cp.y = cp.y * GRID_SIZE + h / 2;
-			cp.w = w;
-			cp.h = h;
+			cp.x *= GRID_SIZE;
+			cp.y *= GRID_SIZE;
+			cp.w = (cp.w ?? 1) * GRID_SIZE;
+			cp.h = (cp.h ?? 1) * GRID_SIZE;
+			if (cp.spawn) cp.spawn = { dx: cp.spawn.dx * GRID_SIZE, dy: cp.spawn.dy * GRID_SIZE };
 		}
 
 		for (const i of level.items) {
 			i.x = GRID_SIZE * (i.x + .5);
 			i.y = GRID_SIZE * (i.y + .5);
 		}
+
+		// The camera never shows more than CAMERA_GROUND_DEPTH rows below the lowest
+		// ground surface (ground platforms are deep enough to fill that area).
+		const lowestGroundTop = Math.max(...level.platforms
+			.filter(p => (p.skin ?? 'grass') === 'grass')
+			.map(p => p.y - p.h / 2));
+		level.cameraBottom = lowestGroundTop + CAMERA_GROUND_DEPTH * GRID_SIZE;
+		// deathY is in world pixels: a player dies once fully out of the camera's reach.
+		level.deathY = Math.max(level.deathY, level.cameraBottom + PLAYER_H);
 	}
 
 	return LEVELS;
@@ -243,6 +399,44 @@ function overlapsCenter(
 ): boolean {
 	return Math.abs(a.x - b.x) * 2 < a.w + b.w &&
 		Math.abs(a.y - b.y) * 2 < a.h + b.h;
+}
+
+/** Player position (center) used when starting or wrapping onto checkpoint 0. */
+function firstCheckpointPosition(level: LevelDef): { x: number; y: number } {
+	const checkpoint = level.checkpoints[0];
+	if (!checkpoint) return { x: level.spawnX, y: level.spawnY };
+	return {
+		x: checkpoint.x + (checkpoint.w ?? GRID_SIZE) / 2,
+		y: checkpoint.y + (checkpoint.h ?? GRID_SIZE) / 2,
+	};
+}
+
+/** Player position (center) used when respawning on a checkpoint after a death. */
+function checkpointRespawnPosition(checkpoint: CheckpointDef): { x: number; y: number } {
+	return {
+		x: checkpoint.x + (checkpoint.spawn?.dx ?? 0),
+		y: checkpoint.y + (checkpoint.spawn?.dy ?? 0),
+	};
+}
+
+/** Distance from a point to the nearest of a rectangle's four faces. */
+function distanceToCheckpointFace(
+	x: number,
+	y: number,
+	checkpoint: CheckpointDef
+): number {
+	const left = checkpoint.x;
+	const right = checkpoint.x + (checkpoint.w ?? GRID_SIZE);
+	const top = checkpoint.y;
+	const bottom = checkpoint.y + (checkpoint.h ?? GRID_SIZE);
+	const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+	const distances = [
+		Math.hypot(x - left, y - clamp(y, top, bottom)),
+		Math.hypot(x - right, y - clamp(y, top, bottom)),
+		Math.hypot(x - clamp(x, left, right), y - top),
+		Math.hypot(x - clamp(x, left, right), y - bottom),
+	];
+	return Math.min(...distances);
 }
 
 /** Position and velocity of a platform at time t (velocity = derivative). */
@@ -577,7 +771,7 @@ class Player {
 		this.itemRollTimer = 0;
 		this.itemQueued = false;
 		this.respawn = 0;
-		this.checkpoint = -1;
+		this.checkpoint = 0;
 		this.subCheckpoint = -1;
 		this.hit = false;
 		this.lapsCompleted = 0;
@@ -739,28 +933,48 @@ class Camera {
 	static readonly SCALE = 0.8;
 	private static readonly LOOK_AHEAD = 250;
 	private static readonly SMOOTH = 8;
+	/** Highest camera-center y, so the view's bottom edge never goes past the level's cameraBottom. */
+	maxY = Number.POSITIVE_INFINITY;
+
+	setBottomLimit(worldBottom: number | undefined) {
+		this.maxY = worldBottom === undefined
+			? Number.POSITIVE_INFINITY
+			: worldBottom - HEIGHT / 2 / Camera.SCALE;
+	}
 
 	/** Smoothly follows the player, looking ahead in the running direction. */
 	update(px: number, py: number, facing: number, dt: number) {
 		const k = Math.min(1, Camera.SMOOTH * dt);
 		this.x += (px + facing * Camera.LOOK_AHEAD - this.x) * k;
-		this.y += (py - this.y) * k;
+		this.y += (Math.min(py, this.maxY) - this.y) * k;
+		this.y = Math.min(this.y, this.maxY);
 	}
 
 	/** Instantly moves the camera (level start / respawn). */
 	teleport(px: number, py: number) {
 		this.x = px;
-		this.y = py;
+		this.y = Math.min(py, this.maxY);
 	}
 
 	getCoords() { return { x: this.x, y: this.y }; }
 }
 
+function ordinalSuffix(rank: number) {
+	if (rank % 100 >= 11 && rank % 100 <= 13) return "th";
+	switch (rank % 10) {
+		case 1: return "st";
+		case 2: return "nd";
+		case 3: return "rd";
+		default: return "th";
+	}
+}
+
 class ClientData {
 	firstFrame = true;
 	readonly html: HTMLDivElement;
-	readonly laps: HTMLDivElement;
 	readonly camera = new Camera();
+	readonly backdrop = new gfx.RallyBackdrop();
+	readonly fx = new gfx.ParticleSystem();
 	private lastLevel = -1;
 	private lastRespawn = 0;
 	private lastX = Number.NaN;
@@ -770,13 +984,27 @@ class ClientData {
 	private revealItem = ITEM_NONE;
 	private lastGameTime = Number.NaN;
 	private frameDelta = 1 / 60;
+	/** Wall-clock style time that keeps running for purely cosmetic animations. */
+	visualTime = 0;
 	private readonly shellAnimations: Record<number, { step: number; delay: number }> = {};
+	private readonly shellTrails = new Map<number, { x: number; y: number }[]>();
 	private readonly lastBoostTimers: number[] = [];
 	private readonly lastStarTimers: number[] = [];
 	private readonly boostParticleTimers: number[] = [];
-	private particles: Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; color: string }> = [];
+	private readonly playerFx: Array<{
+		vy: number; grounded: boolean; hit: boolean; respawn: number;
+		laps: number; finished: boolean; dustTimer: number; sparkleTimer: number;
+	}> = [];
+	private readonly seenExplosions = new Set<number>();
+	private lastBoxCooldowns: number[] = [];
+	private shake = 0;
+	private lastRank = -1;
+	private rankPulse = 0;
+	private lapPulse = 0;
+	private banner: { text: string; sub: string | null; start: number; duration: number; colors: [string, string] } | null = null;
 
-	constructor() {
+	/** One entry per player; null for anonymous players. */
+	constructor(readonly names: (string | null)[] = []) {
 		this.html = document.createElement("div");
 		this.html.classList.add("game-rally-root");
 		this.html.style.pointerEvents = "none";
@@ -784,17 +1012,103 @@ class ClientData {
 		this.html.style.inset = "0";
 		this.html.style.width = "100%";
 		this.html.style.height = "100%";
+		// The whole HUD (lap counter included) is drawn on the canvas.
+	}
 
-		// Keep only the lap counter in the DOM HUD; all other gameplay graphics use the canvas.
-		this.laps = document.createElement("div");
-		this.laps.classList.add("game-rally-laps");
-		this.laps.style.position = "absolute";
-		this.laps.style.left = "18px";
-		this.laps.style.top = "14px";
-		this.laps.style.color = "white";
-		this.laps.style.font = "bold 30px Arial, sans-serif";
-		this.laps.style.textShadow = "2px 2px 4px #000";
-		this.html.append(this.laps);
+	/** Camera shake offset in world units. */
+	getShake(): { x: number; y: number } {
+		if (this.shake <= 0.01) return { x: 0, y: 0 };
+		const t = this.visualTime * 60;
+		return {
+			x: Math.sin(t * 1.7) * this.shake * 18,
+			y: Math.cos(t * 2.3) * this.shake * 14,
+		};
+	}
+
+	/** Shell positions over the last frames, for motion trails. */
+	getShellTrail(entityId: number) {
+		return this.shellTrails.get(entityId) ?? [];
+	}
+
+	drawHud(ctx: CanvasRenderingContext2D, game: GMRally, playerIdx: number) {
+		const player = game.players[playerIdx];
+		const finished = player.finalRanking !== -1 || player.finished;
+		gfx.drawLapPanel(ctx, Math.min(player.lapsCompleted + 1, LAP_COUNT), LAP_COUNT, finished, game.levelTime, this.lapPulse);
+		gfx.drawProgressBar(ctx, WIDTH, LAP_COUNT, game.players.map((p, i) => ({
+			progress: game.getRaceProgress(i),
+			local: i === playerIdx,
+			finished: p.finished || p.finalRanking !== -1,
+		})).filter((_, i) => game.players[i].connected || i === playerIdx), this.visualTime);
+		if (this.banner) {
+			const age = this.visualTime - this.banner.start;
+			gfx.drawBanner(ctx, WIDTH, HEIGHT, this.banner.text, this.banner.sub, age, this.banner.duration, this.banner.colors);
+			if (age > this.banner.duration) this.banner = null;
+		}
+	}
+
+	private showBanner(text: string, sub: string | null, colors: [string, string], duration = 1.7) {
+		this.banner = { text, sub, start: this.visualTime, duration, colors };
+	}
+
+	/**
+	 * Temporary standings, top-right: shown as soon as a first player has
+	 * finished the race, and filled in as the others cross the line.
+	 */
+	drawFinishStandings(ctx: CanvasRenderingContext2D, game: GMRally, playerIdx: number) {
+		const finishers = game.players
+			.map((p, index) => ({ index, rank: p.finalRanking >= 0 ? p.finalRanking : p.finishRank, finished: p.finished || p.finalRanking >= 0 }))
+			.filter(f => f.finished && f.rank >= 0)
+			.sort((a, b) => a.rank - b.rank);
+		if (finishers.length === 0) return;
+
+		const rowHeight = 46;
+		const padding = 14;
+		const width = 420;
+		const x = WIDTH - 24 - width;
+		const y = 200; // Below the item roulette box.
+
+		gfx.drawPanel(ctx, x, y, width, padding * 2 + rowHeight * finishers.length + 44);
+		ctx.save();
+		ctx.font = "900 24px 'Arial Black', Arial, sans-serif";
+		ctx.fillStyle = "#9fc3ff";
+		ctx.textAlign = "left";
+		ctx.textBaseline = "middle";
+		ctx.fillText("FINISHED", x + 18, y + padding + 14);
+		ctx.restore();
+
+		ctx.save();
+		ctx.translate(0, 40);
+		ctx.font = "bold 32px Arial, sans-serif";
+		ctx.textBaseline = "middle";
+		ctx.lineJoin = "round";
+		ctx.lineWidth = 5;
+		ctx.strokeStyle = "#000";
+
+		finishers.forEach((f, row) => {
+			const position = f.rank + 1;
+			const name = this.names[f.index] ?? "Anonymous";
+			const label = `${position}${ordinalSuffix(position)} : `;
+			const rowY = y + padding + rowHeight * (row + 0.5);
+
+			ctx.textAlign = "left";
+			ctx.fillStyle = position === 1 ? "#FFD700" : position === 2 ? "#ECEFF1" : position === 3 ? "#FFAB40" : "#80DEEA";
+			ctx.strokeText(label, x + 18, rowY);
+			ctx.fillText(label, x + 18, rowY);
+
+			const labelWidth = ctx.measureText(label).width;
+			const maxNameWidth = width - 36 - labelWidth;
+			let shown = name;
+			while (shown.length > 1 && ctx.measureText(shown).width > maxNameWidth) {
+				shown = shown.slice(0, -1);
+			}
+			if (shown !== name) shown = shown.slice(0, -1) + "…";
+
+			ctx.fillStyle = f.index === playerIdx ? "#FFF59D" : "#FFFFFF";
+			ctx.strokeText(shown, x + 18 + labelWidth, rowY);
+			ctx.fillText(shown, x + 18 + labelWidth, rowY);
+		});
+
+		ctx.restore();
 	}
 
 	drawRacePosition(ctx: CanvasRenderingContext2D, game: GMRally, playerIdx: number) {
@@ -805,27 +1119,19 @@ class ClientData {
 		if (rank <= 0) return;
 
 		// Determine ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
-		const suffix = rank % 100 >= 11 && rank % 100 <= 13
-			? "th"
-			: rank % 10 === 1
-				? "st"
-				: rank % 10 === 2
-					? "nd"
-					: rank % 10 === 3
-						? "rd"
-						: "th";
+		const suffix = ordinalSuffix(rank);
 
 		ctx.save();
 
 		// 1. Font setups (Enlarged size)
-		const numberFont = "black 120px 'Arial Black', Impact, sans-serif";
-		const suffixFont = "bold 50px 'Arial Black', Impact, sans-serif";
+		const numberFont = "900 120px 'Arial Black', Impact, sans-serif";
+		const suffixFont = "900 50px 'Arial Black', Impact, sans-serif";
 
 		ctx.textBaseline = "bottom";
 
 		// 2. Measure text dimensions to avoid overlap and align properly from right margin
 		ctx.font = numberFont;
-		const numberWidth = ctx.measureText(`${rank}`).width*2 + 10;
+		const numberWidth = ctx.measureText(`${rank}`).width;
 
 		ctx.font = suffixFont;
 		const suffixWidth = ctx.measureText(suffix).width;
@@ -840,6 +1146,15 @@ class ClientData {
 		const startX = WIDTH - marginX - totalWidth;
 		const numberY = HEIGHT - marginY;
 		const suffixY = numberY - 35; // Lift suffix up relative to the main baseline
+
+		// Pop when the position changes, scaled around the bottom-right anchor.
+		const pop = this.rankPulseAmount;
+		if (pop > 0) {
+			const s = 1 + Math.sin(pop * Math.PI) * 0.22;
+			ctx.translate(WIDTH - marginX, numberY);
+			ctx.scale(s, s);
+			ctx.translate(-(WIDTH - marginX), -numberY);
+		}
 
 		// 3. Dynamic color gradient based on rank position
 		const gradient = ctx.createLinearGradient(startX, numberY - 110, startX, numberY);
@@ -1031,17 +1346,18 @@ class ClientData {
 		ctx.restore();
 	}
 
-	/** Update the lap counter, camera, shell animations, and local-only particles. */
+	/** Update the camera, shell animations, event-driven effects and particles. */
 	update(game: GMRally, playerIdx: number) {
 		const player = game.players[playerIdx];
-		this.laps.innerText = player.finalRanking !== -1 || player.finished
-			? "Finished"
-			: `${Math.min(player.lapsCompleted + 1, LAP_COUNT)}/${LAP_COUNT}`;
 
 		this.frameDelta = Number.isFinite(this.lastGameTime)
 			? Math.max(0, Math.min(0.1, game.levelTime - this.lastGameTime))
 			: 1 / 60;
+		// A rewind (snapshot load) must not produce a negative or huge delta.
+		if (game.levelTime < this.lastGameTime) this.frameDelta = 0;
 		this.lastGameTime = game.levelTime;
+		this.visualTime += this.frameDelta > 0 ? this.frameDelta : 1 / 60;
+		const dt = this.frameDelta;
 
 		// Advance each projectile's animation independently and discard stale entries.
 		const liveShellIds = new Set<number>();
@@ -1055,9 +1371,22 @@ class ClientData {
 				animation.delay += SHELL_FRAME_DELAY;
 			}
 			this.shellAnimations[shell.entityId] = animation;
+
+			const trail = this.shellTrails.get(shell.entityId) ?? [];
+			const last = trail[trail.length - 1];
+			if (!last || Math.hypot(last.x - shell.x, last.y - shell.y) > 4) {
+				// A jump bigger than a few frames of travel is a snapshot correction: restart the trail.
+				if (last && Math.hypot(last.x - shell.x, last.y - shell.y) > 200) trail.length = 0;
+				trail.push({ x: shell.x, y: shell.y });
+				if (trail.length > 10) trail.shift();
+			}
+			this.shellTrails.set(shell.entityId, trail);
 		}
 		for (const id of Object.keys(this.shellAnimations)) {
 			if (!liveShellIds.has(Number(id))) delete this.shellAnimations[Number(id)];
+		}
+		for (const id of this.shellTrails.keys()) {
+			if (!liveShellIds.has(id)) this.shellTrails.delete(id);
 		}
 
 		// Emit a continuous, timed trail while a mushroom boost is active.
@@ -1066,8 +1395,15 @@ class ClientData {
 			const previousStar = this.lastStarTimers[i] ?? 0;
 			const starWasActivated = current.starTimer > previousStar + 0.05;
 			const boostStarted = current.boostTimer > previousBoost + 0.05 && !starWasActivated;
-			if (boostStarted) this.boostParticleTimers[i] = 0;
-			if (current.boostTimer > 0 && current.starTimer <= 0) {
+			if (boostStarted) {
+				this.boostParticleTimers[i] = 0;
+				this.fx.ring(current.x, current.y, 70, '#ffb300', 0.35);
+			}
+			if (starWasActivated) {
+				this.fx.burst(current.x, current.y, 18, 520, ['#fff59d', '#ffd54f', '#ffffff', '#80deea', '#f48fb1'], 'star');
+				this.fx.ring(current.x, current.y, 90, '#fff59d', 0.4);
+			}
+			if (current.boostTimer > 0 && current.starTimer <= 0 && current.respawn <= 0) {
 				this.boostParticleTimers[i] = (this.boostParticleTimers[i] ?? 0) - this.frameDelta;
 				while (this.boostParticleTimers[i] <= 0) {
 					this.spawnBoostTrailParticles(current.x, current.y, current.facing);
@@ -1080,13 +1416,19 @@ class ClientData {
 			this.lastStarTimers[i] = current.starTimer;
 		});
 
-		for (const particle of this.particles) {
-			particle.life -= this.frameDelta;
-			particle.x += particle.vx * this.frameDelta;
-			particle.y += particle.vy * this.frameDelta;
-			particle.vy += GRAVITY * 0.22 * this.frameDelta;
-		}
-		this.particles = this.particles.filter(p => p.life > 0);
+		if (dt > 0) this.detectPlayerEvents(game, playerIdx, dt);
+		if (dt > 0) this.detectWorldEvents(game, playerIdx);
+		this.fx.update(dt);
+
+		// Cosmetic decay.
+		this.shake = Math.max(0, this.shake - dt * 2.4);
+		this.rankPulse = Math.max(0, this.rankPulse - dt * 3);
+		this.lapPulse = Math.max(0, this.lapPulse - dt * 2);
+		const rank = game.getRaceRanking().indexOf(playerIdx) + 1;
+		if (this.lastRank > 0 && rank > 0 && rank !== this.lastRank) this.rankPulse = 1;
+		this.lastRank = rank;
+
+		this.camera.setBottomLimit(game.currentLevel().cameraBottom);
 
 		// Snap at match start and when a respawn finishes.
 		if (this.lastLevel !== game.levelIndex ||
@@ -1102,6 +1444,121 @@ class ClientData {
 		this.camera.update(player.x, player.y, player.facing, this.frameDelta || 1 / 60);
 	}
 
+	/** Dust, landings, hits, respawns and lap announcements, inferred from state changes. */
+	private detectPlayerEvents(game: GMRally, playerIdx: number, dt: number) {
+		game.players.forEach((p, i) => {
+			const surface = game.getPlayerSurface(i);
+			const prev = this.playerFx[i] ?? {
+				vy: p.vy, grounded: surface.grounded, hit: p.hit, respawn: p.respawn,
+				laps: p.lapsCompleted, finished: p.finished, dustTimer: 0, sparkleTimer: 0,
+			};
+			const feetY = p.y + PLAYER_H / 2;
+			const dustColor = surface.mud ? '#7a4f2e' : '#efe2c4';
+			const visible = p.respawn <= 0;
+
+			if (visible) {
+				// Landing puff, scaled by the impact speed.
+				if (surface.grounded && !prev.grounded && prev.vy > 380) {
+					const strength = Math.min(1, (prev.vy - 380) / 900);
+					this.fx.dust(p.x, feetY, 5 + Math.round(strength * 9), PLAYER_W, dustColor);
+				}
+				// Take-off puff.
+				if (prev.grounded && !surface.grounded && p.vy < -500) {
+					this.fx.dust(p.x, feetY, 5, PLAYER_W * 0.6, dustColor);
+				}
+				// Running dust.
+				prev.dustTimer -= dt;
+				if (surface.grounded && Math.abs(p.vx) > 180 && prev.dustTimer <= 0) {
+					this.fx.dust(p.x - Math.sign(p.vx) * PLAYER_W * 0.3, feetY, surface.mud ? 2 : 1, 10, dustColor, -Math.sign(p.vx));
+					prev.dustTimer = surface.mud ? 0.05 : 0.09;
+				}
+				// Wall slide scraping.
+				if (surface.wallSliding && prev.dustTimer <= 0) {
+					this.fx.dust(p.x + p.facing * PLAYER_W / 2, p.y + PLAYER_H * 0.3, 1, 6, '#d9d2c0');
+					prev.dustTimer = 0.06;
+				}
+				// Star sparkles.
+				prev.sparkleTimer -= dt;
+				if (p.starTimer > 0 && prev.sparkleTimer <= 0) {
+					this.fx.add({
+						kind: 'star', x: p.x + (Math.random() - 0.5) * 60, y: p.y + (Math.random() - 0.5) * 80,
+						vx: (Math.random() - 0.5) * 60, vy: -60 - Math.random() * 60,
+						life: 0.5, size: 6 + Math.random() * 5,
+						color: `hsl(${Math.floor(Math.random() * 360)}, 100%, 75%)`, spin: 6,
+					});
+					prev.sparkleTimer = 0.04;
+				}
+				// Got hit.
+				if (p.hit && !prev.hit) {
+					this.fx.burst(p.x, p.y, 16, 620, ['#ffffff', '#ffe082', '#ff8a65']);
+					this.fx.ring(p.x, p.y, 80, '#ffffff', 0.3);
+					if (i === playerIdx) this.shake = Math.max(this.shake, 0.7);
+				}
+			}
+
+			// Respawn sparkle.
+			if (prev.respawn > 0 && p.respawn <= 0) {
+				this.fx.burst(p.x, p.y, 20, 420, ['#b3e5fc', '#ffffff', '#81d4fa'], 'star');
+				this.fx.ring(p.x, p.y, 90, '#e1f5fe', 0.5);
+			}
+
+			// Local announcements.
+			if (i === playerIdx) {
+				const finishedNow = p.finished || p.finalRanking !== -1;
+				if (finishedNow && !prev.finished) {
+					const rank = (p.finalRanking >= 0 ? p.finalRanking : p.finishRank) + 1;
+					this.showBanner('FINISH!', rank > 0 ? `${rank}${ordinalSuffix(rank)} place` : null, ['#fff59d', '#ff9800'], 2.6);
+					this.fx.burst(p.x, p.y - 40, 40, 900, ['#ff5252', '#ffd740', '#69f0ae', '#40c4ff', '#e040fb', '#ffffff'], 'star');
+				} else if (!finishedNow && p.lapsCompleted > prev.laps && p.lapsCompleted < LAP_COUNT) {
+					const lap = p.lapsCompleted + 1;
+					if (lap === LAP_COUNT) this.showBanner('FINAL LAP!', null, ['#ffecb3', '#ff6f00']);
+					else this.showBanner(`LAP ${lap}`, null, ['#ffffff', '#64b5f6']);
+					this.lapPulse = 1;
+				}
+				prev.finished = finishedNow;
+			} else {
+				prev.finished = p.finished;
+			}
+
+			prev.vy = p.vy;
+			prev.grounded = surface.grounded;
+			prev.hit = p.hit;
+			prev.respawn = p.respawn;
+			prev.laps = p.lapsCompleted;
+			this.playerFx[i] = prev;
+		});
+	}
+
+	/** Explosions and item box pickups. */
+	private detectWorldEvents(game: GMRally, playerIdx: number) {
+		const local = game.players[playerIdx];
+		const live = new Set<number>();
+		for (const e of game.getExplosionsForFx()) {
+			live.add(e.id);
+			if (this.seenExplosions.has(e.id)) continue;
+			this.seenExplosions.add(e.id);
+			const blue = e.itemKind === ITEM_BLUE_SHELL;
+			const colors = blue ? ['#b3f5ff', '#40c4ff', '#ffffff'] : ['#fff59d', '#ffb74d', '#ff7043', '#ffffff'];
+			this.fx.burst(e.x, e.y, 46, 1300, colors);
+			this.fx.smoke(e.x, e.y, 14, e.radius);
+			this.fx.ring(e.x, e.y, e.radius * 1.1, blue ? '#b3f5ff' : '#fff3c4', 0.5);
+			const distance = Math.hypot(local.x - e.x, local.y - e.y);
+			this.shake = Math.max(this.shake, Math.max(0.25, 1.2 - distance / 1400));
+		}
+		for (const id of this.seenExplosions) if (!live.has(id)) this.seenExplosions.delete(id);
+
+		const items = game.currentLevel().items;
+		game.boxCooldowns.forEach((cooldown, i) => {
+			const before = this.lastBoxCooldowns[i] ?? 0;
+			const box = items[i];
+			if (box && cooldown > 0 && before <= 0) {
+				this.fx.burst(box.x, box.y, 14, 520, ['#80deea', '#fff59d', '#f48fb1', '#ffffff'], 'star');
+				this.fx.ring(box.x, box.y, 60, '#e0f7fa', 0.35);
+			}
+		});
+		this.lastBoxCooldowns = [...game.boxCooldowns];
+	}
+
 	/** Return the currently selected animation frame for one projectile. */
 	getShellFrame(entityId: number): number {
 		return this.shellAnimations[entityId]?.step ?? 0;
@@ -1112,30 +1569,25 @@ class ClientData {
 		const colors = ["#fff176", "#ffb300", "#ff6d00", "#ffffff", "#ff3d00"];
 		for (let i = 0; i < 5; i++) {
 			const life = 0.22 + Math.random() * 0.2;
-			this.particles.push({
+			this.fx.add({
+				kind: 'streak',
 				x: x - facing * (PLAYER_W * 0.35 + Math.random() * 14),
 				y: y + (Math.random() - 0.5) * PLAYER_H * 0.8,
 				vx: -facing * (180 + Math.random() * 260) + (Math.random() - 0.5) * 90,
 				vy: (Math.random() - 0.5) * 150,
-				life, maxLife: life, size: 4 + Math.random() * 6,
+				life, size: 4 + Math.random() * 6,
 				color: colors[Math.floor(Math.random() * colors.length)],
+				gravity: GRAVITY * 0.22,
 			});
 		}
 	}
-	/** Draw boost particles in world space, before the camera transform is restored. */
+
+	/** Particles in world space, before the camera transform is restored. */
 	drawParticles(ctx: CanvasRenderingContext2D) {
-		ctx.save();
-		for (const particle of this.particles) {
-			ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife);
-			ctx.fillStyle = particle.color;
-			ctx.shadowColor = particle.color;
-			ctx.shadowBlur = particle.size * 2.5;
-			ctx.beginPath();
-			ctx.ellipse(particle.x, particle.y, particle.size * 1.8, particle.size * 0.65, Math.atan2(particle.vy, particle.vx), 0, Math.PI * 2);
-			ctx.fill();
-		}
-		ctx.restore();
+		this.fx.draw(ctx);
 	}
+
+	get rankPulseAmount() { return this.rankPulse; }
 }
 
 class TutorialData {
@@ -1239,6 +1691,10 @@ class Banana extends Entity {
 abstract class Shell extends Entity {
 	vx = 0;
 	vy = 0;
+	/** Blue shells use this flag while taking the long route to wrap around to x=0. */
+	wrapToStart = false;
+	/** Prevents a second wrap if the target is still left of the shell after it respawns. */
+	wrappedToStart = false;
 	abstract readonly itemKind: number;
 
 	constructor(entityId: number) {
@@ -1251,11 +1707,13 @@ abstract class Shell extends Entity {
 		const state = data.red ?? data.blue ?? data.green ?? {};
 		this.vx = state.vx ?? 0;
 		this.vy = state.vy ?? 0;
+		this.wrapToStart = state.wrapToStart ?? false;
+		this.wrappedToStart = state.wrappedToStart ?? false;
 		this.active = true;
 	}
 
 	save() {
-		const state = { vx: this.vx, vy: this.vy };
+		const state = { vx: this.vx, vy: this.vy, ...(this.itemKind === ITEM_BLUE_SHELL ? { wrapToStart: this.wrapToStart, wrappedToStart: this.wrappedToStart } : {}) };
 		return {
 			id: this.entityId, x: this.x, y: this.y,
 			...(this.itemKind === ITEM_RED_SHELL ? { red: state }
@@ -1274,6 +1732,7 @@ class BlueShell extends Shell { readonly itemKind = ITEM_BLUE_SHELL; }
 class Bomb extends Entity {
 	vx = 0;
 	vy = 0;
+	owner = -1;
 
 	constructor(entityId: number) {
 		super('bomb', entityId, -1, HAZARD_SIZE);
@@ -1284,11 +1743,12 @@ class Bomb extends Entity {
 		this.y = data.y ?? 0;
 		this.vx = data.vx ?? 0;
 		this.vy = data.vy ?? 0;
+		this.owner = data.owner ?? -1;
 		this.active = true;
 	}
 
 	save() {
-		return { id: this.entityId, x: this.x, y: this.y, vx: this.vx, vy: this.vy };
+		return { id: this.entityId, x: this.x, y: this.y, vx: this.vx, vy: this.vy, owner: this.owner };
 	}
 }
 
@@ -1397,9 +1857,7 @@ function drawAnimatedItemBoxTexture(
 	ctx.save();
 	ctx.translate(cx, cy);
 	ctx.rotate(rotation);
-	ctx.globalAlpha *= 0.92;
-	ctx.shadowColor = '#8ffcff';
-	ctx.shadowBlur = 8 + (Math.sin(frame * 0.35) + 1) * 3;
+	ctx.globalAlpha *= 0.95;
 	ctx.drawImage(
 		texture,
 		sourceFrame * frameSize, 0, frameSize, height,
@@ -1422,29 +1880,9 @@ function drawSprite(
 ) {
 	if (size <= 0) return;
 	const texture = imageLoader.get(key);
-	if (!texture) {
-		if (!bombFallback) return;
-		ctx.save();
-		ctx.translate(cx, cy + Math.sin(phase) * size * 0.018);
-		ctx.rotate(rotation);
-		ctx.fillStyle = "#24242b";
-		ctx.strokeStyle = "#050508";
-		ctx.lineWidth = Math.max(2, size * 0.06);
-		ctx.beginPath();
-		ctx.arc(0, 2, size * 0.36, 0, Math.PI * 2);
-		ctx.fill();
-		ctx.stroke();
-		ctx.strokeStyle = "#bcbcbc";
-		ctx.lineWidth = Math.max(2, size * 0.08);
-		ctx.beginPath();
-		ctx.moveTo(size * 0.12, -size * 0.28);
-		ctx.lineTo(size * 0.28, -size * 0.48);
-		ctx.stroke();
-		ctx.fillStyle = "#ffd54f";
-		ctx.beginPath();
-		ctx.arc(size * 0.31, -size * 0.51, size * 0.09, 0, Math.PI * 2);
-		ctx.fill();
-		ctx.restore();
+	if (gfx.isMissingTexture(texture)) {
+		// The image loader returns a tiny placeholder for missing files.
+		if (bombFallback) gfx.drawBomb(ctx, cx, cy + Math.sin(phase) * size * 0.018, size, rotation, phase);
 		return;
 	}
 
@@ -1498,28 +1936,35 @@ export class GMRally extends GameMode {
 	levelIndex = 0;
 	levelTime = 0;
 	phase = PHASE_RACING;
+	/** Shared sky clock: drives cloud positions (and sun dimming) identically on every client. */
+	cloudStep = Math.random() * gfx.CLOUD_CYCLE;
 	intermission = 0; // Absolute levelTime deadline for the 30-second post-finish grace period; zero means inactive.
 	finishCount = 0;
 	boxCooldowns: number[] = [];
 	nextEntityId = 1;
+	/** Leader lap from which the next non-leader opening an item box gets a blue shell. */
+	blueShellPunishmentLap = 1;
+	/** Replicated PRNG state for item rolls, so client prediction draws the same item as the server. */
+	itemSeed = 0;
 
 	// The world is local and deterministic. Only dynamic game state is replicated.
+	// Every peer runs the full simulation: multiplayer clients predict from the last
+	// server snapshot and are corrected by the next one.
 	private engine: RallyEngine | null = null;
 	private readonly storage: RallyStorage = { skins: [] };
 	private readonly isClient: boolean;
-	private readonly isAuthoritative: boolean;
 	private worldBuilt = false;
 	private playerIds: number[] = [];
 	private worldIds: number[] = [];
 	private itemBoxEntityIds: platformEngine.BlockId[] = [];
-	private currentRng: GameRandomGenerator | null = null;
+	private enemyColorRuleRegistered = false;
 
-	private constructor(total: number, isClient: boolean, isAuthoritative: boolean, initialLevelIndex = 0) {
+	private constructor(total: number, isClient: boolean, initialLevelIndex = 0) {
 		super();
 		this.levelIndex = normalizeLevelIndex(initialLevelIndex);
 		this.boxCooldowns = this.currentLevel().items.map(() => 0);
+		this.itemSeed = Math.floor(Math.random() * 0x100000000) >>> 0;
 		this.isClient = isClient;
-		this.isAuthoritative = isAuthoritative;
 		this.players = Array.from({ length: total }, () => new Player());
 
 		platformEngine.createPlatformerEngine<RallyEngineData>(
@@ -1547,11 +1992,12 @@ export class GMRally extends GameMode {
 		const initialLevelIndex = chosenVote >= 0 && chosenVote < LEVELS.length
 			? chosenVote
 			: Math.floor(Math.random() * LEVELS.length);
-		const game = new GMRally(total, false, true, initialLevelIndex);
+		const game = new GMRally(total, false, initialLevelIndex);
 
 		const level = game.currentLevel();
-		for (const [i, p] of game.players.entries()) {
-			p.resetForLevel(level.spawnX, level.spawnY);
+		const start = firstCheckpointPosition(level);
+		for (const p of game.players) {
+			p.resetForLevel(start.x, start.y);
 		}
 		game.boxCooldowns = level.items.map(() => 0);
 		game.syncBlocksFromPlayers(); // handles the case where the engine finished loading first
@@ -1565,7 +2011,9 @@ export class GMRally extends GameMode {
 	static createClient(
 		{ data, origin }: MultiplayerClientEntry,
 		total: number,
-		_playerIdx: number
+		_playerIdx: number,
+		_playLocally: boolean,
+		names: (string | null)[]
 	) {
 		const { StartDataClient } = protocols.get();
 		let initialLevelIndex = 0;
@@ -1579,13 +2027,14 @@ export class GMRally extends GameMode {
 				? localVote
 				: Math.floor(Math.random() * LEVELS.length);
 		}
-		// Solo/tutorial clients are authoritative locally; multiplayer clients are not.
-		const game = new GMRally(total, true, origin === 'client', initialLevelIndex);
-		const clientData = new ClientData();
+		// Multiplayer clients receive itemSeed with the first server snapshot.
+		const game = new GMRally(total, true, initialLevelIndex);
+		const clientData = new ClientData(names);
 
 
 		const level = game.currentLevel();
-		game.players.forEach(p => p.resetForLevel(level.spawnX, level.spawnY));
+		const start = firstCheckpointPosition(level);
+		game.players.forEach(p => p.resetForLevel(start.x, start.y));
 		game.boxCooldowns = level.items.map(() => 0);
 		game.syncBlocksFromPlayers();
 		return { game, data: clientData, html: clientData.html, skins: {} };
@@ -1697,6 +2146,45 @@ private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T
 		return this.getShells();
 	}
 
+	/** Live explosions, for client-side effects (debris, camera shake). */
+	getExplosionsForFx(): { id: number; x: number; y: number; radius: number; itemKind: number }[] {
+		return this.getExplosions().map(e => ({ id: e.entityId, x: e.x, y: e.y, radius: e.radius, itemKind: e.itemKind }));
+	}
+
+	/** Contact state of a player's body, for client-side effects only. */
+	getPlayerSurface(playerIdx: number): { grounded: boolean; mud: boolean; wallSliding: boolean } {
+		const block = this.engine?.getBlock(this.playerIds[playerIdx]) as PlayerBlock | null | undefined;
+		if (!block || !block.active) return { grounded: false, mud: false, wallSliding: false };
+		return { grounded: block.walker.onFloor(), mud: block.mudContact, wallSliding: block.wallSliding };
+	}
+
+	/** Whole-race progress in [0, 1]: completed laps plus the position along the current lap. */
+	getRaceProgress(playerIdx: number): number {
+		const p = this.players[playerIdx];
+		if (p.finished || p.finalRanking !== -1) return 1;
+		const level = this.currentLevel();
+		const startX = firstCheckpointPosition(level).x;
+		const span = Math.max(1, level.finishX - startX);
+		const lap = Math.max(0, Math.min(1, (p.x - startX) / span));
+		return Math.max(0, Math.min(1, (p.lapsCompleted + lap) / LAP_COUNT));
+	}
+
+	/** Top of the highest platform under (x, y), or null. Used for contact shadows. */
+	private floorBelow(x: number, y: number, maxDistance: number): number | null {
+		if (!this.engine) return null;
+		let best: number | null = null;
+		for (const entry of this.engine.getBlocks()) {
+			if (!(entry.block instanceof PlatformBlock)) continue;
+			const b = entry.block;
+			const halfW = b.def.w / 2;
+			if (x < b.x - halfW || x > b.x + halfW) continue;
+			const top = b.y - b.def.h / 2;
+			if (top < y - 2 || top - y > maxDistance) continue;
+			if (best === null || top < best) best = top;
+		}
+		return best;
+	}
+
 	private getHazard(entityId: number): Hazard | null {
 		if (!this.engine) return null;
 		for (const entry of this.engine.getBlocks()) {
@@ -1723,7 +2211,7 @@ private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T
 
 	beforePlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		const p = this.players[idx];
-		if (this.isAuthoritative && p.pendingItem !== ITEM_NONE) {
+		if (p.pendingItem !== ITEM_NONE) {
 			p.itemRollTimer = Math.max(0, p.itemRollTimer - dt);
 			if (p.itemRollTimer <= 0) {
 				p.item = p.pendingItem;
@@ -1733,7 +2221,7 @@ private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T
 
 		if (p.itemQueued) {
 			p.itemQueued = false;
-			if (this.isAuthoritative && p.respawn <= 0 && !p.finished && !p.hit && p.itemRollTimer <= 0) {
+			if (p.respawn <= 0 && !p.finished && !p.hit && p.itemRollTimer <= 0) {
 				this.useItem(idx, block);
 			}
 		}
@@ -1771,7 +2259,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			block.velocity.y = 0;
 			p.vx = 0;
 			p.vy = 0;
-			if (this.isAuthoritative) p.respawn = Math.max(0, p.respawn - dt);
+			p.respawn = Math.max(0, p.respawn - dt);
 			return;
 		}
 
@@ -1790,27 +2278,11 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			p.vy = 0;
 		}
 
-		if (!this.isAuthoritative) return;
-
 		const level = this.currentLevel();
 		if (p.y > level.deathY) { this.killPlayer(idx, p, block); return; }
 		// Finished players still respawn if they fall, but can no longer score another lap.
 		if (p.finished) return;
-		this.updateCheckpoint(p, level);
-		const ground = level.platforms.find(platform => platform.skin === 'grass');
-		if (p.checkpoint === level.checkpoints.length - 1 && ground) {
-			// finishX is the right edge of the ground platform and the center of the
-			// rendered finish stripe. Use a small approach zone so the player can
-			// trigger it before walking off the platform edge.
-			const groundTop = ground.y - ground.h / 2;
-			const runningCenterY = groundTop - PLAYER_H / 2;
-			const crossedFinish = p.x + PLAYER_W / 2 >= level.finishX - GRID_SIZE;
-			const onFinishApproach = Math.abs(p.y - runningCenterY) <= GRID_SIZE * 2;
-			if (crossedFinish && onFinishApproach) {
-				this.completeLap(idx, p, block);
-				return;
-			}
-		}
+		if (this.updateCheckpoint(p, level)) this.completeLap(p, block);
 	}
 
 	/**
@@ -1819,9 +2291,10 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 	 */
 	private killPlayer(_idx: number, p: Player, block: PlayerBlock) {
 		const level = this.currentLevel();
-		const point = p.subCheckpoint >= 0
+		const checkpoint = p.subCheckpoint >= 0
 			? level.subCheckpoints[p.subCheckpoint]
-			: p.checkpoint >= 0 ? level.checkpoints[p.checkpoint] : { x: level.spawnX, y: level.spawnY };
+			: p.checkpoint >= 0 ? level.checkpoints[p.checkpoint] : undefined;
+		const point = checkpoint ? checkpointRespawnPosition(checkpoint) : { x: level.spawnX, y: level.spawnY };
 		block.x = point.x;
 		block.y = point.y;
 		block.velocity.x = 0;
@@ -1842,29 +2315,56 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		p.starTimer = 0;
 	}
 
-	/** Only the next major checkpoint can be validated, so later ones cannot be skipped. */
-	private updateCheckpoint(p: Player, level: LevelDef) {
+	/** Advance one checkpoint at a time in either direction; entering the last checkpoint completes a lap. */
+	private updateCheckpoint(p: Player, level: LevelDef): boolean {
+		const checkpoints = level.checkpoints;
+		if (checkpoints.length === 0) return false;
 		const playerRect = { x: p.x, y: p.y, w: PLAYER_W, h: PLAYER_H };
-		const nextCheckpoint = p.checkpoint + 1;
-		if (nextCheckpoint < level.checkpoints.length) {
-			const cp = level.checkpoints[nextCheckpoint];
-			if (overlapsCenter(playerRect, {
-				x: cp.x, y: cp.y, w: cp.w ?? GRID_SIZE, h: cp.h ?? GRID_SIZE,
-			})) p.checkpoint = nextCheckpoint;
+		const overlapsCheckpoint = (index: number) => {
+			const cp = checkpoints[index];
+			const w = cp.w ?? GRID_SIZE;
+			const h = cp.h ?? GRID_SIZE;
+			return overlapsCenter(playerRect, {
+				x: cp.x + w / 2, y: cp.y + h / 2, w, h,
+			});
+		};
+
+		// Going backwards is always allowed: crossing the preceding checkpoint
+		// lowers progress instead of leaving the player locked at the furthest one.
+		if (p.checkpoint > 0 && overlapsCheckpoint(p.checkpoint - 1)) {
+			p.checkpoint--;
+			// A sub-checkpoint is no longer valid if its prerequisite is now ahead.
+			if (p.subCheckpoint >= 0) {
+				const prerequisite = level.subCheckpoints[p.subCheckpoint]?.afterCheckpoint ?? -1;
+				if (p.checkpoint < prerequisite) p.subCheckpoint = -1;
+			}
+		} else {
+			const nextCheckpoint = p.checkpoint + 1;
+			if (nextCheckpoint < checkpoints.length && overlapsCheckpoint(nextCheckpoint)) {
+				p.checkpoint = nextCheckpoint;
+				// Entering the last checkpoint completes the lap immediately.
+				if (nextCheckpoint === checkpoints.length - 1) {
+					p.subCheckpoint = -1;
+					return true;
+				}
+			}
 		}
 
 		const nextSubCheckpoint = p.subCheckpoint + 1;
 		if (nextSubCheckpoint < level.subCheckpoints.length) {
 			const cp = level.subCheckpoints[nextSubCheckpoint];
 			const prerequisite = cp.afterCheckpoint ?? -1;
+			const w = cp.w ?? GRID_SIZE;
+			const h = cp.h ?? GRID_SIZE;
 			if (p.checkpoint >= prerequisite && overlapsCenter(playerRect, {
-				x: cp.x, y: cp.y, w: cp.w ?? GRID_SIZE, h: cp.h ?? GRID_SIZE,
+				x: cp.x + w / 2, y: cp.y + h / 2, w, h,
 			})) p.subCheckpoint = nextSubCheckpoint;
 		}
+		return false;
 	}
 
-	/** Count the completed lap and teleport only the player's horizontal position. */
-	private completeLap(idx: number, p: Player, block: PlayerBlock) {
+	/** Count a lap when the player enters the last checkpoint and return them to the first. */
+	private completeLap(p: Player, block: PlayerBlock) {
 		const lapIndex = Math.min(p.lapsCompleted, LAP_COUNT - 1);
 		const rank = this.players.reduce(
 			(count, player) => count + (player.lapFinishCounts[lapIndex] >= 0 ? 1 : 0),
@@ -1876,11 +2376,16 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		p.points += RANK_POINTS[rank] ?? 0;
 		this.finishCount++;
 
-		// Reset lap progression, but preserve movement, items, mushroom boost, and star power.
-		const level = this.currentLevel();
-		p.x = level.spawnX;
-		block.x = level.spawnX;
-		p.checkpoint = -1;
+		// A completed lap sends the player back to the first checkpoint.
+		// Checkpoint coordinates are top-left; player/block coordinates are centers.
+		const start = firstCheckpointPosition(this.currentLevel());
+		p.x = block.x = start.x;
+		p.y = block.y = start.y;
+		p.vx = block.velocity.x = 0;
+		p.vy = block.velocity.y = 0;
+		block.direction.dir = 0;
+		p.facing = 1;
+		p.checkpoint = 0;
 		p.subCheckpoint = -1;
 		if (p.lapsCompleted >= LAP_COUNT) {
 			p.finished = true;
@@ -1892,8 +2397,8 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 
 	/** Item-box collection is triggered by Entity.detectCollision inside the engine. */
-handleEntityContact(entity: Entity, playerIndex: number): void {
-		if (!this.isAuthoritative || !entity.active) return;
+	handleEntityContact(entity: Entity, playerIndex: number): void {
+		if (!entity.active) return;
 		const player = this.players[playerIndex];
 		if (!player || player.finished || player.respawn > 0) return;
 
@@ -1901,7 +2406,15 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			const boxIndex = entity.sourceIndex;
 			if (boxIndex < 0 || boxIndex >= this.boxCooldowns.length || this.boxCooldowns[boxIndex] > 0) return;
 			if (player.item !== ITEM_NONE || player.pendingItem !== ITEM_NONE || player.itemRollTimer > 0) return;
-			player.pendingItem = this.rollItem(playerIndex);
+			const leaderIndex = this.findRaceLeader();
+			const leaderLap = leaderIndex >= 0 ? this.players[leaderIndex].lapsCompleted : -1;
+			if (leaderIndex !== playerIndex && leaderLap >= this.blueShellPunishmentLap) {
+				// Only the first non-leader to open an item box gets the shell for this leader lap.
+				this.blueShellPunishmentLap = leaderLap + 1;
+				player.pendingItem = ITEM_BLUE_SHELL;
+			} else {
+				player.pendingItem = this.rollItem(playerIndex);
+			}
 			player.itemRollTimer = ITEM_ROLL_TIME;
 			this.boxCooldowns[boxIndex] = BOX_RESPAWN;
 			entity.active = false;
@@ -1916,6 +2429,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			this.hitPlayer(playerIndex);
 			this.removeHazard(hazard.entityId);
 		} else if (hazard instanceof Bomb) {
+			if (playerIndex === hazard.owner) return;
 			this.explodeBomb(hazard);
 		} else if (hazard instanceof BlueShell) {
 			// The blue shell only reacts to its target (the race leader) and explodes at once.
@@ -1923,7 +2437,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			this.explodeAt(hazard.x, hazard.y, ITEM_BLUE_SHELL);
 			this.removeHazard(hazard.entityId);
 		} else if (hazard instanceof Shell) {
-			// Shells have no owner: they hit whoever they touch.
+			// A shell cannot immediately rebound into and hit its thrower.
 			this.hitPlayer(playerIndex);
 			this.removeHazard(hazard.entityId);
 		}
@@ -2018,7 +2532,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		] as [number, number]);
 
 		const total = weights.reduce((sum, [, weight]) => sum + weight, 0);
-		const r = (this.currentRng ? this.currentRng() : Math.random()) * total;
+		const r = this.nextItemRandom() * total;
 
 		let cumulative = 0;
 
@@ -2028,6 +2542,15 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		}
 
 		return ITEM_MUSHROOM;
+	}
+
+	/** Mulberry32 step over the replicated seed: identical on the server and on predicting clients. */
+	private nextItemRandom(): number {
+		this.itemSeed = (this.itemSeed + 0x6D2B79F5) >>> 0;
+		let t = this.itemSeed;
+		t = Math.imul(t ^ (t >>> 15), t | 1);
+		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+		return ((t ^ (t >>> 14)) >>> 0) / 0x100000000;
 	}
 
 	private useItem(idx: number, _block: PlayerBlock) {
@@ -2048,10 +2571,10 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			case ITEM_GREEN_SHELL:
 			case ITEM_RED_SHELL:
 			case ITEM_BLUE_SHELL:
-				this.spawnShell(held, p);
+				this.spawnShell(held, p, idx);
 				break;
 			case ITEM_BOMB:
-				this.spawnBomb(p);
+				this.spawnBomb(p, idx);
 				break;
 			case ITEM_MUSHROOM:
 				p.boostTimer = BOOST_TIME;
@@ -2067,17 +2590,18 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 	}
 
 /** Throw a bomb from in front of the player; it detonates on landing or on any player. */
-	private spawnBomb(player: Player) {
+	private spawnBomb(player: Player, owner: number) {
 		const bomb = new Bomb(this.nextEntityId++);
 		bomb.x = player.x + player.facing * SPAWN_FRONT_OFFSET;
 		bomb.y = player.y;
 		bomb.vx = player.vx + player.facing * BOMB_SPEED;
-		bomb.vy = player.vy + BANANA_JUMP;
+		bomb.vy = player.vy + BOMB_JUMP;
+		bomb.owner = owner;
 		this.addHazard(bomb);
 	}
 
 	/** Shells spawn in front of the player so they do not touch the thrower. */
-	private spawnShell(kind: number, player: Player) {
+	private spawnShell(kind: number, player: Player, owner: number) {
 		const direction = player.facing < 0 ? -1 : 1;
 		const shell: Shell = kind === ITEM_RED_SHELL ? new RedShell(this.nextEntityId++)
 			: kind === ITEM_BLUE_SHELL ? new BlueShell(this.nextEntityId++)
@@ -2085,7 +2609,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		shell.x = player.x + direction * SPAWN_FRONT_OFFSET;
 		shell.y = player.y;
 		shell.vx = (kind === ITEM_BLUE_SHELL ? BLUE_SHELL_SPEED : SHELL_SPEED) * direction;
-		shell.vy = 0;
+		shell.vy = kind === ITEM_BLUE_SHELL ? player.vy - BLUE_SHELL_JUMP : 0;
 		this.addHazard(shell);
 	}
 
@@ -2095,18 +2619,9 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		const progress = (p: Player) => p.checkpoint * 2 + (p.subCheckpoint >= 0 ? 1 : 0);
 		
 		const distanceToNext = (p: Player) => {
-			const next = level.checkpoints[p.checkpoint + 1];
-			if (!next) return Math.abs(level.finishX - p.x);
-			return Math.hypot(next.x - p.x, next.y - p.y);
-		};
-
-		const isWrongWay = (p: Player) => {
-			const next = level.checkpoints[p.checkpoint + 1];
-			const targetX = next ? next.x : level.finishX;
-			const dx = targetX - p.x;
-
-			// Facing is a one-dimensional direction (+1 right, -1 left), not an angle.
-			return dx * p.facing < 0 ? 1 : 0;
+			if (level.checkpoints.length === 0) return Number.POSITIVE_INFINITY;
+			const nextIndex = (p.checkpoint + 1) % level.checkpoints.length;
+			return distanceToCheckpointFace(p.x, p.y, level.checkpoints[nextIndex]);
 		};
 
 		return this.players
@@ -2126,7 +2641,6 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 				return (
 					pb.lapsCompleted - pa.lapsCompleted ||
 					progress(pb) - progress(pa) ||
-					isWrongWay(pa) - isWrongWay(pb) ||
 					distanceToNext(pa) - distanceToNext(pb) ||
 					a - b
 				);
@@ -2150,25 +2664,28 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 /** Detonate a bomb: it is replaced by an Explosion. */
 	private explodeBomb(bomb: Bomb) {
-		this.explodeAt(bomb.x, bomb.y);
+		this.explodeAt(bomb.x, bomb.y, ITEM_BOMB, bomb.owner);
 		this.removeHazard(bomb.entityId);
 	}
 
 	/** Spawn an Explosion; it damages every player (thrower included) whose body is within its radius. */
-	private explodeAt(x: number, y: number, itemKind = ITEM_BOMB) {
+	private explodeAt(x: number, y: number, itemKind = ITEM_BOMB, excludedPlayer = -1) {
 		const explosion = new Explosion(this.nextEntityId++, itemKind);
 		explosion.x = x;
 		explosion.y = y;
 		this.addHazard(explosion);
 		for (const [i, player] of this.players.entries()) {
-			if (player.finished || player.respawn > 0) continue;
+			if (i === excludedPlayer || player.finished || player.respawn > 0) continue;
 			const dx = Math.max(0, Math.abs(player.x - x) - PLAYER_W / 2);
 			const dy = Math.max(0, Math.abs(player.y - y) - PLAYER_H / 2);
-			if (Math.hypot(dx, dy) <= explosion.radius) this.hitPlayer(i);
+			if (Math.hypot(dx, dy) <= explosion.radius) {
+				const strongLaunch = itemKind === ITEM_BLUE_SHELL || itemKind === ITEM_BOMB;
+				this.hitPlayer(i, strongLaunch ? 1050 : HIT_JUMP);
+			}
 		}
 	}
 
-	private hitPlayer(targetIndex: number): boolean {
+	private hitPlayer(targetIndex: number, upwardImpulse = HIT_JUMP): boolean {
 		const target = this.players[targetIndex];
 		// Star power grants temporary damage immunity.
 		if (!target || target.finished || target.hit || target.starTimer > 0) return false;
@@ -2179,7 +2696,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		target.itemQueued = false;
 		// The impulse is opposite the player's running direction.
 		block.velocity.x = -target.facing * HIT_KNOCKBACK;
-		block.velocity.y = -HIT_JUMP;
+		block.velocity.y = -upwardImpulse;
 		block.direction.dir = 0;
 		block.stunned = true;
 		target.vx = block.velocity.x;
@@ -2211,7 +2728,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 	}
 
 	/** Axis-separated platform collision for falling items and rolling shells. */
-	private moveGroundHazard(
+	private moveProjectile(
 		hazard: { x: number; y: number; vx: number; vy: number },
 		dt: number,
 		platforms: Array<{ x: number; y: number; w: number; h: number }>,
@@ -2266,7 +2783,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		for (const banana of this.getBananas()) {
 			banana.arming = Math.max(0, banana.arming - dt);
 			if (!banana.grounded) {
-				this.moveGroundHazard(banana, dt, platforms, false, false);
+				this.moveProjectile(banana, dt, platforms, true, false);
 				if (this.hazardIsSupported(banana, HAZARD_SIZE, platforms)) this.landBanana(banana.entityId);
 				if (banana.x > level.finishX) banana.x = level.spawnX;
 			} else {
@@ -2280,9 +2797,9 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			if (explosion.remaining <= 0) this.removeHazard(explosion.entityId);
 		}
 
-		// Bombs explode only after landing; side-wall contacts merely stop them.
+		// Bombs explode only after landing; side-wall contacts use the shared projectile bounce.
 		for (const bomb of this.getBombs()) {
-			this.moveGroundHazard(bomb, dt, platforms, false, false);
+			this.moveProjectile(bomb, dt, platforms, true, false);
 			if (this.hazardIsSupported(bomb, HAZARD_SIZE, platforms)) this.explodeBomb(bomb);
 		}
 
@@ -2293,14 +2810,25 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 				const leaderIndex = this.findRaceLeader();
 				const target = leaderIndex >= 0 ? this.players[leaderIndex] : undefined;
 				if (target && !target.finished) {
-					// Home in on the active race leader. Vertical speed is intentionally
-					// unbounded; acceleration, rather than a velocity cap, smooths changes.
+					// Home in on the active race leader. Acceleration smooths changes;
+					// vertical speed is capped below, before moving the shell.
 					const desiredVy = (target.y - shell.y) * 2.2;
 					const maxDelta = BLUE_SHELL_VERTICAL_ACCEL * dt;
 					shell.vy += Math.max(-maxDelta, Math.min(maxDelta, desiredVy - shell.vy));
-					shell.vx = Math.sign(target.x - shell.x || 1) * BLUE_SHELL_SPEED;
+					// If the leader is behind the shell, take the long route to the finish,
+					// wrap to x=0, then resume homing from the start of the level.
+					if (!shell.wrapToStart && !shell.wrappedToStart && target.x < shell.x) shell.wrapToStart = true;
+					shell.vx = shell.wrapToStart
+						? BLUE_SHELL_SPEED
+						: Math.sign(target.x - shell.x || 1) * BLUE_SHELL_SPEED;
 				}
 				shell.x += shell.vx * dt;
+				if (shell.wrapToStart && shell.x > level.finishX) {
+					shell.x = level.spawnX;
+					shell.wrapToStart = false;
+					shell.wrappedToStart = true;
+				}
+				shell.vy = Math.max(-BLUE_SHELL_VY_MAX, Math.min(BLUE_SHELL_VY_MAX, shell.vy));
 				shell.y += shell.vy * dt;
 			} else {
 				if (shell.itemKind === ITEM_RED_SHELL) {
@@ -2327,7 +2855,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 					}
 				}
 
-				this.moveGroundHazard(shell, dt, platforms, shell.itemKind === ITEM_GREEN_SHELL, shell.itemKind === ITEM_RED_SHELL);
+				this.moveProjectile(shell, dt, platforms, shell.itemKind === ITEM_GREEN_SHELL, shell.itemKind === ITEM_RED_SHELL);
 				if (shell.itemKind === ITEM_RED_SHELL) {
 					const sign = shell.vx < 0 ? -1 : 1;
 					shell.vx = sign * Math.max(VX_MIN, Math.min(VX_MAX, Math.abs(shell.vx)));
@@ -2338,18 +2866,19 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			liveShells.push(shell);
 		}
 
-		// Hazards interact with each other in the authoritative simulation:
+		// Hazards interact with each other:
 		// bananas break red/green shells, while bombs bounce shells away without
 		// detonating. Blue shells keep their special behavior and are excluded.
 		const bananas = this.getBananas().filter(banana => banana.active);
 		const bombs = this.getBombs().filter(bomb => bomb.active);
 		const brokenShells = new Set<number>();
+		const brokenBananas = new Set<number>();
 		for (const shell of liveShells) {
-			if (shell.itemKind === ITEM_BLUE_SHELL) continue;
 			const shellRect = { x: shell.x, y: shell.y, w: HAZARD_SIZE, h: HAZARD_SIZE };
 			for (const banana of bananas) {
-				if (!banana.active || !overlapsCenter(shellRect, { x: banana.x, y: banana.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) continue;
+				if (!banana.active || brokenBananas.has(banana.entityId) || !overlapsCenter(shellRect, { x: banana.x, y: banana.y, w: HAZARD_SIZE, h: HAZARD_SIZE })) continue;
 				brokenShells.add(shell.entityId);
+				brokenBananas.add(banana.entityId);
 				break;
 			}
 			if (brokenShells.has(shell.entityId)) continue;
@@ -2375,15 +2904,14 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			}
 		}
 		for (const id of brokenShells) this.removeHazard(id);
+		for (const id of brokenBananas) this.removeHazard(id);
 	}
 
 	/* ---------------------------- Main loop ---------------------------- */
 
-	override run(dt: number, produceFinish: boolean, rng: GameRandomGenerator | null): FinishGame | null {
+	override run(dt: number, produceFinish: boolean, _rng: GameRandomGenerator | null): FinishGame | null {
 		if (!this.engine) return null;
-		this.currentRng = rng;
 		if (this.phase === PHASE_RACING) this.runRacing(dt);
-		this.currentRng = null;
 
 		if (produceFinish && this.phase === PHASE_DONE) return this.produceFinish();
 		return null;
@@ -2391,10 +2919,11 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 	private runRacing(dt: number) {
 		this.levelTime += dt;
+		this.cloudStep = (this.cloudStep + dt) % gfx.CLOUD_CYCLE;
 		this.boxCooldowns = this.boxCooldowns.map(c => Math.max(0, c - dt));
 		this.syncEntityBlocks();
 		this.engine!.update(dt);
-		if (this.isAuthoritative) this.updateHazards(dt);
+		this.updateHazards(dt);
 		this.syncEntityBlocks();
 
 		// `intermission` stores the absolute race-clock deadline after the first finish.
@@ -2460,96 +2989,176 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 
 		data.update(this, playerIdx);
 
-		ctx.fillStyle = "#223";
-		ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
+		const level = this.currentLevel();
 		const cam = data.camera.getCoords();
+		const groundRef = firstCheckpointPosition(level).y;
+		data.backdrop.draw(ctx, WIDTH, HEIGHT, this.levelIndex, cam.x, cam.y, groundRef, this.cloudStep);
+
+		const shake = data.getShake();
 		ctx.save();
-		ctx.translate(WIDTH / 2, HEIGHT / 2);
+		ctx.translate(WIDTH / 2 + shake.x, HEIGHT / 2 + shake.y);
 		ctx.scale(Camera.SCALE, Camera.SCALE);
 		ctx.translate(-cam.x, -cam.y);
 
-		this.drawLevel(ctx, imageLoader, data);
-		this.drawPlayers(ctx, imageLoader);
+		const halfViewW = WIDTH / 2 / Camera.SCALE + 64;
+		const halfViewH = HEIGHT / 2 / Camera.SCALE + 64;
+		const view = { left: cam.x - halfViewW, right: cam.x + halfViewW, top: cam.y - halfViewH, bottom: cam.y + halfViewH };
+
+		data.backdrop.drawAbyss(ctx, this.levelIndex, view.left, view.right, level.deathY);
+		this.drawLevel(ctx, imageLoader, data, view);
+		this.drawDebugCheckpoints(ctx, playerIdx);
+		this.drawPlayers(ctx, imageLoader, playerIdx, data);
 		data.drawParticles(ctx);
 
 		ctx.restore();
+
+		// Speed lines while the local player is boosted.
+		const local = this.players[playerIdx];
+		const boost = local.respawn <= 0 ? Math.max(Math.min(1, local.boostTimer * 2), local.starTimer > 0 ? 0.7 : 0) : 0;
+		gfx.drawSpeedLines(ctx, WIDTH, HEIGHT, boost, local.facing, data.visualTime);
+		data.backdrop.drawCloudShade(ctx, WIDTH, HEIGHT, gfx.sunOcclusion(this.levelIndex, this.cloudStep));
+		data.backdrop.drawVignette(ctx, WIDTH, HEIGHT);
+
+		data.drawHud(ctx, this, playerIdx);
 		data.drawItemRoulette(ctx, this, playerIdx, imageLoader);
 		data.drawRacePosition(ctx, this, playerIdx);
+		data.drawFinishStandings(ctx, this, playerIdx);
+	}
+
+	private drawDebugCheckpoints(ctx: CanvasRenderingContext2D, playerIdx: number) {
+		if (!window.DEBUG)
+			return;
+
+		const checkpoints = this.currentLevel().checkpoints;
+		const player = this.players[playerIdx];
+		const currentIndex = player?.checkpoint ?? -1;
+		const nextIndex = checkpoints.length > 0 ? (currentIndex + 1) % checkpoints.length : -1;
+
+		checkpoints.forEach((checkpoint, index) => {
+			const isCurrent = index === currentIndex;
+			const isNext = index === nextIndex;
+			ctx.save();
+			ctx.strokeStyle = isCurrent ? "#00e676" : isNext ? "#ffeb3b" : "#f44336";
+			ctx.fillStyle = isCurrent ? "#00e67630" : isNext ? "#ffeb3b30" : "transparent";
+			ctx.lineWidth = isCurrent || isNext ? 5 : 2;
+			const w = checkpoint.w ?? GRID_SIZE;
+			const h = checkpoint.h ?? GRID_SIZE;
+			ctx.fillRect(checkpoint.x, checkpoint.y, w, h);
+			ctx.strokeRect(checkpoint.x, checkpoint.y, w, h);
+			ctx.restore();
+		});
+
+		// Respawn points: a cross where a player reappears after a death.
+		for (const checkpoint of [...checkpoints, ...this.currentLevel().subCheckpoints]) {
+			if (!checkpoint.spawn) continue;
+			const { x, y } = checkpointRespawnPosition(checkpoint);
+			ctx.save();
+			ctx.strokeStyle = "#2196f3";
+			ctx.lineWidth = 4;
+			ctx.beginPath();
+			ctx.moveTo(x - 12, y - 12);
+			ctx.lineTo(x + 12, y + 12);
+			ctx.moveTo(x + 12, y - 12);
+			ctx.lineTo(x - 12, y + 12);
+			ctx.stroke();
+			ctx.restore();
+		}
 	}
 
 	/** Platforms, item boxes and finish line. */
-	private drawLevel(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, data: ClientData) {
+	private drawLevel(
+		ctx: CanvasRenderingContext2D,
+		imageLoader: ImageLoaderFolder,
+		data: ClientData,
+		view: { left: number; right: number; top: number; bottom: number }
+	) {
 		const level = this.currentLevel();
 		const engine = this.engine;
+		const time = data.visualTime;
 
-		// Repeat the square finish texture vertically rather than stretching it.
-		const finish = imageLoader.get('finish');
+		// Finish pole: it stands on the ground, its foot is the bottom of the last checkpoint.
 		{
-			const image = finish as HTMLImageElement;
-			const width = image.naturalWidth || (finish as HTMLCanvasElement).width || 0;
-			const height = image.naturalHeight || (finish as HTMLCanvasElement).height || 0;
-			const sourceTileSize = Math.min(width, height);
-			const destinationTileSize = 64;
-			const top = -300;
 			const flagHeight = 1200;
-			if (sourceTileSize > 0) {
-				for (let offset = 0; offset < flagHeight; offset += destinationTileSize) {
-					const drawHeight = Math.min(destinationTileSize, flagHeight - offset);
-					const sourceHeight = sourceTileSize * drawHeight / destinationTileSize;
-					ctx.drawImage(
-						finish,
-						0, 0, sourceTileSize, sourceHeight,
-						level.finishX - destinationTileSize / 2, top + offset,
-						destinationTileSize, drawHeight
-					);
-				}
+			const lastCheckpoint = level.checkpoints[level.checkpoints.length - 1];
+			const groundY = lastCheckpoint ? lastCheckpoint.y + (lastCheckpoint.h ?? GRID_SIZE) : 900;
+			if (level.finishX > view.left - 400 && level.finishX < view.right + 400) {
+				gfx.drawFinishLine(ctx, level.finishX, groundY, flagHeight, time);
 			}
 		}
 
-
-		// Draw terrain as 32-pixel tiles, preserving each skin's edge rules.
+		const platforms: PlatformBlock[] = [];
 		if (engine) {
 			for (const entry of engine.getBlocks()) {
 				if (!(entry.block instanceof PlatformBlock)) continue;
-				const block = entry.block;
-				const { width, height } = block.getSize();
-				const left = block.x - width / 2;
-				const top = block.y - height / 2;
-				const columns = Math.ceil(width / GRID_SIZE);
-				const rows = Math.ceil(height / GRID_SIZE);
-				const skin = block.def.skin ?? 'grass';
-				for (let row = 0; row < rows; row++) {
-					for (let column = 0; column < columns; column++) {
-						const x = left + column * GRID_SIZE;
-						const y = top + row * GRID_SIZE;
-						const tileW = Math.min(GRID_SIZE, width - column * GRID_SIZE);
-						const tileH = Math.min(GRID_SIZE, height - row * GRID_SIZE);
-						let key: string;
-						if (skin === 'grass') key = row === 0 ? 'block-grass-floor' : 'block-grass-grass';
-						else if (skin === 'platform') key = row === rows - 1 && column === 0 ? 'block-platform-left' : row === rows - 1 && column === columns - 1 ? 'block-platform-right' : 'block-platform-full';
-						else if (skin === 'vertical-trampoline' || skin === 'horizontal-trampoline') key = 'block-trampoline';
-						else if (skin === 'mud') key = 'block-mud';
-						else key = 'block-box';
-						const texture = imageLoader.get(key);
-						if (texture) {
-							if (skin === 'horizontal-trampoline') {
-								ctx.save(); ctx.translate(x + tileW / 2, y + tileH / 2); ctx.scale(-1, 1);
-								ctx.drawImage(texture, -tileW / 2, -tileH / 2, tileW, tileH); ctx.restore();
-							} else ctx.drawImage(texture, x, y, tileW, tileH);
-						} else { ctx.fillStyle = '#556'; ctx.fillRect(x, y, tileW, tileH); }
-					}
+				const b = entry.block;
+				const { width, height } = b.getSize();
+				const left = b.x - width / 2;
+				const top = b.y - height / 2;
+				if (left > view.right || left + width < view.left || top > view.bottom || top + height < view.top) continue;
+				platforms.push(b);
+			}
+		}
+		const rectOf = (b: PlatformBlock): gfx.Rect => {
+			const { width, height } = b.getSize();
+			return { left: b.x - width / 2, top: b.y - height / 2, width, height };
+		};
+
+		// Draw terrain as GRID_SIZE tiles, preserving each skin's edge rules.
+		for (const block of platforms) {
+			const r = rectOf(block);
+			const { left, top, width, height } = r;
+			const skin = block.def.skin ?? 'grass';
+			if (skin === 'vertical-trampoline' || skin === 'horizontal-trampoline') {
+				const texture = imageLoader.get('block-trampoline');
+				if (gfx.isMissingTexture(texture)) {
+					gfx.drawTrampoline(ctx, r, skin === 'horizontal-trampoline', time);
+					continue;
 				}
 			}
+			const columns = Math.ceil(width / GRID_SIZE);
+			const rows = Math.ceil(height / GRID_SIZE);
+			for (let row = 0; row < rows; row++) {
+				for (let column = 0; column < columns; column++) {
+					const x = left + column * GRID_SIZE;
+					const y = top + row * GRID_SIZE;
+					if (x > view.right || x + GRID_SIZE < view.left) continue;
+					if (y > view.bottom || y + GRID_SIZE < view.top) continue;
+					const tileW = Math.min(GRID_SIZE, width - column * GRID_SIZE);
+					const tileH = Math.min(GRID_SIZE, height - row * GRID_SIZE);
+					let key: string;
+					if (skin === 'grass') key = row === 0 ? 'block-grass-floor' : 'block-grass-grass';
+					else if (skin === 'platform') key = row === rows - 1 && column === 0 ? 'block-platform-left' : row === rows - 1 && column === columns - 1 ? 'block-platform-right' : 'block-platform-full';
+					else if (skin === 'vertical-trampoline' || skin === 'horizontal-trampoline') key = 'block-trampoline';
+					else if (skin === 'mud') key = 'block-mud';
+					else key = 'block-box';
+					const texture = imageLoader.get(key);
+					// Overlap tiles by one pixel to hide seams when the canvas is scaled.
+					if (texture) {
+						if (skin === 'horizontal-trampoline') {
+							ctx.save(); ctx.translate(x + tileW / 2, y + tileH / 2); ctx.scale(-1, 1);
+							ctx.drawImage(texture, -tileW / 2, -tileH / 2, tileW + 0.5, tileH + 0.5); ctx.restore();
+						} else ctx.drawImage(texture, x, y, tileW + 0.5, tileH + 0.5);
+					} else { ctx.fillStyle = '#556'; ctx.fillRect(x, y, tileW, tileH); }
+				}
+			}
+			gfx.drawPlatformShading(ctx, r, GRID_SIZE, skin);
+			if (skin === 'mud') gfx.drawMudDecor(ctx, r, time, Math.round(block.def.x));
+		}
+
+		// Grass blades and flowers on top of grass surfaces.
+		for (const b of platforms) {
+			if ((b.def.skin ?? 'grass') === 'grass') gfx.drawGrassDecor(ctx, rectOf(b), time, view.left, view.right);
 		}
 
 		// Cycle through the item-box sprite-sheet frames, using the same timing approach as red shells.
 		for (const [i, b] of level.items.entries()) {
 			if (this.boxCooldowns[i] > 0) continue;
+			if (b.x < view.left - 80 || b.x > view.right + 80 || b.y < view.top - 80 || b.y > view.bottom + 80) continue;
 			const phase = this.levelTime * 2.8 + i * 1.17;
 			const bob = Math.sin(phase) * 2.5;
 			const rotation = Math.sin(phase * 0.72) * 0.06;
 			const frame = Math.floor((this.levelTime + i * 0.07) / SHELL_FRAME_DELAY);
+			gfx.drawItemBoxHalo(ctx, b.x, b.y + bob, BOX_SIZE, phase + i);
 			drawAnimatedItemBoxTexture(ctx, imageLoader, b.x, b.y + bob, BOX_SIZE, frame, rotation);
 		}
 
@@ -2559,9 +3168,30 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			drawEntitySprite(ctx, imageLoader, 'banana', banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
 		}
 		for (const bomb of this.getBombs()) {
-			drawEntitySprite(ctx, imageLoader, 'bomb', bomb.x, bomb.y, 42, 0, this.levelTime * 2.5);
+			const texture = imageLoader.get('bomb');
+			if (gfx.isMissingTexture(texture)) gfx.drawBomb(ctx, bomb.x, bomb.y, 46, Math.sin(time * 6) * 0.15, time);
+			else drawEntitySprite(ctx, imageLoader, 'bomb', bomb.x, bomb.y, 42, 0, this.levelTime * 2.5);
 		}
 		for (const shell of this.getShells()) {
+			const trail = data.getShellTrail(shell.entityId);
+			const color = shell.itemKind === ITEM_RED_SHELL ? '255, 82, 82' : shell.itemKind === ITEM_BLUE_SHELL ? '64, 196, 255' : '105, 240, 174';
+			ctx.save();
+			ctx.globalCompositeOperation = 'lighter';
+			trail.forEach((point, index) => {
+				const t = (index + 1) / (trail.length + 1);
+				ctx.fillStyle = `rgba(${color}, ${0.35 * t})`;
+				ctx.beginPath();
+				ctx.arc(point.x, point.y, 6 + 12 * t, 0, Math.PI * 2);
+				ctx.fill();
+			});
+			if (shell.itemKind === ITEM_BLUE_SHELL) {
+				const glow = ctx.createRadialGradient(shell.x, shell.y, 4, shell.x, shell.y, 60);
+				glow.addColorStop(0, 'rgba(120, 220, 255, 0.7)');
+				glow.addColorStop(1, 'rgba(40, 140, 255, 0)');
+				ctx.fillStyle = glow;
+				ctx.fillRect(shell.x - 60, shell.y - 60, 120, 120);
+			}
+			ctx.restore();
 			drawAnimatedShellTexture(ctx, imageLoader, shell.itemKind, shell.x, shell.y, 40, data.getShellFrame(shell.entityId));
 		}
 
@@ -2622,23 +3252,64 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		}
 	}
 
-	/** Draw all player sprites. */
-	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder) {
+	/** Draw all player sprites with shadows, auras and name tags. */
+	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, localPlayerIdx: number, data: ClientData) {
 		const engine = this.engine;
 		if (!engine) return;
-		for (const [i, p] of this.players.entries()) {
+		const time = data.visualTime;
+
+		// Register once: ImageLoader also applies this rule to textures loaded later.
+		if (!this.enemyColorRuleRegistered) {
+			imageLoader.setColorRule('player', ENEMY_PLAYER_COLOR_ID, ENEMY_PLAYER_COLOR_RULES);
+			this.enemyColorRuleRegistered = true;
+		}
+
+		// The animator asks ImageLoaderFolder for its texture by name. Route only
+		// the player texture through the enemy palette; every other asset stays raw.
+		const enemyImageLoader: ImageLoaderFolder = {
+			get: (name, colorId) => imageLoader.get(
+				name,
+				name === 'player' ? ENEMY_PLAYER_COLOR_ID : colorId
+			),
+			setColorRule: (name, id, rules) => imageLoader.setColorRule(name, id, rules),
+		};
+
+		// Local player last, so it is always drawn on top of opponents.
+		const order = this.players.map((_, i) => i).filter(i => i !== localPlayerIdx);
+		order.push(localPlayerIdx);
+
+		for (const i of order) {
+			const p = this.players[i];
 			const id = this.playerIds[i];
 			if (p.respawn > 0) continue; // off the map while waiting to respawn
 			const block = engine.getBlock(id);
 			if (!block) continue;
+			const feetY = block.y + PLAYER_H / 2;
+
+			const floor = this.floorBelow(block.x, feetY, 420);
+			if (floor !== null) gfx.drawGroundShadow(ctx, block.x, floor, floor - feetY, PLAYER_W * 1.3);
+
+			if (p.starTimer > 0) gfx.drawStarAura(ctx, block.x, block.y, time);
+			else if (p.boostTimer > 0) gfx.drawBoostGlow(ctx, block.x, block.y, p.facing, time);
 
 			// Star power applies a cycling rainbow hue to the entire player sprite.
 			ctx.save();
 			if (p.starTimer > 0) {
 				ctx.filter = `hue-rotate(${Math.floor((this.levelTime * 240) % 360)}deg) saturate(2)`;
+			} else if (p.hit && Math.floor(time * 20) % 2 === 0) {
+				ctx.globalAlpha = 0.55;
 			}
-			engine.getAnimator(id)?.draw(block, ctx, imageLoader);
+			engine.getAnimator(id)?.draw(
+				block,
+				ctx,
+				i === localPlayerIdx ? imageLoader : enemyImageLoader
+			);
 			ctx.restore();
+
+			const headY = feetY - PLAYER_H * 1.3;
+			if (p.hit) gfx.drawDizzyStars(ctx, block.x, headY, time);
+			const name = data.names[i] ?? `Player ${i + 1}`;
+			gfx.drawNameTag(ctx, block.x, headY - (p.hit ? 22 : 0), name, i === localPlayerIdx, time);
 		}
 	}
 
@@ -2661,8 +3332,8 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		return {
 			joysticks: {},
 			buttons: {
-				jump: { x: 180, xp: 'left', y: 180, yp: 'bottom', size: 120, color: "#44aaff" },
-				item: { x: 180, xp: 'right', y: 180, yp: 'bottom', size: 120, color: "#ffaa00" },			}
+				jump: { x: 70, xp: 'left', y: 70, yp: 'bottom', size: 70, color: "#44aaff" },
+				item: { x: 70, xp: 'right', y: 70, yp: 'bottom', size: 70, color: "#ffaa00" },			}
 		};
 	}
 
@@ -2699,6 +3370,9 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			bombs: this.getBombs().map(bomb => bomb.save()),
 			explosions: this.getExplosions().map(explosion => explosion.save()),
 			nextEntityId: this.nextEntityId,
+			blueShellPunishmentLap: this.blueShellPunishmentLap,
+			itemSeed: this.itemSeed,
+			cloudStep: this.cloudStep,
 		};
 		return State.encode(object).finish();
 	}
@@ -2714,6 +3388,7 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		this.levelTime = obj.levelTime ?? 0;
 		this.phase = obj.phase ?? PHASE_RACING;
 		this.intermission = obj.intermission ?? 0;
+		this.cloudStep = obj.cloudStep ?? 0;
 		this.finishCount = obj.finishCount ?? 0;
 		this.boxCooldowns = [...(obj.boxCooldowns ?? this.currentLevel().items.map(() => 0))];
 
@@ -2758,6 +3433,8 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 		}
 
 		this.nextEntityId = obj.nextEntityId ?? 1;
+		this.blueShellPunishmentLap = obj.blueShellPunishmentLap ?? 1;
+		this.itemSeed = (obj.itemSeed ?? this.itemSeed) >>> 0;
 
 		// Keep local block IDs and static platforms intact; restore bodies and boxes.
 		this.syncBlocksFromPlayers();
@@ -2779,16 +3456,13 @@ handleEntityContact(entity: Entity, playerIndex: number): void {
 			}
 			const progress = (player: Player) => player.checkpoint * 2 + (player.subCheckpoint >= 0 ? 1 : 0);
 			const distance = (player: Player) => {
-				const next = this.currentLevel().checkpoints[player.checkpoint + 1];
-				return next ? Math.hypot(next.x - player.x, next.y - player.y) : Math.abs(this.currentLevel().finishX - player.x);
-			};
-			const wrongWay = (player: Player) => {
-				const next = this.currentLevel().checkpoints[player.checkpoint + 1];
-				const targetX = next ? next.x : this.currentLevel().finishX;
-				return (targetX - player.x) * player.facing < 0 ? 1 : 0;
+				const checkpoints = this.currentLevel().checkpoints;
+				if (checkpoints.length === 0) return Number.POSITIVE_INFINITY;
+				const nextIndex = (player.checkpoint + 1) % checkpoints.length;
+				return distanceToCheckpointFace(player.x, player.y, checkpoints[nextIndex]);
 			};
 			return a.lapsCompleted === b.lapsCompleted && progress(a) === progress(b) &&
-				wrongWay(a) === wrongWay(b) && Math.abs(distance(a) - distance(b)) < 1e-3;
+				Math.abs(distance(a) - distance(b)) < 1e-3;
 		};
 		for (let i = 0; i + 1 < ranking.length; i++) {
 			if (sameRaceStanding(ranking[i], ranking[i + 1])) playerEqualities.push(i);
