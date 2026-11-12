@@ -8,6 +8,60 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.7",
+		date: 1794499200000, // Thu. 12 nov 2026 at 5:00 PM
+		title: "Hunt and new Rally graphics",
+		lines: [
+			"<ust>New gamemode:</ust> hunt, jump, lock your targets and get 10 kills before everybody else (computer only)",
+			"<ust>Hunt:</ust> weapons with their own ammo, boxes with items (bomb, ice bomb, shells, super jump) and a tutorial",
+			"<ust>Rally:</ust> graphics overhaul: parallax backdrops with sun and clouds, decorations, particles and a new HUD",
+		]
+	},
+	{
+		version: "1.5.6",
+		date: 1793898000000, // Thu. 5 nov 2026 at 6:00 PM
+		title: "Player names and Rally standings",
+		lines: [
+			"Player names are now shown at game start (bots are named *Bot N*)",
+			"<ust>Rally:</ust> temporary finish standings shown top-right as soon as the first player finishes",
+			"<ust>Rally:</ust> fix level *Chamois*",
+		]
+	},
+	{
+		version: "1.5.5",
+		date: 1793804400000,
+		title: "",
+		lines: [
+			"Jumpies was not implemented",
+			"<ust>Rally:</ust> Client was not simulating"
+		]
+	},
+	{
+		version: "1.5.4",
+		date: 1793804400000, // Wed. 4 nov 2026 at 4:00 PM
+		title: "Minor fixes",
+		lines: [
+			"Jumpies was not implemented",
+			"<ust>Rally:</ust> Client was not simulating"
+		]
+	},
+	{
+		version: "1.5.3",
+		date: 1793797200000, // Wed. 4 nov 2026 at 1:00 PM
+		title: "Jumpies, smarter bots and Rally/Castle improvements",
+		lines: [
+			"<ust>New gamemode:</ust> jumpies, a platformer without platforms: cross the rooms and reach the finish first",
+			"<ust>AirBasket:</ust> bots anticipate the ball, pass progressively and no longer leave the arena with it",
+			"<ust>Rally:</ust> new level *Chamois*",
+			"<ust>Rally:</ust> enemies shown in red, respawn on checkpoints, catch-up blue shell",
+			"<ust>Castle:</ust> thwomps only kill from below and stop on the ground",
+			"<ust>Castle:</ust> smarter bots that dodge fireballs, rebalanced archers, destroy penalty",
+			"<ust>Castle:</ust> seamless background and bigger card highlight",
+			"Fix Castle blocks missing on the client in online games",
+			"Fix server protocol loading for all gamemods",
+		]
+	},
+	{
 		version: "1.5.2",
 		date: 1792224000000, // Sat. 17 oct 2026 at 10:00 AM
 		title: "Adding Castle and Rally gamemods",

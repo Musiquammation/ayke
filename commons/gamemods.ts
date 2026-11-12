@@ -15,6 +15,8 @@ import { GMPopit } from "./gamemods/GMPopit";
 import { GMLavaBall } from "./gamemods/GMLavaBall";
 import { GMCrayzoll } from "./gamemods/GMCrayzoll";
 import { GMCastle } from "./gamemods/GMCastle";
+import { GMRally } from "./gamemods/GMRally";
+import { GMJumpies } from "./gamemods/GMJumpies";
 
 import bots_test from "./bots/bots-test";
 import bots_airbasket from "./bots/bots-airbasket";
@@ -28,10 +30,12 @@ import bots_lavaBall from "./bots/bots-lavaBall";
 import bots_crayzoll from "./bots/bots-crayzoll";
 import bots_castle from "./bots/bots-castle";
 import bots_rally from "./bots/bots-rally";
+import bots_jumpies from "./bots/bots-jumpies";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
-import { GMRally } from "./gamemods/GMRally";
+import { GMHunt } from "./gamemods/GMHunt";
+import bots_hunt from "./bots/bots-hunt";
 
 
 interface Player {
@@ -52,7 +56,13 @@ interface MultiplayerFactory {
 		entry: MultiplayerClientEntry,
 		total: number,
 		playerIdx: number,
-		playLocally: boolean
+		playLocally: boolean,
+		/**
+		 * One entry per player (length = total), indexed like playerIdx.
+		 * Humans have their pseudo, anonymous players have null,
+		 * bots are named "Bot 1", "Bot 2", ...
+		 */
+		names: (string | null)[]
 	): {
 		game: GameMode,
 		data: any,
@@ -185,6 +195,25 @@ export const gamemods: Record<
 		nodes: bots_rally
 	},
 
+	hunt: {
+		type: 'multiplayer',
+		server: GMHunt.createServ,
+		client: GMHunt.createClient,
+		dom: GMHunt.generateClientDom,
+		textures: GMHunt.TEXTURES,
+		name: "Hunt",
+		description: "Jump, lock your targets and get 10 kills before everybody else.",
+		tropheesPerPlayer: 15,
+		explainationSlides: null,
+		computerOnly: true,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 6,
+		nodes: bots_hunt
+	},
+
 	crayzoll: {
 		type: 'multiplayer',
 		server: GMCrayzoll.createServ,
@@ -202,6 +231,25 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 4,
 		nodes: bots_crayzoll
+	},
+
+	jumpies: {
+		type: 'multiplayer',
+		server: GMJumpies.createServ,
+		client: GMJumpies.createClient,
+		dom: GMJumpies.generateClientDom,
+		textures: GMJumpies.TEXTURES,
+		name: "Jumpies",
+		description: "A platformer without platforms: cross the rooms and reach the end of the level first.",
+		tropheesPerPlayer: 0,
+		explainationSlides: null,
+		computerOnly: false,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 4,
+		nodes: bots_jumpies
 	},
 
 	separator_mobile: {

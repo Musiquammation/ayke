@@ -8,7 +8,9 @@ export interface IMouseController {
 	getCoords(): { x: number; y: number };
 	first(button: number): boolean;
 	press(button: number): boolean;
-	killed(button: number): boolean;	
+	killed(button: number): boolean;
+	/** Wheel movement during this frame (positive = scrolled down), 0 if none. */
+	wheel(): number;
 }
 
 export interface IMobileController {

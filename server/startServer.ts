@@ -7,10 +7,8 @@ import { WebSocketServer } from "ws";
 import { initSendMessage } from "./sendMessage";
 import { database, initDb } from "./Database";
 import { initProtocols } from "../commons/protocolLoader";
-import { readdir } from "node:fs/promises";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { getLogger } from "../commons/ILogger";
+import { gamemods } from "../commons/gamemods";
 
 
 const PORT = Number(process.env.PORT);
@@ -58,7 +56,12 @@ initSendMessage(PROTOCOL_PATH, wss).then(() => {
 });
 
 
-initProtocols(name => protobuf.load(PROTOCOLS_FOLDER + name + ".proto"));
+initProtocols(
+	name => protobuf.load(PROTOCOLS_FOLDER + name + ".proto"),
+	Object.entries(gamemods)
+		.filter((entry): entry is [string, Exclude<typeof entry[1], { type: 'ui-separator' }>] => entry[1].type !== 'ui-separator')
+		.map(([name, i]) => ({ ...i, name }))
+);
 
 initDb(DB_FILE);
 

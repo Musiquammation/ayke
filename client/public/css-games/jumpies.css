@@ -1,0 +1,57 @@
+/* Root overlay: fixed on top of the canvas, never intercepts clicks */
+.game-jumpies-root {
+	position: fixed;
+
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+
+	width: 96vw;
+
+	font-family: sans-serif;
+	font-size: 2vh;
+	color: white;
+
+	pointer-events: none;
+}
+
+/* Remaining time at the top center */
+.game-jumpies-time {
+	font-size: 4vh;
+	font-weight: bold;
+}
+
+/* Time left after the first arrival, and rank of the player */
+.game-jumpies-status {
+	margin-top: 0.5vh;
+	opacity: 0.8;
+}
+
+/* Arrived players, on the right, shown from the first arrival */
+.game-jumpies-leaderboard {
+	position: fixed;
+	top: 20vh;
+	right: 2vw;
+
+	margin: 0;
+	padding: 0 0 0 3vh;
+
+	font-size: 2.2vh;
+	opacity: 0.85;
+}
+
+.game-jumpies-leaderboard li {
+	margin-bottom: 0.6vh;
+}
+
+.game-jumpies-leaderboard-color {
+	display: inline-block;
+	width: 1.6vh;
+	height: 1.6vh;
+	margin-right: 0.8vh;
+	vertical-align: middle;
+	border: 2px solid black;
+}

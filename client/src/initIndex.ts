@@ -2,6 +2,7 @@ import protobuf from "protobufjs";
 import { initProtocols } from "../../commons/protocolLoader";
 import { dom, initDom } from "./dom/dom";
 import { resolveMobileInterface } from "./getMobile";
+import { gamemods } from "../../commons/gamemods";
 
 
 declare global {
@@ -13,11 +14,17 @@ declare global {
 
 
 export default function() {
-	initProtocols(async name => {
-		const response = await fetch(window.PROTOCOLS_FOLDER + name + ".proto");
-		const protoText = await response.text();
-		return protobuf.parse(protoText).root;
-	});
+	initProtocols(
+		async name => {
+			const response = await fetch(window.PROTOCOLS_FOLDER + name + ".proto");
+			const protoText = await response.text();
+			return protobuf.parse(protoText).root;
+		},
+		
+		Object.entries(gamemods)
+			.filter((entry): entry is [string, Exclude<typeof entry[1], { type: 'ui-separator' }>] => entry[1].type !== 'ui-separator')
+			.map(([name, i]) => ({ type: i.type, name, protoFields: 'protoFields' in i ? i.protoFields : undefined }))
+	);
 	
 
 	initDom();

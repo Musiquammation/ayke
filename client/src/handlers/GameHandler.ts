@@ -364,7 +364,8 @@ export async function setGameHandler(
 	gamemode: string,
 	playerIdx: number,
 	startData: Uint8Array,
-	total: number
+	total: number,
+	names: (string | null)[]
 ) {
 
 	const factory = getMultiGmFactory(gamemode);
@@ -376,7 +377,8 @@ export async function setGameHandler(
 		{data: startData, origin: 'server'},
 		total,
 		playerIdx,
-		false
+		false,
+		names
 	);
 
 	await imageLoader.load(skins, gamemode);
