@@ -7,6 +7,7 @@ import { decodeFullMessage } from "../util/decodeFullMessage";
 import { GameRandomGenerator } from "../util/GameRandomGenerator";
 import { ImageLoader, ImageLoaderFolder } from "../util/ImageLoader";
 import { platformEngine } from "../util/platformEngine";
+import * as gfx from "./rally/rallyGraphics";
 
 const protocols = getProtocol('rally', 'multiplayer');
 
@@ -24,6 +25,8 @@ const WIDTH = 2400;
 const HEIGHT = 1350;
 const GRAVITY = 1800;
 const GRID_SIZE = 64; // World geometry and terrain tiles use this grid.
+/** Rows of ground the camera may show below the lowest ground surface. */
+const CAMERA_GROUND_DEPTH = 8;
 const PLAYER_W = 48;
 const PLAYER_H = 64;
 
@@ -148,6 +151,8 @@ interface LevelDef {
 	spawnY: number;
 	finishX: number;
 	deathY: number;
+	/** Lowest world y the bottom edge of the camera view may reach (computed). */
+	cameraBottom?: number;
 	platforms: PlatformDef[];
 	items: { x: number; y: number }[];
 	checkpoints: CheckpointDef[];
@@ -164,7 +169,7 @@ const LEVELS = (function(){
 			finishX: 57*GRID_SIZE,
 			deathY: 1024,
 			platforms: [
-				{ x: 0, y: 14, w: 57, h: 2, skin: 'grass' },
+				{ x: 0, y: 14, w: 57, h: 16, skin: 'grass' },
 				{ x: 5, y: 2, w: 1, h: 10, skin: 'box' },
 				{ x: 8, y: 5, w: 1, h: 9, skin: 'box' },
 				{ x: 11, y: -5, w: 1, h: 16, skin: 'box' },
@@ -230,7 +235,7 @@ const LEVELS = (function(){
 			finishX: 168*GRID_SIZE,
 			deathY: 1024,
 			platforms: [
-				{ x: 0, y: 16, w: 55, h: 5, skin: 'grass' },
+				{ x: 0, y: 16, w: 55, h: 22, skin: 'grass' },
 				{ x: 1, y: 15, w: 1, h: 1, skin: 'box' },
 				{ x: 10, y: 13, w: 3, h: 1, skin: 'box' },
 				{ x: 17, y: 11, w: 10, h: 1, skin: 'box' },
@@ -246,8 +251,8 @@ const LEVELS = (function(){
 				{ x: 44, y: 9, w: 3 , h: 1, skin: 'mud', mud: 30 },
 				{ x: 47, y: 10, w: 2 , h: 1, skin: 'box' },
 				{ x: 47, y: 13, w: 1 , h: 3, skin: 'box' },
-				{ x: 55, y: 6, w: 2, h: 15, skin: 'grass' },
-				{ x: 65, y: 16, w: 35, h: 5, skin: 'grass' },
+				{ x: 55, y: 6, w: 2, h: 32, skin: 'grass' },
+				{ x: 65, y: 16, w: 35, h: 22, skin: 'grass' },
 				{ x: 72, y: 14, w: 2, h: 1, skin: 'box' },
 				{ x: 66, y: 0, w: 1, h: 14, skin: 'box' },
 				{ x: 78, y: 13, w: 1, h: 1, skin: 'box' },
@@ -262,7 +267,7 @@ const LEVELS = (function(){
 				{ x: 124, y: 12, w: 2, h: 1, skin: 'box'},
 				{ x: 132, y: 12, w: 2, h: 1, skin: 'box'},
 				{ x: 140, y: 12, w: 2, h: 1, skin: 'box'},
-				{ x: 143, y: 22, w: 25, h: 5, skin: 'grass'},
+				{ x: 143, y: 22, w: 25, h: 16, skin: 'grass'},
 			],
 			items: [
 				{x: 9, y: 15},
@@ -374,10 +379,14 @@ const LEVELS = (function(){
 			i.y = GRID_SIZE * (i.y + .5);
 		}
 
-		// deathY is in world pixels: keep it below the lowest platform so standing on
-		// low ground never counts as falling in the void.
-		const lowestBottom = Math.max(...level.platforms.map(p => p.y + p.h / 2));
-		level.deathY = Math.max(level.deathY, lowestBottom + 4 * GRID_SIZE);
+		// The camera never shows more than CAMERA_GROUND_DEPTH rows below the lowest
+		// ground surface (ground platforms are deep enough to fill that area).
+		const lowestGroundTop = Math.max(...level.platforms
+			.filter(p => (p.skin ?? 'grass') === 'grass')
+			.map(p => p.y - p.h / 2));
+		level.cameraBottom = lowestGroundTop + CAMERA_GROUND_DEPTH * GRID_SIZE;
+		// deathY is in world pixels: a player dies once fully out of the camera's reach.
+		level.deathY = Math.max(level.deathY, level.cameraBottom + PLAYER_H);
 	}
 
 	return LEVELS;
@@ -924,18 +933,27 @@ class Camera {
 	static readonly SCALE = 0.8;
 	private static readonly LOOK_AHEAD = 250;
 	private static readonly SMOOTH = 8;
+	/** Highest camera-center y, so the view's bottom edge never goes past the level's cameraBottom. */
+	maxY = Number.POSITIVE_INFINITY;
+
+	setBottomLimit(worldBottom: number | undefined) {
+		this.maxY = worldBottom === undefined
+			? Number.POSITIVE_INFINITY
+			: worldBottom - HEIGHT / 2 / Camera.SCALE;
+	}
 
 	/** Smoothly follows the player, looking ahead in the running direction. */
 	update(px: number, py: number, facing: number, dt: number) {
 		const k = Math.min(1, Camera.SMOOTH * dt);
 		this.x += (px + facing * Camera.LOOK_AHEAD - this.x) * k;
-		this.y += (py - this.y) * k;
+		this.y += (Math.min(py, this.maxY) - this.y) * k;
+		this.y = Math.min(this.y, this.maxY);
 	}
 
 	/** Instantly moves the camera (level start / respawn). */
 	teleport(px: number, py: number) {
 		this.x = px;
-		this.y = py;
+		this.y = Math.min(py, this.maxY);
 	}
 
 	getCoords() { return { x: this.x, y: this.y }; }
@@ -954,8 +972,9 @@ function ordinalSuffix(rank: number) {
 class ClientData {
 	firstFrame = true;
 	readonly html: HTMLDivElement;
-	readonly laps: HTMLDivElement;
 	readonly camera = new Camera();
+	readonly backdrop = new gfx.RallyBackdrop();
+	readonly fx = new gfx.ParticleSystem();
 	private lastLevel = -1;
 	private lastRespawn = 0;
 	private lastX = Number.NaN;
@@ -965,11 +984,24 @@ class ClientData {
 	private revealItem = ITEM_NONE;
 	private lastGameTime = Number.NaN;
 	private frameDelta = 1 / 60;
+	/** Wall-clock style time that keeps running for purely cosmetic animations. */
+	visualTime = 0;
 	private readonly shellAnimations: Record<number, { step: number; delay: number }> = {};
+	private readonly shellTrails = new Map<number, { x: number; y: number }[]>();
 	private readonly lastBoostTimers: number[] = [];
 	private readonly lastStarTimers: number[] = [];
 	private readonly boostParticleTimers: number[] = [];
-	private particles: Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; color: string }> = [];
+	private readonly playerFx: Array<{
+		vy: number; grounded: boolean; hit: boolean; respawn: number;
+		laps: number; finished: boolean; dustTimer: number; sparkleTimer: number;
+	}> = [];
+	private readonly seenExplosions = new Set<number>();
+	private lastBoxCooldowns: number[] = [];
+	private shake = 0;
+	private lastRank = -1;
+	private rankPulse = 0;
+	private lapPulse = 0;
+	private banner: { text: string; sub: string | null; start: number; duration: number; colors: [string, string] } | null = null;
 
 	/** One entry per player; null for anonymous players. */
 	constructor(readonly names: (string | null)[] = []) {
@@ -980,17 +1012,42 @@ class ClientData {
 		this.html.style.inset = "0";
 		this.html.style.width = "100%";
 		this.html.style.height = "100%";
+		// The whole HUD (lap counter included) is drawn on the canvas.
+	}
 
-		// Keep only the lap counter in the DOM HUD; all other gameplay graphics use the canvas.
-		this.laps = document.createElement("div");
-		this.laps.classList.add("game-rally-laps");
-		this.laps.style.position = "absolute";
-		this.laps.style.left = "18px";
-		this.laps.style.top = "14px";
-		this.laps.style.color = "white";
-		this.laps.style.font = "bold 30px Arial, sans-serif";
-		this.laps.style.textShadow = "2px 2px 4px #000";
-		this.html.append(this.laps);
+	/** Camera shake offset in world units. */
+	getShake(): { x: number; y: number } {
+		if (this.shake <= 0.01) return { x: 0, y: 0 };
+		const t = this.visualTime * 60;
+		return {
+			x: Math.sin(t * 1.7) * this.shake * 18,
+			y: Math.cos(t * 2.3) * this.shake * 14,
+		};
+	}
+
+	/** Shell positions over the last frames, for motion trails. */
+	getShellTrail(entityId: number) {
+		return this.shellTrails.get(entityId) ?? [];
+	}
+
+	drawHud(ctx: CanvasRenderingContext2D, game: GMRally, playerIdx: number) {
+		const player = game.players[playerIdx];
+		const finished = player.finalRanking !== -1 || player.finished;
+		gfx.drawLapPanel(ctx, Math.min(player.lapsCompleted + 1, LAP_COUNT), LAP_COUNT, finished, game.levelTime, this.lapPulse);
+		gfx.drawProgressBar(ctx, WIDTH, LAP_COUNT, game.players.map((p, i) => ({
+			progress: game.getRaceProgress(i),
+			local: i === playerIdx,
+			finished: p.finished || p.finalRanking !== -1,
+		})).filter((_, i) => game.players[i].connected || i === playerIdx), this.visualTime);
+		if (this.banner) {
+			const age = this.visualTime - this.banner.start;
+			gfx.drawBanner(ctx, WIDTH, HEIGHT, this.banner.text, this.banner.sub, age, this.banner.duration, this.banner.colors);
+			if (age > this.banner.duration) this.banner = null;
+		}
+	}
+
+	private showBanner(text: string, sub: string | null, colors: [string, string], duration = 1.7) {
+		this.banner = { text, sub, start: this.visualTime, duration, colors };
 	}
 
 	/**
@@ -1010,7 +1067,17 @@ class ClientData {
 		const x = WIDTH - 24 - width;
 		const y = 200; // Below the item roulette box.
 
+		gfx.drawPanel(ctx, x, y, width, padding * 2 + rowHeight * finishers.length + 44);
 		ctx.save();
+		ctx.font = "900 24px 'Arial Black', Arial, sans-serif";
+		ctx.fillStyle = "#9fc3ff";
+		ctx.textAlign = "left";
+		ctx.textBaseline = "middle";
+		ctx.fillText("FINISHED", x + 18, y + padding + 14);
+		ctx.restore();
+
+		ctx.save();
+		ctx.translate(0, 40);
 		ctx.font = "bold 32px Arial, sans-serif";
 		ctx.textBaseline = "middle";
 		ctx.lineJoin = "round";
@@ -1057,14 +1124,14 @@ class ClientData {
 		ctx.save();
 
 		// 1. Font setups (Enlarged size)
-		const numberFont = "black 120px 'Arial Black', Impact, sans-serif";
-		const suffixFont = "bold 50px 'Arial Black', Impact, sans-serif";
+		const numberFont = "900 120px 'Arial Black', Impact, sans-serif";
+		const suffixFont = "900 50px 'Arial Black', Impact, sans-serif";
 
 		ctx.textBaseline = "bottom";
 
 		// 2. Measure text dimensions to avoid overlap and align properly from right margin
 		ctx.font = numberFont;
-		const numberWidth = ctx.measureText(`${rank}`).width*2 + 10;
+		const numberWidth = ctx.measureText(`${rank}`).width;
 
 		ctx.font = suffixFont;
 		const suffixWidth = ctx.measureText(suffix).width;
@@ -1079,6 +1146,15 @@ class ClientData {
 		const startX = WIDTH - marginX - totalWidth;
 		const numberY = HEIGHT - marginY;
 		const suffixY = numberY - 35; // Lift suffix up relative to the main baseline
+
+		// Pop when the position changes, scaled around the bottom-right anchor.
+		const pop = this.rankPulseAmount;
+		if (pop > 0) {
+			const s = 1 + Math.sin(pop * Math.PI) * 0.22;
+			ctx.translate(WIDTH - marginX, numberY);
+			ctx.scale(s, s);
+			ctx.translate(-(WIDTH - marginX), -numberY);
+		}
 
 		// 3. Dynamic color gradient based on rank position
 		const gradient = ctx.createLinearGradient(startX, numberY - 110, startX, numberY);
@@ -1270,17 +1346,18 @@ class ClientData {
 		ctx.restore();
 	}
 
-	/** Update the lap counter, camera, shell animations, and local-only particles. */
+	/** Update the camera, shell animations, event-driven effects and particles. */
 	update(game: GMRally, playerIdx: number) {
 		const player = game.players[playerIdx];
-		this.laps.innerText = player.finalRanking !== -1 || player.finished
-			? "Finished"
-			: `${Math.min(player.lapsCompleted + 1, LAP_COUNT)}/${LAP_COUNT}`;
 
 		this.frameDelta = Number.isFinite(this.lastGameTime)
 			? Math.max(0, Math.min(0.1, game.levelTime - this.lastGameTime))
 			: 1 / 60;
+		// A rewind (snapshot load) must not produce a negative or huge delta.
+		if (game.levelTime < this.lastGameTime) this.frameDelta = 0;
 		this.lastGameTime = game.levelTime;
+		this.visualTime += this.frameDelta > 0 ? this.frameDelta : 1 / 60;
+		const dt = this.frameDelta;
 
 		// Advance each projectile's animation independently and discard stale entries.
 		const liveShellIds = new Set<number>();
@@ -1294,9 +1371,22 @@ class ClientData {
 				animation.delay += SHELL_FRAME_DELAY;
 			}
 			this.shellAnimations[shell.entityId] = animation;
+
+			const trail = this.shellTrails.get(shell.entityId) ?? [];
+			const last = trail[trail.length - 1];
+			if (!last || Math.hypot(last.x - shell.x, last.y - shell.y) > 4) {
+				// A jump bigger than a few frames of travel is a snapshot correction: restart the trail.
+				if (last && Math.hypot(last.x - shell.x, last.y - shell.y) > 200) trail.length = 0;
+				trail.push({ x: shell.x, y: shell.y });
+				if (trail.length > 10) trail.shift();
+			}
+			this.shellTrails.set(shell.entityId, trail);
 		}
 		for (const id of Object.keys(this.shellAnimations)) {
 			if (!liveShellIds.has(Number(id))) delete this.shellAnimations[Number(id)];
+		}
+		for (const id of this.shellTrails.keys()) {
+			if (!liveShellIds.has(id)) this.shellTrails.delete(id);
 		}
 
 		// Emit a continuous, timed trail while a mushroom boost is active.
@@ -1305,8 +1395,15 @@ class ClientData {
 			const previousStar = this.lastStarTimers[i] ?? 0;
 			const starWasActivated = current.starTimer > previousStar + 0.05;
 			const boostStarted = current.boostTimer > previousBoost + 0.05 && !starWasActivated;
-			if (boostStarted) this.boostParticleTimers[i] = 0;
-			if (current.boostTimer > 0 && current.starTimer <= 0) {
+			if (boostStarted) {
+				this.boostParticleTimers[i] = 0;
+				this.fx.ring(current.x, current.y, 70, '#ffb300', 0.35);
+			}
+			if (starWasActivated) {
+				this.fx.burst(current.x, current.y, 18, 520, ['#fff59d', '#ffd54f', '#ffffff', '#80deea', '#f48fb1'], 'star');
+				this.fx.ring(current.x, current.y, 90, '#fff59d', 0.4);
+			}
+			if (current.boostTimer > 0 && current.starTimer <= 0 && current.respawn <= 0) {
 				this.boostParticleTimers[i] = (this.boostParticleTimers[i] ?? 0) - this.frameDelta;
 				while (this.boostParticleTimers[i] <= 0) {
 					this.spawnBoostTrailParticles(current.x, current.y, current.facing);
@@ -1319,13 +1416,19 @@ class ClientData {
 			this.lastStarTimers[i] = current.starTimer;
 		});
 
-		for (const particle of this.particles) {
-			particle.life -= this.frameDelta;
-			particle.x += particle.vx * this.frameDelta;
-			particle.y += particle.vy * this.frameDelta;
-			particle.vy += GRAVITY * 0.22 * this.frameDelta;
-		}
-		this.particles = this.particles.filter(p => p.life > 0);
+		if (dt > 0) this.detectPlayerEvents(game, playerIdx, dt);
+		if (dt > 0) this.detectWorldEvents(game, playerIdx);
+		this.fx.update(dt);
+
+		// Cosmetic decay.
+		this.shake = Math.max(0, this.shake - dt * 2.4);
+		this.rankPulse = Math.max(0, this.rankPulse - dt * 3);
+		this.lapPulse = Math.max(0, this.lapPulse - dt * 2);
+		const rank = game.getRaceRanking().indexOf(playerIdx) + 1;
+		if (this.lastRank > 0 && rank > 0 && rank !== this.lastRank) this.rankPulse = 1;
+		this.lastRank = rank;
+
+		this.camera.setBottomLimit(game.currentLevel().cameraBottom);
 
 		// Snap at match start and when a respawn finishes.
 		if (this.lastLevel !== game.levelIndex ||
@@ -1341,6 +1444,121 @@ class ClientData {
 		this.camera.update(player.x, player.y, player.facing, this.frameDelta || 1 / 60);
 	}
 
+	/** Dust, landings, hits, respawns and lap announcements, inferred from state changes. */
+	private detectPlayerEvents(game: GMRally, playerIdx: number, dt: number) {
+		game.players.forEach((p, i) => {
+			const surface = game.getPlayerSurface(i);
+			const prev = this.playerFx[i] ?? {
+				vy: p.vy, grounded: surface.grounded, hit: p.hit, respawn: p.respawn,
+				laps: p.lapsCompleted, finished: p.finished, dustTimer: 0, sparkleTimer: 0,
+			};
+			const feetY = p.y + PLAYER_H / 2;
+			const dustColor = surface.mud ? '#7a4f2e' : '#efe2c4';
+			const visible = p.respawn <= 0;
+
+			if (visible) {
+				// Landing puff, scaled by the impact speed.
+				if (surface.grounded && !prev.grounded && prev.vy > 380) {
+					const strength = Math.min(1, (prev.vy - 380) / 900);
+					this.fx.dust(p.x, feetY, 5 + Math.round(strength * 9), PLAYER_W, dustColor);
+				}
+				// Take-off puff.
+				if (prev.grounded && !surface.grounded && p.vy < -500) {
+					this.fx.dust(p.x, feetY, 5, PLAYER_W * 0.6, dustColor);
+				}
+				// Running dust.
+				prev.dustTimer -= dt;
+				if (surface.grounded && Math.abs(p.vx) > 180 && prev.dustTimer <= 0) {
+					this.fx.dust(p.x - Math.sign(p.vx) * PLAYER_W * 0.3, feetY, surface.mud ? 2 : 1, 10, dustColor, -Math.sign(p.vx));
+					prev.dustTimer = surface.mud ? 0.05 : 0.09;
+				}
+				// Wall slide scraping.
+				if (surface.wallSliding && prev.dustTimer <= 0) {
+					this.fx.dust(p.x + p.facing * PLAYER_W / 2, p.y + PLAYER_H * 0.3, 1, 6, '#d9d2c0');
+					prev.dustTimer = 0.06;
+				}
+				// Star sparkles.
+				prev.sparkleTimer -= dt;
+				if (p.starTimer > 0 && prev.sparkleTimer <= 0) {
+					this.fx.add({
+						kind: 'star', x: p.x + (Math.random() - 0.5) * 60, y: p.y + (Math.random() - 0.5) * 80,
+						vx: (Math.random() - 0.5) * 60, vy: -60 - Math.random() * 60,
+						life: 0.5, size: 6 + Math.random() * 5,
+						color: `hsl(${Math.floor(Math.random() * 360)}, 100%, 75%)`, spin: 6,
+					});
+					prev.sparkleTimer = 0.04;
+				}
+				// Got hit.
+				if (p.hit && !prev.hit) {
+					this.fx.burst(p.x, p.y, 16, 620, ['#ffffff', '#ffe082', '#ff8a65']);
+					this.fx.ring(p.x, p.y, 80, '#ffffff', 0.3);
+					if (i === playerIdx) this.shake = Math.max(this.shake, 0.7);
+				}
+			}
+
+			// Respawn sparkle.
+			if (prev.respawn > 0 && p.respawn <= 0) {
+				this.fx.burst(p.x, p.y, 20, 420, ['#b3e5fc', '#ffffff', '#81d4fa'], 'star');
+				this.fx.ring(p.x, p.y, 90, '#e1f5fe', 0.5);
+			}
+
+			// Local announcements.
+			if (i === playerIdx) {
+				const finishedNow = p.finished || p.finalRanking !== -1;
+				if (finishedNow && !prev.finished) {
+					const rank = (p.finalRanking >= 0 ? p.finalRanking : p.finishRank) + 1;
+					this.showBanner('FINISH!', rank > 0 ? `${rank}${ordinalSuffix(rank)} place` : null, ['#fff59d', '#ff9800'], 2.6);
+					this.fx.burst(p.x, p.y - 40, 40, 900, ['#ff5252', '#ffd740', '#69f0ae', '#40c4ff', '#e040fb', '#ffffff'], 'star');
+				} else if (!finishedNow && p.lapsCompleted > prev.laps && p.lapsCompleted < LAP_COUNT) {
+					const lap = p.lapsCompleted + 1;
+					if (lap === LAP_COUNT) this.showBanner('FINAL LAP!', null, ['#ffecb3', '#ff6f00']);
+					else this.showBanner(`LAP ${lap}`, null, ['#ffffff', '#64b5f6']);
+					this.lapPulse = 1;
+				}
+				prev.finished = finishedNow;
+			} else {
+				prev.finished = p.finished;
+			}
+
+			prev.vy = p.vy;
+			prev.grounded = surface.grounded;
+			prev.hit = p.hit;
+			prev.respawn = p.respawn;
+			prev.laps = p.lapsCompleted;
+			this.playerFx[i] = prev;
+		});
+	}
+
+	/** Explosions and item box pickups. */
+	private detectWorldEvents(game: GMRally, playerIdx: number) {
+		const local = game.players[playerIdx];
+		const live = new Set<number>();
+		for (const e of game.getExplosionsForFx()) {
+			live.add(e.id);
+			if (this.seenExplosions.has(e.id)) continue;
+			this.seenExplosions.add(e.id);
+			const blue = e.itemKind === ITEM_BLUE_SHELL;
+			const colors = blue ? ['#b3f5ff', '#40c4ff', '#ffffff'] : ['#fff59d', '#ffb74d', '#ff7043', '#ffffff'];
+			this.fx.burst(e.x, e.y, 46, 1300, colors);
+			this.fx.smoke(e.x, e.y, 14, e.radius);
+			this.fx.ring(e.x, e.y, e.radius * 1.1, blue ? '#b3f5ff' : '#fff3c4', 0.5);
+			const distance = Math.hypot(local.x - e.x, local.y - e.y);
+			this.shake = Math.max(this.shake, Math.max(0.25, 1.2 - distance / 1400));
+		}
+		for (const id of this.seenExplosions) if (!live.has(id)) this.seenExplosions.delete(id);
+
+		const items = game.currentLevel().items;
+		game.boxCooldowns.forEach((cooldown, i) => {
+			const before = this.lastBoxCooldowns[i] ?? 0;
+			const box = items[i];
+			if (box && cooldown > 0 && before <= 0) {
+				this.fx.burst(box.x, box.y, 14, 520, ['#80deea', '#fff59d', '#f48fb1', '#ffffff'], 'star');
+				this.fx.ring(box.x, box.y, 60, '#e0f7fa', 0.35);
+			}
+		});
+		this.lastBoxCooldowns = [...game.boxCooldowns];
+	}
+
 	/** Return the currently selected animation frame for one projectile. */
 	getShellFrame(entityId: number): number {
 		return this.shellAnimations[entityId]?.step ?? 0;
@@ -1351,30 +1569,25 @@ class ClientData {
 		const colors = ["#fff176", "#ffb300", "#ff6d00", "#ffffff", "#ff3d00"];
 		for (let i = 0; i < 5; i++) {
 			const life = 0.22 + Math.random() * 0.2;
-			this.particles.push({
+			this.fx.add({
+				kind: 'streak',
 				x: x - facing * (PLAYER_W * 0.35 + Math.random() * 14),
 				y: y + (Math.random() - 0.5) * PLAYER_H * 0.8,
 				vx: -facing * (180 + Math.random() * 260) + (Math.random() - 0.5) * 90,
 				vy: (Math.random() - 0.5) * 150,
-				life, maxLife: life, size: 4 + Math.random() * 6,
+				life, size: 4 + Math.random() * 6,
 				color: colors[Math.floor(Math.random() * colors.length)],
+				gravity: GRAVITY * 0.22,
 			});
 		}
 	}
-	/** Draw boost particles in world space, before the camera transform is restored. */
+
+	/** Particles in world space, before the camera transform is restored. */
 	drawParticles(ctx: CanvasRenderingContext2D) {
-		ctx.save();
-		for (const particle of this.particles) {
-			ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife);
-			ctx.fillStyle = particle.color;
-			ctx.shadowColor = particle.color;
-			ctx.shadowBlur = particle.size * 2.5;
-			ctx.beginPath();
-			ctx.ellipse(particle.x, particle.y, particle.size * 1.8, particle.size * 0.65, Math.atan2(particle.vy, particle.vx), 0, Math.PI * 2);
-			ctx.fill();
-		}
-		ctx.restore();
+		this.fx.draw(ctx);
 	}
+
+	get rankPulseAmount() { return this.rankPulse; }
 }
 
 class TutorialData {
@@ -1644,9 +1857,7 @@ function drawAnimatedItemBoxTexture(
 	ctx.save();
 	ctx.translate(cx, cy);
 	ctx.rotate(rotation);
-	ctx.globalAlpha *= 0.92;
-	ctx.shadowColor = '#8ffcff';
-	ctx.shadowBlur = 8 + (Math.sin(frame * 0.35) + 1) * 3;
+	ctx.globalAlpha *= 0.95;
 	ctx.drawImage(
 		texture,
 		sourceFrame * frameSize, 0, frameSize, height,
@@ -1669,29 +1880,9 @@ function drawSprite(
 ) {
 	if (size <= 0) return;
 	const texture = imageLoader.get(key);
-	if (!texture) {
-		if (!bombFallback) return;
-		ctx.save();
-		ctx.translate(cx, cy + Math.sin(phase) * size * 0.018);
-		ctx.rotate(rotation);
-		ctx.fillStyle = "#24242b";
-		ctx.strokeStyle = "#050508";
-		ctx.lineWidth = Math.max(2, size * 0.06);
-		ctx.beginPath();
-		ctx.arc(0, 2, size * 0.36, 0, Math.PI * 2);
-		ctx.fill();
-		ctx.stroke();
-		ctx.strokeStyle = "#bcbcbc";
-		ctx.lineWidth = Math.max(2, size * 0.08);
-		ctx.beginPath();
-		ctx.moveTo(size * 0.12, -size * 0.28);
-		ctx.lineTo(size * 0.28, -size * 0.48);
-		ctx.stroke();
-		ctx.fillStyle = "#ffd54f";
-		ctx.beginPath();
-		ctx.arc(size * 0.31, -size * 0.51, size * 0.09, 0, Math.PI * 2);
-		ctx.fill();
-		ctx.restore();
+	if (gfx.isMissingTexture(texture)) {
+		// The image loader returns a tiny placeholder for missing files.
+		if (bombFallback) gfx.drawBomb(ctx, cx, cy + Math.sin(phase) * size * 0.018, size, rotation, phase);
 		return;
 	}
 
@@ -1745,6 +1936,8 @@ export class GMRally extends GameMode {
 	levelIndex = 0;
 	levelTime = 0;
 	phase = PHASE_RACING;
+	/** Shared sky clock: drives cloud positions (and sun dimming) identically on every client. */
+	cloudStep = Math.random() * gfx.CLOUD_CYCLE;
 	intermission = 0; // Absolute levelTime deadline for the 30-second post-finish grace period; zero means inactive.
 	finishCount = 0;
 	boxCooldowns: number[] = [];
@@ -1951,6 +2144,45 @@ private getEntitiesOf<T extends Entity>(type: abstract new (...args: any[]) => T
 	/** Exposes live shell IDs to the client-side animation tracker. */
 	getShellsForAnimation(): Shell[] {
 		return this.getShells();
+	}
+
+	/** Live explosions, for client-side effects (debris, camera shake). */
+	getExplosionsForFx(): { id: number; x: number; y: number; radius: number; itemKind: number }[] {
+		return this.getExplosions().map(e => ({ id: e.entityId, x: e.x, y: e.y, radius: e.radius, itemKind: e.itemKind }));
+	}
+
+	/** Contact state of a player's body, for client-side effects only. */
+	getPlayerSurface(playerIdx: number): { grounded: boolean; mud: boolean; wallSliding: boolean } {
+		const block = this.engine?.getBlock(this.playerIds[playerIdx]) as PlayerBlock | null | undefined;
+		if (!block || !block.active) return { grounded: false, mud: false, wallSliding: false };
+		return { grounded: block.walker.onFloor(), mud: block.mudContact, wallSliding: block.wallSliding };
+	}
+
+	/** Whole-race progress in [0, 1]: completed laps plus the position along the current lap. */
+	getRaceProgress(playerIdx: number): number {
+		const p = this.players[playerIdx];
+		if (p.finished || p.finalRanking !== -1) return 1;
+		const level = this.currentLevel();
+		const startX = firstCheckpointPosition(level).x;
+		const span = Math.max(1, level.finishX - startX);
+		const lap = Math.max(0, Math.min(1, (p.x - startX) / span));
+		return Math.max(0, Math.min(1, (p.lapsCompleted + lap) / LAP_COUNT));
+	}
+
+	/** Top of the highest platform under (x, y), or null. Used for contact shadows. */
+	private floorBelow(x: number, y: number, maxDistance: number): number | null {
+		if (!this.engine) return null;
+		let best: number | null = null;
+		for (const entry of this.engine.getBlocks()) {
+			if (!(entry.block instanceof PlatformBlock)) continue;
+			const b = entry.block;
+			const halfW = b.def.w / 2;
+			if (x < b.x - halfW || x > b.x + halfW) continue;
+			const top = b.y - b.def.h / 2;
+			if (top < y - 2 || top - y > maxDistance) continue;
+			if (best === null || top < best) best = top;
+		}
+		return best;
 	}
 
 	private getHazard(entityId: number): Hazard | null {
@@ -2687,6 +2919,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 	private runRacing(dt: number) {
 		this.levelTime += dt;
+		this.cloudStep = (this.cloudStep + dt) % gfx.CLOUD_CYCLE;
 		this.boxCooldowns = this.boxCooldowns.map(c => Math.max(0, c - dt));
 		this.syncEntityBlocks();
 		this.engine!.update(dt);
@@ -2756,22 +2989,37 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 		data.update(this, playerIdx);
 
-		ctx.fillStyle = "#223";
-		ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
+		const level = this.currentLevel();
 		const cam = data.camera.getCoords();
+		const groundRef = firstCheckpointPosition(level).y;
+		data.backdrop.draw(ctx, WIDTH, HEIGHT, this.levelIndex, cam.x, cam.y, groundRef, this.cloudStep);
+
+		const shake = data.getShake();
 		ctx.save();
-		ctx.translate(WIDTH / 2, HEIGHT / 2);
+		ctx.translate(WIDTH / 2 + shake.x, HEIGHT / 2 + shake.y);
 		ctx.scale(Camera.SCALE, Camera.SCALE);
 		ctx.translate(-cam.x, -cam.y);
 
-		this.drawLevel(ctx, imageLoader, data);
+		const halfViewW = WIDTH / 2 / Camera.SCALE + 64;
+		const halfViewH = HEIGHT / 2 / Camera.SCALE + 64;
+		const view = { left: cam.x - halfViewW, right: cam.x + halfViewW, top: cam.y - halfViewH, bottom: cam.y + halfViewH };
+
+		data.backdrop.drawAbyss(ctx, this.levelIndex, view.left, view.right, level.deathY);
+		this.drawLevel(ctx, imageLoader, data, view);
 		this.drawDebugCheckpoints(ctx, playerIdx);
-		this.drawPlayers(ctx, imageLoader, playerIdx);
+		this.drawPlayers(ctx, imageLoader, playerIdx, data);
 		data.drawParticles(ctx);
 
-
 		ctx.restore();
+
+		// Speed lines while the local player is boosted.
+		const local = this.players[playerIdx];
+		const boost = local.respawn <= 0 ? Math.max(Math.min(1, local.boostTimer * 2), local.starTimer > 0 ? 0.7 : 0) : 0;
+		gfx.drawSpeedLines(ctx, WIDTH, HEIGHT, boost, local.facing, data.visualTime);
+		data.backdrop.drawCloudShade(ctx, WIDTH, HEIGHT, gfx.sunOcclusion(this.levelIndex, this.cloudStep));
+		data.backdrop.drawVignette(ctx, WIDTH, HEIGHT);
+
+		data.drawHud(ctx, this, playerIdx);
 		data.drawItemRoulette(ctx, this, playerIdx, imageLoader);
 		data.drawRacePosition(ctx, this, playerIdx);
 		data.drawFinishStandings(ctx, this, playerIdx);
@@ -2818,79 +3066,99 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 	}
 
 	/** Platforms, item boxes and finish line. */
-	private drawLevel(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, data: ClientData) {
+	private drawLevel(
+		ctx: CanvasRenderingContext2D,
+		imageLoader: ImageLoaderFolder,
+		data: ClientData,
+		view: { left: number; right: number; top: number; bottom: number }
+	) {
 		const level = this.currentLevel();
 		const engine = this.engine;
+		const time = data.visualTime;
 
-		// Repeat the square finish texture vertically rather than stretching it.
-		const finish = imageLoader.get('finish');
+		// Finish pole: it stands on the ground, its foot is the bottom of the last checkpoint.
 		{
-			const image = finish as HTMLImageElement;
-			const width = image.naturalWidth || (finish as HTMLCanvasElement).width || 0;
-			const height = image.naturalHeight || (finish as HTMLCanvasElement).height || 0;
-			const sourceTileSize = Math.min(width, height);
-			const destinationTileSize = 64;
 			const flagHeight = 1200;
-			// The flag stands on the ground: its foot is the bottom of the last checkpoint.
 			const lastCheckpoint = level.checkpoints[level.checkpoints.length - 1];
-			const top = (lastCheckpoint ? lastCheckpoint.y + (lastCheckpoint.h ?? GRID_SIZE) : 900) - flagHeight;
-			if (sourceTileSize > 0) {
-				for (let offset = 0; offset < flagHeight; offset += destinationTileSize) {
-					const drawHeight = Math.min(destinationTileSize, flagHeight - offset);
-					const sourceHeight = sourceTileSize * drawHeight / destinationTileSize;
-					ctx.drawImage(
-						finish,
-						0, 0, sourceTileSize, sourceHeight,
-						level.finishX - destinationTileSize / 2, top + offset,
-						destinationTileSize, drawHeight
-					);
-				}
+			const groundY = lastCheckpoint ? lastCheckpoint.y + (lastCheckpoint.h ?? GRID_SIZE) : 900;
+			if (level.finishX > view.left - 400 && level.finishX < view.right + 400) {
+				gfx.drawFinishLine(ctx, level.finishX, groundY, flagHeight, time);
 			}
 		}
 
-
-		// Draw terrain as 32-pixel tiles, preserving each skin's edge rules.
+		const platforms: PlatformBlock[] = [];
 		if (engine) {
 			for (const entry of engine.getBlocks()) {
 				if (!(entry.block instanceof PlatformBlock)) continue;
-				const block = entry.block;
-				const { width, height } = block.getSize();
-				const left = block.x - width / 2;
-				const top = block.y - height / 2;
-				const columns = Math.ceil(width / GRID_SIZE);
-				const rows = Math.ceil(height / GRID_SIZE);
-				const skin = block.def.skin ?? 'grass';
-				for (let row = 0; row < rows; row++) {
-					for (let column = 0; column < columns; column++) {
-						const x = left + column * GRID_SIZE;
-						const y = top + row * GRID_SIZE;
-						const tileW = Math.min(GRID_SIZE, width - column * GRID_SIZE);
-						const tileH = Math.min(GRID_SIZE, height - row * GRID_SIZE);
-						let key: string;
-						if (skin === 'grass') key = row === 0 ? 'block-grass-floor' : 'block-grass-grass';
-						else if (skin === 'platform') key = row === rows - 1 && column === 0 ? 'block-platform-left' : row === rows - 1 && column === columns - 1 ? 'block-platform-right' : 'block-platform-full';
-						else if (skin === 'vertical-trampoline' || skin === 'horizontal-trampoline') key = 'block-trampoline';
-						else if (skin === 'mud') key = 'block-mud';
-						else key = 'block-box';
-						const texture = imageLoader.get(key);
-						if (texture) {
-							if (skin === 'horizontal-trampoline') {
-								ctx.save(); ctx.translate(x + tileW / 2, y + tileH / 2); ctx.scale(-1, 1);
-								ctx.drawImage(texture, -tileW / 2, -tileH / 2, tileW, tileH); ctx.restore();
-							} else ctx.drawImage(texture, x, y, tileW, tileH);
-						} else { ctx.fillStyle = '#556'; ctx.fillRect(x, y, tileW, tileH); }
-					}
+				const b = entry.block;
+				const { width, height } = b.getSize();
+				const left = b.x - width / 2;
+				const top = b.y - height / 2;
+				if (left > view.right || left + width < view.left || top > view.bottom || top + height < view.top) continue;
+				platforms.push(b);
+			}
+		}
+		const rectOf = (b: PlatformBlock): gfx.Rect => {
+			const { width, height } = b.getSize();
+			return { left: b.x - width / 2, top: b.y - height / 2, width, height };
+		};
+
+		// Draw terrain as GRID_SIZE tiles, preserving each skin's edge rules.
+		for (const block of platforms) {
+			const r = rectOf(block);
+			const { left, top, width, height } = r;
+			const skin = block.def.skin ?? 'grass';
+			if (skin === 'vertical-trampoline' || skin === 'horizontal-trampoline') {
+				const texture = imageLoader.get('block-trampoline');
+				if (gfx.isMissingTexture(texture)) {
+					gfx.drawTrampoline(ctx, r, skin === 'horizontal-trampoline', time);
+					continue;
 				}
 			}
+			const columns = Math.ceil(width / GRID_SIZE);
+			const rows = Math.ceil(height / GRID_SIZE);
+			for (let row = 0; row < rows; row++) {
+				for (let column = 0; column < columns; column++) {
+					const x = left + column * GRID_SIZE;
+					const y = top + row * GRID_SIZE;
+					if (x > view.right || x + GRID_SIZE < view.left) continue;
+					if (y > view.bottom || y + GRID_SIZE < view.top) continue;
+					const tileW = Math.min(GRID_SIZE, width - column * GRID_SIZE);
+					const tileH = Math.min(GRID_SIZE, height - row * GRID_SIZE);
+					let key: string;
+					if (skin === 'grass') key = row === 0 ? 'block-grass-floor' : 'block-grass-grass';
+					else if (skin === 'platform') key = row === rows - 1 && column === 0 ? 'block-platform-left' : row === rows - 1 && column === columns - 1 ? 'block-platform-right' : 'block-platform-full';
+					else if (skin === 'vertical-trampoline' || skin === 'horizontal-trampoline') key = 'block-trampoline';
+					else if (skin === 'mud') key = 'block-mud';
+					else key = 'block-box';
+					const texture = imageLoader.get(key);
+					// Overlap tiles by one pixel to hide seams when the canvas is scaled.
+					if (texture) {
+						if (skin === 'horizontal-trampoline') {
+							ctx.save(); ctx.translate(x + tileW / 2, y + tileH / 2); ctx.scale(-1, 1);
+							ctx.drawImage(texture, -tileW / 2, -tileH / 2, tileW + 0.5, tileH + 0.5); ctx.restore();
+						} else ctx.drawImage(texture, x, y, tileW + 0.5, tileH + 0.5);
+					} else { ctx.fillStyle = '#556'; ctx.fillRect(x, y, tileW, tileH); }
+				}
+			}
+			gfx.drawPlatformShading(ctx, r, GRID_SIZE, skin);
+			if (skin === 'mud') gfx.drawMudDecor(ctx, r, time, Math.round(block.def.x));
+		}
+
+		// Grass blades and flowers on top of grass surfaces.
+		for (const b of platforms) {
+			if ((b.def.skin ?? 'grass') === 'grass') gfx.drawGrassDecor(ctx, rectOf(b), time, view.left, view.right);
 		}
 
 		// Cycle through the item-box sprite-sheet frames, using the same timing approach as red shells.
 		for (const [i, b] of level.items.entries()) {
 			if (this.boxCooldowns[i] > 0) continue;
+			if (b.x < view.left - 80 || b.x > view.right + 80 || b.y < view.top - 80 || b.y > view.bottom + 80) continue;
 			const phase = this.levelTime * 2.8 + i * 1.17;
 			const bob = Math.sin(phase) * 2.5;
 			const rotation = Math.sin(phase * 0.72) * 0.06;
 			const frame = Math.floor((this.levelTime + i * 0.07) / SHELL_FRAME_DELAY);
+			gfx.drawItemBoxHalo(ctx, b.x, b.y + bob, BOX_SIZE, phase + i);
 			drawAnimatedItemBoxTexture(ctx, imageLoader, b.x, b.y + bob, BOX_SIZE, frame, rotation);
 		}
 
@@ -2900,9 +3168,30 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			drawEntitySprite(ctx, imageLoader, 'banana', banana.x, banana.y, 42, tilt, this.levelTime * 2.2);
 		}
 		for (const bomb of this.getBombs()) {
-			drawEntitySprite(ctx, imageLoader, 'bomb', bomb.x, bomb.y, 42, 0, this.levelTime * 2.5);
+			const texture = imageLoader.get('bomb');
+			if (gfx.isMissingTexture(texture)) gfx.drawBomb(ctx, bomb.x, bomb.y, 46, Math.sin(time * 6) * 0.15, time);
+			else drawEntitySprite(ctx, imageLoader, 'bomb', bomb.x, bomb.y, 42, 0, this.levelTime * 2.5);
 		}
 		for (const shell of this.getShells()) {
+			const trail = data.getShellTrail(shell.entityId);
+			const color = shell.itemKind === ITEM_RED_SHELL ? '255, 82, 82' : shell.itemKind === ITEM_BLUE_SHELL ? '64, 196, 255' : '105, 240, 174';
+			ctx.save();
+			ctx.globalCompositeOperation = 'lighter';
+			trail.forEach((point, index) => {
+				const t = (index + 1) / (trail.length + 1);
+				ctx.fillStyle = `rgba(${color}, ${0.35 * t})`;
+				ctx.beginPath();
+				ctx.arc(point.x, point.y, 6 + 12 * t, 0, Math.PI * 2);
+				ctx.fill();
+			});
+			if (shell.itemKind === ITEM_BLUE_SHELL) {
+				const glow = ctx.createRadialGradient(shell.x, shell.y, 4, shell.x, shell.y, 60);
+				glow.addColorStop(0, 'rgba(120, 220, 255, 0.7)');
+				glow.addColorStop(1, 'rgba(40, 140, 255, 0)');
+				ctx.fillStyle = glow;
+				ctx.fillRect(shell.x - 60, shell.y - 60, 120, 120);
+			}
+			ctx.restore();
 			drawAnimatedShellTexture(ctx, imageLoader, shell.itemKind, shell.x, shell.y, 40, data.getShellFrame(shell.entityId));
 		}
 
@@ -2963,10 +3252,11 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		}
 	}
 
-	/** Draw all player sprites. */
-	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, localPlayerIdx: number) {
+	/** Draw all player sprites with shadows, auras and name tags. */
+	private drawPlayers(ctx: CanvasRenderingContext2D, imageLoader: ImageLoaderFolder, localPlayerIdx: number, data: ClientData) {
 		const engine = this.engine;
 		if (!engine) return;
+		const time = data.visualTime;
 
 		// Register once: ImageLoader also applies this rule to textures loaded later.
 		if (!this.enemyColorRuleRegistered) {
@@ -2984,16 +3274,30 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			setColorRule: (name, id, rules) => imageLoader.setColorRule(name, id, rules),
 		};
 
-		for (const [i, p] of this.players.entries()) {
+		// Local player last, so it is always drawn on top of opponents.
+		const order = this.players.map((_, i) => i).filter(i => i !== localPlayerIdx);
+		order.push(localPlayerIdx);
+
+		for (const i of order) {
+			const p = this.players[i];
 			const id = this.playerIds[i];
 			if (p.respawn > 0) continue; // off the map while waiting to respawn
 			const block = engine.getBlock(id);
 			if (!block) continue;
+			const feetY = block.y + PLAYER_H / 2;
+
+			const floor = this.floorBelow(block.x, feetY, 420);
+			if (floor !== null) gfx.drawGroundShadow(ctx, block.x, floor, floor - feetY, PLAYER_W * 1.3);
+
+			if (p.starTimer > 0) gfx.drawStarAura(ctx, block.x, block.y, time);
+			else if (p.boostTimer > 0) gfx.drawBoostGlow(ctx, block.x, block.y, p.facing, time);
 
 			// Star power applies a cycling rainbow hue to the entire player sprite.
 			ctx.save();
 			if (p.starTimer > 0) {
 				ctx.filter = `hue-rotate(${Math.floor((this.levelTime * 240) % 360)}deg) saturate(2)`;
+			} else if (p.hit && Math.floor(time * 20) % 2 === 0) {
+				ctx.globalAlpha = 0.55;
 			}
 			engine.getAnimator(id)?.draw(
 				block,
@@ -3001,6 +3305,11 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 				i === localPlayerIdx ? imageLoader : enemyImageLoader
 			);
 			ctx.restore();
+
+			const headY = feetY - PLAYER_H * 1.3;
+			if (p.hit) gfx.drawDizzyStars(ctx, block.x, headY, time);
+			const name = data.names[i] ?? `Player ${i + 1}`;
+			gfx.drawNameTag(ctx, block.x, headY - (p.hit ? 22 : 0), name, i === localPlayerIdx, time);
 		}
 	}
 
@@ -3063,6 +3372,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			nextEntityId: this.nextEntityId,
 			blueShellPunishmentLap: this.blueShellPunishmentLap,
 			itemSeed: this.itemSeed,
+			cloudStep: this.cloudStep,
 		};
 		return State.encode(object).finish();
 	}
@@ -3078,6 +3388,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 		this.levelTime = obj.levelTime ?? 0;
 		this.phase = obj.phase ?? PHASE_RACING;
 		this.intermission = obj.intermission ?? 0;
+		this.cloudStep = obj.cloudStep ?? 0;
 		this.finishCount = obj.finishCount ?? 0;
 		this.boxCooldowns = [...(obj.boxCooldowns ?? this.currentLevel().items.map(() => 0))];
 
