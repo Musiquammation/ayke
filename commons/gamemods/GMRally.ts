@@ -2408,7 +2408,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			if (player.item !== ITEM_NONE || player.pendingItem !== ITEM_NONE || player.itemRollTimer > 0) return;
 			const leaderIndex = this.findRaceLeader();
 			const leaderLap = leaderIndex >= 0 ? this.players[leaderIndex].lapsCompleted : -1;
-			if (leaderIndex !== playerIndex && leaderLap >= this.blueShellPunishmentLap) {
+			if (leaderIndex !== playerIndex && leaderLap >= this.blueShellPunishmentLap && !this.isBlueShellInPlay()) {
 				// Only the first non-leader to open an item box gets the shell for this leader lap.
 				this.blueShellPunishmentLap = leaderLap + 1;
 				player.pendingItem = ITEM_BLUE_SHELL;
@@ -2464,6 +2464,12 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 		// Hazard blocks are the source of truth; update existing blocks in place.
 		for (const hazard of [...this.getBananas(), ...this.getShells(), ...this.getBombs(), ...this.getExplosions()]) hazard.active = true;
+	}
+
+	/** True when a blue shell is held, being rolled, or already flying: only one may exist at a time. */
+	private isBlueShellInPlay(): boolean {
+		if (this.players.some(p => p.item === ITEM_BLUE_SHELL || p.pendingItem === ITEM_BLUE_SHELL)) return true;
+		return this.getShells().some(s => s instanceof BlueShell);
 	}
 
 	/** RNG is consumed only by the authority; the selected item is immediately shared. */
@@ -2525,8 +2531,9 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			);
 		};
 
-		// Evaluate and normalize the relative weights.
-		const weights = itemWeights.map(([item, values]) => [
+		// Evaluate and normalize the relative weights (no second blue shell while one is in play).
+		const blueInPlay = this.isBlueShellInPlay();
+		const weights = itemWeights.filter(([item]) => !blueInPlay || item !== ITEM_BLUE_SHELL).map(([item, values]) => [
 			item,
 			interpolate(values, t),
 		] as [number, number]);
