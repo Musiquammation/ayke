@@ -39904,8 +39904,11 @@ var BANANA_JUMP = -360;
 var SHELL_SPEED$1 = 820;
 var VX_MIN = SHELL_SPEED$1 * .72;
 var VX_MAX = SHELL_SPEED$1 * 1.35;
-var RED_SHELL_ACCEL = 760;
+var RED_SHELL_ACCEL = 1400;
 var SHELL_JUMP_VELOCITY = 560;
+var RED_SHELL_CATCHUP = 260;
+var RED_SHELL_MAX_JUMP = 1080;
+var RED_SHELL_LOOKAHEAD = .22;
 var BLUE_SHELL_SPEED = SHELL_SPEED$1 * 1.08;
 var BLUE_SHELL_VERTICAL_ACCEL = 8e3;
 var BLUE_SHELL_VY_MAX = 1500;
@@ -42763,6 +42766,12 @@ var Shell$1 = class extends Entity$1 {
 	wrapToStart = false;
 	/** Prevents a second wrap if the target is still left of the shell after it respawns. */
 	wrappedToStart = false;
+	/** Thrower index (-1 = none). Red shells never target nor hit their thrower. */
+	owner = -1;
+	/** Player index a red shell is locked onto (-1 = none yet). */
+	target = -1;
+	/** Red shell wedged in mid-air: it stops climbing walls until it lands. */
+	dropping = false;
 	constructor(entityId) {
 		super("shell", entityId, -1, HAZARD_SIZE);
 	}
@@ -42774,6 +42783,9 @@ var Shell$1 = class extends Entity$1 {
 		this.vy = state.vy ?? 0;
 		this.wrapToStart = state.wrapToStart ?? false;
 		this.wrappedToStart = state.wrappedToStart ?? false;
+		this.owner = (state.owner ?? 0) - 1;
+		this.target = (state.target ?? 0) - 1;
+		this.dropping = state.dropping ?? false;
 		this.active = true;
 	}
 	save() {
@@ -42783,6 +42795,11 @@ var Shell$1 = class extends Entity$1 {
 			...this.itemKind === ITEM_BLUE_SHELL$1 ? {
 				wrapToStart: this.wrapToStart,
 				wrappedToStart: this.wrappedToStart
+			} : {},
+			...this.itemKind === ITEM_RED_SHELL$1 ? {
+				owner: this.owner + 1,
+				target: this.target + 1,
+				dropping: this.dropping
 			} : {}
 		};
 		return {
@@ -43390,6 +43407,7 @@ var GMRally = class GMRally extends GameMode {
 			this.explodeAt(hazard.x, hazard.y, ITEM_BLUE_SHELL$1);
 			this.removeHazard(hazard.entityId);
 		} else if (hazard instanceof Shell$1) {
+			if (hazard instanceof RedShell && playerIndex === hazard.owner) return;
 			this.hitPlayer(playerIndex);
 			this.removeHazard(hazard.entityId);
 		}
@@ -43577,6 +43595,7 @@ var GMRally = class GMRally extends GameMode {
 		shell.y = player.y;
 		shell.vx = (kind === ITEM_BLUE_SHELL$1 ? BLUE_SHELL_SPEED : SHELL_SPEED$1) * direction;
 		shell.vy = kind === ITEM_BLUE_SHELL$1 ? player.vy - BLUE_SHELL_JUMP : 0;
+		shell.owner = owner;
 		this.addHazard(shell);
 	}
 	getRaceRanking(_includeFinished = true, includeDisconnected = false) {
@@ -43666,7 +43685,9 @@ var GMRally = class GMRally extends GameMode {
 		return platforms.some((platform) => Math.abs(bottom - (platform.y - platform.h / 2)) <= 2.5 && Math.abs(hazard.x - platform.x) * 2 < platform.w + size * .82);
 	}
 	/** Axis-separated platform collision for falling items and rolling shells. */
-	moveProjectile(hazard, dt, platforms, bounceAtWall, canNeverReverse) {
+	moveProjectile(hazard, dt, platforms, bounceAtWall, canNeverReverse, slideDownWalls = false) {
+		let hitWall = false;
+		let hitCeiling = false;
 		hazard.vy = Math.min(hazard.vy + GRAVITY$4 * dt, 1250);
 		hazard.x += hazard.vx * dt;
 		for (const platform of platforms) {
@@ -43678,7 +43699,8 @@ var GMRally = class GMRally extends GameMode {
 			}, platform)) continue;
 			if (hazard.vx > 0) hazard.x = platform.x - platform.w / 2 - HAZARD_SIZE / 2;
 			else if (hazard.vx < 0) hazard.x = platform.x + platform.w / 2 + HAZARD_SIZE / 2;
-			if (canNeverReverse) {
+			hitWall = true;
+			if (canNeverReverse && slideDownWalls) {} else if (canNeverReverse) {
 				const obstacleTop = platform.y - platform.h / 2;
 				const requiredRise = Math.max(0, hazard.y - (obstacleTop - HAZARD_SIZE / 2) + 28);
 				const wallJump = Math.sqrt(2 * GRAVITY$4 * requiredRise);
@@ -43700,8 +43722,117 @@ var GMRally = class GMRally extends GameMode {
 			} else {
 				hazard.y = platform.y + platform.h / 2 + HAZARD_SIZE / 2;
 				hazard.vy = 80;
+				hitCeiling = true;
 			}
 		}
+		return {
+			hitWall,
+			hitCeiling
+		};
+	}
+	/** Top of the highest platform under (x, fromY - 4) within `depth` pixels, or null. */
+	groundTopAt(x, fromY, depth, platforms) {
+		let best = null;
+		for (const platform of platforms) {
+			if (Math.abs(x - platform.x) * 2 > platform.w) continue;
+			const top = platform.y - platform.h / 2;
+			if (top < fromY - 4 || top > fromY + depth) continue;
+			if (best === null || top < best) best = top;
+		}
+		return best;
+	}
+	/** Distance the shell still has to travel to reach `player`, following the lap wrap when going right. */
+	redShellForwardDistance(shell, player, direction) {
+		const level = this.currentLevel();
+		let dx = (player.x - shell.x) * direction;
+		if (dx < -24) {
+			if (direction < 0) return Number.POSITIVE_INFINITY;
+			dx += Math.max(1, level.finishX - level.spawnX);
+		}
+		return Math.max(0, dx);
+	}
+	/**
+	* Red shell guidance. The heading never reverses: the shell locks onto the nearest
+	* opponent ahead, keeps that lock until the target is gone or overtaken, outpaces it,
+	* and uses jumps to climb toward it, cross gaps and clear bananas.
+	* Returns true when an airborne shell should slide down walls rather than climb them.
+	*/
+	steerRedShell(shell, dt, platforms) {
+		const direction = shell.vx < 0 ? -1 : 1;
+		const isValid = (index) => {
+			const player = this.players[index];
+			return !!player && index !== shell.owner && player.connected && !player.finished && player.respawn <= 0;
+		};
+		if ((shell.target >= 0 && isValid(shell.target) && (this.players[shell.target].x - shell.x) * direction >= -48 ? shell.target : -1) < 0) {
+			let best = -1;
+			let bestDistance = Number.POSITIVE_INFINITY;
+			for (let i = 0; i < this.players.length; i++) {
+				if (!isValid(i)) continue;
+				const distance = this.redShellForwardDistance(shell, this.players[i], direction);
+				if (distance < bestDistance) {
+					best = i;
+					bestDistance = distance;
+				}
+			}
+			shell.target = best;
+		}
+		const target = shell.target >= 0 ? this.players[shell.target] : void 0;
+		const speed = Math.abs(shell.vx);
+		let desiredSpeed = SHELL_SPEED$1;
+		const forwardDx = target ? this.redShellForwardDistance(shell, target, direction) : Number.POSITIVE_INFINITY;
+		if (target && Number.isFinite(forwardDx)) {
+			desiredSpeed = VX_MIN + Math.max(0, forwardDx - 90) * .32;
+			if (forwardDx < 900) desiredSpeed = Math.max(desiredSpeed, target.vx * direction + RED_SHELL_CATCHUP);
+		}
+		desiredSpeed = Math.max(VX_MIN, Math.min(VX_MAX, desiredSpeed));
+		const nextSpeed = speed < desiredSpeed ? Math.min(desiredSpeed, speed + RED_SHELL_ACCEL * dt) : Math.max(desiredSpeed, speed - RED_SHELL_ACCEL * dt);
+		shell.vx = direction * nextSpeed;
+		const bottom = shell.y + HAZARD_SIZE / 2;
+		const hasTarget = !!target && Number.isFinite(forwardDx);
+		const targetFeet = target ? target.y + PLAYER_H$1 / 2 : 0;
+		const targetIsAbove = hasTarget && targetFeet < bottom - GRID_SIZE / 2;
+		const targetIsBelow = hasTarget && targetFeet > bottom + GRID_SIZE;
+		if (!this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) return shell.dropping || !targetIsAbove;
+		shell.dropping = false;
+		const front = shell.x + direction * HAZARD_SIZE / 2;
+		const lookahead = nextSpeed * RED_SHELL_LOOKAHEAD;
+		if (target && Number.isFinite(forwardDx)) {
+			const apexTime = Math.min(RED_SHELL_MAX_JUMP / GRAVITY$4, .6);
+			const predictedY = target.y + target.vy * apexTime * .5;
+			const rise = shell.y - predictedY;
+			if (rise > PLAYER_H$1 * .75) {
+				const jump = Math.sqrt(2 * GRAVITY$4 * (rise + 12));
+				if (jump <= RED_SHELL_MAX_JUMP) {
+					const time = jump / GRAVITY$4;
+					if (forwardDx <= Math.max(1, nextSpeed - target.vx * direction) * time + PLAYER_W$1) {
+						shell.vy = -jump;
+						return false;
+					}
+				}
+			}
+		}
+		for (const banana of this.getBananas()) {
+			if (!banana.active || !banana.grounded || Math.abs(banana.y - shell.y) > HAZARD_SIZE) continue;
+			const ahead = (banana.x - shell.x) * direction;
+			if (ahead > HAZARD_SIZE * .5 && ahead < HAZARD_SIZE + lookahead) {
+				shell.vy = -520;
+				return false;
+			}
+		}
+		const probe = front + direction * lookahead;
+		if (this.groundTopAt(probe, bottom, 192, platforms) !== null) return false;
+		if (targetIsBelow) return false;
+		const step = GRID_SIZE / 4;
+		for (let distance = lookahead + step; distance <= 640; distance += step) {
+			const landing = this.groundTopAt(front + direction * distance, bottom - 192, 384, platforms);
+			if (landing === null) continue;
+			const flightTime = (distance + HAZARD_SIZE) / Math.max(1, nextSpeed);
+			const drop = landing - bottom;
+			const jump = (GRAVITY$4 * flightTime * flightTime / 2 - drop) / flightTime;
+			shell.vy = -Math.max(SHELL_JUMP_VELOCITY * .6, Math.min(RED_SHELL_MAX_JUMP, jump));
+			return false;
+		}
+		return false;
 	}
 	/** Update authoritative hazards, projectile guidance, and explosion lifetimes. */
 	updateHazards(dt) {
@@ -43747,22 +43878,22 @@ var GMRally = class GMRally extends GameMode {
 				shell.vy = Math.max(-1500, Math.min(BLUE_SHELL_VY_MAX, shell.vy));
 				shell.y += shell.vy * dt;
 			} else {
-				if (shell.itemKind === ITEM_RED_SHELL$1) {
-					const direction = shell.vx < 0 ? -1 : 1;
-					const target = this.players.filter((player) => !player.finished && player.connected).filter((player) => direction > 0 ? player.x > shell.x : player.x < shell.x).sort((a, b) => direction > 0 ? a.x - b.x : b.x - a.x)[0] ?? (direction > 0 ? this.players.filter((player) => !player.finished && player.connected).sort((a, b) => a.x - b.x)[0] : void 0);
-					if (target) {
-						const forwardDx = (target.x - shell.x) * direction;
-						const desiredSpeed = Math.max(VX_MIN, Math.min(VX_MAX, VX_MIN + Math.max(0, forwardDx - 90) * .32));
-						const speed = Math.abs(shell.vx);
-						const nextSpeed = speed < desiredSpeed ? Math.min(desiredSpeed, speed + RED_SHELL_ACCEL * dt) : Math.max(desiredSpeed, speed - RED_SHELL_ACCEL * dt);
-						shell.vx = direction * Math.max(VX_MIN, Math.min(VX_MAX, nextSpeed));
-						if (target.y < shell.y - 24 && this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) shell.vy = -560;
+				const slideDownWalls = shell.itemKind === ITEM_RED_SHELL$1 && this.steerRedShell(shell, dt, platforms);
+				const contact = this.moveProjectile(shell, dt, platforms, shell.itemKind === ITEM_GREEN_SHELL$1, shell.itemKind === ITEM_RED_SHELL$1, slideDownWalls);
+				if (shell.itemKind === ITEM_RED_SHELL$1 && contact.hitWall && contact.hitCeiling) {
+					if (this.hazardIsSupported(shell, HAZARD_SIZE, platforms)) {
+						this.removeHazard(shell.entityId);
+						continue;
 					}
+					shell.dropping = true;
 				}
-				this.moveProjectile(shell, dt, platforms, shell.itemKind === ITEM_GREEN_SHELL$1, shell.itemKind === ITEM_RED_SHELL$1);
 				if (shell.itemKind === ITEM_RED_SHELL$1) shell.vx = (shell.vx < 0 ? -1 : 1) * Math.max(VX_MIN, Math.min(VX_MAX, Math.abs(shell.vx)));
 			}
 			if (shell.itemKind !== ITEM_BLUE_SHELL$1 && shell.x > level.finishX) shell.x = level.spawnX;
+			if (shell.itemKind !== ITEM_BLUE_SHELL$1 && shell.y > level.deathY) {
+				this.removeHazard(shell.entityId);
+				continue;
+			}
 			liveShells.push(shell);
 		}
 		const bananas = this.getBananas().filter((banana) => banana.active);
@@ -90914,7 +91045,8 @@ var CHANGELOGS = [
 		lines: [
 			"<ust>Rally:</ust> three new levels: *Spring Valley*, *Sky Lift* and *Muddy Canyon*",
 			"<ust>Rally:</ust> levels *Default* and *Chamois* reworked (start walls, new spring shortcut, fixed jumps and checkpoints)",
-			"<ust>Rally:</ust> smarter bots and only one blue shell in play at a time"
+			"<ust>Rally:</ust> smarter bots and only one blue shell in play at a time",
+			"<ust>Rally:</ust> red shells now home in on the nearest opponent ahead, jump to reach them and never hit their thrower"
 		]
 	},
 	{
