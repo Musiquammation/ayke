@@ -1,0 +1,60 @@
+<div x-data="data">
+	<style>
+		.hunt-panel__title {
+			margin: 0 0 1vh 0;
+		}
+
+		.hunt-panel__colors {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.8vh;
+		}
+
+		.hunt-panel__color {
+			width: 4.5vh;
+			height: 4.5vh;
+			border: 0.4vh solid transparent;
+			border-radius: 50%;
+			cursor: pointer;
+		}
+
+		.hunt-panel__color.selected {
+			border-color: white;
+			box-shadow: 0 0 0 0.3vh #3b82f6;
+		}
+
+		.hunt-panel__status {
+			margin-top: 1vh;
+			opacity: 0.8;
+		}
+
+		.hunt-panel__controls {
+			margin-top: 1.5vh;
+			font-size: 0.9em;
+			opacity: 0.75;
+			line-height: 1.5;
+		}
+	</style>
+
+	<p class="hunt-panel__title">Your color</p>
+	<div class="hunt-panel__colors">
+		<template x-for="(c, index) in COLORS" :key="c">
+			<button
+				type="button"
+				class="hunt-panel__color"
+				:class="{ selected: color === index }"
+				:style="{ background: c }"
+				:aria-label="COLOR_NAMES[index]"
+				@pointerup="color = index"
+			></button>
+		</template>
+	</div>
+	<p class="hunt-panel__status" x-text="'Selected: ' + COLOR_NAMES[color]"></p>
+
+	<div class="hunt-panel__controls">
+		<div>ZQSD: move · Space: jump</div>
+		<div>Left click: shoot · 1 2 3 / wheel: weapon</div>
+		<div>Shift (hold): lock the target under the cursor · while locked, jump + Q/D: side jump</div>
+		<div>Right click (hold): item mode · release: use item · + 1-4 / wheel: select item · + middle click: cancel</div>
+	</div>
+</div>

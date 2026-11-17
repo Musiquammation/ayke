@@ -34,6 +34,8 @@ import bots_jumpies from "./bots/bots-jumpies";
 
 import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
+import { GMHunt } from "./gamemods/GMHunt";
+import bots_hunt from "./bots/bots-hunt";
 
 
 interface Player {
@@ -191,6 +193,25 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 8,
 		nodes: bots_rally
+	},
+
+	hunt: {
+		type: 'multiplayer',
+		server: GMHunt.createServ,
+		client: GMHunt.createClient,
+		dom: GMHunt.generateClientDom,
+		textures: GMHunt.TEXTURES,
+		name: "Hunt",
+		description: "Jump, lock your targets and get 10 kills before everybody else.",
+		tropheesPerPlayer: 15,
+		explainationSlides: null,
+		computerOnly: true,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'png',
+		defaultPlayerCount: 6,
+		nodes: bots_hunt
 	},
 
 	crayzoll: {

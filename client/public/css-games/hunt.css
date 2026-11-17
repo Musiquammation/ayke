@@ -1,0 +1,231 @@
+/* Root overlay: fixed on top of the canvas, never intercepts clicks */
+.game-hunt-root {
+	position: fixed;
+	inset: 0;
+
+	font-family: sans-serif;
+	font-size: 2vh;
+	color: white;
+
+	pointer-events: none;
+	user-select: none;
+}
+
+/* Remaining time and goal, at the top center */
+.game-hunt-top {
+	position: absolute;
+	top: 2vh;
+	left: 50%;
+	transform: translateX(-50%);
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.game-hunt-time {
+	font-size: 4.5vh;
+	font-weight: bold;
+	text-shadow: 0 0.3vh 0.6vh rgba(0, 0, 0, 0.7);
+}
+
+.game-hunt-goal {
+	font-size: 1.8vh;
+	opacity: 0.8;
+}
+
+/* Leaderboard, top right */
+.game-hunt-board {
+	position: absolute;
+	top: 2vh;
+	right: 2vw;
+
+	min-width: 16vw;
+	padding: 1vh 1vw;
+	border-radius: 1vh;
+	background: rgba(0, 0, 0, 0.45);
+}
+
+.game-hunt-row {
+	display: flex;
+	align-items: center;
+	gap: 0.6vw;
+	padding: 0.3vh 0;
+}
+
+.game-hunt-row.game-hunt-self {
+	color: #93c5fd;
+	font-weight: bold;
+}
+
+.game-hunt-rank {
+	width: 1.5vw;
+	opacity: 0.7;
+}
+
+.game-hunt-dot {
+	width: 1.4vh;
+	height: 1.4vh;
+	border-radius: 50%;
+}
+
+.game-hunt-name {
+	flex: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.game-hunt-kills {
+	font-weight: bold;
+}
+
+/* Kill feed, top left */
+.game-hunt-feed {
+	position: absolute;
+	top: 2vh;
+	left: 2vw;
+
+	display: flex;
+	flex-direction: column;
+	gap: 0.5vh;
+}
+
+.game-hunt-feed-line {
+	padding: 0.4vh 0.8vw;
+	border-radius: 0.6vh;
+	background: rgba(0, 0, 0, 0.45);
+	font-weight: bold;
+}
+
+/* Respawn countdown / game over, in the middle of the screen */
+.game-hunt-respawn {
+	position: absolute;
+	top: 40vh;
+	left: 50%;
+	transform: translateX(-50%);
+
+	padding: 1.5vh 2vw;
+	border-radius: 1vh;
+	background: rgba(0, 0, 0, 0.55);
+	font-size: 4vh;
+	font-weight: bold;
+}
+
+/* Bottom bar: weapons on the left, items on the right */
+.game-hunt-bottom {
+	position: absolute;
+	bottom: 2.5vh;
+	left: 50%;
+	transform: translateX(-50%);
+
+	display: flex;
+	align-items: flex-end;
+	gap: 3vw;
+}
+
+.game-hunt-weapons,
+.game-hunt-items {
+	display: flex;
+	gap: 0.8vw;
+	padding: 0.8vh;
+	border-radius: 1.2vh;
+	background: rgba(0, 0, 0, 0.4);
+}
+
+.game-hunt-weapon {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+
+	width: 8vh;
+	height: 8vh;
+	border: 0.4vh solid;
+	border-radius: 1vh;
+	opacity: 0.55;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.game-hunt-weapon.game-hunt-selected {
+	opacity: 1;
+	transform: translateY(-0.8vh);
+	background: rgba(255, 255, 255, 0.16);
+}
+
+.game-hunt-weapon-ammo {
+	font-size: 2.6vh;
+	font-weight: bold;
+	line-height: 1;
+}
+
+.game-hunt-weapon.game-hunt-empty .game-hunt-weapon-ammo {
+	color: #ef4444;
+}
+
+.game-hunt-weapon-name {
+	font-size: 1.5vh;
+	font-weight: bold;
+}
+
+/* Small key hint in the corner of a slot */
+.game-hunt-key,
+.game-hunt-item-index,
+.game-hunt-items-key {
+	font-size: 1.3vh;
+	opacity: 0.75;
+}
+
+.game-hunt-key {
+	position: absolute;
+	top: 0.3vh;
+	left: 0.5vh;
+}
+
+.game-hunt-items-key {
+	align-self: center;
+	padding: 0 0.3vw;
+	font-weight: bold;
+}
+
+/* Item slots; glowing while the item mode (right click held) is on */
+.game-hunt-items.game-hunt-item-mode {
+	box-shadow: 0 0 0 0.3vh #3b82f6, 0 0 2vh #3b82f6;
+}
+
+.game-hunt-item {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+
+	width: 7vh;
+	height: 7vh;
+	border: 0.3vh solid rgba(255, 255, 255, 0.25);
+	border-radius: 1vh;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.game-hunt-item.game-hunt-selected {
+	border-color: #3b82f6;
+	background: rgba(59, 130, 246, 0.25);
+}
+
+.game-hunt-item img {
+	width: 4.2vh;
+	height: 4.2vh;
+	image-rendering: pixelated;
+}
+
+.game-hunt-item-name {
+	font-size: 1.2vh;
+	text-align: center;
+}
+
+.game-hunt-item .game-hunt-item-index {
+	position: absolute;
+	top: 0.2vh;
+	left: 0.5vh;
+}

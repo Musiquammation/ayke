@@ -1,0 +1,232 @@
+syntax = "proto3";
+
+package game_hunt;
+
+message Empty {}
+
+
+/* -------------------------------------------------------------------------- */
+/* State                                                                      */
+/* -------------------------------------------------------------------------- */
+
+message PlayerState {
+	bool connected = 1;
+
+	// Position (x, y on the ground plane, z = altitude of the feet) and velocity
+	float x = 2;
+	float y = 3;
+	float z = 4;
+	float vx = 5;              // only used during a super jump, a side jump or a knockback
+	float vy = 6;
+	float vz = 7;
+
+	// Movement direction requested by the player (-1, 0 or 1 on each axis)
+	int32 moveX = 8;
+	int32 moveY = 9;
+	bool jumpQueued = 10;
+
+	// Life
+	float hp = 11;
+	float respawn = 12;        // < 0 when alive, otherwise seconds before respawning
+	float sinceCombat = 13;    // seconds since the last damage taken or shot fired
+	float spawnShield = 14;    // invulnerability left after a respawn
+	int32 lastAttacker = 15;   // -1 when nobody hit this player recently
+
+	// Weapons
+	int32 weapon = 16;         // 0, 1 or 2
+	reserved 17 to 19;         // old cartridge fields (ammo, ammoDrainTo, reloadDelay)
+	float shotCooldown = 20;
+	float facing = 21;         // angle (radians) of the last shot, for drawing
+
+	// Items
+	repeated int32 items = 22; // always ITEM_SLOTS entries, 0 = empty
+	int32 selectedItem = 23;
+	bool leaping = 24;         // super jump in progress
+	reserved 25 to 30;         // old dash / boomerang / stun timer fields
+
+	// Score
+	int32 kills = 31;
+	int32 deaths = 32;
+	float damageDealt = 33;
+	float lastKillTime = 34;   // game clock when the current kill count was reached
+
+	// Lock (shift held): homing shots, side jumps
+	int32 lockKind = 35;       // 0 = none, 1 = player, 2 = box
+	int32 lockIdx = 36;
+	bool sideJump = 37;        // lateral jump in progress (vx / vy hold its speed)
+
+	// Effects suffered
+	bool launched = 38;        // thrown by a blast or a shell: stunned until landing (vx / vy hold its speed)
+	float slowTimer = 39;      // slowed by an ice zone while > 0
+	float pushX = 40;          // shotgun push (added to the walking speed, fades out)
+	float pushY = 41;
+	repeated int32 ammo = 42;  // ammo of each weapon (one ammo = one shot)
+}
+
+message ProjectileState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float vx = 4;
+	float vy = 5;
+	float vz = 6;
+	int32 owner = 7;
+	int32 weapon = 8;
+	float rangeLeft = 9;
+	float damage = 10;
+	int32 homingKind = 11;     // entity followed by a homing bullet (same values as lockKind)
+	int32 homingIdx = 12;
+}
+
+message BombState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float vx = 4;
+	float vy = 5;
+	float vz = 6;
+	int32 owner = 7;
+	int32 kind = 8;            // 0 = explosive, 1 = ice
+}
+
+message ShellState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float vx = 4;
+	float vy = 5;
+	float vz = 6;
+	int32 owner = 7;
+	int32 bounces = 8;         // walls bounced on so far
+	float armTime = 9;         // > 0: the thrower and the other shells are ignored
+	float life = 10;
+}
+
+message IceZoneState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float remaining = 4;
+}
+
+message ExplosionState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float remaining = 4;
+}
+
+// The static blocks of the map are never sent.
+message BoxState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	float vx = 4;
+	float vy = 5;
+	float vz = 6;
+	float hp = 7;
+	float respawn = 8;         // <= 0 when the box stands, otherwise seconds before respawning
+	int32 breaks = 9;          // how many times this box has been broken (drives the dropped item)
+	reserved 10;               // old boomerang carry
+}
+
+message PickupState {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+	int32 item = 4;            // 0 for an ammo pickup
+	float life = 5;
+	int32 ammoWeapon = 6;      // weapon of an ammo pickup, -1 for an item
+	int32 ammoAmount = 7;
+}
+
+message KillEvent {
+	int32 killer = 1;          // -1 when nobody gets the credit
+	int32 victim = 2;
+	float remaining = 3;
+}
+
+message State {
+	repeated PlayerState players = 1;
+	repeated BoxState boxes = 2;
+	repeated ProjectileState projectiles = 3;
+	repeated BombState bombs = 4;
+	reserved 5;                // old boomerangs
+	repeated ExplosionState explosions = 6;
+	repeated PickupState pickups = 7;
+	repeated KillEvent killFeed = 8;
+	float time = 9;            // time left (seconds)
+	bool finished = 10;
+	repeated ShellState shells = 11;
+	repeated IceZoneState iceZones = 12;
+	uint32 drops = 13;         // items dropped so far (position in ITEM_DROP_CYCLE)
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Inputs                                                                     */
+/* -------------------------------------------------------------------------- */
+
+message MoveInput {
+	int32 x = 1;
+	int32 y = 2;
+}
+
+message LockInput {
+	int32 kind = 1;            // 0 = none, 1 = player, 2 = box
+	int32 idx = 2;
+}
+
+message AimInput {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		MoveInput move = 2;
+		Empty jump = 3;
+		AimInput shoot = 4;
+		int32 weapon = 5;
+		AimInput useItem = 6;
+		int32 selectItem = 7;
+		float face = 8;            // direction of the gun (radians)
+		LockInput lock = 9;
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Start data                                                                 */
+/* -------------------------------------------------------------------------- */
+
+message StartData {
+	int32 color = 1;           // index into the color palette
+}
+
+message StartPlayerInfo {
+	string name = 1;
+	int32 color = 2;
+}
+
+message StartDataClient {
+	repeated StartPlayerInfo players = 1;
+}

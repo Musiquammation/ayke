@@ -24,11 +24,15 @@ export class MouseController implements IMouseController {
 	private firsts: Set<number> = new Set();
 	private kills: Set<number> = new Set();
 
+	// Wheel notches accumulated since the last frame
+	private wheelDelta = 0;
+
 	init() {
 		// Bind event listeners. Using arrow functions to preserve the 'this' context.
 		window.addEventListener("mousemove", this.handleMouseMove);
 		window.addEventListener("mousedown", this.handleMouseDown);
 		window.addEventListener("mouseup", this.handleMouseUp);
+		window.addEventListener("wheel", this.handleWheel, { passive: true });
 	}
 
 	setScreenCoordsAdapter(
@@ -92,10 +96,16 @@ export class MouseController implements IMouseController {
 		return this.kills.has(button);
 	}
 
+	wheel(): number {
+		// Returns the wheel notches scrolled during this frame
+		return this.wheelDelta;
+	}
+
 	frame() {
 		// Clear "just pressed" and "just released" states for the next frame
 		this.firsts.clear();
 		this.kills.clear();
+		this.wheelDelta = 0;
 	}
 
 	// Clean up method to avoid memory leaks (optional but highly recommended)
@@ -103,6 +113,7 @@ export class MouseController implements IMouseController {
 		window.removeEventListener("mousemove", this.handleMouseMove);
 		window.removeEventListener("mousedown", this.handleMouseDown);
 		window.removeEventListener("mouseup", this.handleMouseUp);
+		window.removeEventListener("wheel", this.handleWheel);
 	}
 
 	// --- Event Handlers ---
@@ -114,11 +125,19 @@ export class MouseController implements IMouseController {
 
 	private handleMouseDown = (e: MouseEvent) => {
 		const button = e.button;
+		// Middle click: no autoscroll (games use it as a button)
+		if (button === 1)
+			e.preventDefault();
 		// If the button wasn't already pressed, it's the first time
 		if (!this.presses.has(button)) {
 			this.firsts.add(button);
 		}
 		this.presses.add(button);
+	};
+
+	private handleWheel = (e: WheelEvent) => {
+		if (e.deltaY !== 0)
+			this.wheelDelta += Math.sign(e.deltaY);
 	};
 
 	private handleMouseUp = (e: MouseEvent) => {

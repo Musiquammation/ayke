@@ -8,6 +8,26 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.8",
+		date: 1794931200000, // Tue. 17 nov 2026 at 5:00 PM
+		title: "New Rally levels",
+		lines: [
+			"<ust>Rally:</ust> three new levels: *Spring Valley*, *Sky Lift* and *Muddy Canyon*",
+			"<ust>Rally:</ust> levels *Default* and *Chamois* reworked (start walls, new spring shortcut, fixed jumps and checkpoints)",
+			"<ust>Rally:</ust> smarter bots and only one blue shell in play at a time",
+		]
+	},
+	{
+		version: "1.5.7",
+		date: 1794499200000, // Thu. 12 nov 2026 at 5:00 PM
+		title: "Hunt and new Rally graphics",
+		lines: [
+			"<ust>New gamemode:</ust> hunt, jump, lock your targets and get 10 kills before everybody else (computer only)",
+			"<ust>Hunt:</ust> weapons with their own ammo, boxes with items (bomb, ice bomb, shells, super jump) and a tutorial",
+			"<ust>Rally:</ust> graphics overhaul: parallax backdrops with sun and clouds, decorations, particles and a new HUD",
+		]
+	},
+	{
 		version: "1.5.6",
 		date: 1793898000000, // Thu. 5 nov 2026 at 6:00 PM
 		title: "Player names and Rally standings",

@@ -113,6 +113,9 @@ message State {
 	repeated ExplosionState explosions = 15;
 	int32 blueShellPunishmentLap = 16;
 	uint32 itemSeed = 17;
+	// Shared sky clock (seconds of cloud drift, wrapped): every client draws the same clouds
+	// and dims the scene identically when one passes in front of the sun.
+	float cloudStep = 18;
 }
 
 message QInput {
