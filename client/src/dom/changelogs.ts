@@ -8,6 +8,16 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.8",
+		date: 1794931200000, // Tue. 17 nov 2026 at 5:00 PM
+		title: "New Rally levels",
+		lines: [
+			"<ust>Rally:</ust> three new levels: *Spring Valley*, *Sky Lift* and *Muddy Canyon*",
+			"<ust>Rally:</ust> levels *Default* and *Chamois* reworked (start walls, new spring shortcut, fixed jumps and checkpoints)",
+			"<ust>Rally:</ust> smarter bots and only one blue shell in play at a time",
+		]
+	},
+	{
 		version: "1.5.7",
 		date: 1794499200000, // Thu. 12 nov 2026 at 5:00 PM
 		title: "Hunt and new Rally graphics",

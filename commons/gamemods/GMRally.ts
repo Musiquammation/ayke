@@ -141,7 +141,7 @@ interface CheckpointDef {
 	h?: number;
 	/** A sub-checkpoint is only enabled after this main checkpoint has been passed. */
 	afterCheckpoint?: number;
-	/** Respawn point after a death, relative to (x, y). Defaults to (x, y) itself. */
+	/** Respawn point after a death, relative to (x, y). Defaults to the checkpoint's bottom center. */
 	spawn?: { dx: number; dy: number };
 }
 
@@ -169,6 +169,7 @@ const LEVELS = (function(){
 			finishX: 57*GRID_SIZE,
 			deathY: 1024,
 			platforms: [
+				{ x: -3, y: 4, w: 3, h: 26, skin: 'grass' }, // start wall: nobody falls off the start
 				{ x: 0, y: 14, w: 57, h: 16, skin: 'grass' },
 				{ x: 5, y: 2, w: 1, h: 10, skin: 'box' },
 				{ x: 8, y: 5, w: 1, h: 9, skin: 'box' },
@@ -179,7 +180,7 @@ const LEVELS = (function(){
 				{ x: 21, y: -3, w: 1, h: 14, skin: 'box' },
 				{ x: 21, y: -2, w: 10, h: 1, skin: 'box' },
 				{ x: 19, y: 13, w: 10, h: 1, skin: 'mud', mud: 40 },
-				{ x: 33, y: -10, w: 1, h: 23, skin: 'box' },
+				{ x: 33, y: -10, w: 1, h: 22, skin: 'box' },
 				{ x: 35, y: -5, w: 1, h: 15, skin: 'box' },
 				{ x: 46, y: 5, w: 1, h: 9, skin: 'box' },
 				{ x: 36, y: -5, w: 12, h: 1, skin: 'box' },
@@ -235,6 +236,7 @@ const LEVELS = (function(){
 			finishX: 168*GRID_SIZE,
 			deathY: 1024,
 			platforms: [
+				{ x: -3, y: 6, w: 3, h: 32, skin: 'grass' }, // start wall: nobody falls off the start
 				{ x: 0, y: 16, w: 55, h: 22, skin: 'grass' },
 				{ x: 1, y: 15, w: 1, h: 1, skin: 'box' },
 				{ x: 10, y: 13, w: 3, h: 1, skin: 'box' },
@@ -246,12 +248,10 @@ const LEVELS = (function(){
 				{ x: 38, y: 11, w: 5, h: 1, skin: 'box' },
 				{ x: 45, y: 15, w: 2, h: 1, skin: 'box' },
 				{ x: 49, y: 6, w: 1, h: 8, skin: 'box' },
-				{ x: 47, y: 6, w: 1, h: 2, skin: 'box' },
-				{ x: 46, y: 6, w: 1, h: 1, skin: 'box' },
-				{ x: 44, y: 9, w: 3 , h: 1, skin: 'mud', mud: 30 },
-				{ x: 47, y: 10, w: 2 , h: 1, skin: 'box' },
-				{ x: 47, y: 13, w: 1 , h: 3, skin: 'box' },
-				{ x: 55, y: 6, w: 2, h: 32, skin: 'grass' },
+				// Slow mud shortcut, then a spring straight up to the summit checkpoint.
+				{ x: 43, y: 9, w: 3 , h: 1, skin: 'mud', mud: 60 },
+				{ x: 46, y: 10, w: 2, h: 1, skin: 'vertical-trampoline', trampoline: 1150 },
+				{ x: 55, y: 7, w: 2, h: 31, skin: 'grass' },
 				{ x: 65, y: 16, w: 35, h: 22, skin: 'grass' },
 				{ x: 72, y: 14, w: 2, h: 1, skin: 'box' },
 				{ x: 66, y: 0, w: 1, h: 14, skin: 'box' },
@@ -260,13 +260,13 @@ const LEVELS = (function(){
 				{ x: 85, y: 9, w: 3, h: 1, skin: 'box' },
 				{ x: 94, y: 12, w: 2, h: 3, skin: 'box' },
 				{ x: 99, y: 10, w: 7, h: 1, skin: 'mud', mud: 80 },
-				{ x: 109, y: 14, w: 3, h: 1, skin: 'box'},
+				{ x: 108, y: 13, w: 3, h: 1, skin: 'box'},
 				{ x: 114, y: 12, w: 6, h: 1, skin: 'box'},
 				{ x: 114, y: 11, w: 1, h: 1, skin: 'box'},
 				{ x: 119, y: 11, w: 1, h: 1, skin: 'box'},
 				{ x: 124, y: 12, w: 2, h: 1, skin: 'box'},
-				{ x: 132, y: 12, w: 2, h: 1, skin: 'box'},
-				{ x: 140, y: 12, w: 2, h: 1, skin: 'box'},
+				{ x: 131, y: 12, w: 2, h: 1, skin: 'box'},
+				{ x: 138, y: 12, w: 2, h: 1, skin: 'box'},
 				{ x: 143, y: 22, w: 25, h: 16, skin: 'grass'},
 			],
 			items: [
@@ -319,7 +319,7 @@ const LEVELS = (function(){
 				{x: 104, y: 9},
 				{x: 105, y: 9},
 				{x: 106, y: 9},
-				{x: 110, y: 13},
+				{x: 109, y: 12},
 
 				{x: 115, y: 11},
 				{x: 116, y: 11},
@@ -329,23 +329,230 @@ const LEVELS = (function(){
 				{x: 124, y: 11},
 				{x: 125, y: 11},
 				{x: 127, y: 9},
-				{x: 130, y: 9},
+				{x: 129, y: 9},
 
+				{x: 131, y: 11},
 				{x: 132, y: 11},
-				{x: 133, y: 11},
-				{x: 135, y: 9},
-				{x: 138, y: 9},
+				{x: 134, y: 9},
+				{x: 136, y: 9},
 
-				{x: 140, y: 11},
-				{x: 141, y: 11},
+				{x: 138, y: 11},
+				{x: 139, y: 11},
 			],
 			checkpoints: [
 				{ x: 0, y: 12, w: 1, h: 4 },
 				{ x: 30, y: 0, w: 1, h: 9  },
-				{ x: 46, y: 5, w: 11, h: 1  },
+				{ x: 46, y: 5, w: 11, h: 2  },
 				{ x: 66, y: 14, w: 1, h: 2  },
-				{ x: 99, y: 2, w: 1, h: 8, spawn: {dx: 0, dy: 7} },
+				{ x: 99, y: 2, w: 1, h: 8 },
+				{ x: 108, y: 9, w: 3, h: 4 },
 				{ x: 167.5, y: 3, w: 1, h: 19 },
+			],
+			subCheckpoints: [],
+		},
+
+		{
+			// Springs everywhere: a bouncy pit, a launch to the high road over a mud lane,
+			// and a chain of springs across a canyon.
+			name: "Spring Valley",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 121*GRID_SIZE,
+			deathY: 1024,
+			platforms: [
+				{ x: -3, y: 4, w: 3, h: 26, skin: 'grass' }, // start wall: nobody falls off the start
+				{ x: 0, y: 14, w: 30, h: 16, skin: 'grass' },
+				{ x: 7, y: 13, w: 1, h: 1, skin: 'box' },
+				{ x: 12, y: 12, w: 2, h: 2, skin: 'box' },
+				{ x: 18, y: 11, w: 4, h: 1, skin: 'platform' },
+				{ x: 24, y: 13, w: 1, h: 1, skin: 'box' },
+				// First pit: jump it, or fall on the spring and bounce across.
+				{ x: 31, y: 16, w: 3, h: 1, skin: 'vertical-trampoline', trampoline: 1000 },
+				{ x: 35, y: 14, w: 35, h: 16, skin: 'grass' },
+				// Spring to the high road; jump over it to take the mud lane instead.
+				{ x: 41, y: 13, w: 2, h: 1, skin: 'vertical-trampoline', trampoline: 1250 },
+				{ x: 44, y: 8, w: 7, h: 1, skin: 'platform' },
+				{ x: 54, y: 8, w: 7, h: 1, skin: 'platform' },
+				{ x: 43, y: 13, w: 16, h: 1, skin: 'mud', mud: 140 },
+				{ x: 64, y: 12, w: 2, h: 2, skin: 'box' },
+				// Spring chain over the canyon.
+				{ x: 72, y: 16, w: 6, h: 1, skin: 'vertical-trampoline', trampoline: 1000 },
+				{ x: 80, y: 16, w: 5, h: 1, skin: 'vertical-trampoline', trampoline: 1000 },
+				{ x: 86, y: 14, w: 35, h: 16, skin: 'grass' },
+				{ x: 92, y: 13, w: 1, h: 1, skin: 'box' },
+				{ x: 95, y: 11, w: 11, h: 1, skin: 'box' },
+				{ x: 110, y: 12, w: 2, h: 2, skin: 'box' },
+			],
+			items: [
+				{x: 4, y: 13},
+				{x: 9, y: 13},
+				{x: 10, y: 11},
+				{x: 19, y: 10},
+				{x: 20, y: 10},
+				{x: 27, y: 13},
+				{x: 32, y: 12},
+				{x: 38, y: 13},
+				{x: 46, y: 7},
+				{x: 48, y: 7},
+				{x: 52, y: 5},
+				{x: 56, y: 7},
+				{x: 58, y: 7},
+				{x: 48, y: 12},
+				{x: 52, y: 12},
+				{x: 56, y: 12},
+				{x: 67, y: 13},
+				{x: 76, y: 11},
+				{x: 84, y: 11},
+				{x: 90, y: 13},
+				{x: 97, y: 10},
+				{x: 100, y: 10},
+				{x: 103, y: 10},
+				{x: 98, y: 13},
+				{x: 102, y: 13},
+				{x: 115, y: 13},
+			],
+			checkpoints: [
+				{ x: 0, y: 10, w: 1, h: 4 },
+				{ x: 37, y: 10, w: 1, h: 4 },
+				{ x: 62, y: 3, w: 1, h: 11 },
+				{ x: 89, y: 10, w: 1, h: 4 },
+				{ x: 120.5, y: 0, w: 1, h: 14 },
+			],
+			subCheckpoints: [],
+		},
+
+		{
+			// Ride the moving platforms over the chasm, wall-jump up the tower,
+			// then hop the floating boxes above the mud.
+			name: "Sky Lift",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 110*GRID_SIZE,
+			deathY: 1024,
+			platforms: [
+				{ x: -3, y: 4, w: 3, h: 26, skin: 'grass' }, // start wall: nobody falls off the start
+				{ x: 0, y: 14, w: 20, h: 16, skin: 'grass' },
+				{ x: 8, y: 13, w: 1, h: 1, skin: 'box' },
+				{ x: 13, y: 12, w: 3, h: 1, skin: 'platform' },
+				// Chasm crossed on moving platforms (amplitudes are in world pixels).
+				{ x: 21, y: 15, w: 5, h: 1, skin: 'platform', move: { ax: GRID_SIZE, ay: 0, period: 4, phase: 0 } },
+				{ x: 29, y: 14, w: 5, h: 1, skin: 'platform', move: { ax: GRID_SIZE, ay: 0, period: 4, phase: 0 } },
+				{ x: 37, y: 13, w: 4, h: 1, skin: 'platform', move: { ax: 0, ay: GRID_SIZE, period: 3, phase: 0 } },
+				{ x: 44, y: 13, w: 5, h: 1, skin: 'platform', move: { ax: GRID_SIZE, ay: 0, period: 4, phase: 0.25 } },
+				{ x: 52, y: 13, w: 58, h: 17, skin: 'grass' },
+				{ x: 58, y: 11, w: 1, h: 2, skin: 'box' },
+				// Wall-jump tower: in under the left wall, up between both walls, out onto the ledge.
+				{ x: 66, y: 3, w: 1, h: 8, skin: 'box' },
+				{ x: 70, y: 5, w: 1, h: 8, skin: 'box' },
+				{ x: 71, y: 5, w: 13, h: 1, skin: 'box' },
+				// Floating boxes above a mud pit.
+				{ x: 87, y: 6, w: 2, h: 1, skin: 'box' },
+				{ x: 92, y: 6, w: 2, h: 1, skin: 'box' },
+				{ x: 97, y: 7, w: 2, h: 1, skin: 'box' },
+				{ x: 83, y: 12, w: 17, h: 1, skin: 'mud', mud: 110 },
+			],
+			items: [
+				{x: 5, y: 13},
+				{x: 11, y: 13},
+				{x: 14, y: 11},
+				{x: 23, y: 12},
+				{x: 31, y: 11},
+				{x: 39, y: 10},
+				{x: 46, y: 10},
+				{x: 55, y: 12},
+				{x: 61, y: 12},
+				{x: 63, y: 12},
+				{x: 68, y: 9},
+				{x: 68, y: 5},
+				{x: 73, y: 4},
+				{x: 76, y: 4},
+				{x: 79, y: 4},
+				{x: 82, y: 4},
+				{x: 88, y: 5},
+				{x: 93, y: 5},
+				{x: 98, y: 6},
+				{x: 87, y: 11},
+				{x: 91, y: 11},
+				{x: 95, y: 11},
+				{x: 104, y: 12},
+			],
+			checkpoints: [
+				{ x: 0, y: 10, w: 1, h: 4 },
+				{ x: 53, y: 9, w: 1, h: 4 },
+				{ x: 76, y: 1, w: 1, h: 4 },
+				{ x: 102, y: 9, w: 1, h: 4 },
+				{ x: 109.5, y: -2, w: 1, h: 15 },
+			],
+			subCheckpoints: [],
+		},
+
+		{
+			// A canyon that steps down: a mud pool with a box to hop over it, two pits,
+			// a high road, and a spring up the final cliff.
+			name: "Muddy Canyon",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 125*GRID_SIZE,
+			deathY: 1024,
+			platforms: [
+				{ x: -3, y: -2, w: 3, h: 34, skin: 'grass' }, // start wall: nobody falls off the start
+				{ x: 0, y: 8, w: 25, h: 24, skin: 'grass' },
+				{ x: 10, y: 7, w: 1, h: 1, skin: 'box' },
+				{ x: 16, y: 6, w: 2, h: 2, skin: 'box' },
+				// Mud pool set into the ground.
+				{ x: 25, y: 11, w: 5, h: 21, skin: 'grass' },
+				{ x: 30, y: 11, w: 7, h: 1, skin: 'mud', mud: 90 },
+				{ x: 30, y: 12, w: 7, h: 20, skin: 'grass' },
+				{ x: 37, y: 11, w: 13, h: 21, skin: 'grass' },
+				{ x: 28, y: 10, w: 1, h: 1, skin: 'box' },
+				{ x: 32, y: 8, w: 2, h: 1, skin: 'box' },
+				{ x: 44, y: 10, w: 1, h: 1, skin: 'box' },
+				// First pit, then a high road over the lower lane.
+				{ x: 54, y: 13, w: 26, h: 19, skin: 'grass' },
+				{ x: 58, y: 11, w: 1, h: 2, skin: 'box' },
+				{ x: 60, y: 9, w: 12, h: 1, skin: 'box' },
+				{ x: 75, y: 12, w: 1, h: 1, skin: 'box' },
+				// Second pit, then the spring up the final cliff.
+				{ x: 85, y: 15, w: 15, h: 17, skin: 'grass' },
+				{ x: 91, y: 14, w: 1, h: 1, skin: 'box' },
+				{ x: 98, y: 14, w: 2, h: 1, skin: 'vertical-trampoline', trampoline: 1450 },
+				{ x: 100, y: 7, w: 25, h: 25, skin: 'grass' },
+				{ x: 108, y: 5, w: 2, h: 2, skin: 'box' },
+				{ x: 115, y: 6, w: 1, h: 1, skin: 'box' },
+			],
+			items: [
+				{x: 5, y: 7},
+				{x: 13, y: 7},
+				{x: 14, y: 6},
+				{x: 20, y: 7},
+				{x: 27, y: 10},
+				{x: 32, y: 6},
+				{x: 33, y: 6},
+				{x: 31, y: 10},
+				{x: 35, y: 10},
+				{x: 41, y: 10},
+				{x: 47, y: 10},
+				{x: 52, y: 9},
+				{x: 62, y: 8},
+				{x: 65, y: 8},
+				{x: 68, y: 8},
+				{x: 63, y: 12},
+				{x: 67, y: 12},
+				{x: 71, y: 12},
+				{x: 82, y: 11},
+				{x: 88, y: 14},
+				{x: 94, y: 14},
+				{x: 96, y: 14},
+				{x: 104, y: 6},
+				{x: 112, y: 6},
+				{x: 119, y: 6},
+			],
+			checkpoints: [
+				{ x: 0, y: 4, w: 1, h: 4 },
+				{ x: 40, y: 7, w: 1, h: 4 },
+				{ x: 55, y: 9, w: 1, h: 4 },
+				{ x: 87, y: 11, w: 1, h: 4 },
+				{ x: 124.5, y: -5, w: 1, h: 12 },
 			],
 			subCheckpoints: [],
 		}
@@ -413,9 +620,11 @@ function firstCheckpointPosition(level: LevelDef): { x: number; y: number } {
 
 /** Player position (center) used when respawning on a checkpoint after a death. */
 function checkpointRespawnPosition(checkpoint: CheckpointDef): { x: number; y: number } {
+	if (checkpoint.spawn) return { x: checkpoint.x + checkpoint.spawn.dx, y: checkpoint.y + checkpoint.spawn.dy };
+	// Standing on the floor the checkpoint usually rests on, centered horizontally.
 	return {
-		x: checkpoint.x + (checkpoint.spawn?.dx ?? 0),
-		y: checkpoint.y + (checkpoint.spawn?.dy ?? 0),
+		x: checkpoint.x + (checkpoint.w ?? GRID_SIZE) / 2,
+		y: checkpoint.y + (checkpoint.h ?? GRID_SIZE) - PLAYER_H / 2,
 	};
 }
 
@@ -2408,7 +2617,7 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			if (player.item !== ITEM_NONE || player.pendingItem !== ITEM_NONE || player.itemRollTimer > 0) return;
 			const leaderIndex = this.findRaceLeader();
 			const leaderLap = leaderIndex >= 0 ? this.players[leaderIndex].lapsCompleted : -1;
-			if (leaderIndex !== playerIndex && leaderLap >= this.blueShellPunishmentLap) {
+			if (leaderIndex !== playerIndex && leaderLap >= this.blueShellPunishmentLap && !this.isBlueShellInPlay()) {
 				// Only the first non-leader to open an item box gets the shell for this leader lap.
 				this.blueShellPunishmentLap = leaderLap + 1;
 				player.pendingItem = ITEM_BLUE_SHELL;
@@ -2464,6 +2673,12 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 
 		// Hazard blocks are the source of truth; update existing blocks in place.
 		for (const hazard of [...this.getBananas(), ...this.getShells(), ...this.getBombs(), ...this.getExplosions()]) hazard.active = true;
+	}
+
+	/** True when a blue shell is held, being rolled, or already flying: only one may exist at a time. */
+	private isBlueShellInPlay(): boolean {
+		if (this.players.some(p => p.item === ITEM_BLUE_SHELL || p.pendingItem === ITEM_BLUE_SHELL)) return true;
+		return this.getShells().some(s => s instanceof BlueShell);
 	}
 
 	/** RNG is consumed only by the authority; the selected item is immediately shared. */
@@ -2525,8 +2740,9 @@ afterPlayerStep(idx: number, block: PlayerBlock, dt: number) {
 			);
 		};
 
-		// Evaluate and normalize the relative weights.
-		const weights = itemWeights.map(([item, values]) => [
+		// Evaluate and normalize the relative weights (no second blue shell while one is in play).
+		const blueInPlay = this.isBlueShellInPlay();
+		const weights = itemWeights.filter(([item]) => !blueInPlay || item !== ITEM_BLUE_SHELL).map(([item, values]) => [
 			item,
 			interpolate(values, t),
 		] as [number, number]);
