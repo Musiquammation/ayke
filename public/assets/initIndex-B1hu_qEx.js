@@ -15574,7 +15574,7 @@ function isMessage(value) {
 //#endregion
 //#region commons/gamemods/GMAirBasket.ts
 var protocols$13 = getProtocol("airbasket", "multiplayer");
-var GRAVITY$7 = 1100;
+var GRAVITY$8 = 1100;
 var WIDTH$11 = 2400;
 var HEIGHT$10 = 1350;
 var X_LIMIT$1 = WIDTH$11 * 2.5;
@@ -15762,7 +15762,7 @@ var Player$13 = class Player$13 {
 			this.vx += Player$13.MIN_DECELERATION * dt;
 			if (this.vx > -Player$13.SPEED) this.vx = -Player$13.SPAWN_JUMP;
 		}
-		this.vy += (grabber ? Player$13.GRAB_GRAVITY : GRAVITY$7) * dt;
+		this.vy += (grabber ? Player$13.GRAB_GRAVITY : GRAVITY$8) * dt;
 		this.x += this.vx * dt;
 		this.y += this.vy * dt;
 		if (this.pushDown) this.y += Player$13.PUSH_DOWN * dt;
@@ -16516,7 +16516,7 @@ var GMAirBasket = class GMAirBasket extends GameMode {
 		Ball: Ball$2
 	};
 	static DATA = {
-		GRAVITY: GRAVITY$7,
+		GRAVITY: GRAVITY$8,
 		WIDTH: WIDTH$11,
 		HEIGHT: HEIGHT$10,
 		X_LIMIT: X_LIMIT$1,
@@ -18788,7 +18788,7 @@ var GMTestSolo = class GMTestSolo extends SoloGameMode {
 //#endregion
 //#region commons/gamemods/GMTurrets.ts
 var protocols$9 = getProtocol("turrets", "multiplayer");
-var GRAVITY$6 = 1100;
+var GRAVITY$7 = 1100;
 var WIDTH$8 = 2400;
 var HEIGHT$7 = 1350;
 var FULL_ROOM_SIZE = WIDTH$8 * 2.5;
@@ -20453,7 +20453,7 @@ var GMTurrets = class GMTurrets extends GameMode {
 		Turret
 	};
 	static DATA = {
-		GRAVITY: GRAVITY$6,
+		GRAVITY: GRAVITY$7,
 		WIDTH: WIDTH$8,
 		HEIGHT: HEIGHT$7
 	};
@@ -25617,7 +25617,7 @@ var GMLavaBall = class GMLavaBall extends GameMode {
 //#endregion
 //#region commons/gamemods/GMCrayzoll.ts
 var protocols$4 = getProtocol("crayzoll", "multiplayer");
-var GRAVITY$5 = 1100;
+var GRAVITY$6 = 1100;
 var WIDTH$4 = 3600;
 var HEIGHT$3 = 2025;
 var HALF_W$1 = WIDTH$4 / 2;
@@ -25869,7 +25869,7 @@ var Player$4 = class Player$4 {
 	*/
 	move(dt, holdsBall) {
 		this.steerHorizontally(dt);
-		this.vy += (holdsBall ? Player$4.GRAB_GRAVITY : GRAVITY$5) * dt;
+		this.vy += (holdsBall ? Player$4.GRAB_GRAVITY : GRAVITY$6) * dt;
 		this.decayEffect(dt);
 		this.x += (this.vx + this.ex) * dt;
 		this.y += (this.vy + this.ey) * dt;
@@ -26398,7 +26398,7 @@ var GMCrayzoll = class GMCrayzoll extends GameMode {
 		Ball
 	};
 	static DATA = {
-		GRAVITY: GRAVITY$5,
+		GRAVITY: GRAVITY$6,
 		WIDTH: WIDTH$4,
 		HEIGHT: HEIGHT$3
 	};
@@ -35372,7 +35372,7 @@ var PROTO_FIELDS = [
 var protocols$3 = getProtocol("castle", "multiplayer", PROTO_FIELDS);
 var WIDTH$3 = 1600;
 var HEIGHT$2 = 900;
-var CELL$1 = 40;
+var CELL$2 = 40;
 var LEVEL_COLS = 60;
 var LEVEL_ROWS = 18;
 var LEVEL_WIDTH = 2400;
@@ -35390,8 +35390,8 @@ var FIREBAR_BUILD_MIN_COL = 9;
 var FIREBAR_BUILD_MAX_COL = 51;
 /** Axis-aligned rectangle of the castle. x/y are the CENTER, like all engine rectangles. */
 var CASTLE_RECT = {
-	x: 57.5 * CELL$1,
-	y: FLOOR_TOP_Y - CASTLE_ROWS / 2 * CELL$1,
+	x: 57.5 * CELL$2,
+	y: FLOOR_TOP_Y - CASTLE_ROWS / 2 * CELL$2,
 	w: 200,
 	h: 200
 };
@@ -35401,7 +35401,7 @@ var CASTLE_HP = 30;
 var MATCH_DURATION = 3e3;
 var TIMER_VISIBLE_SECONDS = 60;
 var NO_OWNER = -1;
-var GRAVITY$4 = 1500;
+var GRAVITY$5 = 1500;
 var ELIXIR_MAX = 10;
 var ELIXIR_START = 5;
 var ELIXIR_REGEN_PER_SECOND = .6;
@@ -35696,7 +35696,7 @@ var PRICE_BADGE_RADIUS = 15;
 var PRICE_BADGE_MARGIN = 6;
 var DEFAULT_TEAM_RED = "red";
 var DEFAULT_TEAM_BLUE = "blue";
-var clamp$2 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+var clamp$1 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 var cellKey = (col, row) => row * LEVEL_COLS + col;
 var pad2 = (n) => String(n).padStart(2, "0");
 /** Deterministic pseudo random number in [0, 1[ (used for cosmetic cracks only). */
@@ -35745,7 +35745,7 @@ function drawDamageOverlay(ctx, cx, cy, w, h, ratio, _seed) {
 		ctx.fillStyle = DAMAGE_BAR_BG;
 		ctx.fillRect(left, y, w, DAMAGE_BAR_HEIGHT);
 		ctx.fillStyle = DAMAGE_BAR_FG;
-		ctx.fillRect(left, y, w * clamp$2(ratio / DAMAGE_BAR_THRESHOLD, 0, 1), DAMAGE_BAR_HEIGHT);
+		ctx.fillRect(left, y, w * clamp$1(ratio / DAMAGE_BAR_THRESHOLD, 0, 1), DAMAGE_BAR_HEIGHT);
 	}
 }
 var botsApi;
@@ -35773,7 +35773,7 @@ var botsApi;
 	const WALL_JUMP_COOLDOWN = 1 / BOT_WALL_JUMP_MAX_REPEAT_PER_SECOND;
 	/** Stuck detection: the bot must move at least STUCK_DIST px every STUCK_TIME seconds. */
 	const STUCK_TIME = 1;
-	const STUCK_DIST = CELL$1 * .75;
+	const STUCK_DIST = CELL$2 * .75;
 	/** Once too many edges are banned for a bot, the bans are forgotten (the map probably moved). */
 	const MAX_BANS = 12;
 	/** Duration of the scripted escape manoeuvre when no alternative edge exists. */
@@ -35831,12 +35831,12 @@ var botsApi;
 		const up = new Courb(x, y, {
 			x: vxUp,
 			y: vy0
-		}, GRAVITY$4);
-		const apex = up.at(Math.max(0, -vy0 / GRAVITY$4));
+		}, GRAVITY$5);
+		const apex = up.at(Math.max(0, -vy0 / GRAVITY$5));
 		return [up, new Courb(apex.x, apex.y, {
 			x: vxDown,
 			y: 0
-		}, GRAVITY$4)];
+		}, GRAVITY$5)];
 	}
 	const wallKey = (side, col, bucket) => (bucket * LEVEL_COLS + col) * 2 + (side > 0 ? 1 : 0);
 	function classify(el) {
@@ -35876,10 +35876,10 @@ var botsApi;
 		}
 		/** Mask of cells touched by the bot AABB: 1 = solid, 2 = deadly, 4 = standable solid. */
 		probe(x, y, inflate = 0) {
-			const c0 = Math.floor((x - H - inflate) / CELL$1);
-			const c1 = Math.ceil((x + H + inflate) / CELL$1) - 1;
-			const r0 = Math.floor((y - H - inflate) / CELL$1);
-			const r1 = Math.ceil((y + H + inflate) / CELL$1) - 1;
+			const c0 = Math.floor((x - H - inflate) / CELL$2);
+			const c1 = Math.ceil((x + H + inflate) / CELL$2) - 1;
+			const r0 = Math.floor((y - H - inflate) / CELL$2);
+			const r1 = Math.ceil((y + H + inflate) / CELL$2) - 1;
 			let mask = 0;
 			for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
 				const k = this.cell(c, r);
@@ -35924,9 +35924,9 @@ var botsApi;
 			const right = this.cell(c1 + 1, r);
 			const leftOpen = left === FREE;
 			const rightOpen = right === FREE;
-			const xl = leftOpen ? c0 * CELL$1 - H + 1 : c0 * CELL$1 + H + (left === DEADLY ? 2 : 0);
-			const xr = rightOpen ? (c1 + 1) * CELL$1 + H - 1 : (c1 + 1) * CELL$1 - H - (right === DEADLY ? 2 : 0);
-			const y = (r + 1) * CELL$1 - H;
+			const xl = leftOpen ? c0 * CELL$2 - H + 1 : c0 * CELL$2 + H + (left === DEADLY ? 2 : 0);
+			const xr = rightOpen ? (c1 + 1) * CELL$2 + H - 1 : (c1 + 1) * CELL$2 - H - (right === DEADLY ? 2 : 0);
+			const y = (r + 1) * CELL$2 - H;
 			const node = {
 				kind: "floor",
 				id: this.nodes.length,
@@ -35945,7 +35945,7 @@ var botsApi;
 		/** One wall node for each (side, column, 10 px bucket) where the bot can attach to a wall. */
 		buildWalls() {
 			for (let col = 0; col < LEVEL_COLS; col++) for (const side of [-1, 1]) {
-				const x = side > 0 ? (col + 1) * CELL$1 - H - EPS : col * CELL$1 + H + EPS;
+				const x = side > 0 ? (col + 1) * CELL$2 - H - EPS : col * CELL$2 + H + EPS;
 				for (let b = 0; b < BUCKETS; b++) {
 					const y = b * BUCKET + BUCKET / 2;
 					if (this.probe(x, y) !== 0 || this.probe(x, y, 1.5) & 2) continue;
@@ -35966,9 +35966,9 @@ var botsApi;
 			}
 		}
 		touchesWall(x, y, side) {
-			const wc = Math.floor(x / CELL$1) + side;
-			const r0 = Math.floor((y - H) / CELL$1);
-			const r1 = Math.ceil((y + H) / CELL$1) - 1;
+			const wc = Math.floor(x / CELL$2) + side;
+			const r0 = Math.floor((y - H) / CELL$2);
+			const r1 = Math.ceil((y + H) / CELL$2) - 1;
 			for (let r = r0; r <= r1; r++) {
 				const k = this.cell(wc, r);
 				if (k === SOLID || k === SOLID_NO_STAND) return true;
@@ -35987,13 +35987,13 @@ var botsApi;
 			const steps = Math.ceil(SIM_MAX_TIME / SIM_DT);
 			for (let i = 1; i <= steps; i++) {
 				const time = i * SIM_DT;
-				vy += GRAVITY$4 * SIM_DT;
+				vy += GRAVITY$5 * SIM_DT;
 				const vx = vy < 0 ? vxUp : vxDown;
 				let wall = 0;
 				if (vx !== 0) {
 					x += vx * SIM_DT;
 					if (this.probe(x, y) & 1) {
-						x = vx > 0 ? Math.ceil((x + H) / CELL$1) * CELL$1 - CELL$1 - H - EPS : (Math.floor((x - H) / CELL$1) + 1) * CELL$1 + H + EPS;
+						x = vx > 0 ? Math.ceil((x + H) / CELL$2) * CELL$2 - CELL$2 - H - EPS : (Math.floor((x - H) / CELL$2) + 1) * CELL$2 + H + EPS;
 						wall = vx > 0 ? 1 : -1;
 					}
 				}
@@ -36001,9 +36001,9 @@ var botsApi;
 				let landed = false;
 				if (this.probe(x, y) & 1) {
 					if (vy > 0) {
-						y = (Math.ceil((y + H) / CELL$1) - 1) * CELL$1 - H - EPS;
+						y = (Math.ceil((y + H) / CELL$2) - 1) * CELL$2 - H - EPS;
 						landed = true;
-					} else y = (Math.floor((y - H) / CELL$1) + 1) * CELL$1 + H + EPS;
+					} else y = (Math.floor((y - H) / CELL$2) + 1) * CELL$2 + H + EPS;
 					vy = 0;
 				}
 				if (this.probe(x, y, 1.5) & 2) return { type: "fail" };
@@ -36018,10 +36018,10 @@ var botsApi;
 					time
 				};
 				if (landed) {
-					const row = Math.floor((y + H + 1) / CELL$1);
+					const row = Math.floor((y + H + 1) / CELL$2);
 					let stand = false;
-					const c0 = Math.floor((x - H) / CELL$1);
-					const c1 = Math.ceil((x + H) / CELL$1) - 1;
+					const c0 = Math.floor((x - H) / CELL$2);
+					const c1 = Math.ceil((x + H) / CELL$2) - 1;
 					for (let c = c0; c <= c1; c++) if (this.cell(c, row) === SOLID) stand = true;
 					const floor = stand ? this.floorAt(row - 1, x) : null;
 					return floor ? {
@@ -36033,7 +36033,7 @@ var botsApi;
 				if (wall === 0) armed = true;
 				else if (armed) {
 					const b = Math.floor(y / BUCKET);
-					const col = Math.floor(x / CELL$1);
+					const col = Math.floor(x / CELL$2);
 					for (const bb of [
 						b,
 						b - 1,
@@ -36094,7 +36094,7 @@ var botsApi;
 					curves: [new Courb(x, y0, {
 						x: v,
 						y: 0
-					}, GRAVITY$4)]
+					}, GRAVITY$5)]
 				});
 			}
 			if (n.rightOpen) {
@@ -36108,7 +36108,7 @@ var botsApi;
 					curves: [new Courb(x, y0, {
 						x: v,
 						y: 0
-					}, GRAVITY$4)]
+					}, GRAVITY$5)]
 				});
 			}
 			const vy0 = -560;
@@ -36154,7 +36154,7 @@ var botsApi;
 					curves: [new Courb(n.x, n.y, {
 						x: v,
 						y: 0
-					}, GRAVITY$4)]
+					}, GRAVITY$5)]
 				});
 			}
 			const out = away * BOT_RUN_SPEED;
@@ -36166,7 +36166,7 @@ var botsApi;
 				curves: [new Courb(n.x, n.y, {
 					x: out,
 					y: 0
-				}, GRAVITY$4)]
+				}, GRAVITY$5)]
 			});
 			const vy0 = -560;
 			const kick = away * WALL_JUMP_VX;
@@ -36233,9 +36233,9 @@ var botsApi;
 		nearestFloor(x, y) {
 			let best = null;
 			let bestD = Infinity;
-			const row = Math.floor(y / CELL$1);
+			const row = Math.floor(y / CELL$2);
 			for (const r of [row, row + 1]) for (const f of this.floorsByRow[r] ?? []) {
-				if (Math.abs(f.y - y) > CELL$1) continue;
+				if (Math.abs(f.y - y) > CELL$2) continue;
 				const d = x < f.xl ? f.xl - x : x > f.xr ? x - f.xr : 0;
 				if (d < bestD) {
 					bestD = d;
@@ -36404,7 +36404,7 @@ var botsApi;
 			}
 			const dv = BOT_ACCELERATION * DODGE_STEP;
 			vx = vx < target ? Math.min(target, vx + dv) : Math.max(target, vx - dv);
-			vy += GRAVITY$4 * DODGE_STEP;
+			vy += GRAVITY$5 * DODGE_STEP;
 			x += vx * DODGE_STEP;
 			y += vy * DODGE_STEP;
 			if (grounded && y > floorY) {
@@ -36472,7 +36472,7 @@ var botsApi;
 	function decide(nav, bot, dt, trace) {
 		const data = bot.botData;
 		const walker = bot.walker;
-		const row = Math.floor(bot.y / CELL$1);
+		const row = Math.floor(bot.y / CELL$2);
 		const node = nav.floorAt(row, bot.x, 2) ?? (walker.onFloor() ? nav.nearestFloor(bot.x, bot.y) : null);
 		trace.gap = node ? node.y - bot.y : NaN;
 		const grounded = walker.onFloor() || node !== null && Math.abs(trace.gap) <= GROUND_TOL && Math.abs(bot.velocity.y) <= GROUND_VY;
@@ -36530,7 +36530,7 @@ var botsApi;
 		const onRight = walker.onRight();
 		if (onLeft || onRight) {
 			const side = onRight ? 1 : -1;
-			const col = Math.floor(bot.x / CELL$1);
+			const col = Math.floor(bot.x / CELL$2);
 			const bucket = Math.floor(bot.y / BUCKET);
 			const wnode = nav.wallAt(side, col, bucket);
 			const edge = wnode ? nav.bestEdge(wnode, data.banned) : null;
@@ -36648,15 +36648,15 @@ var PlacedElement = class extends GameBlock {
 	getSize() {
 		const spec = this.getSpec();
 		return {
-			width: spec.cols * CELL$1,
-			height: spec.rows * CELL$1
+			width: spec.cols * CELL$2,
+			height: spec.rows * CELL$2
 		};
 	}
 	/** Moves the block so that it exactly covers its grid cells. */
 	snapToCell() {
 		const spec = this.getSpec();
-		this.x = (this.col + spec.cols / 2) * CELL$1;
-		this.y = (this.row + spec.rows / 2) * CELL$1;
+		this.x = (this.col + spec.cols / 2) * CELL$2;
+		this.y = (this.row + spec.rows / 2) * CELL$2;
 	}
 	save() {
 		return {
@@ -36867,7 +36867,7 @@ var Bot$1 = class Bot$1 extends GameBlock {
 		this.lastTouchAge = Math.min(this.lastTouchAge + dt, 3);
 		const input = getBotInput(engine, this, dt);
 		this.direction.dir = input.dir * BOT_RUN_SPEED;
-		this.velocity.y += GRAVITY$4 * dt;
+		this.velocity.y += GRAVITY$5 * dt;
 		if (input.jump) {
 			if (this.walker.onFloor() || input.grounded) this.velocity.y = -560;
 			else if (input.glueFloor) {
@@ -36962,7 +36962,7 @@ var FloorBlockElement = class FloorBlockElement extends PlacedElement {
 		const size = this.getSize();
 		const left = this.x - size.width / 2;
 		const top = this.y - size.height / 2;
-		for (let y = top + CELL$1 / 2; y < top + size.height; y += CELL$1) for (let x = left + CELL$1 / 2; x < left + size.width; x += CELL$1) drawTexture(ctx, folder, BlockElement.SPEC.texture, void 0, x, y, CELL$1, CELL$1, BlockElement.SPEC.fallbackColor);
+		for (let y = top + CELL$2 / 2; y < top + size.height; y += CELL$2) for (let x = left + CELL$2 / 2; x < left + size.width; x += CELL$2) drawTexture(ctx, folder, BlockElement.SPEC.texture, void 0, x, y, CELL$2, CELL$2, BlockElement.SPEC.fallbackColor);
 	}
 };
 var SpikeElement = class SpikeElement extends PlacedElement {
@@ -37159,7 +37159,7 @@ var ThwompElement = class ThwompElement extends PlacedElement {
 	}
 	/** Y of the center when the thwomp rests at the top. */
 	homeY() {
-		return (this.row + THWOMP_CELLS / 2) * CELL$1;
+		return (this.row + THWOMP_CELLS / 2) * CELL$2;
 	}
 	getForcedVelocity() {
 		return this.forced;
@@ -37208,10 +37208,10 @@ var ThwompElement = class ThwompElement extends PlacedElement {
 	/** Highest center Y reachable before touching a solid cell (or the floor) below. */
 	groundY(game) {
 		const half = 40;
-		const startRow = Math.max(this.row + THWOMP_CELLS, Math.floor((this.y + half) / CELL$1));
+		const startRow = Math.max(this.row + THWOMP_CELLS, Math.floor((this.y + half) / CELL$2));
 		for (let r = startRow; r < FLOOR_ROW; r++) for (let c = this.col; c < this.col + THWOMP_CELLS; c++) {
 			const el = game.elementAtCell(c, r);
-			if (el && el !== this) return r * CELL$1 - half;
+			if (el && el !== this) return r * CELL$2 - half;
 		}
 		return 600;
 	}
@@ -37350,16 +37350,16 @@ var FakePlacedElement = class {
 	getSize() {
 		const spec = this.getSpec();
 		return {
-			width: spec.cols * CELL$1,
-			height: spec.rows * CELL$1
+			width: spec.cols * CELL$2,
+			height: spec.rows * CELL$2
 		};
 	}
 	get x() {
-		return this.typeIdx === TYPE_FLOOR ? FLOOR_WIDTH / 2 : (this.col + this.getSpec().cols / 2) * CELL$1;
+		return this.typeIdx === TYPE_FLOOR ? FLOOR_WIDTH / 2 : (this.col + this.getSpec().cols / 2) * CELL$2;
 	}
 	get y() {
 		if (this.typeIdx === TYPE_FLOOR) return 680;
-		return (this.row + this.getSpec().rows / 2) * CELL$1 + (this.typeIdx === TYPE_THWOMP ? this.offsetY : 0);
+		return (this.row + this.getSpec().rows / 2) * CELL$2 + (this.typeIdx === TYPE_THWOMP ? this.offsetY : 0);
 	}
 	draw(ctx, folder, colorId, alpha) {
 		const spec = this.getSpec();
@@ -37369,7 +37369,7 @@ var FakePlacedElement = class {
 		if (this.typeIdx === TYPE_FLOOR) {
 			const left = this.x - size.width / 2;
 			const top = this.y - size.height / 2;
-			for (let y = top + CELL$1 / 2; y < top + size.height; y += CELL$1) for (let x = left + CELL$1 / 2; x < left + size.width; x += CELL$1) drawTexture(ctx, folder, TEX_BLOCK, void 0, x, y, CELL$1, CELL$1, BlockElement.SPEC.fallbackColor);
+			for (let y = top + CELL$2 / 2; y < top + size.height; y += CELL$2) for (let x = left + CELL$2 / 2; x < left + size.width; x += CELL$2) drawTexture(ctx, folder, TEX_BLOCK, void 0, x, y, CELL$2, CELL$2, BlockElement.SPEC.fallbackColor);
 		} else if (this.typeIdx === TYPE_RAMP && this.variant === 1) {
 			ctx.save();
 			ctx.translate(this.x, 0);
@@ -37574,7 +37574,7 @@ var Camera$4 = class {
 	clampAxis(value, half, total) {
 		const min = half - CAMERA_MARGIN;
 		const max = total - half + CAMERA_MARGIN;
-		return min > max ? total / 2 : clamp$2(value, min, max);
+		return min > max ? total / 2 : clamp$1(value, min, max);
 	}
 	screenToWorld(sx, sy) {
 		return {
@@ -37591,7 +37591,7 @@ var Camera$4 = class {
 	/** Zoom while keeping the world point under (sx, sy) fixed on screen. */
 	zoomAt(sx, sy, factor) {
 		const before = this.screenToWorld(sx, sy);
-		this.zoom = clamp$2(this.zoom * factor, ZOOM_MIN, ZOOM_MAX);
+		this.zoom = clamp$1(this.zoom * factor, ZOOM_MIN, ZOOM_MAX);
 		this.x = before.x - (sx - WIDTH$3 / 2) / this.zoom;
 		this.y = before.y - (sy - HEIGHT$2 / 2) / this.zoom;
 		this.clamp();
@@ -37866,12 +37866,12 @@ var ClientData$3 = class ClientData$3 {
 	getDragCell(tool, sx, sy) {
 		const world = this.camera.screenToWorld(sx, sy);
 		if (tool === TOOL_REMOVE) return {
-			col: Math.floor(world.x / CELL$1),
-			row: Math.floor(world.y / CELL$1)
+			col: Math.floor(world.x / CELL$2),
+			row: Math.floor(world.y / CELL$2)
 		};
 		const spec = ELEMENT_CLASSES[tool].SPEC;
-		const pointerCol = Math.floor(world.x / CELL$1);
-		const pointerRow = Math.floor(world.y / CELL$1);
+		const pointerCol = Math.floor(world.x / CELL$2);
+		const pointerRow = Math.floor(world.y / CELL$2);
 		return {
 			col: pointerCol - Math.floor((spec.cols - 1) / 2) - (spec.cols % 2 === 0 ? 1 : 0),
 			row: pointerRow - Math.floor((spec.rows - 1) / 2) - (spec.rows % 2 === 0 ? 1 : 0)
@@ -37965,10 +37965,10 @@ var GMCastle = class GMCastle extends GameMode {
 	static types = { Player: Player$3 };
 	static PROTO_FIELDS = PROTO_FIELDS;
 	static DATA = {
-		GRAVITY: GRAVITY$4,
+		GRAVITY: GRAVITY$5,
 		WIDTH: WIDTH$3,
 		HEIGHT: HEIGHT$2,
-		CELL: CELL$1,
+		CELL: CELL$2,
 		LEVEL_COLS,
 		LEVEL_ROWS,
 		CASTLE_HP
@@ -38012,7 +38012,7 @@ var GMCastle = class GMCastle extends GameMode {
 	async initServerEngine() {
 		this.engine = await platformEngine.createPlatformerEngine(false, this.storage, this, {
 			x: 0,
-			y: GRAVITY$4
+			y: GRAVITY$5
 		});
 		this.buildInitialLevel();
 		this.syncLocalRenderData();
@@ -38074,8 +38074,8 @@ var GMCastle = class GMCastle extends GameMode {
 		});
 	}
 	queueMonster(owner, x, y) {
-		const safeX = clamp$2(x, MONSTER_SIZE / 2, LEVEL_WIDTH - MONSTER_SIZE / 2);
-		const safeY = clamp$2(y, SPAWN_MIN_Y, SPAWN_MAX_Y);
+		const safeX = clamp$1(x, MONSTER_SIZE / 2, LEVEL_WIDTH - MONSTER_SIZE / 2);
+		const safeY = clamp$1(y, SPAWN_MIN_Y, SPAWN_MAX_Y);
 		this.monsterQueue.push({
 			owner,
 			x: safeX,
@@ -38488,9 +38488,9 @@ var GMCastle = class GMCastle extends GameMode {
 		this.drawDistantBackground(ctx, folder, data);
 		if (data.drag) {
 			ctx.fillStyle = COLOR_FORBIDDEN_ZONE;
-			ctx.fillRect(0, 0, buildMinCol(data.drag.tool) * CELL$1, LEVEL_HEIGHT);
+			ctx.fillRect(0, 0, buildMinCol(data.drag.tool) * CELL$2, LEVEL_HEIGHT);
 			const maxCol = buildMaxCol(data.drag.tool);
-			ctx.fillRect(maxCol * CELL$1, 0, (LEVEL_COLS - maxCol) * CELL$1, LEVEL_HEIGHT);
+			ctx.fillRect(maxCol * CELL$2, 0, (LEVEL_COLS - maxCol) * CELL$2, LEVEL_HEIGHT);
 		}
 		ctx.fillStyle = COLOR_PORTAL;
 		ctx.fillRect(0, 560, 80, 80);
@@ -38504,8 +38504,8 @@ var GMCastle = class GMCastle extends GameMode {
 	}
 	/** Blue grid around the pointer whose opacity decreases with the distance. */
 	drawFadingGrid(ctx, wx, wy) {
-		const centerCol = Math.floor(wx / CELL$1) + .5;
-		const centerRow = Math.floor(wy / CELL$1) + .5;
+		const centerCol = Math.floor(wx / CELL$2) + .5;
+		const centerRow = Math.floor(wy / CELL$2) + .5;
 		for (let dr = -6; dr <= GRID_RADIUS_CELLS; dr++) for (let dc = -6; dc <= GRID_RADIUS_CELLS; dc++) {
 			const col = centerCol + dc;
 			const row = centerRow + dr;
@@ -38513,9 +38513,9 @@ var GMCastle = class GMCastle extends GameMode {
 			const fade = 1 - Math.hypot(dc, dr) / GRID_RADIUS_CELLS;
 			if (fade <= 0) continue;
 			ctx.fillStyle = `rgba(${COLOR_GRID_BG}, ${fade * GRID_BG_MAX_ALPHA})`;
-			ctx.fillRect(col * CELL$1, row * CELL$1, CELL$1, CELL$1);
+			ctx.fillRect(col * CELL$2, row * CELL$2, CELL$2, CELL$2);
 			ctx.strokeStyle = `rgba(${COLOR_GRID_LINE}, ${fade * GRID_LINE_MAX_ALPHA})`;
-			ctx.strokeRect(col * CELL$1, row * CELL$1, CELL$1, CELL$1);
+			ctx.strokeRect(col * CELL$2, row * CELL$2, CELL$2, CELL$2);
 		}
 	}
 	/** Preview of what a release would do: element ghost, or the element that would be removed. */
@@ -38523,7 +38523,7 @@ var GMCastle = class GMCastle extends GameMode {
 		const drag = data.drag;
 		if (!drag) return;
 		ctx.save();
-		ctx.translate(CELL$1 / 2, CELL$1 / 2);
+		ctx.translate(CELL$2 / 2, CELL$2 / 2);
 		const world = data.camera.screenToWorld(drag.x, drag.y);
 		this.drawFadingGrid(ctx, world.x, world.y);
 		const { col, row } = data.getDragCell(drag.tool, drag.x, drag.y);
@@ -38543,9 +38543,9 @@ var GMCastle = class GMCastle extends GameMode {
 				ctx.translate(-20, -20);
 				ctx.strokeStyle = COLOR_REMOVE_TARGET;
 				ctx.lineWidth = PREVIEW_OUTLINE_WIDTH;
-				ctx.strokeRect(target.col * CELL$1, target.row * CELL$1, rectCols * CELL$1, rectRows * CELL$1);
+				ctx.strokeRect(target.col * CELL$2, target.row * CELL$2, rectCols * CELL$2, rectRows * CELL$2);
 				ctx.lineWidth = 1;
-				ctx.translate(CELL$1 / 2, CELL$1 / 2);
+				ctx.translate(CELL$2 / 2, CELL$2 / 2);
 			}
 			this.drawPreviewLabel(ctx, world.x, world.y, target ? cost : null, ok);
 			ctx.restore();
@@ -38564,7 +38564,7 @@ var GMCastle = class GMCastle extends GameMode {
 		}).draw(ctx, folder, this.colorIdOf(playerIdx), PREVIEW_ALPHA);
 		ctx.strokeStyle = ok ? COLOR_PREVIEW_OK : COLOR_PREVIEW_KO;
 		ctx.lineWidth = PREVIEW_OUTLINE_WIDTH;
-		ctx.strokeRect(col * CELL$1, row * CELL$1, spec.cols * CELL$1, spec.rows * CELL$1);
+		ctx.strokeRect(col * CELL$2, row * CELL$2, spec.cols * CELL$2, spec.rows * CELL$2);
 		ctx.lineWidth = 1;
 		this.drawPreviewLabel(ctx, world.x, world.y, check.cost, ok);
 		ctx.restore();
@@ -38584,7 +38584,7 @@ var GMCastle = class GMCastle extends GameMode {
 		ctx.fillStyle = COLOR_ELIXIR_BG;
 		ctx.fillRect(CARD_BAR_LEFT, ELIXIR_BAR_TOP, CARD_BAR_WIDTH, ELIXIR_BAR_HEIGHT);
 		for (let i = 0; i < ELIXIR_MAX; i++) {
-			const fill = clamp$2(player.elixir - i, 0, 1);
+			const fill = clamp$1(player.elixir - i, 0, 1);
 			ctx.fillStyle = COLOR_ELIXIR_FG;
 			ctx.fillRect(CARD_BAR_LEFT + i * segW + 1, 746, 109 * fill, 22);
 		}
@@ -39872,7 +39872,7 @@ function drawSpeedLines(ctx, width, height, strength, facing, time) {
 var protocols$2 = getProtocol("rally", "multiplayer");
 var WIDTH$2 = 2400;
 var HEIGHT$1 = 1350;
-var GRAVITY$3 = 1800;
+var GRAVITY$4 = 1800;
 var GRID_SIZE = 64;
 var PLAYER_W$1 = 48;
 var PLAYER_H$1 = 64;
@@ -39943,781 +39943,1639 @@ var ITEM_STAR$1 = 6;
 var ITEM_BOMB$2 = 7;
 /** Maps are static and known to all peers; their geometry is never sent in snapshots. */
 var LEVELS$1 = (function() {
-	const LEVELS = [{
-		name: "Default",
-		spawnX: 0,
-		spawnY: 0,
-		finishX: 3648,
-		deathY: 1024,
-		platforms: [
-			{
-				x: 0,
-				y: 14,
-				w: 57,
-				h: 16,
-				skin: "grass"
-			},
-			{
-				x: 5,
-				y: 2,
-				w: 1,
-				h: 10,
-				skin: "box"
-			},
-			{
-				x: 8,
-				y: 5,
-				w: 1,
-				h: 9,
-				skin: "box"
-			},
-			{
-				x: 11,
-				y: -5,
-				w: 1,
-				h: 16,
-				skin: "box"
-			},
-			{
-				x: 18,
-				y: 8,
-				w: 1,
-				h: 6,
-				skin: "box"
-			},
-			{
-				x: 11,
-				y: 10,
-				w: 5,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 18,
-				y: -3,
-				w: 1,
-				h: 7,
-				skin: "box"
-			},
-			{
-				x: 21,
-				y: -3,
-				w: 1,
-				h: 14,
-				skin: "box"
-			},
-			{
-				x: 21,
-				y: -2,
-				w: 10,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 19,
-				y: 13,
-				w: 10,
-				h: 1,
-				skin: "mud",
-				mud: 40
-			},
-			{
-				x: 33,
-				y: -10,
-				w: 1,
-				h: 23,
-				skin: "box"
-			},
-			{
-				x: 35,
-				y: -5,
-				w: 1,
-				h: 15,
-				skin: "box"
-			},
-			{
-				x: 46,
-				y: 5,
-				w: 1,
-				h: 9,
-				skin: "box"
-			},
-			{
-				x: 36,
-				y: -5,
-				w: 12,
-				h: 1,
-				skin: "box"
-			}
-		],
-		items: [
-			{
-				x: 2,
-				y: 13
-			},
-			{
-				x: 4,
-				y: 13
-			},
-			{
-				x: 6,
-				y: 13
-			},
-			{
-				x: 7,
-				y: 12
-			},
-			{
-				x: 9,
-				y: 13
-			},
-			{
-				x: 10,
-				y: 12
-			},
-			{
-				x: 12,
-				y: 9
-			},
-			{
-				x: 14,
-				y: 9
-			},
-			{
-				x: 16,
-				y: 9
-			},
-			{
-				x: 19,
-				y: 12
-			},
-			{
-				x: 21,
-				y: 12
-			},
-			{
-				x: 23,
-				y: 12
-			},
-			{
-				x: 25,
-				y: 12
-			},
-			{
-				x: 27,
-				y: 12
-			},
-			{
-				x: 29,
-				y: 12
-			},
-			{
-				x: 30,
-				y: 12
-			},
-			{
-				x: 32,
-				y: 12
-			},
-			{
-				x: 34,
-				y: 12
-			},
-			{
-				x: 36,
-				y: 12
-			},
-			{
-				x: 38,
-				y: 12
-			},
-			{
-				x: 40,
-				y: 12
-			},
-			{
-				x: 42,
-				y: 12
-			},
-			{
-				x: 44,
-				y: 12
-			},
-			{
-				x: 47,
-				y: 13
-			},
-			{
-				x: 49,
-				y: 13
-			},
-			{
-				x: 51,
-				y: 13
-			},
-			{
-				x: 53,
-				y: 13
-			},
-			{
-				x: 55,
-				y: 13
-			}
-		],
-		checkpoints: [
-			{
-				x: 0,
-				y: 10,
-				w: 1,
-				h: 4
-			},
-			{
-				x: 6,
-				y: 10,
-				w: 2,
-				h: 2
-			},
-			{
-				x: 8,
-				y: -6,
-				w: 1,
-				h: 11
-			},
-			{
-				x: 9,
-				y: 9,
-				w: 2,
-				h: 2
-			},
-			{
-				x: 16,
-				y: 10,
-				w: 2,
-				h: 1
-			},
-			{
-				x: 18,
-				y: 4,
-				w: 1,
-				h: 4
-			},
-			{
-				x: 32,
-				y: 13,
-				w: 3,
-				h: 1
-			},
-			{
-				x: 56.5,
-				y: -5,
-				w: 1,
-				h: 19
-			}
-		],
-		subCheckpoints: []
-	}, {
-		name: "Chamois",
-		spawnX: 0,
-		spawnY: 0,
-		finishX: 10752,
-		deathY: 1024,
-		platforms: [
-			{
-				x: 0,
-				y: 16,
-				w: 55,
-				h: 22,
-				skin: "grass"
-			},
-			{
-				x: 1,
-				y: 15,
-				w: 1,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 10,
-				y: 13,
-				w: 3,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 17,
-				y: 11,
-				w: 10,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 26,
-				y: 10,
-				w: 1,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 26,
-				y: 11,
-				w: 1,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 30,
-				y: 9,
-				w: 1,
-				h: 7,
-				skin: "box"
-			},
-			{
-				x: 36,
-				y: 13,
-				w: 2,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 38,
-				y: 11,
-				w: 5,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 45,
-				y: 15,
-				w: 2,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 49,
-				y: 6,
-				w: 1,
-				h: 8,
-				skin: "box"
-			},
-			{
-				x: 47,
-				y: 6,
-				w: 1,
-				h: 2,
-				skin: "box"
-			},
-			{
-				x: 46,
-				y: 6,
-				w: 1,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 44,
-				y: 9,
-				w: 3,
-				h: 1,
-				skin: "mud",
-				mud: 30
-			},
-			{
-				x: 47,
-				y: 10,
-				w: 2,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 47,
-				y: 13,
-				w: 1,
-				h: 3,
-				skin: "box"
-			},
-			{
-				x: 55,
-				y: 6,
-				w: 2,
-				h: 32,
-				skin: "grass"
-			},
-			{
-				x: 65,
-				y: 16,
-				w: 35,
-				h: 22,
-				skin: "grass"
-			},
-			{
-				x: 72,
-				y: 14,
-				w: 2,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 66,
-				y: 0,
-				w: 1,
-				h: 14,
-				skin: "box"
-			},
-			{
-				x: 78,
-				y: 13,
-				w: 1,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 82,
-				y: 11,
-				w: 3,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 85,
-				y: 9,
-				w: 3,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 94,
-				y: 12,
-				w: 2,
-				h: 3,
-				skin: "box"
-			},
-			{
-				x: 99,
-				y: 10,
-				w: 7,
-				h: 1,
-				skin: "mud",
-				mud: 80
-			},
-			{
-				x: 109,
-				y: 14,
-				w: 3,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 114,
-				y: 12,
-				w: 6,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 114,
-				y: 11,
-				w: 1,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 119,
-				y: 11,
-				w: 1,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 124,
-				y: 12,
-				w: 2,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 132,
-				y: 12,
-				w: 2,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 140,
-				y: 12,
-				w: 2,
-				h: 1,
-				skin: "box"
-			},
-			{
-				x: 143,
-				y: 22,
-				w: 25,
-				h: 16,
-				skin: "grass"
-			}
-		],
-		items: [
-			{
-				x: 9,
-				y: 15
-			},
-			{
-				x: 11,
-				y: 15
-			},
-			{
-				x: 13,
-				y: 15
-			},
-			{
-				x: 14,
-				y: 15
-			},
-			{
-				x: 17,
-				y: 10
-			},
-			{
-				x: 19,
-				y: 10
-			},
-			{
-				x: 18,
-				y: 7
-			},
-			{
-				x: 21,
-				y: 10
-			},
-			{
-				x: 23,
-				y: 10
-			},
-			{
-				x: 26,
-				y: 15
-			},
-			{
-				x: 26,
-				y: 14
-			},
-			{
-				x: 31,
-				y: 15
-			},
-			{
-				x: 31,
-				y: 14
-			},
-			{
-				x: 31,
-				y: 13
-			},
-			{
-				x: 31,
-				y: 12
-			},
-			{
-				x: 39,
-				y: 15
-			},
-			{
-				x: 41,
-				y: 15
-			},
-			{
-				x: 43,
-				y: 15
-			},
-			{
-				x: 47,
-				y: 11
-			},
-			{
-				x: 48,
-				y: 15
-			},
-			{
-				x: 52,
-				y: 15
-			},
-			{
-				x: 53,
-				y: 14
-			},
-			{
-				x: 54,
-				y: 15
-			},
-			{
-				x: 54,
-				y: 13
-			},
-			{
-				x: 54,
-				y: 10
-			},
-			{
-				x: 54,
-				y: 7
-			},
-			...Array.from({ length: 11 }, (_, i) => ({
-				x: 67 + 2 * i,
-				y: 15
-			})),
-			{
-				x: 78,
-				y: 12
-			},
-			{
-				x: 80,
-				y: 10
-			},
-			{
-				x: 82,
-				y: 9
-			},
-			{
-				x: 84,
-				y: 7
-			},
-			{
-				x: 86,
-				y: 6
-			},
-			{
-				x: 93,
-				y: 8
-			},
-			{
-				x: 94,
-				y: 9
-			},
-			{
-				x: 102,
-				y: 9
-			},
-			{
-				x: 103,
-				y: 9
-			},
-			{
-				x: 104,
-				y: 9
-			},
-			{
-				x: 105,
-				y: 9
-			},
-			{
-				x: 106,
-				y: 9
-			},
-			{
-				x: 110,
-				y: 13
-			},
-			{
-				x: 115,
-				y: 11
-			},
-			{
-				x: 116,
-				y: 11
-			},
-			{
-				x: 117,
-				y: 11
-			},
-			{
-				x: 118,
-				y: 11
-			},
-			{
-				x: 124,
-				y: 11
-			},
-			{
-				x: 125,
-				y: 11
-			},
-			{
-				x: 127,
-				y: 9
-			},
-			{
-				x: 130,
-				y: 9
-			},
-			{
-				x: 132,
-				y: 11
-			},
-			{
-				x: 133,
-				y: 11
-			},
-			{
-				x: 135,
-				y: 9
-			},
-			{
-				x: 138,
-				y: 9
-			},
-			{
-				x: 140,
-				y: 11
-			},
-			{
-				x: 141,
-				y: 11
-			}
-		],
-		checkpoints: [
-			{
-				x: 0,
-				y: 12,
-				w: 1,
-				h: 4
-			},
-			{
-				x: 30,
-				y: 0,
-				w: 1,
-				h: 9
-			},
-			{
-				x: 46,
-				y: 5,
-				w: 11,
-				h: 1
-			},
-			{
-				x: 66,
-				y: 14,
-				w: 1,
-				h: 2
-			},
-			{
-				x: 99,
-				y: 2,
-				w: 1,
-				h: 8,
-				spawn: {
-					dx: 0,
-					dy: 7
+	const LEVELS = [
+		{
+			name: "Default",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 3648,
+			deathY: 1024,
+			platforms: [
+				{
+					x: -3,
+					y: 4,
+					w: 3,
+					h: 26,
+					skin: "grass"
+				},
+				{
+					x: 0,
+					y: 14,
+					w: 57,
+					h: 16,
+					skin: "grass"
+				},
+				{
+					x: 5,
+					y: 2,
+					w: 1,
+					h: 10,
+					skin: "box"
+				},
+				{
+					x: 8,
+					y: 5,
+					w: 1,
+					h: 9,
+					skin: "box"
+				},
+				{
+					x: 11,
+					y: -5,
+					w: 1,
+					h: 16,
+					skin: "box"
+				},
+				{
+					x: 18,
+					y: 8,
+					w: 1,
+					h: 6,
+					skin: "box"
+				},
+				{
+					x: 11,
+					y: 10,
+					w: 5,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 18,
+					y: -3,
+					w: 1,
+					h: 7,
+					skin: "box"
+				},
+				{
+					x: 21,
+					y: -3,
+					w: 1,
+					h: 14,
+					skin: "box"
+				},
+				{
+					x: 21,
+					y: -2,
+					w: 10,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 19,
+					y: 13,
+					w: 10,
+					h: 1,
+					skin: "mud",
+					mud: 40
+				},
+				{
+					x: 33,
+					y: -10,
+					w: 1,
+					h: 22,
+					skin: "box"
+				},
+				{
+					x: 35,
+					y: -5,
+					w: 1,
+					h: 15,
+					skin: "box"
+				},
+				{
+					x: 46,
+					y: 5,
+					w: 1,
+					h: 9,
+					skin: "box"
+				},
+				{
+					x: 36,
+					y: -5,
+					w: 12,
+					h: 1,
+					skin: "box"
 				}
-			},
-			{
-				x: 167.5,
-				y: 3,
-				w: 1,
-				h: 19
-			}
-		],
-		subCheckpoints: []
-	}];
+			],
+			items: [
+				{
+					x: 2,
+					y: 13
+				},
+				{
+					x: 4,
+					y: 13
+				},
+				{
+					x: 6,
+					y: 13
+				},
+				{
+					x: 7,
+					y: 12
+				},
+				{
+					x: 9,
+					y: 13
+				},
+				{
+					x: 10,
+					y: 12
+				},
+				{
+					x: 12,
+					y: 9
+				},
+				{
+					x: 14,
+					y: 9
+				},
+				{
+					x: 16,
+					y: 9
+				},
+				{
+					x: 19,
+					y: 12
+				},
+				{
+					x: 21,
+					y: 12
+				},
+				{
+					x: 23,
+					y: 12
+				},
+				{
+					x: 25,
+					y: 12
+				},
+				{
+					x: 27,
+					y: 12
+				},
+				{
+					x: 29,
+					y: 12
+				},
+				{
+					x: 30,
+					y: 12
+				},
+				{
+					x: 32,
+					y: 12
+				},
+				{
+					x: 34,
+					y: 12
+				},
+				{
+					x: 36,
+					y: 12
+				},
+				{
+					x: 38,
+					y: 12
+				},
+				{
+					x: 40,
+					y: 12
+				},
+				{
+					x: 42,
+					y: 12
+				},
+				{
+					x: 44,
+					y: 12
+				},
+				{
+					x: 47,
+					y: 13
+				},
+				{
+					x: 49,
+					y: 13
+				},
+				{
+					x: 51,
+					y: 13
+				},
+				{
+					x: 53,
+					y: 13
+				},
+				{
+					x: 55,
+					y: 13
+				}
+			],
+			checkpoints: [
+				{
+					x: 0,
+					y: 10,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 6,
+					y: 10,
+					w: 2,
+					h: 2
+				},
+				{
+					x: 8,
+					y: -6,
+					w: 1,
+					h: 11
+				},
+				{
+					x: 9,
+					y: 9,
+					w: 2,
+					h: 2
+				},
+				{
+					x: 16,
+					y: 10,
+					w: 2,
+					h: 1
+				},
+				{
+					x: 18,
+					y: 4,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 32,
+					y: 13,
+					w: 3,
+					h: 1
+				},
+				{
+					x: 56.5,
+					y: -5,
+					w: 1,
+					h: 19
+				}
+			],
+			subCheckpoints: []
+		},
+		{
+			name: "Chamois",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 10752,
+			deathY: 1024,
+			platforms: [
+				{
+					x: -3,
+					y: 6,
+					w: 3,
+					h: 32,
+					skin: "grass"
+				},
+				{
+					x: 0,
+					y: 16,
+					w: 55,
+					h: 22,
+					skin: "grass"
+				},
+				{
+					x: 1,
+					y: 15,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 10,
+					y: 13,
+					w: 3,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 17,
+					y: 11,
+					w: 10,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 26,
+					y: 10,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 26,
+					y: 11,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 30,
+					y: 9,
+					w: 1,
+					h: 7,
+					skin: "box"
+				},
+				{
+					x: 36,
+					y: 13,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 38,
+					y: 11,
+					w: 5,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 45,
+					y: 15,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 49,
+					y: 6,
+					w: 1,
+					h: 8,
+					skin: "box"
+				},
+				{
+					x: 43,
+					y: 9,
+					w: 3,
+					h: 1,
+					skin: "mud",
+					mud: 60
+				},
+				{
+					x: 46,
+					y: 10,
+					w: 2,
+					h: 1,
+					skin: "vertical-trampoline",
+					trampoline: 1150
+				},
+				{
+					x: 55,
+					y: 7,
+					w: 2,
+					h: 31,
+					skin: "grass"
+				},
+				{
+					x: 65,
+					y: 16,
+					w: 35,
+					h: 22,
+					skin: "grass"
+				},
+				{
+					x: 72,
+					y: 14,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 66,
+					y: 0,
+					w: 1,
+					h: 14,
+					skin: "box"
+				},
+				{
+					x: 78,
+					y: 13,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 82,
+					y: 11,
+					w: 3,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 85,
+					y: 9,
+					w: 3,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 94,
+					y: 12,
+					w: 2,
+					h: 3,
+					skin: "box"
+				},
+				{
+					x: 99,
+					y: 10,
+					w: 7,
+					h: 1,
+					skin: "mud",
+					mud: 80
+				},
+				{
+					x: 108,
+					y: 13,
+					w: 3,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 114,
+					y: 12,
+					w: 6,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 114,
+					y: 11,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 119,
+					y: 11,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 124,
+					y: 12,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 131,
+					y: 12,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 138,
+					y: 12,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 143,
+					y: 22,
+					w: 25,
+					h: 16,
+					skin: "grass"
+				}
+			],
+			items: [
+				{
+					x: 9,
+					y: 15
+				},
+				{
+					x: 11,
+					y: 15
+				},
+				{
+					x: 13,
+					y: 15
+				},
+				{
+					x: 14,
+					y: 15
+				},
+				{
+					x: 17,
+					y: 10
+				},
+				{
+					x: 19,
+					y: 10
+				},
+				{
+					x: 18,
+					y: 7
+				},
+				{
+					x: 21,
+					y: 10
+				},
+				{
+					x: 23,
+					y: 10
+				},
+				{
+					x: 26,
+					y: 15
+				},
+				{
+					x: 26,
+					y: 14
+				},
+				{
+					x: 31,
+					y: 15
+				},
+				{
+					x: 31,
+					y: 14
+				},
+				{
+					x: 31,
+					y: 13
+				},
+				{
+					x: 31,
+					y: 12
+				},
+				{
+					x: 39,
+					y: 15
+				},
+				{
+					x: 41,
+					y: 15
+				},
+				{
+					x: 43,
+					y: 15
+				},
+				{
+					x: 47,
+					y: 11
+				},
+				{
+					x: 48,
+					y: 15
+				},
+				{
+					x: 52,
+					y: 15
+				},
+				{
+					x: 53,
+					y: 14
+				},
+				{
+					x: 54,
+					y: 15
+				},
+				{
+					x: 54,
+					y: 13
+				},
+				{
+					x: 54,
+					y: 10
+				},
+				{
+					x: 54,
+					y: 7
+				},
+				...Array.from({ length: 11 }, (_, i) => ({
+					x: 67 + 2 * i,
+					y: 15
+				})),
+				{
+					x: 78,
+					y: 12
+				},
+				{
+					x: 80,
+					y: 10
+				},
+				{
+					x: 82,
+					y: 9
+				},
+				{
+					x: 84,
+					y: 7
+				},
+				{
+					x: 86,
+					y: 6
+				},
+				{
+					x: 93,
+					y: 8
+				},
+				{
+					x: 94,
+					y: 9
+				},
+				{
+					x: 102,
+					y: 9
+				},
+				{
+					x: 103,
+					y: 9
+				},
+				{
+					x: 104,
+					y: 9
+				},
+				{
+					x: 105,
+					y: 9
+				},
+				{
+					x: 106,
+					y: 9
+				},
+				{
+					x: 109,
+					y: 12
+				},
+				{
+					x: 115,
+					y: 11
+				},
+				{
+					x: 116,
+					y: 11
+				},
+				{
+					x: 117,
+					y: 11
+				},
+				{
+					x: 118,
+					y: 11
+				},
+				{
+					x: 124,
+					y: 11
+				},
+				{
+					x: 125,
+					y: 11
+				},
+				{
+					x: 127,
+					y: 9
+				},
+				{
+					x: 129,
+					y: 9
+				},
+				{
+					x: 131,
+					y: 11
+				},
+				{
+					x: 132,
+					y: 11
+				},
+				{
+					x: 134,
+					y: 9
+				},
+				{
+					x: 136,
+					y: 9
+				},
+				{
+					x: 138,
+					y: 11
+				},
+				{
+					x: 139,
+					y: 11
+				}
+			],
+			checkpoints: [
+				{
+					x: 0,
+					y: 12,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 30,
+					y: 0,
+					w: 1,
+					h: 9
+				},
+				{
+					x: 46,
+					y: 5,
+					w: 11,
+					h: 2
+				},
+				{
+					x: 66,
+					y: 14,
+					w: 1,
+					h: 2
+				},
+				{
+					x: 99,
+					y: 2,
+					w: 1,
+					h: 8
+				},
+				{
+					x: 108,
+					y: 9,
+					w: 3,
+					h: 4
+				},
+				{
+					x: 167.5,
+					y: 3,
+					w: 1,
+					h: 19
+				}
+			],
+			subCheckpoints: []
+		},
+		{
+			name: "Spring Valley",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 7744,
+			deathY: 1024,
+			platforms: [
+				{
+					x: -3,
+					y: 4,
+					w: 3,
+					h: 26,
+					skin: "grass"
+				},
+				{
+					x: 0,
+					y: 14,
+					w: 30,
+					h: 16,
+					skin: "grass"
+				},
+				{
+					x: 7,
+					y: 13,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 12,
+					y: 12,
+					w: 2,
+					h: 2,
+					skin: "box"
+				},
+				{
+					x: 18,
+					y: 11,
+					w: 4,
+					h: 1,
+					skin: "platform"
+				},
+				{
+					x: 24,
+					y: 13,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 31,
+					y: 16,
+					w: 3,
+					h: 1,
+					skin: "vertical-trampoline",
+					trampoline: 1e3
+				},
+				{
+					x: 35,
+					y: 14,
+					w: 35,
+					h: 16,
+					skin: "grass"
+				},
+				{
+					x: 41,
+					y: 13,
+					w: 2,
+					h: 1,
+					skin: "vertical-trampoline",
+					trampoline: 1250
+				},
+				{
+					x: 44,
+					y: 8,
+					w: 7,
+					h: 1,
+					skin: "platform"
+				},
+				{
+					x: 54,
+					y: 8,
+					w: 7,
+					h: 1,
+					skin: "platform"
+				},
+				{
+					x: 43,
+					y: 13,
+					w: 16,
+					h: 1,
+					skin: "mud",
+					mud: 140
+				},
+				{
+					x: 64,
+					y: 12,
+					w: 2,
+					h: 2,
+					skin: "box"
+				},
+				{
+					x: 72,
+					y: 16,
+					w: 6,
+					h: 1,
+					skin: "vertical-trampoline",
+					trampoline: 1e3
+				},
+				{
+					x: 80,
+					y: 16,
+					w: 5,
+					h: 1,
+					skin: "vertical-trampoline",
+					trampoline: 1e3
+				},
+				{
+					x: 86,
+					y: 14,
+					w: 35,
+					h: 16,
+					skin: "grass"
+				},
+				{
+					x: 92,
+					y: 13,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 95,
+					y: 11,
+					w: 11,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 110,
+					y: 12,
+					w: 2,
+					h: 2,
+					skin: "box"
+				}
+			],
+			items: [
+				{
+					x: 4,
+					y: 13
+				},
+				{
+					x: 9,
+					y: 13
+				},
+				{
+					x: 10,
+					y: 11
+				},
+				{
+					x: 19,
+					y: 10
+				},
+				{
+					x: 20,
+					y: 10
+				},
+				{
+					x: 27,
+					y: 13
+				},
+				{
+					x: 32,
+					y: 12
+				},
+				{
+					x: 38,
+					y: 13
+				},
+				{
+					x: 46,
+					y: 7
+				},
+				{
+					x: 48,
+					y: 7
+				},
+				{
+					x: 52,
+					y: 5
+				},
+				{
+					x: 56,
+					y: 7
+				},
+				{
+					x: 58,
+					y: 7
+				},
+				{
+					x: 48,
+					y: 12
+				},
+				{
+					x: 52,
+					y: 12
+				},
+				{
+					x: 56,
+					y: 12
+				},
+				{
+					x: 67,
+					y: 13
+				},
+				{
+					x: 76,
+					y: 11
+				},
+				{
+					x: 84,
+					y: 11
+				},
+				{
+					x: 90,
+					y: 13
+				},
+				{
+					x: 97,
+					y: 10
+				},
+				{
+					x: 100,
+					y: 10
+				},
+				{
+					x: 103,
+					y: 10
+				},
+				{
+					x: 98,
+					y: 13
+				},
+				{
+					x: 102,
+					y: 13
+				},
+				{
+					x: 115,
+					y: 13
+				}
+			],
+			checkpoints: [
+				{
+					x: 0,
+					y: 10,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 37,
+					y: 10,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 62,
+					y: 3,
+					w: 1,
+					h: 11
+				},
+				{
+					x: 89,
+					y: 10,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 120.5,
+					y: 0,
+					w: 1,
+					h: 14
+				}
+			],
+			subCheckpoints: []
+		},
+		{
+			name: "Sky Lift",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 7040,
+			deathY: 1024,
+			platforms: [
+				{
+					x: -3,
+					y: 4,
+					w: 3,
+					h: 26,
+					skin: "grass"
+				},
+				{
+					x: 0,
+					y: 14,
+					w: 20,
+					h: 16,
+					skin: "grass"
+				},
+				{
+					x: 8,
+					y: 13,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 13,
+					y: 12,
+					w: 3,
+					h: 1,
+					skin: "platform"
+				},
+				{
+					x: 21,
+					y: 15,
+					w: 5,
+					h: 1,
+					skin: "platform",
+					move: {
+						ax: GRID_SIZE,
+						ay: 0,
+						period: 4,
+						phase: 0
+					}
+				},
+				{
+					x: 29,
+					y: 14,
+					w: 5,
+					h: 1,
+					skin: "platform",
+					move: {
+						ax: GRID_SIZE,
+						ay: 0,
+						period: 4,
+						phase: 0
+					}
+				},
+				{
+					x: 37,
+					y: 13,
+					w: 4,
+					h: 1,
+					skin: "platform",
+					move: {
+						ax: 0,
+						ay: GRID_SIZE,
+						period: 3,
+						phase: 0
+					}
+				},
+				{
+					x: 44,
+					y: 13,
+					w: 5,
+					h: 1,
+					skin: "platform",
+					move: {
+						ax: GRID_SIZE,
+						ay: 0,
+						period: 4,
+						phase: .25
+					}
+				},
+				{
+					x: 52,
+					y: 13,
+					w: 58,
+					h: 17,
+					skin: "grass"
+				},
+				{
+					x: 58,
+					y: 11,
+					w: 1,
+					h: 2,
+					skin: "box"
+				},
+				{
+					x: 66,
+					y: 3,
+					w: 1,
+					h: 8,
+					skin: "box"
+				},
+				{
+					x: 70,
+					y: 5,
+					w: 1,
+					h: 8,
+					skin: "box"
+				},
+				{
+					x: 71,
+					y: 5,
+					w: 13,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 87,
+					y: 6,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 92,
+					y: 6,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 97,
+					y: 7,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 83,
+					y: 12,
+					w: 17,
+					h: 1,
+					skin: "mud",
+					mud: 110
+				}
+			],
+			items: [
+				{
+					x: 5,
+					y: 13
+				},
+				{
+					x: 11,
+					y: 13
+				},
+				{
+					x: 14,
+					y: 11
+				},
+				{
+					x: 23,
+					y: 12
+				},
+				{
+					x: 31,
+					y: 11
+				},
+				{
+					x: 39,
+					y: 10
+				},
+				{
+					x: 46,
+					y: 10
+				},
+				{
+					x: 55,
+					y: 12
+				},
+				{
+					x: 61,
+					y: 12
+				},
+				{
+					x: 63,
+					y: 12
+				},
+				{
+					x: 68,
+					y: 9
+				},
+				{
+					x: 68,
+					y: 5
+				},
+				{
+					x: 73,
+					y: 4
+				},
+				{
+					x: 76,
+					y: 4
+				},
+				{
+					x: 79,
+					y: 4
+				},
+				{
+					x: 82,
+					y: 4
+				},
+				{
+					x: 88,
+					y: 5
+				},
+				{
+					x: 93,
+					y: 5
+				},
+				{
+					x: 98,
+					y: 6
+				},
+				{
+					x: 87,
+					y: 11
+				},
+				{
+					x: 91,
+					y: 11
+				},
+				{
+					x: 95,
+					y: 11
+				},
+				{
+					x: 104,
+					y: 12
+				}
+			],
+			checkpoints: [
+				{
+					x: 0,
+					y: 10,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 53,
+					y: 9,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 76,
+					y: 1,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 102,
+					y: 9,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 109.5,
+					y: -2,
+					w: 1,
+					h: 15
+				}
+			],
+			subCheckpoints: []
+		},
+		{
+			name: "Muddy Canyon",
+			spawnX: 0,
+			spawnY: 0,
+			finishX: 8e3,
+			deathY: 1024,
+			platforms: [
+				{
+					x: -3,
+					y: -2,
+					w: 3,
+					h: 34,
+					skin: "grass"
+				},
+				{
+					x: 0,
+					y: 8,
+					w: 25,
+					h: 24,
+					skin: "grass"
+				},
+				{
+					x: 10,
+					y: 7,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 16,
+					y: 6,
+					w: 2,
+					h: 2,
+					skin: "box"
+				},
+				{
+					x: 25,
+					y: 11,
+					w: 5,
+					h: 21,
+					skin: "grass"
+				},
+				{
+					x: 30,
+					y: 11,
+					w: 7,
+					h: 1,
+					skin: "mud",
+					mud: 90
+				},
+				{
+					x: 30,
+					y: 12,
+					w: 7,
+					h: 20,
+					skin: "grass"
+				},
+				{
+					x: 37,
+					y: 11,
+					w: 13,
+					h: 21,
+					skin: "grass"
+				},
+				{
+					x: 28,
+					y: 10,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 32,
+					y: 8,
+					w: 2,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 44,
+					y: 10,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 54,
+					y: 13,
+					w: 26,
+					h: 19,
+					skin: "grass"
+				},
+				{
+					x: 58,
+					y: 11,
+					w: 1,
+					h: 2,
+					skin: "box"
+				},
+				{
+					x: 60,
+					y: 9,
+					w: 12,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 75,
+					y: 12,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 85,
+					y: 15,
+					w: 15,
+					h: 17,
+					skin: "grass"
+				},
+				{
+					x: 91,
+					y: 14,
+					w: 1,
+					h: 1,
+					skin: "box"
+				},
+				{
+					x: 98,
+					y: 14,
+					w: 2,
+					h: 1,
+					skin: "vertical-trampoline",
+					trampoline: 1450
+				},
+				{
+					x: 100,
+					y: 7,
+					w: 25,
+					h: 25,
+					skin: "grass"
+				},
+				{
+					x: 108,
+					y: 5,
+					w: 2,
+					h: 2,
+					skin: "box"
+				},
+				{
+					x: 115,
+					y: 6,
+					w: 1,
+					h: 1,
+					skin: "box"
+				}
+			],
+			items: [
+				{
+					x: 5,
+					y: 7
+				},
+				{
+					x: 13,
+					y: 7
+				},
+				{
+					x: 14,
+					y: 6
+				},
+				{
+					x: 20,
+					y: 7
+				},
+				{
+					x: 27,
+					y: 10
+				},
+				{
+					x: 32,
+					y: 6
+				},
+				{
+					x: 33,
+					y: 6
+				},
+				{
+					x: 31,
+					y: 10
+				},
+				{
+					x: 35,
+					y: 10
+				},
+				{
+					x: 41,
+					y: 10
+				},
+				{
+					x: 47,
+					y: 10
+				},
+				{
+					x: 52,
+					y: 9
+				},
+				{
+					x: 62,
+					y: 8
+				},
+				{
+					x: 65,
+					y: 8
+				},
+				{
+					x: 68,
+					y: 8
+				},
+				{
+					x: 63,
+					y: 12
+				},
+				{
+					x: 67,
+					y: 12
+				},
+				{
+					x: 71,
+					y: 12
+				},
+				{
+					x: 82,
+					y: 11
+				},
+				{
+					x: 88,
+					y: 14
+				},
+				{
+					x: 94,
+					y: 14
+				},
+				{
+					x: 96,
+					y: 14
+				},
+				{
+					x: 104,
+					y: 6
+				},
+				{
+					x: 112,
+					y: 6
+				},
+				{
+					x: 119,
+					y: 6
+				}
+			],
+			checkpoints: [
+				{
+					x: 0,
+					y: 4,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 40,
+					y: 7,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 55,
+					y: 9,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 87,
+					y: 11,
+					w: 1,
+					h: 4
+				},
+				{
+					x: 124.5,
+					y: -5,
+					w: 1,
+					h: 12
+				}
+			],
+			subCheckpoints: []
+		}
+	];
 	for (const level of LEVELS) {
 		for (const p of level.platforms) {
 			p.x *= GRID_SIZE;
@@ -40764,9 +41622,13 @@ function firstCheckpointPosition(level) {
 }
 /** Player position (center) used when respawning on a checkpoint after a death. */
 function checkpointRespawnPosition(checkpoint) {
+	if (checkpoint.spawn) return {
+		x: checkpoint.x + checkpoint.spawn.dx,
+		y: checkpoint.y + checkpoint.spawn.dy
+	};
 	return {
-		x: checkpoint.x + (checkpoint.spawn?.dx ?? 0),
-		y: checkpoint.y + (checkpoint.spawn?.dy ?? 0)
+		x: checkpoint.x + (checkpoint.w ?? GRID_SIZE) / 2,
+		y: checkpoint.y + (checkpoint.h ?? GRID_SIZE) - PLAYER_H$1 / 2
 	};
 }
 /** Distance from a point to the nearest of a rectangle's four faces. */
@@ -40968,7 +41830,7 @@ var PlayerBlock = class extends platformEngine.Block {
 	}
 	detectCollision(_id, _other, _entrySide, _engine, _clientData) {}
 	processBeforeEngine(_id, dt, engine) {
-		if (engine.game.players[this.index].respawn <= 0) this.velocity.y += dt * GRAVITY$3;
+		if (engine.game.players[this.index].respawn <= 0) this.velocity.y += dt * GRAVITY$4;
 		engine.game.beforePlayerStep(this.index, this, dt);
 	}
 	processAfterEngine(_id, dt, engine) {
@@ -41151,7 +42013,7 @@ var Player$2 = class {
 	slideOnWall(block, dt) {
 		block.wallSliding = true;
 		if (block.velocity.y > 0) {
-			block.velocity.y -= GRAVITY$3 * .75 * dt;
+			block.velocity.y -= GRAVITY$4 * .75 * dt;
 			block.velocity.y = Math.min(block.velocity.y, WALL_SLIDE_MAX_SPEED$1);
 		}
 		if (this.jumpBuffer > 0) {
@@ -41809,7 +42671,7 @@ var ClientData$2 = class {
 				life,
 				size: 4 + Math.random() * 6,
 				color: colors[Math.floor(Math.random() * colors.length)],
-				gravity: GRAVITY$3 * .22
+				gravity: GRAVITY$4 * .22
 			});
 		}
 	}
@@ -42077,7 +42939,7 @@ function drawEntitySprite(ctx, imageLoader, name, cx, cy, size, rotation = 0, ph
 var GMRally = class GMRally extends GameMode {
 	static types = { Player: Player$2 };
 	static DATA = {
-		GRAVITY: GRAVITY$3,
+		GRAVITY: GRAVITY$4,
 		WIDTH: WIDTH$2,
 		HEIGHT: HEIGHT$1,
 		RUN_SPEED: RUN_SPEED$1,
@@ -42114,7 +42976,7 @@ var GMRally = class GMRally extends GameMode {
 		this.players = Array.from({ length: total }, () => new Player$2());
 		platformEngine.createPlatformerEngine(this.isClient, this.storage, this, {
 			x: 0,
-			y: GRAVITY$3
+			y: GRAVITY$4
 		}).then((engine) => {
 			this.engine = engine;
 			this.buildWorldOnce();
@@ -42505,7 +43367,7 @@ var GMRally = class GMRally extends GameMode {
 			if (player.item !== ITEM_NONE$1 || player.pendingItem !== ITEM_NONE$1 || player.itemRollTimer > 0) return;
 			const leaderIndex = this.findRaceLeader();
 			const leaderLap = leaderIndex >= 0 ? this.players[leaderIndex].lapsCompleted : -1;
-			if (leaderIndex !== playerIndex && leaderLap >= this.blueShellPunishmentLap) {
+			if (leaderIndex !== playerIndex && leaderLap >= this.blueShellPunishmentLap && !this.isBlueShellInPlay()) {
 				this.blueShellPunishmentLap = leaderLap + 1;
 				player.pendingItem = ITEM_BLUE_SHELL$1;
 			} else player.pendingItem = this.rollItem(playerIndex);
@@ -42555,6 +43417,11 @@ var GMRally = class GMRally extends GameMode {
 			...this.getBombs(),
 			...this.getExplosions()
 		]) hazard.active = true;
+	}
+	/** True when a blue shell is held, being rolled, or already flying: only one may exist at a time. */
+	isBlueShellInPlay() {
+		if (this.players.some((p) => p.item === ITEM_BLUE_SHELL$1 || p.pendingItem === ITEM_BLUE_SHELL$1)) return true;
+		return this.getShells().some((s) => s instanceof BlueShell);
 	}
 	/** RNG is consumed only by the authority; the selected item is immediately shared. */
 	rollItem(playerIndex) {
@@ -42640,7 +43507,8 @@ var GMRally = class GMRally extends GameMode {
 			const m1 = tangents[segment + 1] * h;
 			return Math.max(0, (2 * u3 - 3 * u2 + 1) * y0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * y1 + (u3 - u2) * m1);
 		};
-		const weights = itemWeights.map(([item, values]) => [item, interpolate(values, t)]);
+		const blueInPlay = this.isBlueShellInPlay();
+		const weights = itemWeights.filter(([item]) => !blueInPlay || item !== ITEM_BLUE_SHELL$1).map(([item, values]) => [item, interpolate(values, t)]);
 		const total = weights.reduce((sum, [, weight]) => sum + weight, 0);
 		const r = this.nextItemRandom() * total;
 		let cumulative = 0;
@@ -42799,7 +43667,7 @@ var GMRally = class GMRally extends GameMode {
 	}
 	/** Axis-separated platform collision for falling items and rolling shells. */
 	moveProjectile(hazard, dt, platforms, bounceAtWall, canNeverReverse) {
-		hazard.vy = Math.min(hazard.vy + GRAVITY$3 * dt, 1250);
+		hazard.vy = Math.min(hazard.vy + GRAVITY$4 * dt, 1250);
 		hazard.x += hazard.vx * dt;
 		for (const platform of platforms) {
 			if (!overlapsCenter({
@@ -42813,7 +43681,7 @@ var GMRally = class GMRally extends GameMode {
 			if (canNeverReverse) {
 				const obstacleTop = platform.y - platform.h / 2;
 				const requiredRise = Math.max(0, hazard.y - (obstacleTop - HAZARD_SIZE / 2) + 28);
-				const wallJump = Math.sqrt(2 * GRAVITY$3 * requiredRise);
+				const wallJump = Math.sqrt(2 * GRAVITY$4 * requiredRise);
 				hazard.vy = Math.min(hazard.vy, -Math.max(SHELL_JUMP_VELOCITY, wallJump));
 			} else if (bounceAtWall) hazard.vx = -hazard.vx * .88;
 			else hazard.vx = 0;
@@ -43420,7 +44288,7 @@ var GMRally = class GMRally extends GameMode {
 //#region commons/gamemods/jumpies/constants.ts
 var WIDTH$1 = 1600;
 var JUMP_VELOCITY = 1500;
-var GRAVITY$2 = 3240;
+var GRAVITY$3 = 3240;
 var FAST_FALL_SPEED = 1200;
 var MAX_SPEED = 1500;
 var SPEED_INC = 10800;
@@ -44978,7 +45846,7 @@ var Player$1 = class {
 			this.vy = -JUMP_VELOCITY;
 			if (!this.isAlive()) return;
 		}
-		this.vy += GRAVITY$2 * dt;
+		this.vy += GRAVITY$3 * dt;
 		this.moveHorizontally(dt);
 		this.x += this.vx * dt;
 		this.y += (this.vy + (this.fastFall ? FAST_FALL_SPEED : 0)) * dt;
@@ -48636,6 +49504,115 @@ var bots_castle_default = describeBot([{
 	data: dataConstructor$2
 }]);
 //#endregion
+//#region commons/gamemods/rally/rallyNav.ts
+var GRID = 64;
+var CELL$1 = 32;
+var GRAVITY$2 = 1800;
+var JUMP_HEIGHT = 672400 / (2 * GRAVITY$2);
+/**
+* Gravity-aware geodesic distance (in world pixels) from any point of the level
+* to a checkpoint rectangle. Moving left/right/down is always allowed; moving up
+* only where a jump, a wall jump, a wall-jump shaft, a trampoline or a moving
+* platform can lift the player. Used by the Rally bot and the level checker.
+*/
+function distanceField(level, target) {
+	const tw = target.w ?? GRID, th = target.h ?? GRID;
+	const minX = -256, maxX = level.finishX + 256;
+	const tops = level.platforms.map((p) => p.y - p.h / 2);
+	const minY = Math.min(...tops, ...level.checkpoints.map((c) => c.y)) - 768, maxY = level.deathY;
+	const W = Math.ceil((maxX - minX) / CELL$1), H = Math.ceil((maxY - minY) / CELL$1);
+	const solid = new Uint8Array(W * H);
+	for (const p of level.platforms) {
+		if (p.move) continue;
+		const l = Math.floor((p.x - p.w / 2 - minX) / CELL$1), r = Math.ceil((p.x + p.w / 2 - minX) / CELL$1);
+		const t = Math.floor((p.y - p.h / 2 - minY) / CELL$1), b = Math.ceil((p.y + p.h / 2 - minY) / CELL$1);
+		for (let x = Math.max(0, l); x < Math.min(W, r); x++) for (let y = Math.max(0, t); y < Math.min(H, b); y++) solid[y * W + x] = 1;
+	}
+	const isSolid = (x, y) => x < 0 || y < 0 || x >= W || y >= H || solid[y * W + x] === 1;
+	const JUMP_CELLS = 6, WALLJUMP_CELLS = 5, SHAFT_CELLS = 15;
+	const canRise = new Uint8Array(W * H);
+	for (let x = 0; x < W; x++) {
+		let floorY = -1;
+		let wallSupportY = -1;
+		for (let y = H - 1; y >= 0; y--) {
+			if (isSolid(x, y)) {
+				floorY = y;
+				wallSupportY = -1;
+				continue;
+			}
+			const h = floorY >= 0 ? floorY - y : 1e9;
+			let up = h <= JUMP_CELLS;
+			for (const dx of [-1, 1]) for (let k = 1; k <= JUMP_CELLS && !up; k++) if (isSolid(x + dx, y + k) && !isSolid(x + dx, y + k - 1)) up = true;
+			if (h <= JUMP_CELLS && (isSolid(x - 1, y) || isSolid(x + 1, y))) wallSupportY = y;
+			if (!up && wallSupportY >= 0 && wallSupportY - y <= WALLJUMP_CELLS) up = true;
+			if (!up) {
+				let l = x, r = x;
+				while (!isSolid(l - 1, y) && x - l < SHAFT_CELLS) l--;
+				while (!isSolid(r + 1, y) && r - x < SHAFT_CELLS) r++;
+				up = isSolid(l - 1, y) && isSolid(r + 1, y) && r - l + 1 <= SHAFT_CELLS;
+			}
+			canRise[y * W + x] = up ? 1 : 0;
+		}
+	}
+	for (const p of level.platforms) {
+		const vertical = (p.trampoline ?? -1) >= 0 && p.skin !== "horizontal-trampoline";
+		if (!vertical && !p.move) continue;
+		const lift = vertical ? p.trampoline ** 2 / (2 * GRAVITY$2) : Math.abs(p.move.ay) * 2 + JUMP_HEIGHT;
+		const ax = p.move ? Math.abs(p.move.ax) : 0, ay = p.move ? Math.abs(p.move.ay) : 0;
+		const l = Math.floor((p.x - p.w / 2 - ax - GRID - minX) / CELL$1), r = Math.ceil((p.x + p.w / 2 + ax + GRID - minX) / CELL$1);
+		const b = Math.ceil((p.y - p.h / 2 + ay - minY) / CELL$1), t = Math.floor((p.y - p.h / 2 - ay - lift - minY) / CELL$1);
+		for (let x = Math.max(0, l); x < Math.min(W, r); x++) for (let y = Math.max(0, t); y < Math.min(H, b); y++) canRise[y * W + x] = 1;
+	}
+	const dist = new Float64Array(W * H).fill(1e9);
+	const queue = [];
+	for (let x = Math.floor((target.x - minX) / CELL$1); x < Math.ceil((target.x + tw - minX) / CELL$1); x++) for (let y = Math.floor((target.y - minY) / CELL$1); y < Math.ceil((target.y + th - minY) / CELL$1); y++) if (x >= 0 && y >= 0 && x < W && y < H && !solid[y * W + x]) {
+		dist[y * W + x] = 0;
+		queue.push(y * W + x);
+	}
+	for (let q = 0; q < queue.length; q++) {
+		const c = queue[q], x = c % W, y = (c - x) / W;
+		for (const [dx, dy] of [
+			[1, 0],
+			[-1, 0],
+			[0, 1],
+			[0, -1]
+		]) {
+			const nx = x + dx, ny = y + dy;
+			if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+			const n = ny * W + nx;
+			if (solid[n] || dist[n] <= dist[c] + 1) continue;
+			if (dy === 1 && !canRise[n]) continue;
+			dist[n] = dist[c] + 1;
+			queue.push(n);
+		}
+	}
+	return (px, py) => {
+		const x = Math.floor((px - minX) / CELL$1), y = Math.floor((py - minY) / CELL$1);
+		if (x < 0 || y < 0 || x >= W || y >= H) return 1e6;
+		let best = dist[y * W + x];
+		for (const [dx, dy] of [
+			[1, 0],
+			[-1, 0],
+			[0, 1],
+			[0, -1]
+		]) {
+			const nx = x + dx, ny = y + dy;
+			if (nx >= 0 && ny >= 0 && nx < W && ny < H) best = Math.min(best, dist[ny * W + nx] + 1);
+		}
+		return best * CELL$1;
+	};
+}
+var cache = /* @__PURE__ */ new WeakMap();
+/** One distance field per checkpoint, built once per level definition. */
+function checkpointFields(level) {
+	let fields = cache.get(level);
+	if (!fields) {
+		fields = level.checkpoints.map((cp) => distanceField(level, cp));
+		cache.set(level, fields);
+	}
+	return fields;
+}
+//#endregion
 //#region commons/bots/bots-rally.ts
 var { all: all$2, runner: runner$2 } = botActionNodeHelper();
 /** GMRally only consumes `jump` and `item`; horizontal running is automatic. */
@@ -48661,10 +49638,11 @@ var WALL_JUMP_BOOST_TIME = .35;
 var JUMP_BUFFER = .12;
 var JUMP_COOLDOWN = .16;
 var SIM_DT$1 = 1 / 30;
-var SEARCH_STEPS = 66;
-var BEAM_WIDTH = 72;
+var SEARCH_STEPS = 60;
+var BEAM_WIDTH = 64;
 var PLAN_INTERVAL = .08;
 var CONTACT_EPSILON = 3;
+var CHECKPOINT_SCORE = 1e6;
 var ITEM_NONE = 0;
 var ITEM_BANANA = 1;
 var ITEM_GREEN_SHELL = 2;
@@ -48678,20 +49656,22 @@ var Data$2 = class {
 	lastJumpAt = -1e9;
 	lastItemAt = -1e9;
 	lastPlanAt = -1e9;
-	lastLevelIndex = -1;
-	lastLap = -1;
-	lastCheckpoint = -1;
-	bestX = -Infinity;
+	/** Level time at which the current plan wants the next jump pressed. */
+	scheduledJumpAt = null;
+	/** Best race progress seen (checkpoint score minus distance to the next one). */
+	bestProgress = -Infinity;
 	lastProgressAt = 0;
-	/** Keep the selected elevated route until its exit waypoint is reached. */
-	routePlatformIndex = null;
-	routeBarrierIndex = null;
+	lastLap = -1;
 };
+/** After this long without progress, the bot mixes random jumps into its plan to get unstuck. */
+var STUCK_TIME = 2.5;
+var STUCK_JUMP_CHANCE = .3;
 function asPlayer(game, playerIdx) {
 	return game.players[playerIdx];
 }
+/** Platform rectangles at a given level time (GMRally stores centers in world space). */
 function getRects(level, time) {
-	return level.platforms.map((platform, index) => {
+	return level.platforms.map((platform) => {
 		let x = platform.x;
 		let y = platform.y;
 		const move = platform.move;
@@ -48701,13 +49681,9 @@ function getRects(level, time) {
 			y += move.ay * Math.sin(angle);
 		}
 		return {
-			index,
 			skin: platform.skin,
-			mud: platform.mud,
-			cx: x,
-			cy: y,
-			w: platform.w,
-			h: platform.h,
+			mud: platform.mud ?? -1,
+			trampoline: platform.trampoline ?? -1,
 			left: x - platform.w / 2,
 			right: x + platform.w / 2,
 			top: y - platform.h / 2,
@@ -48715,14 +49691,11 @@ function getRects(level, time) {
 		};
 	});
 }
-function horizontalOverlap(x, rect, playerWidth = PLAYER_W) {
-	return x + playerWidth / 2 > rect.left + .5 && x - playerWidth / 2 < rect.right - .5;
+function horizontalOverlap(x, rect) {
+	return x + PLAYER_W / 2 > rect.left + .5 && x - PLAYER_W / 2 < rect.right - .5;
 }
 function overlapsAt(x, y, rect) {
 	return x + PLAYER_W / 2 > rect.left + .5 && x - PLAYER_W / 2 < rect.right - .5 && y + PLAYER_H / 2 > rect.top + .5 && y - PLAYER_H / 2 < rect.bottom - .5;
-}
-function verticalOverlap(player, rect) {
-	return player.y + PLAYER_H / 2 > rect.top + .5 && player.y - PLAYER_H / 2 < rect.bottom - .5;
 }
 function isGrounded(state, rects) {
 	const feetY = state.y + PLAYER_H / 2;
@@ -48731,187 +49704,22 @@ function isGrounded(state, rects) {
 }
 function wallInFront(state, rects) {
 	const direction = state.facing < 0 ? -1 : 1;
-	let best = null;
-	let bestGap = Infinity;
-	for (const rect of rects) {
-		if (!verticalOverlap(state, rect)) continue;
+	return rects.some((rect) => {
+		if (!(state.y + PLAYER_H / 2 > rect.top + .5 && state.y - PLAYER_H / 2 < rect.bottom - .5)) return false;
 		const gap = direction > 0 ? rect.left - (state.x + PLAYER_W / 2) : state.x - PLAYER_W / 2 - rect.right;
-		if (Math.abs(gap) > CONTACT_EPSILON) continue;
-		if (Math.abs(gap) < bestGap) {
-			best = rect;
-			bestGap = Math.abs(gap);
-		}
-	}
-	return best;
-}
-function clamp$1(value, min, max) {
-	return Math.max(min, Math.min(max, value));
-}
-function findGroundTop(rects) {
-	const ground = rects.find((rect) => rect.skin === "grass" && rect.w > 1e3);
-	if (ground) return ground.top;
-	return rects.reduce((lowestTop, rect) => Math.min(lowestTop, rect.top), Infinity);
-}
-/**
-* A route barrier is a solid platform that intrudes into the standing space on
-* the ground lane. Small gaps below hanging platforms remain passable; notably,
-* the narrow checkpoint-side passage in Rally is not misclassified as a wall.
-*/
-function getRouteBarriers(rects, groundTop, maxX) {
-	return rects.filter((rect) => rect.skin !== "grass" && rect.skin !== "mud" && rect.left < maxX && rect.top < groundTop - 1 && rect.bottom > groundTop - PLAYER_H + 4).sort((a, b) => a.left - b.left);
-}
-function findElevatedRoutePlatform(barrier, rects) {
-	const candidates = rects.filter((rect) => rect.w >= 220 && rect.w >= rect.h * 3 && rect.top < barrier.top - 100 && rect.right > barrier.left && rect.left < barrier.right + 360);
-	if (!candidates.length) return null;
-	candidates.sort((a, b) => {
-		const score = (p) => Math.max(0, p.left - barrier.right) * .7 + Math.max(0, barrier.left - p.right) * 2 + Math.abs(barrier.top - p.top - 500) * .08;
-		return score(a) - score(b);
+		return Math.abs(gap) <= CONTACT_EPSILON;
 	});
-	return candidates[0];
-}
-function platformExitGoal(platform) {
-	return {
-		x: platform.right - PLAYER_W / 2 - 8,
-		y: platform.top - PLAYER_H / 2,
-		kind: "platform-exit",
-		platformIndex: platform.index
-	};
-}
-/**
-* Hierarchical path planning:
-*  1. Find the next ground-lane barrier before the next checkpoint.
-*  2. Reach its top, or use an elevated traversable platform if the geometry
-*     provides one (the mud bypass and the final overhead route).
-*  3. Follow that platform to its exit, then return to the race checkpoint/finish.
-*
-* The route is derived from the actual level rectangles, not hard-coded x values.
-*/
-function getNavigationGoal(game, player, level, rects, data) {
-	const groundTop = findGroundTop(rects);
-	const groundY = groundTop - PLAYER_H / 2;
-	const checkpoints = level.checkpoints ?? [];
-	const nextCheckpointIndex = player.checkpoint + 1;
-	const nextCheckpoint = nextCheckpointIndex >= 0 ? checkpoints[nextCheckpointIndex] : void 0;
-	const checkpointTargetRect = nextCheckpoint ? {
-		left: nextCheckpoint.x - PLAYER_W / 2 + 1,
-		right: nextCheckpoint.x + (nextCheckpoint.w ?? 64) + PLAYER_W / 2 - 1,
-		top: nextCheckpoint.y - PLAYER_H / 2 + 1,
-		bottom: nextCheckpoint.y + (nextCheckpoint.h ?? 64) + PLAYER_H / 2 - 1
-	} : void 0;
-	const raceTargetX = nextCheckpoint ? nextCheckpoint.x + (nextCheckpoint.w ?? 64) / 2 : level.finishX;
-	if (data.lastCheckpoint !== player.checkpoint) {
-		data.lastCheckpoint = player.checkpoint;
-		data.routePlatformIndex = null;
-		data.routeBarrierIndex = null;
-	}
-	if (data.routePlatformIndex !== null) {
-		const platform = rects.find((rect) => rect.index === data.routePlatformIndex);
-		if (platform) {
-			const exitX = platform.right - PLAYER_W / 2 - 8;
-			if (!(player.x >= exitX - 14 && player.y + PLAYER_H / 2 <= platform.top + 24)) return platformExitGoal(platform);
-		}
-		data.routePlatformIndex = null;
-		data.routeBarrierIndex = null;
-	}
-	const nextBarrier = getRouteBarriers(rects, groundTop, raceTargetX + PLAYER_W).find((rect) => rect.right + PLAYER_W / 2 >= player.x - 1);
-	if (nextBarrier) {
-		const elevated = findElevatedRoutePlatform(nextBarrier, rects);
-		if (elevated) {
-			if (elevated.left < nextBarrier.right && elevated.right > nextBarrier.left) {
-				data.routePlatformIndex = elevated.index;
-				data.routeBarrierIndex = nextBarrier.index;
-				return platformExitGoal(elevated);
-			}
-			if (player.y + PLAYER_H / 2 > nextBarrier.top + 8 && player.x <= nextBarrier.right + PLAYER_W / 2 + 10) return {
-				x: clamp$1(nextBarrier.cx, nextBarrier.left - PLAYER_W / 2, nextBarrier.right + PLAYER_W / 2),
-				y: nextBarrier.top - PLAYER_H / 2,
-				kind: "wall-top",
-				barrierIndex: nextBarrier.index
-			};
-			data.routePlatformIndex = elevated.index;
-			data.routeBarrierIndex = nextBarrier.index;
-			return platformExitGoal(elevated);
-		}
-		if (player.y + PLAYER_H / 2 > nextBarrier.top + 8) return {
-			x: nextBarrier.cx,
-			y: nextBarrier.top - PLAYER_H / 2,
-			kind: "wall-top",
-			barrierIndex: nextBarrier.index
-		};
-		return {
-			x: nextBarrier.right + PLAYER_W / 2 + 18,
-			y: nextBarrier.top - PLAYER_H / 2,
-			kind: "wall-clear",
-			barrierIndex: nextBarrier.index
-		};
-	}
-	return {
-		x: raceTargetX,
-		y: checkpointTargetRect ? clamp$1(player.y, checkpointTargetRect.top, checkpointTargetRect.bottom) : groundY,
-		kind: "race-target",
-		targetRect: checkpointTargetRect
-	};
-}
-function targetDistance(state, goal) {
-	if (goal.targetRect) {
-		const dx = Math.max(goal.targetRect.left - state.x, 0, state.x - goal.targetRect.right);
-		const dy = Math.max(goal.targetRect.top - state.y, 0, state.y - goal.targetRect.bottom);
-		return Math.hypot(dx * .72, dy * .9);
-	}
-	const dx = (state.x - goal.x) * .72;
-	const dy = (state.y - goal.y) * .9;
-	return Math.hypot(dx, dy);
-}
-function hasReachedGoal(state, goal) {
-	return targetDistance(state, goal) <= (goal.targetRect ? 0 : 58);
-}
-/** Score a simulated state by goal distance, progress, safety, and jump economy. */
-function scoreState(state, initial, goal, level, rects) {
-	let score = -targetDistance(state, goal) / 100;
-	score += (state.x - initial.x) * .0015;
-	score -= state.jumpsUsed * .075;
-	if (state.y > level.deathY - 24) score -= 35 + (state.y - level.deathY + 24) / 12;
-	if (state.x < -100) score -= 8 + Math.abs(state.x) / 50;
-	if (goal.kind === "platform-exit" && goal.platformIndex !== void 0) {
-		const platform = rects.find((rect) => rect.index === goal.platformIndex);
-		if (platform) {
-			const feet = state.y + PLAYER_H / 2;
-			if (Math.abs(feet - platform.top) <= 8 && horizontalOverlap(state.x, platform)) score += 1.4;
-		}
-	}
-	if (goal.kind === "wall-top" && goal.barrierIndex !== void 0) {
-		const barrier = rects.find((rect) => rect.index === goal.barrierIndex);
-		if (barrier && state.y + PLAYER_H / 2 <= barrier.top + 8) score += .8;
-	}
-	if (rects.some((rect) => overlapsAt(state.x, state.y, rect))) score -= 2.5;
-	return score;
 }
 function approach(current, target, maxDelta) {
 	return current < target ? Math.min(target, current + maxDelta) : Math.max(target, current - maxDelta);
 }
-/**
-* Jumping while grounded against the wrong face of a wall makes Rally reverse
-* and launch away from the route. Permit that input only when the post-bounce
-* direction is useful, or when an opposing wall is close enough to form a
-* wall-jump shaft (for example the x5/x8 and x33/x35 pairs in the level).
-*/
-function canPressJumpAt(state, goal, rects) {
-	const wall = wallInFront(state, rects);
-	if (!wall) return true;
-	const grounded = isGrounded(state, rects);
-	const directionToGoal = Math.sign(goal.x - state.x);
-	const directionAfterBounce = -state.facing;
-	if (grounded) return directionToGoal === directionAfterBounce;
-	if (directionToGoal === directionAfterBounce) return true;
-	return rects.some((other) => {
-		if (other.index === wall.index || other.w > 96 || other.h < 200) return false;
-		const gap = directionAfterBounce < 0 ? wall.left - other.right : other.left - wall.right;
-		const contactDistance = gap - PLAYER_W;
-		return gap >= PLAYER_W && contactDistance <= 430 && contactDistance >= 0;
-	});
+function overlapsCheckpoint(state, cp) {
+	if (!cp) return false;
+	const w = cp.w ?? 64, h = cp.h ?? 64;
+	return Math.abs(state.x - (cp.x + w / 2)) * 2 < PLAYER_W + w && Math.abs(state.y - (cp.y + h / 2)) * 2 < PLAYER_H + h;
 }
 /** Approximate one authoritative Rally physics step for look-ahead planning. */
-function simulateStep(source, pressJump, goal, rects, level, isFirstStep) {
+function simulateStep(source, pressJump, rects, level, step) {
 	const s = { ...source };
 	const dt = SIM_DT$1;
 	s.jumpCooldown = Math.max(0, s.jumpCooldown - dt);
@@ -48923,13 +49731,16 @@ function simulateStep(source, pressJump, goal, rects, level, isFirstStep) {
 		s.jumpBuffer = JUMP_BUFFER;
 		s.jumpCooldown = JUMP_COOLDOWN;
 		s.jumpsUsed++;
+		if (s.firstJumpStep < 0) s.firstJumpStep = step;
 	}
-	if (isFirstStep) s.firstJump = pressJump;
+	const feet = s.y + PLAYER_H / 2;
+	const mud = rects.find((rect) => rect.mud >= 0 && horizontalOverlap(s.x, rect) && feet >= rect.top - 1 && feet <= rect.bottom + 1);
+	if (mud) s.jumpBuffer = 0;
 	s.vy += GRAVITY$1 * dt;
 	const grounded = isGrounded(s, rects);
-	const pushingWall = wallInFront(s, rects) !== null;
+	const pushingWall = wallInFront(s, rects);
 	if (pushingWall && grounded) s.facing = -s.facing;
-	else if (pushingWall && !grounded) {
+	else if (pushingWall) {
 		if (s.vy > 0) {
 			s.vy -= GRAVITY$1 * .75 * dt;
 			s.vy = Math.min(s.vy, WALL_SLIDE_MAX_SPEED);
@@ -48945,11 +49756,9 @@ function simulateStep(source, pressJump, goal, rects, level, isFirstStep) {
 		s.jumpBuffer = 0;
 	}
 	let targetSpeed = s.wallBoost > 0 ? WALL_JUMP_RUN_SPEED : RUN_SPEED;
-	if (s.boostTimer > 0 || s.starTimer > 0) targetSpeed *= 1.6;
-	if (rects.some((rect) => rect.skin === "mud" && horizontalOverlap(s.x, rect) && Math.abs(s.y + PLAYER_H / 2 - rect.top) <= 8) && s.boostTimer <= 0 && s.starTimer <= 0) {
-		const mud = rects.find((rect) => rect.skin === "mud" && horizontalOverlap(s.x, rect));
-		if (mud) targetSpeed = Math.min(targetSpeed, mud.mud !== void 0 && mud.mud >= 0 ? mud.mud : 40);
-	}
+	const boosted = s.boostTimer > 0 || s.starTimer > 0;
+	if (mud && !boosted) targetSpeed = Math.min(targetSpeed, mud.mud);
+	if (boosted) targetSpeed *= 1.6;
 	const targetVx = (s.facing < 0 ? -1 : 1) * targetSpeed;
 	const reversing = s.vx !== 0 && Math.sign(s.vx) !== Math.sign(targetVx);
 	s.vx = approach(s.vx, targetVx, (reversing ? RUN_HARD_DEC : RUN_ACC) * dt);
@@ -48957,9 +49766,10 @@ function simulateStep(source, pressJump, goal, rects, level, isFirstStep) {
 	let nextX = s.x + s.vx * dt;
 	for (const rect of rects) {
 		if (!overlapsAt(nextX, s.y, rect)) continue;
+		if (rect.trampoline >= 0 && rect.skin === "horizontal-trampoline") s.vx = Math.sign(s.vx || s.facing) * -rect.trampoline;
 		if (nextX > oldX) nextX = rect.left - PLAYER_W / 2;
 		else if (nextX < oldX) nextX = rect.right + PLAYER_W / 2;
-		s.vx = 0;
+		if (!(rect.trampoline >= 0 && rect.skin === "horizontal-trampoline")) s.vx = 0;
 	}
 	s.x = nextX;
 	const oldY = s.y;
@@ -48970,36 +49780,50 @@ function simulateStep(source, pressJump, goal, rects, level, isFirstStep) {
 		const nextBottom = nextY + PLAYER_H / 2;
 		const oldTop = oldY - PLAYER_H / 2;
 		const nextTop = nextY - PLAYER_H / 2;
-		if (s.vy >= 0 && oldBottom <= rect.top + 2 && nextBottom >= rect.top) {
+		const bounce = rect.trampoline >= 0 && rect.skin !== "horizontal-trampoline";
+		if (s.vy >= 0 && oldBottom <= rect.top + 6 && nextBottom >= rect.top) {
 			nextY = rect.top - PLAYER_H / 2;
-			s.vy = 0;
-		} else if (s.vy < 0 && oldTop >= rect.bottom - 2 && nextTop <= rect.bottom) {
+			s.vy = bounce ? -rect.trampoline : 0;
+		} else if (s.vy < 0 && oldTop >= rect.bottom - 6 && nextTop <= rect.bottom) {
 			nextY = rect.bottom + PLAYER_H / 2;
-			s.vy = 0;
+			s.vy = bounce ? -rect.trampoline : 0;
 		} else if (overlapsAt(s.x, nextY, rect)) {
 			nextY = s.vy >= 0 ? rect.top - PLAYER_H / 2 : rect.bottom + PLAYER_H / 2;
 			s.vy = 0;
 		}
 	}
 	s.y = nextY;
+	if (overlapsCheckpoint(s, level.checkpoints[s.checkpoint + 1])) s.checkpoint++;
 	return s;
+}
+function scoreState(state, initial, level, fields) {
+	if (state.y > level.deathY - 24) return -0xe8d4a51000;
+	const last = level.checkpoints.length - 1;
+	const next = Math.min(state.checkpoint + 1, last);
+	let score = state.checkpoint * CHECKPOINT_SCORE - fields[next](state.x, state.y);
+	score -= state.jumpsUsed * 6;
+	if (state.checkpoint > initial.checkpoint) score += 0;
+	return score;
 }
 function stateKey(state) {
 	return [
-		Math.round(state.x / 36),
-		Math.round(state.y / 36),
+		Math.round(state.x / 32),
+		Math.round(state.y / 32),
 		Math.round(state.vy / 150),
-		Math.sign(state.vx),
 		state.facing,
 		state.wallBoost > 0 ? 1 : 0,
-		state.firstJump ? 1 : 0
+		state.checkpoint,
+		state.firstJumpStep < 0 || state.firstJumpStep > 8 ? -1 : state.firstJumpStep
 	].join(":");
 }
 /**
-* Beam-search pathfinding through simulated movement states. It returns only the
-* first action; the next bot tick replans from the real authoritative state.
+* Beam search through simulated movement states. Returns in how many seconds
+* the best trajectory presses jump first (null: no jump planned); the next
+* planning tick replans from the real authoritative state.
 */
-function planFirstJump(player, goal, data, now, level, rects) {
+function planFirstJump(player, data, now, level) {
+	const fields = checkpointFields(level);
+	if (fields.length === 0) return null;
 	const initial = {
 		x: player.x,
 		y: player.y,
@@ -49011,28 +49835,23 @@ function planFirstJump(player, goal, data, now, level, rects) {
 		wallBoost: player.wallBoost ?? 0,
 		boostTimer: player.boostTimer ?? 0,
 		starTimer: player.starTimer ?? 0,
+		checkpoint: player.checkpoint,
 		jumpsUsed: 0,
-		firstJump: false
+		firstJumpStep: -1
 	};
-	if (hasReachedGoal(initial, goal)) return false;
+	const result = (state) => state && state.firstJumpStep >= 0 ? state.firstJumpStep * SIM_DT$1 : null;
 	let beam = [initial];
-	for (let step = 0; step < SEARCH_STEPS; step++) {
+	let bestReached = null;
+	for (let step = 0; step < SEARCH_STEPS && beam.length; step++) {
+		const rects = getRects(level, now + (step + 1) * SIM_DT$1);
 		const deduplicated = /* @__PURE__ */ new Map();
-		const reached = [];
 		for (const state of beam) {
-			const actions = state.jumpCooldown <= 0 && canPressJumpAt(state, goal, rects) ? [false, true] : [false];
+			const actions = state.jumpCooldown <= 0 ? [false, true] : [false];
 			for (const action of actions) {
-				const next = simulateStep(state, action, goal, rects, level, step === 0);
+				const next = simulateStep(state, action, rects, level, step);
 				if (!Number.isFinite(next.x) || !Number.isFinite(next.y)) continue;
-				if (next.y > level.deathY + 180 || next.x < -220) continue;
-				const score = scoreState(next, initial, goal, level, rects);
-				if (hasReachedGoal(next, goal)) {
-					reached.push({
-						state: next,
-						score
-					});
-					continue;
-				}
+				if (next.y > level.deathY) continue;
+				const score = scoreState(next, initial, level, fields);
 				const key = stateKey(next);
 				const previous = deduplicated.get(key);
 				if (!previous || score > previous.score) deduplicated.set(key, {
@@ -49041,17 +49860,25 @@ function planFirstJump(player, goal, data, now, level, rects) {
 				});
 			}
 		}
-		if (reached.length) {
-			reached.sort((a, b) => a.state.jumpsUsed - b.state.jumpsUsed || b.score - a.score);
-			return reached[0].state.firstJump;
-		}
-		beam = [...deduplicated.values()].sort((a, b) => b.score - a.score).slice(0, BEAM_WIDTH).map((entry) => entry.state);
-		if (!beam.length) break;
+		const sorted = [...deduplicated.values()].sort((a, b) => b.score - a.score);
+		const reached = sorted.find((entry) => entry.state.checkpoint > initial.checkpoint);
+		if (reached && !bestReached) bestReached = {
+			state: reached.state,
+			step
+		};
+		if (bestReached) return result(bestReached.state);
+		beam = sorted.slice(0, BEAM_WIDTH).map((entry) => entry.state);
 	}
-	return beam.map((state) => ({
-		state,
-		score: scoreState(state, initial, goal, level, rects)
-	})).sort((a, b) => b.score - a.score)[0]?.state.firstJump ?? false;
+	let best = null;
+	let bestScore = -Infinity;
+	for (const state of beam) {
+		const score = scoreState(state, initial, level, fields);
+		if (score > bestScore) {
+			bestScore = score;
+			best = state;
+		}
+	}
+	return result(best);
 }
 function shouldUseItem(game, player, playerIdx) {
 	if (player.item === ITEM_NONE || player.pendingItem !== ITEM_NONE || player.itemRollTimer > 0 || player.hit || player.respawn > 0 || player.finished) return false;
@@ -49082,32 +49909,37 @@ var method$1 = runner$2((game, data, playerIdx) => {
 	const inputs = [];
 	const player = asPlayer(game, playerIdx);
 	if (!player) return [inputs, "success"];
+	if (player.respawn > 0 || player.hit || player.finished) return [inputs, "success"];
 	const now = game.levelTime;
-	if (data.lastLevelIndex !== game.levelIndex || data.lastLap !== player.lapsCompleted) {
-		data.lastLevelIndex = game.levelIndex;
-		data.lastLap = player.lapsCompleted;
-		data.lastCheckpoint = player.checkpoint;
-		data.routePlatformIndex = null;
-		data.routeBarrierIndex = null;
-		data.bestX = player.x;
-		data.lastProgressAt = now;
-	} else if (player.x > data.bestX + 24) {
-		data.bestX = player.x;
-		data.lastProgressAt = now;
-	}
-	if (player.respawn > 0 || player.hit || player.finished) {
-		data.bestX = player.x;
-		data.lastProgressAt = now;
-		return [inputs, "success"];
-	}
 	const level = game.currentLevel();
-	const rects = getRects(level, now);
-	if (now - data.lastPlanAt >= PLAN_INTERVAL) {
+	const fields = checkpointFields(level);
+	const next = Math.min(player.checkpoint + 1, level.checkpoints.length - 1);
+	const progress = player.checkpoint * CHECKPOINT_SCORE - (fields[next]?.(player.x, player.y) ?? 0);
+	if (data.lastLap !== player.lapsCompleted || now < data.lastProgressAt) {
+		data.lastLap = player.lapsCompleted;
+		data.bestProgress = progress;
+		data.lastProgressAt = now;
+	} else if (progress > data.bestProgress + 32) {
+		data.bestProgress = progress;
+		data.lastProgressAt = now;
+	}
+	const stuck = now - data.lastProgressAt > STUCK_TIME;
+	if (now - data.lastPlanAt >= PLAN_INTERVAL || now < data.lastPlanAt) {
 		data.lastPlanAt = now;
-		if (planFirstJump(player, getNavigationGoal(game, player, level, rects, data), data, now, level, rects)) {
-			inputs.push(INPUTS$1.jump);
-			data.lastJumpAt = now;
+		if (stuck) data.scheduledJumpAt = Math.random() < STUCK_JUMP_CHANCE ? now : null;
+		else {
+			const delay = planFirstJump(player, data, now, level);
+			data.scheduledJumpAt = delay === null ? null : now + delay;
 		}
+		if (stuck && now - data.lastProgressAt > 4) {
+			data.lastProgressAt = now;
+			data.bestProgress = progress;
+		}
+	}
+	if (data.scheduledJumpAt !== null && now + 1e-6 >= data.scheduledJumpAt) {
+		inputs.push(INPUTS$1.jump);
+		data.lastJumpAt = now;
+		data.scheduledJumpAt = null;
 	}
 	if (now - data.lastItemAt >= .22 && shouldUseItem(game, player, playerIdx)) {
 		inputs.push(INPUTS$1.item);
@@ -49891,8 +50723,8 @@ function dangerPenalty(field, end) {
 function getEndDistance(field, end) {
 	const here = field.distanceAt(end.x, end.y);
 	if (end.vy >= 0) return here;
-	const rise = end.vy * end.vy / (2 * GRAVITY$2);
-	const time = -end.vy / GRAVITY$2;
+	const rise = end.vy * end.vy / (2 * GRAVITY$3);
+	const time = -end.vy / GRAVITY$3;
 	const top = field.distanceAt(end.x + end.vx * time, end.y - rise);
 	return Math.min(here, top);
 }
@@ -90075,6 +90907,16 @@ var dynamicCssHandler = new DynamicCssHandler();
 //#endregion
 //#region client/src/dom/changelogs.ts
 var CHANGELOGS = [
+	{
+		version: "1.5.8",
+		date: 17949312e5,
+		title: "New Rally levels",
+		lines: [
+			"<ust>Rally:</ust> three new levels: *Spring Valley*, *Sky Lift* and *Muddy Canyon*",
+			"<ust>Rally:</ust> levels *Default* and *Chamois* reworked (start walls, new spring shortcut, fixed jumps and checkpoints)",
+			"<ust>Rally:</ust> smarter bots and only one blue shell in play at a time"
+		]
+	},
 	{
 		version: "1.5.7",
 		date: 17944992e5,
