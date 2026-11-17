@@ -15,6 +15,7 @@ export const CHANGELOGS: Changelog[] = [
 			"<ust>Rally:</ust> three new levels: *Spring Valley*, *Sky Lift* and *Muddy Canyon*",
 			"<ust>Rally:</ust> levels *Default* and *Chamois* reworked (start walls, new spring shortcut, fixed jumps and checkpoints)",
 			"<ust>Rally:</ust> smarter bots and only one blue shell in play at a time",
+			"<ust>Rally:</ust> red shells now home in on the nearest opponent ahead, jump to reach them and never hit their thrower",
 		]
 	},
 	{

@@ -52,6 +52,10 @@ message RedShellState {
 	float vx = 1;
 	float vy = 2;
 	reserved 3, 4;
+	// Player indices stored as index + 1 (0 = none).
+	int32 owner = 5;
+	int32 target = 6;
+	bool dropping = 7;
 }
 
 message BlueShellState {
