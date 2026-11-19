@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package game_trustIssues;
+
+message Empty {}
+
+
+/* -------------------------------------------------------------------------- */
+/* State                                                                      */
+/* The level itself is never sent: it is rebuilt from the seed (start data). */
+/* -------------------------------------------------------------------------- */
+
+message PlayerState {
+	bool connected = 1;
+
+	// Center of the capsule (y is up) and velocity
+	double x = 2;
+	double y = 3;
+	double z = 4;
+	double vy = 5;
+
+	// Movement requested, relative to the view (-1, 0 or 1), and view direction
+	int32 moveX = 6;
+	int32 moveZ = 7;
+	double yaw = 8;
+
+	bool grounded = 9;
+	double coyote = 10;
+	double jumpBuffer = 11;
+	double explodeCooldown = 12;
+
+	int32 score = 13;
+	int32 zones = 14;          // bit i set = zone i reached
+	int32 explosions = 15;
+	double vx = 16;             // horizontal velocity (inertia)
+	double vz = 17;
+	double respawnTimer = 18;   // > 0 after exploding: seconds before respawning
+}
+
+// A paint explosion
+message SplatState {
+	uint32 id = 1;
+	float x = 2;
+	float y = 3;
+	float z = 4;
+	int32 player = 5;
+	double time = 6;           // game clock (seconds since the start)
+}
+
+message ZoneArrivals {
+	repeated int32 players = 1; // in arrival order
+}
+
+message State {
+	repeated PlayerState players = 1;
+	repeated SplatState splats = 2;
+	repeated ZoneArrivals zoneArrivals = 3;
+	uint32 nextSplatId = 4;
+	double time = 5;           // time left (seconds)
+	bool finished = 6;
+	double accumulator = 7;    // simulated time not yet turned into a fixed step (seconds)
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Inputs                                                                     */
+/* -------------------------------------------------------------------------- */
+
+message MoveInput {
+	int32 x = 1;               // strafe: -1 left, 1 right
+	int32 z = 2;               // -1 backward, 1 forward
+}
+
+message QInput {
+	double timestamp = 1;
+	oneof action {
+		MoveInput move = 2;
+		double yaw = 3;            // view direction (radians)
+		Empty jump = 4;
+		Empty explode = 5;
+		Empty jumpRelease = 6;     // Space released: cuts a jump going up
+	}
+}
+
+message Input {
+	QInput data = 1;
+	float player = 2;
+}
+
+message ServerMessage {
+	double timestamp = 1;
+	bytes state = 2;
+	repeated Input inputs = 3;
+}
+
+message ClientMessage {
+	double timestamp = 1;
+	repeated QInput inputs = 2;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Start data                                                                 */
+/* -------------------------------------------------------------------------- */
+
+message StartData {
+	int32 color = 1;           // preferred color (index into the palette)
+}
+
+message StartPlayerInfo {
+	string name = 1;
+	int32 color = 2;
+}
+
+message StartDataClient {
+	uint32 seed = 1;           // the level is generated from it
+	repeated StartPlayerInfo players = 2;
+}

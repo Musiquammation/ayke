@@ -19,6 +19,7 @@
     "@capacitor/screen-orientation": "^8.0.1",
     "@capacitor/status-bar": "^8.0.3",
     "@dimforge/rapier2d-compat": "^0.21.0",
+    "@dimforge/rapier3d-compat": "^0.21.0",
     "@types/three": "^0.187.0",
     "alpinejs": "^3.16.2",
     "marked": "^18.0.13",
