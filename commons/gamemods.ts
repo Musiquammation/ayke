@@ -36,6 +36,8 @@ import collectibles_test from "./collectibles/collectibles_test";
 import collectibles_airbasket from "./collectibles/collectibles_airbasket";
 import { GMHunt } from "./gamemods/GMHunt";
 import bots_hunt from "./bots/bots-hunt";
+import { GMTrustIssues } from "./gamemods/GMTrustIssues";
+import bots_trustIssues from "./bots/bots-trustIssues";
 
 
 interface Player {
@@ -212,6 +214,25 @@ export const gamemods: Record<
 		iconExtension: 'png',
 		defaultPlayerCount: 6,
 		nodes: bots_hunt
+	},
+
+	trustIssues: {
+		type: 'multiplayer',
+		server: GMTrustIssues.createServ,
+		client: GMTrustIssues.createClient,
+		dom: GMTrustIssues.generateClientDom,
+		textures: GMTrustIssues.TEXTURES,
+		name: "Trust Issues",
+		description: "Reach the 5 floating zones through invisible platforms. Press E to explode and paint them!",
+		tropheesPerPlayer: 10,
+		explainationSlides: null,
+		computerOnly: true,
+		skins: [],
+		collectibles: null,
+		tropheeRoalPixelsPerTrophy: 3.5,
+		iconExtension: 'svg',
+		defaultPlayerCount: 4,
+		nodes: bots_trustIssues
 	},
 
 	crayzoll: {
