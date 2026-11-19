@@ -1,0 +1,60 @@
+<div x-data="data">
+	<style>
+		.trustIssues-panel__title {
+			margin: 0 0 1vh 0;
+		}
+
+		.trustIssues-panel__colors {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.8vh;
+		}
+
+		.trustIssues-panel__color {
+			width: 4.5vh;
+			height: 4.5vh;
+			border: 0.4vh solid transparent;
+			border-radius: 50%;
+			cursor: pointer;
+		}
+
+		.trustIssues-panel__color.selected {
+			border-color: white;
+			box-shadow: 0 0 0 0.3vh #3b82f6;
+		}
+
+		.trustIssues-panel__status {
+			margin-top: 1vh;
+			opacity: 0.8;
+		}
+
+		.trustIssues-panel__controls {
+			margin-top: 1.5vh;
+			font-size: 0.9em;
+			opacity: 0.75;
+			line-height: 1.5;
+		}
+	</style>
+
+	<p class="trustIssues-panel__title">Your paint color</p>
+	<div class="trustIssues-panel__colors">
+		<template x-for="(c, index) in COLORS" :key="c">
+			<button
+				type="button"
+				class="trustIssues-panel__color"
+				:class="{ selected: color === index }"
+				:style="{ background: c }"
+				:aria-label="COLOR_NAMES[index]"
+				@pointerup="color = index"
+			></button>
+		</template>
+	</div>
+	<p class="trustIssues-panel__status" x-text="'Selected: ' + COLOR_NAMES[color]"></p>
+
+	<div class="trustIssues-panel__controls">
+		<div>Click on the game to capture the mouse · Mouse: look around</div>
+		<div>ZQSD: move · Space: jump (tap: small hop, hold: full jump)</div>
+		<div>E: explode, paint the invisible platforms around you and respawn</div>
+		<div>Zones: 10 / 5 / 2 points for the first three players · 7 minutes</div>
+	</div>
+</div>
