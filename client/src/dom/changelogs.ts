@@ -8,6 +8,16 @@ interface Changelog {
 
 export const CHANGELOGS: Changelog[] = [
 	{
+		version: "1.5.9",
+		date: 1795104000000, // Thu. 19 nov 2026 at 5:00 PM
+		title: "Trust Issues",
+		lines: [
+			"<ust>New gamemode:</ust> trust issues, reach the 5 floating zones by walking on invisible platforms (computer only)",
+			"<ust>Trust Issues:</ust> press *E* to explode and paint the platforms around you, for you and everybody else",
+			"<ust>Trust Issues:</ust> 10 / 5 / 2 points for the first three players on each zone, branches leading nowhere, bots and a tutorial",
+		]
+	},
+	{
 		version: "1.5.8",
 		date: 1794931200000, // Tue. 17 nov 2026 at 5:00 PM
 		title: "New Rally levels",
